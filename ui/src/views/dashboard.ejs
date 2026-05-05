@@ -1,0 +1,332 @@
+<%- include('partials/header') %>
+
+<div class="dashboard-container container">
+    <header class="dashboard-header">
+        <h1>Management Dashboard</h1>
+        <button id="logoutBtn" class="btn-secondary">Logout</button>
+    </header>
+
+    <div class="grid">
+        <!-- Provision Tenant Section -->
+        <section class="glass-card">
+            <h3>Provision New Tenant</h3>
+            <p class="muted">Isolated PostgreSQL schema allocation.</p>
+            <form id="tenantForm">
+                <div class="form-group">
+                    <input type="text" id="tenantName" placeholder="Tenant Name (e.g. AcmeCorp)" required>
+                </div>
+                <button type="submit" class="btn-primary">Allocate Resources</button>
+            </form>
+            <div id="tenantStatus" class="status"></div>
+        </section>
+
+        <!-- Connection Manager Section -->
+        <section class="glass-card">
+            <h3>Virtual Data Sources</h3>
+            <p class="muted">Connect SQL and NoSQL sources via FDW.</p>
+            <form id="connectionForm">
+                <div class="form-group">
+                    <input type="text" id="serverName" placeholder="Source Name (e.g. MyStoreDB)" required>
+                </div>
+                <div class="form-group">
+                    <input type="text" id="host" placeholder="Host IP / URL" required>
+                </div>
+                <div class="form-group">
+                    <input type="number" id="port" value="5432" required>
+                </div>
+                <div class="form-group">
+                    <input type="text" id="dbname" placeholder="Database Name" required>
+                </div>
+                <div class="form-group">
+                    <input type="text" id="remoteUser" placeholder="Remote Username" required>
+                </div>
+                <div class="form-group">
+                    <input type="password" id="remotePassword" placeholder="Remote Password" required>
+                </div>
+                <div class="form-group">
+                    <select id="syncType" class="form-select">
+                        <option value="VIRTUAL">Virtualization (Zero-ETL)</option>
+                        <option value="CDC">Real-time CDC Sync (Physical)</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary">Establish Link</button>
+            </form>
+            <div id="connectionStatus" class="status"></div>
+        </section>
+    </div>
+
+    <div class="grid">
+        <section class="glass-card">
+            <h3>Real-Time Event Stream</h3>
+            <p class="muted">Live CDC and fabric events (via Kafka & WebSockets).</p>
+            <div id="eventLog" class="event-log">
+                <div class="event-placeholder">Waiting for events...</div>
+            </div>
+        </section>
+
+        <section class="glass-card">
+            <h3>Data Discovery Catalog</h3>
+            <p class="muted">Explore active metadata and dictionary entries.</p>
+            <div id="metadataCatalog" class="metadata-catalog">
+                <!-- Metadata items will load here -->
+            </div>
+        </section>
+    </div>
+
+    <div class="grid">
+        <section class="glass-card">
+            <h3>Active Tenants</h3>
+            <p class="muted">Manage isolated business units.</p>
+            <table id="tenantsTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="tenantsBody">
+                    <!-- Tenants will load here -->
+                </tbody>
+            </table>
+        </section>
+
+        <section class="glass-card">
+            <h3>Active Connections</h3>
+            <p class="muted">Virtualized and Physical data streams.</p>
+            <table id="connectionsTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Sync</th>
+                        <th>Host</th>
+                        <th>Health</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="connectionsBody">
+                    <!-- Connections will load here -->
+                </tbody>
+            </table>
+        </section>
+    </div>
+</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/login';
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+    });
+
+    // Socket.io Real-time Setup
+    const socket = io('http://localhost:4000');
+    socket.emit('join-tenant', 'tenant_1'); 
+
+    const eventLog = document.getElementById('eventLog');
+    socket.on('fabric-event', (event) => {
+        const placeholder = eventLog.querySelector('.event-placeholder');
+        if (placeholder) placeholder.remove();
+
+        const entry = document.createElement('div');
+        entry.className = 'event-entry';
+        entry.innerHTML = `
+            <span class="timestamp">${new Date().toLocaleTimeString()}</span>
+            <span class="action">${event.action || 'SYNC'}</span>
+            <span class="table">${event.table || event.source}</span>
+        `;
+        eventLog.prepend(entry);
+        if (eventLog.children.length > 10) eventLog.lastChild.remove();
+    });
+
+    // Provision Tenant
+    document.getElementById('tenantForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const tenantName = document.getElementById('tenantName').value;
+        const tenantId = tenantName.toLowerCase().replace(/ /g, '_');
+        const statusEl = document.getElementById('tenantStatus');
+        
+        try {
+            const response = await fetch('http://localhost:4000/api/admin/tenants', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ id: tenantId, name: tenantName })
+            });
+            const data = await response.json();
+            statusEl.innerText = response.ok ? `Tenant ${data.id} allocated.` : data.error;
+            statusEl.style.color = response.ok ? '#10b981' : '#ef4444';
+        } catch (err) {
+            statusEl.innerText = 'Error connecting to API';
+        }
+    });
+
+    // Establish Connection
+    document.getElementById('connectionForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const statusEl = document.getElementById('connectionStatus');
+        const payload = {
+            tenantId: 'tenant_1',
+            name: document.getElementById('serverName').value,
+            config: {
+                host: document.getElementById('host').value,
+                port: parseInt(document.getElementById('port').value),
+                dbName: document.getElementById('dbname').value,
+                user: document.getElementById('remoteUser').value,
+                pass: document.getElementById('remotePassword').value,
+                syncType: document.getElementById('syncType').value
+            }
+        };
+
+        try {
+            const response = await fetch('http://localhost:4000/api/admin/connections', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            statusEl.innerText = response.ok ? 'Connection established and metadata crawled.' : data.error;
+            statusEl.style.color = response.ok ? '#10b981' : '#ef4444';
+            if (response.ok) {
+                setTimeout(() => {
+                    loadConnections();
+                    loadMetadata();
+                }, 2000);
+            }
+        } catch (err) {
+            statusEl.innerText = 'Error connecting to API';
+        }
+    });
+
+    // Load Connections via PostgREST
+    async function loadConnections() {
+        const body = document.getElementById('connectionsBody');
+        try {
+            const response = await fetch('http://localhost:3000/data_sources', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            body.innerHTML = data.map(src => `
+                <tr>
+                    <td>${src.name}</td>
+                    <td><span class="badge-sync">${src.config.sync || 'VIRTUAL'}</span></td>
+                    <td>${src.config.host}</td>
+                    <td><span class="dot-online"></span> Healthy</td>
+                    <td><button onclick="removeConnection('${src.id}')" class="btn-danger-sm">Remove</button></td>
+                </tr>
+            `).join('');
+        } catch (err) {
+            body.innerHTML = '<tr><td colspan="5">Error loading data sources</td></tr>';
+        }
+    }
+
+    async function loadTenants() {
+        const body = document.getElementById('tenantsBody');
+        try {
+            const response = await fetch('http://localhost:3000/tenants', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            body.innerHTML = data.map(t => `
+                <tr>
+                    <td>${t.id}</td>
+                    <td>${t.name}</td>
+                    <td><span class="badge">${t.status}</span></td>
+                    <td><button onclick="removeTenant('${t.id}')" class="btn-danger-sm">Delete</button></td>
+                </tr>
+            `).join('');
+        } catch (err) {
+            body.innerHTML = '<tr><td colspan="4">Error loading tenants</td></tr>';
+        }
+    }
+
+    async function removeTenant(id) {
+        if (!confirm(`Are you sure you want to delete tenant ${id}? This will drop ALL virtualized data.`)) return;
+        try {
+            await fetch(`http://localhost:4000/api/admin/tenants/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            loadTenants();
+            loadConnections();
+        } catch (err) {
+            alert('Failed to delete tenant');
+        }
+    }
+
+    async function removeConnection(id) {
+        if (!confirm('Are you sure you want to remove this virtual source?')) return;
+        try {
+            await fetch(`http://localhost:4000/api/admin/connections/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            loadConnections();
+        } catch (err) {
+            alert('Failed to remove connection');
+        }
+    }
+
+    // Load Metadata Catalog
+    async function loadMetadata() {
+        const catalogEl = document.getElementById('metadataCatalog');
+        try {
+            const response = await fetch('http://localhost:3000/metadata', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            catalogEl.innerHTML = data.map(item => `
+                <div class="metadata-item">
+                    <strong>${item.table_name}.${item.column_name}</strong>
+                    <span>${item.data_type}</span>
+                </div>
+            `).join('');
+            if (data.length === 0) catalogEl.innerHTML = '<p class="muted">No metadata available</p>';
+        } catch (err) {
+            catalogEl.innerHTML = '<p class="muted">Connect a source to see metadata</p>';
+        }
+    }
+
+    loadTenants();
+    loadConnections();
+    loadMetadata();
+</script>
+
+<style>
+    .dashboard-container { padding: 4rem 0; }
+    .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem; }
+    .full-width { grid-column: span 2; }
+    .glass-card { background: var(--surface); padding: 2rem; border-radius: 16px; border: 1px solid var(--border); }
+    .glass-card h3 { margin-bottom: 1rem; }
+    .muted { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .status { margin-top: 1rem; font-weight: 600; font-size: 0.9rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; }
+    th { text-align: left; padding: 1rem; border-bottom: 1px solid var(--border); color: var(--text-muted); }
+    td { padding: 1rem; border-bottom: 1px solid var(--border); }
+    .badge { background: var(--primary); padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.8rem; }
+    .badge-sync { background: #3b82f6; color: white; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
+    .dot-online { display: inline-block; width: 10px; height: 10px; background: #10b981; border-radius: 50%; margin-right: 5px; }
+    .event-log { background: var(--bg); border-radius: 8px; padding: 1rem; height: 200px; overflow-y: auto; border: 1px solid var(--border); }
+    .event-entry { font-family: monospace; font-size: 0.8rem; padding: 0.4rem; border-bottom: 1px solid var(--border); display: flex; gap: 1rem; }
+    .event-entry .timestamp { color: var(--text-muted); }
+    .event-entry .action { color: var(--primary); font-weight: 600; }
+    .metadata-catalog { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+    .form-group { margin-bottom: 1rem; }
+    input, .form-select { width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+    .btn-primary { background: var(--primary); color: white; border: none; padding: 0.8rem 1.5rem; border-radius: 8px; cursor: pointer; width: 100%; font-weight: 600; }
+    .metadata-item { background: var(--bg); padding: 0.8rem; border-radius: 6px; border: 1px solid var(--border); font-size: 0.8rem; display: flex; justify-content: space-between; align-items: center; }
+    .btn-danger-sm { background: #ef4444; color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer; transition: opacity 0.2s; }
+    .btn-danger-sm:hover { opacity: 0.8; }
+</style>
+
+<%- include('partials/footer') %>

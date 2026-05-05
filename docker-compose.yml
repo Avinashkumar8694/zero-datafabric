@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # Master Coordinator Node
+  db:
+    image: citusdata/citus:latest
+    container_name: datafabric-hub
+    environment:
+      POSTGRES_USER: fabric_admin
+      POSTGRES_PASSWORD: super_secret_password
+      POSTGRES_DB: datafabric
+    ports:
+      - "5434:5432"
+    # volumes:
+    #   - pgdata:/var/lib/postgresql/data
+    #   - ./db/init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+
+  # Redis for Event Queues and Caching
+  redis:
+    image: redis:7-alpine
+    container_name: datafabric-redis
+    ports:
+      - "6379:6379"
+
+  # PostgREST for instant Data API
+  postgrest:
+    image: postgrest/postgrest:v12.0.0
+    container_name: datafabric-postgrest
+    ports:
+      - "3000:3000"
+    environment:
+      PGRST_DB_URI: postgres://authenticator:super_secret_password@db:5432/datafabric
+      PGRST_DB_SCHEMA: public
+      PGRST_DB_ANON_ROLE: web_anon
+      PGRST_JWT_SECRET: "reallyreallyreallyreallyverysecret"
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  # Kafka Stack for CDC
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: datafabric-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: datafabric-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+volumes:
+  pgdata:

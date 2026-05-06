@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { QueryEngineService, QueryConfig } from './query-engine.service';
-import crypto from 'crypto';
+const { randomUUID } = require('crypto');
 
 /**
  * @swagger
@@ -57,7 +57,8 @@ export class QueryEngineController {
    */
   static async refreshView(req: Request, res: Response) {
     try {
-      const { tenantId, viewName, concurrent = true } = req.body;
+      const { viewName, concurrent = true } = req.body;
+      const tenantId = (req as any).user?.tenant_id || req.body.tenantId;
 
       if (!tenantId || !viewName) {
         return res.status(400).json({ error: 'tenantId and viewName are required' });
@@ -67,7 +68,7 @@ export class QueryEngineController {
         console.error(`Background refresh failed for ${viewName}:`, err);
       });
 
-      const jobId = crypto.randomUUID();
+      const jobId = randomUUID();
 
       return res.status(202).json({
         status: "accepted",
@@ -133,7 +134,9 @@ export class QueryEngineController {
    */
   static async executeQuery(req: Request, res: Response) {
     try {
-      const { tenantId, queryConfig } = req.body;
+      const { queryConfig } = req.body;
+      // Industrial Hardening: Prioritize identity from session context (Identity Proxy)
+      const tenantId = (req as any).user?.tenant_id || req.body.tenantId;
       
       if (!tenantId || !queryConfig) {
         return res.status(400).json({ error: 'tenantId and queryConfig are required' });
@@ -186,7 +189,8 @@ export class QueryEngineController {
    */
   static async executeAsyncQuery(req: Request, res: Response) {
     try {
-      const { tenantId, queryConfig } = req.body;
+      const { queryConfig } = req.body;
+      const tenantId = (req as any).user?.tenant_id || req.body.tenantId;
       
       if (!tenantId || !queryConfig) {
         return res.status(400).json({ error: 'tenantId and queryConfig are required' });

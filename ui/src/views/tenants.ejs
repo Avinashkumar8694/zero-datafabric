@@ -1,0 +1,124 @@
+<%- include('partials/header') %>
+
+<div class="fade-in">
+    <div class="grid" style="grid-template-columns: 1fr 2fr;">
+        <!-- Provisioning Form -->
+        <section class="glass-card">
+            <h3>Provision New Tenant</h3>
+            <p class="text-muted" style="margin-bottom: 1.5rem;">Create a fresh isolated schema namespace.</p>
+            <form id="tenantForm">
+                <div style="margin-bottom: 1rem;">
+                    <input type="text" id="tenantId" placeholder="Tenant ID (e.g. Acme_Corp)" required style="width:100%; padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text);">
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <input type="text" id="tenantName" placeholder="Display Name" required style="width:100%; padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text);">
+                </div>
+                <button type="submit" class="btn-primary" style="width:100%">Deploy Namespace</button>
+            </form>
+            <div id="tenantStatus" style="margin-top: 1rem;"></div>
+        </section>
+
+        <!-- Active Tenants Table -->
+        <section class="glass-card">
+            <h3>Namespace Directory</h3>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tenantsBody">
+                        <tr><td colspan="4">Loading namespaces...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</div>
+
+<script>
+    async function loadTenants() {
+        const body = document.getElementById('tenantsBody');
+        try {
+            const response = await fetch(`${API_BASE}/admin/tenants`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            
+            if (!response.ok) {
+                body.innerHTML = `<tr><td colspan="4" style="color: var(--danger)">Error: ${data.error || 'Failed to load namespaces'}</td></tr>`;
+                return;
+            }
+
+            if (!Array.isArray(data)) {
+                body.innerHTML = `<tr><td colspan="4" style="color: var(--danger)">Error: Invalid data format received</td></tr>`;
+                return;
+            }
+
+            body.innerHTML = data.map(t => `
+                <tr class="fade-in">
+                    <td><code>${t.id}</code></td>
+                    <td><strong>${t.name}</strong></td>
+                    <td><span class="dot-online" style="background: ${t.status === 'ACTIVE' ? 'var(--success)' : 'var(--warning)'}"></span> ${t.status}</td>
+                    <td>
+                        <button onclick="updateTenantStatus('${t.id}', '${t.name}', '${t.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE'}')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
+                            ${t.status === 'ACTIVE' ? 'Suspend' : 'Resume'}
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (err) {
+            console.error('Fetch Error:', err);
+            body.innerHTML = '<tr><td colspan="4" style="color: var(--danger)">Connection Error: Orchestrator Offline</td></tr>';
+        }
+    }
+
+    async function updateTenantStatus(id, name, status) {
+        try {
+            await fetch(`${API_BASE}/admin/tenants/${id}`, {
+                method: 'PUT',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ name, status })
+            });
+            loadTenants();
+        } catch (e) {}
+    }
+
+    document.getElementById('tenantForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('tenantId').value;
+        const name = document.getElementById('tenantName').value;
+        const statusEl = document.getElementById('tenantStatus');
+
+        try {
+            const response = await fetch(`${API_BASE}/admin/tenants`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ id, name })
+            });
+            const data = await response.json();
+            statusEl.innerText = response.ok ? `Tenant ${id} provisioned successfully.` : (data.error || 'Provisioning failed');
+            statusEl.style.color = response.ok ? 'var(--success)' : 'var(--danger)';
+            if (response.ok) {
+                document.getElementById('tenantForm').reset();
+                loadTenants();
+            }
+        } catch (err) {
+            statusEl.innerText = 'API Connection Error';
+        }
+    });
+
+    loadTenants();
+</script>
+
+<%- include('partials/footer') %>

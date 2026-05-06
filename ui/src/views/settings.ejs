@@ -1,0 +1,42 @@
+<%- include('partials/header') %>
+
+<div class="fade-in">
+    <div class="grid">
+        <section class="glass-card">
+            <h3>Infrastructure Configuration</h3>
+            <p class="text-muted" style="margin-bottom: 2rem;">Global fabric orchestration parameters.</p>
+            
+            <div class="form-group">
+                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">Orchestrator URL</label>
+                <input type="text" value="http://127.0.0.1:4000" class="context-select" style="width: 100%; opacity: 0.7;" disabled>
+            </div>
+            
+            <div class="form-group">
+                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">PostgREST Gateway</label>
+                <input type="text" value="http://localhost:3000" class="context-select" style="width: 100%; opacity: 0.7;" disabled>
+            </div>
+
+            <div class="form-group">
+                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">Environment Mode</label>
+                <span class="badge-sync" style="background: var(--warning)">INDUSTRIAL PROTOTYPE</span>
+            </div>
+        </section>
+
+        <section class="glass-card">
+            <h3>Advanced Settings</h3>
+            <p class="text-muted" style="margin-bottom: 2rem;">Experimental and tuning options.</p>
+            
+            <label class="nav-item" style="cursor: pointer; border: 1px solid var(--border);">
+                <input type="checkbox" checked disabled>
+                <span>Enable Row-Level Security Enforcement</span>
+            </label>
+
+            <label class="nav-item" style="cursor: pointer; border: 1px solid var(--border); margin-top: 1rem;">
+                <input type="checkbox" checked disabled>
+                <span>Enable Real-Time Audit Triggers</span>
+            </label>
+        </section>
+    </div>
+</div>
+
+<%- include('partials/footer') %>

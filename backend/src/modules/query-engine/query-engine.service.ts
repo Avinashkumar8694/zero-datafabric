@@ -1,5 +1,6 @@
 import { pool } from '../../config/database';
 import { EventService } from '../events/event.service';
+const { randomUUID } = require('crypto');
 
 export interface QueryConfig {
   type: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 
@@ -275,13 +276,41 @@ export class QueryEngineService {
    * Generates a jobId, runs the query in the background, and returns the jobId immediately.
    */
   static executeAsyncQuery(tenantId: string, queryConfig: QueryConfig): string {
-    const jobId = crypto.randomUUID();
+    const jobId = randomUUID();
     
     // Initialize job in the store
     QueryEngineService.jobs.set(jobId, { status: 'PENDING', createdAt: new Date() });
 
     // Execute in background
     QueryEngineService.executeQuery(tenantId, queryConfig)
+      .then(result => {
+        QueryEngineService.jobs.set(jobId, { status: 'COMPLETED', result, createdAt: new Date() });
+      })
+      .catch(error => {
+        QueryEngineService.jobs.set(jobId, { status: 'FAILED', error: error.message, createdAt: new Date() });
+      });
+
+    return jobId;
+  }
+
+  /**
+   * Executes a raw SQL query with tenant context propagation (RLS Enforcement).
+   */
+  static async executeRawSql(tenantId: string, username: string, sql: string) {
+    const { queryWithContext } = require('../../config/database');
+    const { rows } = await queryWithContext(sql, [], { tenantId, username });
+    return rows;
+  }
+
+  /**
+   * Asynchronous Raw SQL Execution
+   */
+  static executeAsyncRawSql(tenantId: string, username: string, sql: string): string {
+    const jobId = randomUUID();
+    
+    QueryEngineService.jobs.set(jobId, { status: 'PENDING', createdAt: new Date() });
+
+    QueryEngineService.executeRawSql(tenantId, username, sql)
       .then(result => {
         QueryEngineService.jobs.set(jobId, { status: 'COMPLETED', result, createdAt: new Date() });
       })

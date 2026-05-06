@@ -1,0 +1,151 @@
+<%- include('partials/header') %>
+
+<div class="fade-in">
+    <div class="grid" style="grid-template-columns: 1fr 2fr;">
+        <!-- User Creation -->
+        <section class="glass-card">
+            <h3 id="formTitle">Provision New Identity</h3>
+            <p class="text-muted" style="margin-bottom: 1.5rem;">Grant access to specific tenant zones.</p>
+            <form id="iamForm">
+                <input type="hidden" id="editUserId">
+                <div class="form-group"><input type="text" id="iamUsername" placeholder="Username" required class="context-select" style="width:100%"></div>
+                <div class="form-group"><input type="password" id="iamPassword" placeholder="Password" class="context-select" style="width:100%"></div>
+                <div class="form-group">
+                    <select id="iamTenantId" class="context-select" required style="width:100%"></select>
+                </div>
+                <div class="form-group">
+                    <select id="iamRole" class="context-select" style="width:100%">
+                        <option value="USER">Standard User</option>
+                        <option value="ADMIN">Administrator</option>
+                    </select>
+                </div>
+                <button type="submit" id="submitBtn" class="btn-primary" style="width:100%">Create Identity</button>
+                <button type="button" id="cancelBtn" class="btn-outline" style="width:100%; margin-top: 0.5rem; display: none;">Cancel Edit</button>
+            </form>
+            <div id="iamStatus" style="margin-top: 1rem;"></div>
+        </section>
+
+        <!-- Identity Directory -->
+        <section class="glass-card">
+            <h3>Active Identity Directory</h3>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Tenant</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="iamBody">
+                        <tr><td colspan="5">Loading directory...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</div>
+
+<script>
+    async function loadTenants() {
+        const select = document.getElementById('iamTenantId');
+        try {
+            const response = await fetch(`${API_BASE}/admin/tenants`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            select.innerHTML = '<option value="">Assign Tenant...</option>' + 
+                data.map(t => `<option value="${t.id}">${t.id}</option>`).join('');
+        } catch (err) {}
+    }
+
+    async function loadUsers() {
+        const body = document.getElementById('iamBody');
+        try {
+            const response = await fetch(`${API_BASE}/admin/users`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            body.innerHTML = data.map(u => `
+                <tr class="fade-in">
+                    <td><strong>${u.username}</strong></td>
+                    <td><span class="badge-sync">${u.tenant_id}</span></td>
+                    <td>${u.role}</td>
+                    <td><span class="dot-online"></span> ${u.status}</td>
+                    <td style="display: flex; gap: 0.5rem;">
+                        <button onclick="editUser('${u.id}', '${u.username}', '${u.tenant_id}', '${u.role}')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">Edit</button>
+                        <button onclick="deleteUser('${u.id}')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; color: var(--danger);">Revoke</button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (err) {
+            body.innerHTML = '<tr><td colspan="5">Unauthorized access</td></tr>';
+        }
+    }
+
+    function editUser(id, username, tenantId, role) {
+        document.getElementById('editUserId').value = id;
+        document.getElementById('iamUsername').value = username;
+        document.getElementById('iamTenantId').value = tenantId;
+        document.getElementById('iamRole').value = role;
+        document.getElementById('iamPassword').placeholder = 'Leave blank to keep current';
+        document.getElementById('submitBtn').innerText = 'Update Identity';
+        document.getElementById('cancelBtn').style.display = 'block';
+        document.getElementById('formTitle').innerText = 'Update Identity';
+    }
+
+    document.getElementById('cancelBtn').addEventListener('click', () => {
+        document.getElementById('iamForm').reset();
+        document.getElementById('editUserId').value = '';
+        document.getElementById('submitBtn').innerText = 'Create Identity';
+        document.getElementById('cancelBtn').style.display = 'none';
+        document.getElementById('formTitle').innerText = 'Provision New Identity';
+    });
+
+    async function deleteUser(id) {
+        if (!confirm('Are you sure you want to revoke this identity?')) return;
+        try {
+            await fetch(`${API_BASE}/admin/users/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            loadUsers();
+        } catch (e) {}
+    }
+
+    document.getElementById('iamForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('editUserId').value;
+        const payload = {
+            username: document.getElementById('iamUsername').value,
+            password: document.getElementById('iamPassword').value,
+            tenantId: document.getElementById('iamTenantId').value,
+            role: document.getElementById('iamRole').value
+        };
+
+        const method = id ? 'PUT' : 'POST';
+        const url = id ? `${API_BASE}/admin/users/${id}` : `${API_BASE}/admin/users`;
+
+        try {
+            const res = await fetch(url, {
+                method,
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                document.getElementById('cancelBtn').click();
+                loadUsers();
+            }
+        } catch (err) {}
+    });
+
+    loadTenants();
+    loadUsers();
+</script>
+
+<%- include('partials/footer') %>

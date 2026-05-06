@@ -24,8 +24,35 @@ app.get('/login', (req, res) => {
 });
 
 app.get('/dashboard', (req, res) => {
-  // In a real app, check session/cookie here
   res.render('dashboard', { title: 'Zero Data Fabric - Dashboard' });
+});
+
+app.get('/tenants', (req, res) => {
+  res.render('tenants', { title: 'Zero Data Fabric - Tenants' });
+});
+
+app.get('/connections', (req, res) => {
+  res.render('connections', { title: 'Zero Data Fabric - Connections' });
+});
+
+app.get('/workbench', (req, res) => {
+  res.render('workbench', { title: 'Zero Data Fabric - Workbench' });
+});
+
+app.get('/iam', (req, res) => {
+  res.render('iam', { title: 'Zero Data Fabric - IAM' });
+});
+
+app.get('/audit', (req, res) => {
+  res.render('audit', { title: 'Zero Data Fabric - Audit Logs' });
+});
+
+app.get('/catalog', (req, res) => {
+  res.render('catalog', { title: 'Zero Data Fabric - Discovery Catalog' });
+});
+
+app.get('/settings', (req, res) => {
+  res.render('settings', { title: 'Zero Data Fabric - Settings' });
 });
 
 app.listen(PORT, () => {

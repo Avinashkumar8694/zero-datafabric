@@ -4,15 +4,89 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><%= title %></title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <script>
+        // Global Industrial API Orchestration
+        const API_BASE = `http://${window.location.hostname}:4000/api`;
+        const token = localStorage.getItem('token');
+        if (!token && !window.location.pathname.includes('/login')) {
+            window.location.href = '/login';
+        }
+    </script>
 </head>
-<body>
-    <nav class="navbar">
-        <div class="container">
-            <a href="/" class="logo">Zero<span>DataFabric</span></a>
-            <div class="nav-links">
-                <a href="/login" class="btn-secondary">Login</a>
+<body class="dark-theme <%= title.includes('Login') ? 'login-page' : '' %>">
+    <div class="app-layout">
+        <% if (!title.includes('Login')) { %>
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon"></div>
+                    <span>Data Fabric</span>
+                </div>
             </div>
-        </div>
-    </nav>
+            <nav class="sidebar-nav">
+                <a href="/dashboard" class="nav-item" id="nav-dashboard">
+                    <span class="icon">📊</span> Overview
+                </a>
+                <a href="/tenants" class="nav-item" id="nav-tenants">
+                    <span class="icon">🏢</span> Tenants
+                </a>
+                <a href="/connections" class="nav-item" id="nav-connections">
+                    <span class="icon">🔗</span> Connections
+                </a>
+                <a href="/workbench" class="nav-item" id="nav-workbench">
+                    <span class="icon">💻</span> Workbench
+                </a>
+                <a href="/catalog" class="nav-item" id="nav-catalog">
+                    <span class="icon">🔎</span> Discovery
+                </a>
+                <a href="/iam" class="nav-item" id="nav-iam">
+                    <span class="icon">🛡️</span> IAM
+                </a>
+                <a href="/audit" class="nav-item" id="nav-audit">
+                    <span class="icon">📜</span> Audit Logs
+                </a>
+                <div class="nav-spacer"></div>
+                <a href="/settings" class="nav-item" id="nav-settings">
+                    <span class="icon">⚙️</span> Settings
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-profile">
+                    <div class="avatar" id="userAvatar">A</div>
+                    <div class="user-info">
+                        <span class="username" id="displayUsername">Admin</span>
+                        <span class="tenant" id="displayTenant">tenant_A</span>
+                    </div>
+                </div>
+                <button id="logoutBtn" class="logout-btn">Log Out</button>
+            </div>
+        </aside>
+        <% } %>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <% if (!title.includes('Login')) { %>
+            <header class="top-bar">
+                <div class="top-bar-left">
+                    <h2 id="pageTitle"><%= title.split(' - ')[1] %></h2>
+                </div>
+                <div class="top-bar-right">
+                    <div class="identity-context">
+                        <label>Identity context:</label>
+                        <select id="tenantSwitcher" class="context-select">
+                            <option value="tenant_A">Tenant A (Admin)</option>
+                            <option value="tenant_B">Tenant B (Ops)</option>
+                        </select>
+                    </div>
+                    <div class="status-indicator">
+                        <span class="dot-online"></span> Secure Session
+                    </div>
+                </div>
+            </header>
+            <% } %>
+            <div class="content-wrapper">

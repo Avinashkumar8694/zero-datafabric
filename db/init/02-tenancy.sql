@@ -42,10 +42,26 @@ BEGIN
                     OPTIONS (user %L, password %L)', 
                     v_server_name, p_user, p_pass);
     
-    -- Import remote schema into tenant namespace
-    EXECUTE format('IMPORT FOREIGN SCHEMA public FROM SERVER %I INTO %I', 
+    -- Import remote schema into tenant namespace (Excluding system and core fabric tables)
+    EXECUTE format('IMPORT FOREIGN SCHEMA public EXCEPT (citus_schemas, citus_tables, pg_stat_statements, pg_stat_statements_info, data_sources, tenants, audit_logs, users) FROM SERVER %I INTO %I', 
                     v_server_name, v_schema_name);
 
     RAISE NOTICE 'Successfully integrated remote source % for tenant %', p_source_name, p_tenant_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Foreign Data Wrapper Removal Function
+CREATE OR REPLACE FUNCTION fabric_admin.remove_remote_source(
+    p_tenant_id TEXT,
+    p_source_name TEXT
+) RETURNS VOID AS $$
+DECLARE
+    v_server_name TEXT := 'server_' || p_tenant_id || '_' || p_source_name;
+    v_schema_name TEXT := 'tenant_' || p_tenant_id;
+BEGIN
+    -- 1. Drop Foreign Server (Cascades to User Mappings and Foreign Tables)
+    EXECUTE format('DROP SERVER IF EXISTS %I CASCADE', v_server_name);
+    
+    RAISE NOTICE 'Successfully removed remote source % for tenant %', p_source_name, p_tenant_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

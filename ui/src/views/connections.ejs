@@ -1,0 +1,116 @@
+<%- include('partials/header') %>
+
+<div class="fade-in">
+    <div class="grid" style="grid-template-columns: 1fr 2fr;">
+        <!-- Connection Form -->
+        <section class="glass-card">
+            <h3>Register Remote Source</h3>
+            <p class="text-muted" style="margin-bottom: 1.5rem;">Virtualize external PostgreSQL databases into the fabric.</p>
+            <form id="connectionForm">
+                <div class="form-group"><input type="text" id="connName" placeholder="Source Name" required class="context-select" style="width:100%"></div>
+                <div class="form-group"><input type="text" id="connHost" placeholder="Host (e.g. 127.0.0.1)" required class="context-select" style="width:100%"></div>
+                <div class="form-group"><input type="number" id="connPort" value="5432" class="context-select" style="width:100%"></div>
+                <div class="form-group"><input type="text" id="connDB" placeholder="Database Name" required class="context-select" style="width:100%"></div>
+                <div class="form-group"><input type="text" id="connUser" placeholder="Username" required class="context-select" style="width:100%"></div>
+                <div class="form-group"><input type="password" id="connPass" placeholder="Password" required class="context-select" style="width:100%"></div>
+                <button type="submit" class="btn-primary" style="width:100%">Virtualize Source</button>
+            </form>
+            <div id="connStatus" style="margin-top: 1rem;"></div>
+        </section>
+
+        <!-- Active Connections Table -->
+        <section class="glass-card">
+            <h3>Virtualized Servers</h3>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Host</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="connectionsBody">
+                        <tr><td colspan="4">Loading connections...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</div>
+
+<script>
+    async function loadConnections() {
+        const body = document.getElementById('connectionsBody');
+        try {
+            const response = await fetch(`${API_BASE}/admin/connections`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            body.innerHTML = data.map(c => `
+                <tr class="fade-in">
+                    <td><strong>${c.name}</strong></td>
+                    <td><code>${c.config.host}</code></td>
+                    <td><span class="badge-sync">${c.status}</span></td>
+                    <td>
+                        <button onclick="removeConnection('${c.id}')" class="btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; color: var(--danger);">Disconnect</button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (err) {
+            body.innerHTML = '<tr><td colspan="4">Failed to load connections</td></tr>';
+        }
+    }
+
+    async function removeConnection(id) {
+        if (!confirm('Are you sure you want to disconnect this source? All virtual tables will be removed.')) return;
+        try {
+            const res = await fetch(`${API_BASE}/admin/connections/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) loadConnections();
+        } catch (e) { alert('Removal failed'); }
+    }
+
+    document.getElementById('connectionForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+            name: document.getElementById('connName').value,
+            config: {
+                host: document.getElementById('connHost').value,
+                port: parseInt(document.getElementById('connPort').value),
+                dbName: document.getElementById('connDB').value,
+                user: document.getElementById('connUser').value,
+                pass: document.getElementById('connPass').value,
+                syncType: 'VIRTUAL'
+            }
+        };
+
+        const statusEl = document.getElementById('connStatus');
+        try {
+            const response = await fetch(`${API_BASE}/admin/connections`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            statusEl.innerText = response.ok ? `Source integrated successfully.` : (data.error || 'Integration failed');
+            statusEl.style.color = response.ok ? 'var(--success)' : 'var(--danger)';
+            if (response.ok) {
+                document.getElementById('connectionForm').reset();
+                loadConnections();
+            }
+        } catch (err) {
+            statusEl.innerText = 'API Connection Error';
+        }
+    });
+
+    loadConnections();
+</script>
+
+<%- include('partials/footer') %>

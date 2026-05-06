@@ -2,7 +2,6 @@
 -- Enable Extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "postgres_fdw";
-CREATE EXTENSION IF NOT EXISTS "citus";
 CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
 
 -- Security Roles for PostgREST
@@ -22,6 +21,10 @@ END $$;
 GRANT web_anon TO authenticator;
 GRANT fabric_user TO authenticator;
 
+-- Pre-authorize custom session variables for Module 3.1 & 3.2
+ALTER ROLE fabric_user SET app.tenant_id = '';
+ALTER ROLE fabric_user SET app.user_name = '';
+
 -- Administrative Schema for Orchestration
 CREATE SCHEMA IF NOT EXISTS fabric_admin;
 GRANT USAGE ON SCHEMA fabric_admin TO fabric_user;
@@ -37,7 +40,7 @@ CREATE TABLE IF NOT EXISTS public.tenants (
 
 -- Data Source Registry
 CREATE TABLE IF NOT EXISTS public.data_sources (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id VARCHAR(255) REFERENCES public.tenants(id),
     name VARCHAR(255) NOT NULL,
     type VARCHAR(50) NOT NULL,
@@ -48,9 +51,24 @@ CREATE TABLE IF NOT EXISTS public.data_sources (
 
 -- Enable RLS on core registries
 ALTER TABLE public.data_sources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tenants ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY tenant_isolation_policy ON public.data_sources
-    USING (tenant_id = current_setting('request.jwt.claims', true)::json->>'tenant_id');
+-- Row Level Security (RLS) Policies
+DROP POLICY IF EXISTS tenant_isolation_policy ON public.data_sources;
+CREATE POLICY tenant_isolation_policy ON public.data_sources 
+    USING (
+        tenant_id::text = current_setting('app.tenant_id', true)::text 
+        OR tenant_id::text = (current_setting('request.jwt.claims', true)::json->>'tenant_id')
+        OR (current_setting('request.jwt.claims', true)::json->>'internal_role' = 'ADMIN')
+    );
+
+DROP POLICY IF EXISTS tenant_self_isolation_policy ON public.tenants;
+CREATE POLICY tenant_self_isolation_policy ON public.tenants 
+    USING (
+        id = current_setting('app.tenant_id', true)
+        OR id = (current_setting('request.jwt.claims', true)::json->>'tenant_id')
+        OR (current_setting('request.jwt.claims', true)::json->>'internal_role' = 'ADMIN')
+    );
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.data_sources TO fabric_user;
 GRANT SELECT ON public.tenants TO fabric_user;

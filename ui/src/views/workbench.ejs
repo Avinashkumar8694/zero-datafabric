@@ -1,0 +1,73 @@
+<%- include('partials/header') %>
+
+<div class="fade-in">
+    <div class="glass-card">
+        <h3>SQL Analytics Workbench</h3>
+        <p class="text-muted" style="margin-bottom: 1.5rem;">Execute queries across the entire fabric. Row-Level Security is automatically enforced.</p>
+        
+        <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+            <textarea id="sqlInput" placeholder="SELECT * FROM tenant_tenant_A.users LIMIT 10;" style="flex: 1; height: 150px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 1rem; font-family: 'Monaco', monospace;"></textarea>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+            <button id="runBtn" class="btn-primary">Execute Query</button>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div class="glass-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3>Result Set</h3>
+            <span id="execTime" class="text-muted" style="font-size: 0.8rem;"></span>
+        </div>
+        <div class="table-wrapper">
+            <table id="resultsTable">
+                <thead id="resultsHead"></thead>
+                <tbody id="resultsBody">
+                    <tr><td class="text-muted">Enter a query to begin analysis</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('runBtn').addEventListener('click', async () => {
+        const sql = document.getElementById('sqlInput').value;
+        const head = document.getElementById('resultsHead');
+        const body = document.getElementById('resultsBody');
+        const timeEl = document.getElementById('execTime');
+        
+        body.innerHTML = '<tr><td>Executing query...</td></tr>';
+        const start = performance.now();
+
+        try {
+            const response = await fetch(`${API_BASE}/queries/exec`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ sql })
+            });
+            const data = await response.json();
+            const end = performance.now();
+            timeEl.innerText = `Executed in ${Math.round(end - start)}ms`;
+
+            if (response.ok && data.results.length > 0) {
+                const cols = Object.keys(data.results[0]);
+                head.innerHTML = `<tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr>`;
+                body.innerHTML = data.results.map(row => `
+                    <tr>${cols.map(c => `<td>${row[c]}</td>`).join('')}</tr>
+                `).join('');
+            } else if (response.ok) {
+                body.innerHTML = '<tr><td>Query returned successfully but with no results.</td></tr>';
+            } else {
+                body.innerHTML = `<tr><td style="color: var(--danger)">Error: ${data.error}</td></tr>`;
+            }
+        } catch (err) {
+            body.innerHTML = '<tr><td>Execution Failed: Connection error.</td></tr>';
+        }
+    });
+</script>
+
+<%- include('partials/footer') %>

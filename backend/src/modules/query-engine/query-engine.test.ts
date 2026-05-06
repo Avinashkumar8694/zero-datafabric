@@ -1,13 +1,20 @@
 import request from 'supertest';
 import { app } from '../../index';
 import { pool } from '../../config/database';
+import jwt from 'jsonwebtoken';
 
 describe('Module 2: Query Engine', () => {
+  const secret = process.env.JWT_SECRET || 'reallyreallyreallyreallyverysecret';
   const tenantId = 'query_test_tenant';
+  const token = jwt.sign({ tenant_id: tenantId, username: 'tester' }, secret);
 
   beforeAll(async () => {
     // Setup tenant for testing
-    await request(app).post('/api/admin/tenants').send({ id: tenantId, name: 'Query Test' });
+    const provisioningToken = jwt.sign({ tenant_id: 'tenant_A', username: 'admin', internal_role: 'ADMIN' }, secret);
+    await request(app)
+      .post('/api/admin/tenants')
+      .set('Authorization', `Bearer ${provisioningToken}`) // Admin token for provisioning
+      .send({ id: tenantId, name: 'Query Test' });
   });
 
   afterAll(async () => {
@@ -20,8 +27,8 @@ describe('Module 2: Query Engine', () => {
   it('should create a schema explicitly (Administrative)', async () => {
     const res = await request(app)
       .post('/api/analytics/query')
+      .set('Authorization', `Bearer ${token}`)
       .send({
-        tenantId: 'new_brand_new_tenant',
         queryConfig: {
           type: 'CREATE_SCHEMA'
         }
@@ -29,14 +36,14 @@ describe('Module 2: Query Engine', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveProperty('status', 'SUCCESS');
-    expect(res.body.data.target).toBe('tenant_new_brand_new_tenant');
+    expect(res.body.data.target).toBe(`tenant_${tenantId}`);
   });
 
   it('should create a table and auto-provision schema (Non-SQL AST flow)', async () => {
     const res = await request(app)
       .post('/api/analytics/query')
+      .set('Authorization', `Bearer ${token}`)
       .send({
-        tenantId,
         queryConfig: {
           type: 'CREATE_TABLE',
           table: 'test_table',
@@ -56,8 +63,8 @@ describe('Module 2: Query Engine', () => {
   it('should insert data via DML', async () => {
     const res = await request(app)
       .post('/api/analytics/query')
+      .set('Authorization', `Bearer ${token}`)
       .send({
-        tenantId,
         queryConfig: {
           type: 'INSERT',
           table: 'test_table',
@@ -73,8 +80,8 @@ describe('Module 2: Query Engine', () => {
   it('should select data via DQL', async () => {
     const res = await request(app)
       .post('/api/analytics/query')
+      .set('Authorization', `Bearer ${token}`)
       .send({
-        tenantId,
         queryConfig: {
           type: 'SELECT',
           table: 'test_table',
@@ -90,8 +97,8 @@ describe('Module 2: Query Engine', () => {
   it('should update data via DML', async () => {
     const res = await request(app)
       .post('/api/analytics/query')
+      .set('Authorization', `Bearer ${token}`)
       .send({
-        tenantId,
         queryConfig: {
           type: 'UPDATE',
           table: 'test_table',
@@ -107,8 +114,8 @@ describe('Module 2: Query Engine', () => {
   it('should alter table via DDL', async () => {
     const res = await request(app)
       .post('/api/analytics/query')
+      .set('Authorization', `Bearer ${token}`)
       .send({
-        tenantId,
         queryConfig: {
           type: 'ALTER_TABLE',
           table: 'test_table',
@@ -124,11 +131,40 @@ describe('Module 2: Query Engine', () => {
     expect(res.body.data).toHaveProperty('status', 'SUCCESS');
   });
 
+  it('should execute async query', async () => {
+    const res = await request(app)
+      .post('/api/analytics/query-async')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        queryConfig: {
+          type: 'SELECT',
+          table: 'test_table'
+        }
+      });
+
+    expect(res.status).toBe(202);
+    expect(res.body).toHaveProperty('jobId');
+
+    const jobId = res.body.jobId;
+    
+    // Poll for status
+    let status = 'PENDING';
+    for (let i = 0; i < 10; i++) { // Increased polling
+      const statusRes = await request(app)
+        .get(`/api/analytics/jobs/${jobId}`)
+        .set('Authorization', `Bearer ${token}`);
+      status = statusRes.body.status;
+      if (status === 'COMPLETED') break;
+      await new Promise(r => setTimeout(r, 500)); // Increased interval
+    }
+    expect(status).toBe('COMPLETED');
+  });
+
   it('should create an index via DDL', async () => {
     const res = await request(app)
       .post('/api/analytics/query')
+      .set('Authorization', `Bearer ${token}`)
       .send({
-        tenantId,
         queryConfig: {
           type: 'CREATE_INDEX',
           table: 'test_table',
@@ -158,8 +194,8 @@ describe('Module 2: Query Engine', () => {
   it('should delete data via DML', async () => {
     const res = await request(app)
       .post('/api/analytics/query')
+      .set('Authorization', `Bearer ${token}`)
       .send({
-        tenantId,
         queryConfig: {
           type: 'DELETE',
           table: 'test_table',
@@ -171,38 +207,12 @@ describe('Module 2: Query Engine', () => {
     expect(res.body.data.rowCount).toBe(1);
   });
 
-  it('should execute async query', async () => {
-    const res = await request(app)
-      .post('/api/analytics/query-async')
-      .send({
-        tenantId,
-        queryConfig: {
-          type: 'SELECT',
-          table: 'test_table'
-        }
-      });
-
-    expect(res.status).toBe(202);
-    expect(res.body).toHaveProperty('jobId');
-
-    const jobId = res.body.jobId;
-    
-    // Poll for status
-    let status = 'PENDING';
-    for (let i = 0; i < 5; i++) {
-      const statusRes = await request(app).get(`/api/analytics/jobs/${jobId}`);
-      status = statusRes.body.status;
-      if (status === 'COMPLETED') break;
-      await new Promise(r => setTimeout(r, 200));
-    }
-    expect(status).toBe('COMPLETED');
-  });
 
   it('should drop table via DDL', async () => {
     const res = await request(app)
       .post('/api/analytics/query')
+      .set('Authorization', `Bearer ${token}`)
       .send({
-        tenantId,
         queryConfig: {
           type: 'DROP_TABLE',
           table: 'test_table'

@@ -1,0 +1,21 @@
+{
+  "name": "zero-data-fabric-monorepo",
+  "version": "1.0.0",
+  "description": "Industrial Monorepo for Zero Data Fabric",
+  "main": "index.js",
+  "scripts": {
+    "install:all": "npm install && cd backend && npm install && cd ../ui && npm install",
+    "infra:up": "docker-compose up -d",
+    "infra:down": "docker-compose down",
+    "db:migrate": "cd backend && npx ts-node src/config/migrate.ts",
+    "start:backend": "cd backend && npm start",
+    "start:ui": "cd ui && npm start",
+    "start": "npx concurrently \"npm run start:backend\" \"npm run start:ui\"",
+    "stop": "lsof -ti:4000,3001 | xargs kill -9",
+    "setup": "npm run install:all && npm run infra:up && npm run db:migrate",
+    "test": "cd backend && npm test -- --runInBand"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

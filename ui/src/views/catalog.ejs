@@ -1,0 +1,76 @@
+<%- include('partials/header') %>
+
+<div class="fade-in">
+    <div class="glass-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <div>
+                <h3>Data Discovery Catalog</h3>
+                <p class="text-muted">Unified inventory of all virtualized schemas and metadata.</p>
+            </div>
+            <button onclick="loadCatalog()" class="btn-outline">Refresh Catalog</button>
+        </div>
+
+        <div class="grid">
+            <div class="glass-card" style="background: var(--bg);">
+                <h4>Schema Distribution</h4>
+                <canvas id="schemaChart" style="max-height: 200px;"></canvas>
+            </div>
+            <div class="glass-card" style="background: var(--bg);">
+                <h4>Discovery Stats</h4>
+                <div id="catalogStats" style="font-size: 0.9rem; padding-top: 1rem;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 0.5rem;"><span>Discovered Schemas</span><span id="stat-schemas" class="badge-sync">--</span></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 0.5rem;"><span>Total Tables</span><span id="stat-tables" class="badge-sync">--</span></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 0.5rem;"><span>Catalog Records</span><span id="stat-records" class="badge-sync">--</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-wrapper" style="margin-top: 2rem;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Schema</th>
+                        <th>Table Name</th>
+                        <th>Record Count</th>
+                        <th>Discovered At</th>
+                    </tr>
+                </thead>
+                <tbody id="catalogBody">
+                    <tr><td colspan="4">Synchronizing with catalog registry...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function loadCatalog() {
+        const body = document.getElementById('catalogBody');
+        try {
+            // Fetch from Metadata Catalog (Unified API)
+            const response = await fetch(`${API_BASE}/admin/catalog`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            
+            body.innerHTML = data.map(m => `
+                <tr class="fade-in">
+                    <td><span class="badge-sync" style="background: var(--surface-hover); color: var(--primary)">${m.schema_name}</span></td>
+                    <td><strong>${m.table_name}</strong></td>
+                    <td><code>${m.row_count || '0'}</code></td>
+                    <td class="text-muted">${new Date(m.created_at).toLocaleDateString()}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('stat-schemas').innerText = [...new Set(data.map(m => m.schema_name))].length;
+            document.getElementById('stat-tables').innerText = data.length;
+            document.getElementById('stat-records').innerText = data.reduce((acc, m) => acc + (m.row_count || 0), 0);
+
+        } catch (err) {
+            body.innerHTML = '<tr><td colspan="4">Failed to synchronize catalog</td></tr>';
+        }
+    }
+    loadCatalog();
+</script>
+
+<%- include('partials/footer') %>

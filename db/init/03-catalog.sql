@@ -1,11 +1,11 @@
 -- Metadata Catalog & Data Quality Schema
 
 CREATE SCHEMA IF NOT EXISTS fabric_catalog;
-GRANT USAGE ON SCHEMA fabric_catalog TO fabric_user;
+GRANT ALL ON SCHEMA fabric_catalog TO public;
 
 -- Central Metadata Store
-CREATE TABLE fabric_catalog.metadata (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE IF NOT EXISTS fabric_catalog.metadata (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     source_id UUID REFERENCES public.data_sources(id),
     schema_name TEXT NOT NULL,
     table_name TEXT NOT NULL,
@@ -18,8 +18,8 @@ CREATE TABLE fabric_catalog.metadata (
 );
 
 -- Quality Metrics Store
-CREATE TABLE fabric_catalog.quality_metrics (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE IF NOT EXISTS fabric_catalog.quality_metrics (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     column_id UUID REFERENCES fabric_catalog.metadata(id),
     metric_type TEXT NOT NULL, -- 'NULL_RATE', 'CARDINALITY', etc.
     metric_value NUMERIC NOT NULL,
@@ -29,8 +29,13 @@ CREATE TABLE fabric_catalog.quality_metrics (
 -- Enable RLS for Metadata
 ALTER TABLE fabric_catalog.metadata ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS tenant_metadata_policy ON fabric_catalog.metadata;
 CREATE POLICY tenant_metadata_policy ON fabric_catalog.metadata
-    USING (schema_name = 'tenant_' || (current_setting('request.jwt.claims', true)::json->>'tenant_id'));
+    USING (schema_name = 'tenant_' || current_setting('app.tenant_id', true));
 
-GRANT SELECT ON fabric_catalog.metadata TO fabric_user;
-GRANT SELECT ON fabric_catalog.quality_metrics TO fabric_user;
+GRANT ALL ON ALL TABLES IN SCHEMA fabric_catalog TO public;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA fabric_catalog TO public;
+
+-- 3. Public View for Management Orchestration
+CREATE OR REPLACE VIEW public.metadata_catalog AS SELECT * FROM fabric_catalog.metadata;
+GRANT SELECT ON public.metadata_catalog TO public;

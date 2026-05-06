@@ -1,7 +1,65 @@
-    <footer class="footer">
-        <div class="container">
-            <p>&copy; 2026 Zero Data Fabric. Enterprise-Grade Integration.</p>
-        </div>
-    </footer>
+            </div> <!-- content-wrapper -->
+        </main>
+    </div> <!-- app-layout -->
+
+    <script>
+        // Shared UI Orchestration
+        const token = localStorage.getItem('token');
+        if (!token && window.location.pathname !== '/login') {
+            window.location.href = '/login';
+        }
+
+        // Active Link Highlighting
+        const currentPath = window.location.pathname;
+        const navItems = document.querySelectorAll('.nav-item');
+        navItems.forEach(item => {
+            if (item.getAttribute('href') === currentPath) {
+                item.classList.add('active');
+            }
+        });
+
+        // Logout
+        document.getElementById('logoutBtn')?.addEventListener('click', () => {
+            localStorage.removeItem('token');
+            window.location.href = '/login';
+        });
+
+        // Identity Context Management
+        const switcher = document.getElementById('tenantSwitcher');
+        if (switcher) {
+            switcher.value = localStorage.getItem('activeTenant') || 'tenant_A';
+            switcher.addEventListener('change', async (e) => {
+                const newTenant = e.target.value;
+                localStorage.setItem('activeTenant', newTenant);
+                
+                // Refresh token for new context
+                try {
+                    const res = await fetch(`${API_BASE}/auth/token`, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ tenantId: newTenant })
+                    });
+                    const data = await res.json();
+                    if (data.token) {
+                        localStorage.setItem('token', data.token);
+                        location.reload();
+                    }
+                } catch (err) {
+                    console.error('Failed to switch context');
+                }
+            });
+        }
+
+        // Update User Profile UI
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            document.getElementById('displayUsername').innerText = payload.username || 'Admin';
+            document.getElementById('displayTenant').innerText = payload.tenant_id || 'System';
+            document.getElementById('userAvatar').innerText = (payload.username || 'A')[0].toUpperCase();
+        } catch (e) {}
+    </script>
 </body>
 </html>

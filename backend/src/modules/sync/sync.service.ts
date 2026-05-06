@@ -31,7 +31,7 @@ export class SyncService {
       const tableName = `sync_${sourceName}_data`;
       
       await client.query(`
-        CREATE TABLE IF NOT EXISTS ${schemaName}.${tableName} (
+        CREATE TABLE IF NOT EXISTS "${schemaName}"."${tableName}" (
           id SERIAL PRIMARY KEY,
           payload JSONB,
           source_lsn TEXT,

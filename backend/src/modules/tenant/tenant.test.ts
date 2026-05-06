@@ -1,20 +1,23 @@
 import request from 'supertest';
 import { app } from '../../index';
 import { pool } from '../../config/database';
+import jwt from 'jsonwebtoken';
 
 describe('Module 1: Tenant Management', () => {
+  const secret = process.env.JWT_SECRET || 'reallyreallyreallyreallyverysecret';
+  const adminToken = jwt.sign({ tenant_id: 'tenant_A', username: 'admin', internal_role: 'ADMIN', role: 'fabric_user' }, secret);
   const testTenantId = 'jest_test_tenant';
 
   afterAll(async () => {
     // Cleanup
     await pool.query('DELETE FROM public.tenants WHERE id = $1', [testTenantId]);
     await pool.query(`DROP SCHEMA IF EXISTS tenant_${testTenantId} CASCADE`);
-    await pool.end();
   });
 
   it('should create a new tenant', async () => {
     const res = await request(app)
       .post('/api/admin/tenants')
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({
         id: testTenantId,
         name: 'Jest Test Tenant'
@@ -28,6 +31,7 @@ describe('Module 1: Tenant Management', () => {
   it('should fail to create a duplicate tenant', async () => {
     const res = await request(app)
       .post('/api/admin/tenants')
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({
         id: testTenantId,
         name: 'Duplicate Tenant'
@@ -39,7 +43,8 @@ describe('Module 1: Tenant Management', () => {
 
   it('should delete a tenant', async () => {
     const res = await request(app)
-      .delete(`/api/admin/tenants/${testTenantId}`);
+      .delete(`/api/admin/tenants/${testTenantId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('status', 'DELETED');

@@ -1,0 +1,57 @@
+<%- include('partials/header') %>
+
+<div class="fade-in">
+    <div class="glass-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <div>
+                <h3>Security Forensics & Audit Logs</h3>
+                <p class="text-muted">Immutable history of all fabric operations.</p>
+            </div>
+            <button onclick="loadAudit()" class="btn-outline">Refresh Logs</button>
+        </div>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>User</th>
+                        <th>Action</th>
+                        <th>Table</th>
+                        <th>Payload</th>
+                    </tr>
+                </thead>
+                <tbody id="auditBody">
+                    <tr><td colspan="5">Streaming logs...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function loadAudit() {
+        const body = document.getElementById('auditBody');
+        try {
+            // Fetch from Orchestrator (Unified API)
+            const response = await fetch(`${API_BASE}/admin/audit-logs`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            body.innerHTML = data.map(log => `
+                <tr class="fade-in">
+                    <td><code style="font-size: 0.75rem;">${new Date(log.changed_at).toLocaleString()}</code></td>
+                    <td><strong>${log.user_name}</strong></td>
+                    <td><span class="badge-sync" style="background: ${log.action === 'DELETE' ? 'var(--danger)' : 'var(--primary)'}">${log.action}</span></td>
+                    <td><code>${log.table_name}</code></td>
+                    <td><pre style="font-size: 0.7rem; max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${JSON.stringify(log.new_data || log.old_data)}</pre></td>
+                </tr>
+            `).join('');
+        } catch (err) {
+            body.innerHTML = '<tr><td colspan="5">Failed to fetch governance logs</td></tr>';
+        }
+    }
+    loadAudit();
+</script>
+
+<%- include('partials/footer') %>

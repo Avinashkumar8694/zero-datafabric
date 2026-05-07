@@ -1,0 +1,64 @@
+    const userContext = (req as any).user;
+    const { rows } = await queryWithContext('SELECT * FROM public.metadata_catalog ORDER BY schema_name ASC', [], {
+      tenantId: userContext.tenant_id,
+      username: userContext.username || 'unknown'
+    });
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(rows);
+  } catch (err: any) {
+    console.error(`[API Error] ${req.method} ${req.url}: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT id, username, tenant_id, role, status FROM public.users');
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(rows);
+  } catch (err: any) {
+    console.error(`[API Error] ${req.method} ${req.url}: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/users:
+ *   post:
+ *     summary: Register a new management user
+ *     tags: [Auth]
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       201:
+ *         description: User created
+ *       403:
+ *         description: Admin privileges required
+ */
+app.post('/api/admin/users', requireAdmin, async (req, res) => {
+  const { username, password, tenantId, role } = req.body;
+  try {
+    const passwordHash = await bcrypt.hash(password, 10);
+    const { rows } = await pool.query(
+      'INSERT INTO public.users (username, password_hash, tenant_id, role) VALUES ($1, $2, $3, $4) RETURNING id, username',
+      [username, passwordHash, tenantId, role || 'USER']
+    );
+    res.status(201).json(rows[0]);
+  } catch (err: any) {
+    console.error(`[API Error] ${req.method} ${req.url}: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/users/{id}:
+ *   put:
+ *     summary: Update user identity or credentials
+ *     tags: [Auth]
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200:
+ *         description: User updated
+ */
+app.put('/api/admin/users/:id', requireAdmin, async (req, res) => {

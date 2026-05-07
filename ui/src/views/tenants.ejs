@@ -45,7 +45,7 @@
         const body = document.getElementById('tenantsBody');
         try {
             const response = await fetch(`${API_BASE}/admin/tenants`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: getAuthHeaders()
             });
             const data = await response.json();
             
@@ -81,10 +81,7 @@
         try {
             await fetch(`${API_BASE}/admin/tenants/${id}`, {
                 method: 'PUT',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({ name, status })
             });
             loadTenants();
@@ -100,10 +97,7 @@
         try {
             const response = await fetch(`${API_BASE}/admin/tenants`, {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({ id, name })
             });
             const data = await response.json();
@@ -112,6 +106,9 @@
             if (response.ok) {
                 document.getElementById('tenantForm').reset();
                 loadTenants();
+                if (typeof loadTenantSwitcher === 'function') {
+                    loadTenantSwitcher();
+                }
             }
         } catch (err) {
             statusEl.innerText = 'API Connection Error';

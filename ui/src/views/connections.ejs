@@ -45,7 +45,7 @@
         const body = document.getElementById('connectionsBody');
         try {
             const response = await fetch(`${API_BASE}/admin/connections`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: getAuthHeaders()
             });
             const data = await response.json();
             body.innerHTML = data.map(c => `
@@ -68,7 +68,7 @@
         try {
             const res = await fetch(`${API_BASE}/admin/connections/${id}`, {
                 method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: getAuthHeaders()
             });
             if (res.ok) loadConnections();
         } catch (e) { alert('Removal failed'); }
@@ -92,10 +92,7 @@
         try {
             const response = await fetch(`${API_BASE}/admin/connections`, {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify(payload)
             });
             const data = await response.json();

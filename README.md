@@ -1,101 +1,38 @@
-# 🌌 Industrial Data Fabric 🚀
+# Universal Data Fabric Orchestrator (v7.0)
 
-**A production-grade, multi-tenant Data Fabric built on PostgreSQL.** 
-Engineered for zero-trust security, automated virtualization, and identity-aware analytics.
+Industrial-grade, declarative Data Fabric orchestration system for heterogeneous enterprise data environments.
 
----
+## 🚀 Key Capabilities
 
-## 🛠️ Monorepo Orchestration
+### 1. Omni-Template Orchestration (v7.0)
+Full-spectrum declarative schema management supporting:
+- **Relational Cardinality**: Native `1:1`, `1:M`, `M:1`, and `M:M` (via junction tables).
+- **Planetary Partitioning**: Native `RANGE` and `LIST` partitioning support.
+- **Identity Orchestration**: Distributed sequences and composite primary keys.
+- **Event-Driven Triggers**: Automated audit logging and side-effect orchestration.
 
-Manage the entire fabric lifecycle with high-level commands from the root directory.
+### 2. Autonomous Governance & Security
+- **PII Masking**: Dynamic column-level masking (e.g., `MASK:PARTIAL`, `MASK:REDACT`) enforced at the engine level.
+- **Identity Proxy**: Multi-tenant RLS (Row Level Security) with automated ownership transfer.
+- **Safety Shield**: Preventing destructive DML without predicates and enforcing analytical limits.
 
-| Command | Action |
-| :--- | :--- |
-| `npm run setup` | **Full Lifecycle Initialization** (Install -> Infra -> Migrate) |
-| `npm start` | **Launch Fabric** (Runs Backend & UI concurrently) |
-| `npm run stop` | **Emergency Shutdown** (Clears all fabric ports) |
-| `npm run db:migrate` | **Schema Provisioning** (RLS & Governance rollout) |
-| `npm run infra:up` | **Infrastructure Spin-up** (Postgres, Kafka, PostgREST) |
+### 3. Heterogeneous Virtualization (FDW)
+- **Virtual Source Catalog**: Unified access to remote Postgres, MySQL, and NoSQL sources via Foreign Data Wrappers.
+- **Cross-Source JOINs**: Performant analytical queries merging local tenant data with remote warehouse data.
 
----
+## 🛠 API Surface
 
-## 📦 Core Modules
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/auth/login` | POST | Administrative & Tenant Authentication |
+| `/api/metadata/template` | GET | Download Universal Blueprint (v7.0) |
+| `/api/metadata/migrate` | POST | Atomic Schema Evolution (Manifest-based) |
+| `/api/metadata/crawl` | POST | Automated Metadata Discovery & Cataloging |
+| `/api/analytics/query` | POST | AST-driven Query Execution with PII Masking |
+| `/api/analytics/query-async` | POST | Long-running Background Analytical Jobs |
 
-### 🔐 Module 1: Auth & Identity (Zero-Trust)
-- **Features**: JWT-based identity proxy, session context injection, and role propagation.
-- **UI**: Premium Login and real-time **Identity Switcher**.
-
-### 📊 Module 2: Query Engine & Analytics
-- **Features**: Synchronous & Asynchronous SQL execution with native RLS enforcement.
-- **UI**: **Query Workbench** for live multi-tenant data exploration.
-
-### 🔗 Module 3: Integration & Security (FDW)
-- **Features**: Automated virtualization (FDW), ID-aware CDC, and tamper-proof audit trails.
-- **UI**: **Connection Manager** and **Security Forensics Viewer**.
-
----
-
-## Getting Started: Monorepo Orchestration
-
-The root `package.json` provides unified commands to manage the entire fabric lifecycle.
-
-### 1. One-Step Setup
-Installs all dependencies, starts infrastructure, and migrates the database.
+## 🧪 Verification
+Run the ultimate industrial test suite:
 ```bash
-npm run setup
-```
-
-### 2. Infrastructure Management
-```bash
-npm run infra:up    # Start Postgres, Kafka, PostgREST
-npm run infra:down  # Stop and remove infrastructure
-```
-
-### 3. Database Migration
-```bash
-npm run db:migrate  # Provision schemas and policies
-```
-
-### 4. Running the Fabric
-```bash
-npm start           # Run Backend and UI concurrently
-npm run stop        # Stop all running fabric processes
-```
-
-### 5. Individual Services
-```bash
-npm run start:backend
-npm run start:ui
-```
-
----
-
-## Feature Tour (UI Access)
-
-### Accessing the Dashboard
-1. Open `http://localhost:3001`
-2. Login (Demo credentials: any tenant ID like `tenant_A`)
-3. Use the **Identity Switcher** at the top to toggle between different tenant contexts.
-
-### Module 1: Switch Identity
-Change the **Identity Context** in the header. Notice how the Active Connections, Metadata, and Audit Logs automatically filter to the selected tenant.
-
-### Module 2: Execute Queries
-Go to the **Query Workbench**. Try running:
-```sql
--- Replace tenant_A with your active tenant schema
-SELECT * FROM tenant_tenant_A.orders;
-```
-Switch the identity and run it again. RLS will ensure you only see data belonging to your active context.
-
-### Module 3: Manage Connections
-Use the **Virtual Data Sources** form to link a remote PostgreSQL database. Monitor the **Security Audit Trail** below to see the immutable record of the link establishment.
-
----
-
-## Verification & Tests
-Run the industrial test suite to verify end-to-end integrity:
-```bash
-cd backend
-npm test
+npx ts-node src/scripts/test_full_orchestration.ts
 ```

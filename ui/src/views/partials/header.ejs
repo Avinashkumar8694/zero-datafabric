@@ -15,6 +15,15 @@
         if (!token && !window.location.pathname.includes('/login')) {
             window.location.href = '/login';
         }
+
+        // Industrial Identity Propagation Helper
+        function getAuthHeaders() {
+            return {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'x-tenant-id': localStorage.getItem('active_tenant') || 'tenant_A'
+            };
+        }
     </script>
 </head>
 <body class="dark-theme <%= title.includes('Login') ? 'login-page' : '' %>">
@@ -50,6 +59,12 @@
                 <a href="/audit" class="nav-item" id="nav-audit">
                     <span class="icon">📜</span> Audit Logs
                 </a>
+                <a id="nav-docs" target="_blank" class="nav-item">
+                    <span class="icon">📚</span> API Reference
+                </a>
+                <script>
+                    document.getElementById('nav-docs').href = `http://${window.location.hostname}:4000/api-docs`;
+                </script>
                 <div class="nav-spacer"></div>
                 <a href="/settings" class="nav-item" id="nav-settings">
                     <span class="icon">⚙️</span> Settings
@@ -79,13 +94,68 @@
                     <div class="identity-context">
                         <label>Identity context:</label>
                         <select id="tenantSwitcher" class="context-select">
-                            <option value="tenant_A">Tenant A (Admin)</option>
-                            <option value="tenant_B">Tenant B (Ops)</option>
+                            <option value="">Loading Tenants...</option>
                         </select>
+                        <script>
+                            async function loadTenantSwitcher() {
+                                const switcher = document.getElementById('tenantSwitcher');
+                                if (!switcher) return;
+                                
+                                try {
+                                    const res = await fetch(`${API_BASE}/admin/tenants`, {
+                                        headers: getAuthHeaders()
+                                    });
+                                    const tenants = await res.json();
+                                    
+                                    if (Array.isArray(tenants)) {
+                                        switcher.innerHTML = tenants.map(t => 
+                                            `<option value="${t.id}">${t.name} (${t.id})</option>`
+                                        ).join('');
+                                        
+                                        // Set initial value from localStorage if exists
+                                        const activeTenant = localStorage.getItem('active_tenant');
+                                        if (activeTenant) {
+                                            switcher.value = activeTenant;
+                                        } else if (tenants.length > 0) {
+                                            localStorage.setItem('active_tenant', tenants[0].id);
+                                        }
+                                    }
+                                } catch (e) {
+                                    switcher.innerHTML = '<option value="">Error Loading</option>';
+                                }
+                            }
+                            
+                            document.getElementById('tenantSwitcher').addEventListener('change', (e) => {
+                                localStorage.setItem('active_tenant', e.target.value);
+                                // Industrial Reload: Force UI to resync with new context
+                                window.location.reload();
+                            });
+
+                            window.addEventListener('load', loadTenantSwitcher);
+
+                            const logoutBtn = document.getElementById('logoutBtn');
+                            if (logoutBtn) {
+                                logoutBtn.addEventListener('click', () => {
+                                    localStorage.removeItem('token');
+                                    localStorage.removeItem('active_tenant');
+                                    window.location.href = '/login';
+                                });
+                            }
+
+                            const topLogoutBtn = document.getElementById('topLogoutBtn');
+                            if (topLogoutBtn) {
+                                topLogoutBtn.addEventListener('click', () => {
+                                    localStorage.removeItem('token');
+                                    localStorage.removeItem('active_tenant');
+                                    window.location.href = '/login';
+                                });
+                            }
+                        </script>
                     </div>
                     <div class="status-indicator">
                         <span class="dot-online"></span> Secure Session
                     </div>
+                    <button id="topLogoutBtn" class="logout-btn" style="width: auto; padding: 0.4rem 1rem; font-size: 0.8rem;">Log Out</button>
                 </div>
             </header>
             <% } %>

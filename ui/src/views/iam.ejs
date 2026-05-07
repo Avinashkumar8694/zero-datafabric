@@ -53,7 +53,7 @@
         const select = document.getElementById('iamTenantId');
         try {
             const response = await fetch(`${API_BASE}/admin/tenants`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: getAuthHeaders()
             });
             const data = await response.json();
             select.innerHTML = '<option value="">Assign Tenant...</option>' + 
@@ -65,7 +65,7 @@
         const body = document.getElementById('iamBody');
         try {
             const response = await fetch(`${API_BASE}/admin/users`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: getAuthHeaders()
             });
             const data = await response.json();
             body.innerHTML = data.map(u => `
@@ -109,7 +109,7 @@
         try {
             await fetch(`${API_BASE}/admin/users/${id}`, {
                 method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: getAuthHeaders()
             });
             loadUsers();
         } catch (e) {}

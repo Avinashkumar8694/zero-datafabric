@@ -41,20 +41,23 @@
         <!-- System Health -->
         <section class="glass-card">
             <h3>Fabric Health</h3>
-            <ul style="list-style: none; padding-top: 1rem;">
-                <li style="margin-bottom: 1rem; display: flex; justify-content: space-between;">
-                    <span>Orchestrator</span>
-                    <span class="badge-sync">ONLINE</span>
-                </li>
-                <li style="margin-bottom: 1rem; display: flex; justify-content: space-between;">
-                    <span>Database Engine</span>
-                    <span class="badge-sync">ONLINE</span>
-                </li>
-                <li style="margin-bottom: 1rem; display: flex; justify-content: space-between;">
-                    <span>PostgREST API</span>
-                    <span class="badge-sync">ONLINE</span>
-                </li>
-            </ul>
+            <div id="healthTelemetry" style="padding-top: 1rem;">
+                <div style="margin-bottom: 1rem; display: flex; justify-content: space-between;">
+                    <span>Status</span>
+                    <span id="healthStatus" class="badge-sync">CHECKING...</span>
+                </div>
+                <div style="margin-bottom: 1rem; display: flex; justify-content: space-between;">
+                    <span>DB Latency</span>
+                    <span id="dbLatency" class="text-muted">--</span>
+                </div>
+                <div style="margin-bottom: 1rem; display: flex; justify-content: space-between;">
+                    <span>Uptime</span>
+                    <span id="sysUptime" class="text-muted">--</span>
+                </div>
+                <div style="font-size: 0.7rem; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 0.5rem; margin-top: 0.5rem;">
+                    Pool: <span id="dbPool">--</span>
+                </div>
+            </div>
         </section>
     </div>
 </div>
@@ -63,7 +66,7 @@
     async function loadStats() {
         try {
             const resTenants = await fetch(`${API_BASE}/admin/tenants`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: getAuthHeaders()
             });
             if (resTenants.ok) {
                 const tenants = await resTenants.json();
@@ -73,7 +76,7 @@
             }
 
             const resConn = await fetch(`${API_BASE}/admin/connections`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: getAuthHeaders()
             });
             if (resConn.ok) {
                 const connections = await resConn.json();
@@ -88,7 +91,28 @@
             document.getElementById('stat-connections').innerText = 'Offline';
         }
     }
+
+    async function loadHealth() {
+        try {
+            const res = await fetch(`${API_BASE.replace('/api', '')}/api/health`);
+            const data = await res.json();
+            
+            const statusEl = document.getElementById('healthStatus');
+            statusEl.innerText = data.status;
+            statusEl.style.background = data.status === 'HEALTHY' ? 'var(--success)' : 'var(--danger)';
+            
+            document.getElementById('dbLatency').innerText = data.database.latency;
+            document.getElementById('sysUptime').innerText = data.uptime;
+            document.getElementById('dbPool').innerText = `Total: ${data.database.pool.total}, Idle: ${data.database.pool.idle}`;
+        } catch (e) {
+            document.getElementById('healthStatus').innerText = 'OFFLINE';
+            document.getElementById('healthStatus').style.background = 'var(--danger)';
+        }
+    }
+
     loadStats();
+    loadHealth();
+    setInterval(loadHealth, 10000); // Poll every 10s
 </script>
 
 <%- include('partials/footer') %>

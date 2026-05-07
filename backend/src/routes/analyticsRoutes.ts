@@ -3,10 +3,12 @@ import { QueryEngineController } from '../modules/query-engine/query-engine.cont
 
 const router = Router();
 
-// Analytics module routes
-router.post('/refresh-view', QueryEngineController.refreshView);
 router.post('/query', QueryEngineController.executeQuery);
+
 router.post('/query-async', QueryEngineController.executeAsyncQuery);
+
 router.get('/jobs/:jobId', QueryEngineController.getJobStatus);
+
+router.post('/refresh-view', QueryEngineController.refreshView);
 
 export default router;

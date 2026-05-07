@@ -17,7 +17,10 @@
     <div class="glass-card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
             <h3>Result Set</h3>
-            <span id="execTime" class="text-muted" style="font-size: 0.8rem;"></span>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <span id="safetyBadge" class="badge-sync" style="display: none; background: var(--warning); color: black;">Safety Applied</span>
+                <span id="execTime" class="text-muted" style="font-size: 0.8rem;"></span>
+            </div>
         </div>
         <div class="table-wrapper">
             <table id="resultsTable">
@@ -43,17 +46,17 @@
         try {
             const response = await fetch(`${API_BASE}/queries/exec`, {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({ sql })
             });
             const data = await response.json();
             const end = performance.now();
             timeEl.innerText = `Executed in ${Math.round(end - start)}ms`;
+            
+            const safetyBadge = document.getElementById('safetyBadge');
+            safetyBadge.style.display = data.safetyApplied ? 'inline-block' : 'none';
 
-            if (response.ok && data.results.length > 0) {
+            if (response.ok && data.results && data.results.length > 0) {
                 const cols = Object.keys(data.results[0]);
                 head.innerHTML = `<tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr>`;
                 body.innerHTML = data.results.map(row => `

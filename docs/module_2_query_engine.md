@@ -145,3 +145,17 @@ async function refreshMaterializedView(tenantId: string, viewName: string, concu
 *   **Co-location Enforcement**: To prevent catastrophic cross-node data shuffling, the Citus planner is configured to error out (`citus.enable_repartition_joins = off`) if a developer attempts a massive `JOIN` between two large distributed tables that are not sharded on the same partition key.
 *   **Timeouts**: Distributed queries use `statement_timeout` to ensure runaway analytical queries do not degrade OLTP performance on the Hub.
 *   **Materialized View Deadlocks**: The `REFRESH CONCURRENTLY` mechanism is strictly used to ensure read queries on the view are not blocked by long-running refresh operations. If a concurrent refresh fails due to a missing unique index, the service gracefully falls back to a standard refresh during maintenance windows.
+148: 
+149: ## 7. Virtualization Transparency (MongoDB, Snowflake, etc.)
+150: 
+151: The Query Engine treats all data sources as first-class relational objects, regardless of their native storage engine (SQL, NoSQL, or Cloud Warehouse).
+152: 
+153: ### Cross-Source Virtualization Mechanics
+154: - **Abstraction Layer**: The Data Fabric uses **PostgreSQL Foreign Data Wrappers (FDW)** as the universal virtualization layer.
+155: - **MongoDB Support**: When a MongoDB collection is virtualized via `mongo_fdw`, it appears to the Query Engine as a standard Foreign Table.
+156: - **Query Translation (Pushdown)**: 
+157:   1. The **AST Engine** generates a standard SQL query.
+158:   2. **PostgreSQL** receives the SQL and analyzes the execution plan.
+159:   3. The **FDW (Universal Translator)** intercepts the request and translates SQL filters/projections into native MongoDB MQL or Aggregation Pipelines.
+160:   4. Data is streamed back to the Fabric and can be `JOIN`ed with local Postgres data or other sources (like Snowflake) in memory.
+161: - **Developer Experience**: A single AST definition can perform a `JOIN` between a Postgres `customers` table and a MongoDB `user_activity` collection without any source-specific logic in the application layer.

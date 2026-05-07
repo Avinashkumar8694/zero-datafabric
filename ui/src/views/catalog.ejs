@@ -49,7 +49,7 @@
         try {
             // Fetch from Metadata Catalog (Unified API)
             const response = await fetch(`${API_BASE}/admin/catalog`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: getAuthHeaders()
             });
             const data = await response.json();
             

@@ -35,7 +35,7 @@
         try {
             // Fetch from Orchestrator (Unified API)
             const response = await fetch(`${API_BASE}/admin/audit-logs`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: getAuthHeaders()
             });
             const data = await response.json();
             body.innerHTML = data.map(log => `

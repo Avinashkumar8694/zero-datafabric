@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { pool } from '../../config/database';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'reallyreallyreallyreallyverysecret';
+const getJwtSecret = () => process.env.JWT_SECRET || 'reallyreallyreallyreallyverysecret';
 
 export class AuthService {
   static async login(username: string, password_raw: string) {
@@ -42,12 +42,12 @@ export class AuthService {
       iss: 'zero-data-fabric'
     };
 
-    return jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' });
+    return jwt.sign(payload, getJwtSecret(), { expiresIn: '1h' });
   }
 
   static verifyToken(token: string) {
     try {
-      return jwt.verify(token, JWT_SECRET);
+      return jwt.verify(token, getJwtSecret());
     } catch (err) {
       return null;
     }

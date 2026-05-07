@@ -5,7 +5,8 @@ const { randomUUID } = require('crypto');
 export interface QueryConfig {
   type: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 
         'CREATE_SCHEMA' | 'CREATE_TABLE' | 'CREATE_FOREIGN_TABLE' | 
-        'ALTER_TABLE' | 'DROP_TABLE' | 'CREATE_INDEX';
+        'ALTER_TABLE' | 'DROP_TABLE' | 'CREATE_INDEX' | 
+        'CREATE_VIEW' | 'CREATE_SEQUENCE';
   table?: string;
   withRecursive?: {
     name: string;
@@ -22,6 +23,7 @@ export interface QueryConfig {
   groupBy?: string[];
   orderBy?: { field: string; dir: 'ASC' | 'DESC' }[];
   limit?: number;
+  offset?: number;
   
   // DML/CRUD specific
   data?: Record<string, any> | Record<string, any>[]; 
@@ -37,11 +39,16 @@ export interface QueryConfig {
     columnType?: string;
   };
 
-  // FOREIGN TABLE specific
   foreignDef?: {
     serverName: string;
     options: Record<string, string>;
   };
+  
+  // VIEW specific
+  viewDef?: { name: string; query: string; materialized?: boolean };
+  
+  // SEQUENCE specific
+  sequenceDef?: { name: string; start?: number; increment?: number };
 }
 
 export class QueryEngineService {
@@ -99,13 +106,87 @@ export class QueryEngineService {
   }
 
   /**
+   * Generates a SQL string and parameters from a QueryConfig without executing it.
+   * Useful for CREATE VIEW or complex migration planning.
+   */
+  static async generateSql(tenantId: string, queryConfig: QueryConfig): Promise<{ sql: string, params: any[] }> {
+    const { type, table, select, filter, joins, groupBy, orderBy, limit, offset, withRecursive, data, schemaDef, indexDef, alterDef, foreignDef, viewDef, sequenceDef } = queryConfig;
+    const schemaName = `tenant_${tenantId.replace(/[^a-zA-Z0-9_]/g, '')}`;
+    const safeTable = table ? `"${schemaName}"."${table.replace(/[^a-zA-Z0-9_]/g, '')}"` : '';
+    
+    let queryStr = '';
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (type === 'SELECT') {
+      const selectFields = select && select.length > 0 
+        ? select.map(f => f.replace(/[^a-zA-Z0-9_.*(), ]/g, '')).join(', ') 
+        : '*';
+      
+      if (withRecursive) {
+         const cteName = withRecursive.name.replace(/[^a-zA-Z0-9_]/g, '');
+         queryStr += `WITH RECURSIVE ${cteName} AS (
+            ${withRecursive.baseQuery}
+            UNION ALL
+            ${withRecursive.recursiveQuery}
+         ) `;
+      }
+      const targetTableStr = table || 'UNKNOWN_TABLE';
+      const actualFromTable = (withRecursive && targetTableStr === withRecursive.name) ? targetTableStr.replace(/[^a-zA-Z0-9_]/g, '') : safeTable;
+      queryStr += `SELECT ${selectFields} FROM ${actualFromTable}`;
+      
+      if (joins && joins.length > 0) {
+        joins.forEach(join => {
+           const isJoinCte = withRecursive && join.table === withRecursive.name;
+           const safeJoinTable = isJoinCte ? join.table.replace(/[^a-zA-Z0-9_]/g, '') : `"${schemaName}"."${join.table.replace(/[^a-zA-Z0-9_]/g, '')}"`;
+           queryStr += ` ${join.type} JOIN ${safeJoinTable} ON ${join.on}`;
+        });
+      }
+
+      const whereClauses: string[] = [];
+      if (filter) {
+        for (const [key, value] of Object.entries(filter)) {
+          whereClauses.push(`${key.replace(/[^a-zA-Z0-9_.]/g, '')} = $${paramIndex}`);
+          params.push(value);
+          paramIndex++;
+        }
+      }
+      if (whereClauses.length > 0) queryStr += ` WHERE ${whereClauses.join(' AND ')}`;
+
+      if (groupBy && groupBy.length > 0) {
+        queryStr += ` GROUP BY ${groupBy.map(f => f.replace(/[^a-zA-Z0-9_.]/g, '')).join(', ')}`;
+      }
+
+      if (orderBy && orderBy.length > 0) {
+        queryStr += ` ORDER BY ${orderBy.map(ob => `${ob.field.replace(/[^a-zA-Z0-9_]/g, '')} ${ob.dir === 'DESC' ? 'DESC' : 'ASC'}`).join(', ')}`;
+      }
+
+      if (limit) {
+         queryStr += ` LIMIT $${paramIndex}`;
+         params.push(limit);
+         paramIndex++;
+      }
+      
+      if (offset) {
+         queryStr += ` OFFSET $${paramIndex}`;
+         params.push(offset);
+         paramIndex++;
+      }
+    } else {
+        throw new Error('generateSql currently only supports SELECT types');
+    }
+
+    return { sql: queryStr, params };
+  }
+
+  /**
    * Executes a configured dynamic query.
    * Handles SELECT, INSERT, UPDATE, DELETE, and full runtime DDL (Schema, Table, Column, Index, FDW).
    */
   static async executeQuery(tenantId: string, queryConfig: QueryConfig) {
     const client = await pool.connect();
     try {
-      const { type, table, select, filter, joins, groupBy, orderBy, limit, withRecursive, data, schemaDef, indexDef, alterDef, foreignDef } = queryConfig;
+      const { type, table, select, filter, joins, groupBy, orderBy, limit, offset, withRecursive, data, schemaDef, indexDef, alterDef, foreignDef, viewDef, sequenceDef } = queryConfig;
       const schemaName = `tenant_${tenantId.replace(/[^a-zA-Z0-9_]/g, '')}`;
       
       // Some operations (like CREATE_SCHEMA) don't require a table
@@ -116,7 +197,21 @@ export class QueryEngineService {
       let paramIndex = 1;
 
       if (type === 'SELECT') {
-        const selectFields = select && select.length > 0 ? select.join(', ') : '*';
+        // Fetch masking rules from catalog for this tenant
+        const { rows: maskingRules } = await pool.query(`
+          SELECT column_name, description FROM fabric_catalog.metadata 
+          WHERE schema_name = $1 AND table_name = $2 AND description LIKE '%MASK:%'
+        `, [schemaName, table]);
+
+        const selectFields = select && select.length > 0 
+          ? select.map(f => {
+              const rule = maskingRules.find(r => r.column_name === f);
+              if (rule && rule.description.includes('MASK:PARTIAL')) {
+                 return `LEFT(${f}, 3) || '****' as ${f}`;
+              }
+              return f.replace(/[^a-zA-Z0-9_.*(), ]/g, '');
+            }).join(', ') 
+          : '*';
         
         if (withRecursive) {
            const cteName = withRecursive.name.replace(/[^a-zA-Z0-9_]/g, '');
@@ -142,7 +237,8 @@ export class QueryEngineService {
         const whereClauses: string[] = [];
         if (filter) {
           for (const [key, value] of Object.entries(filter)) {
-            whereClauses.push(`${key.replace(/[^a-zA-Z0-9_]/g, '')} = $${paramIndex}`);
+            // Allow dots for table aliases in filters (e.g. customers.id)
+            whereClauses.push(`${key.replace(/[^a-zA-Z0-9_.]/g, '')} = $${paramIndex}`);
             params.push(value);
             paramIndex++;
           }
@@ -150,7 +246,7 @@ export class QueryEngineService {
         if (whereClauses.length > 0) queryStr += ` WHERE ${whereClauses.join(' AND ')}`;
 
         if (groupBy && groupBy.length > 0) {
-          queryStr += ` GROUP BY ${groupBy.map(f => f.replace(/[^a-zA-Z0-9_]/g, '')).join(', ')}`;
+          queryStr += ` GROUP BY ${groupBy.map(f => f.replace(/[^a-zA-Z0-9_.]/g, '')).join(', ')}`;
         }
 
         if (orderBy && orderBy.length > 0) {
@@ -160,6 +256,13 @@ export class QueryEngineService {
         if (limit) {
            queryStr += ` LIMIT $${paramIndex}`;
            params.push(limit);
+           paramIndex++;
+        }
+        
+        if (offset) {
+           queryStr += ` OFFSET $${paramIndex}`;
+           params.push(offset);
+           paramIndex++;
         }
 
       } else if (type === 'INSERT') {
@@ -204,6 +307,11 @@ export class QueryEngineService {
       // ---------- DDL OPERATIONS ----------
       } else if (type === 'CREATE_SCHEMA') {
         queryStr = `CREATE SCHEMA IF NOT EXISTS "${schemaName}"`;
+        await client.query(queryStr);
+        await client.query(`ALTER SCHEMA "${schemaName}" OWNER TO fabric_user`);
+        await client.query(`GRANT ALL ON SCHEMA "${schemaName}" TO fabric_user`);
+        await client.query(`GRANT ALL ON ALL TABLES IN SCHEMA "${schemaName}" TO fabric_user`);
+        await client.query(`GRANT ALL ON ALL SEQUENCES IN SCHEMA "${schemaName}" TO fabric_user`);
 
       } else if (type === 'CREATE_TABLE') {
         if (!safeTable) throw new Error('CREATE_TABLE requires a table');
@@ -211,6 +319,9 @@ export class QueryEngineService {
         await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`); // Auto-ensure schema
         const colDefs = schemaDef.columns.map(c => `"${c.name.replace(/[^a-zA-Z0-9_]/g, '')}" ${c.type} ${c.constraints || ''}`);
         queryStr = `CREATE TABLE IF NOT EXISTS ${safeTable} (${colDefs.join(', ')})`;
+        await client.query(queryStr);
+        await client.query(`ALTER TABLE ${safeTable} OWNER TO fabric_user`);
+        await client.query(`GRANT ALL ON TABLE ${safeTable} TO fabric_user`);
 
       } else if (type === 'CREATE_FOREIGN_TABLE') {
         if (!safeTable) throw new Error('CREATE_FOREIGN_TABLE requires a table');
@@ -228,6 +339,9 @@ export class QueryEngineService {
         
         const safeServerName = `"${foreignDef.serverName.replace(/[^a-zA-Z0-9_]/g, '')}"`;
         queryStr = `CREATE FOREIGN TABLE IF NOT EXISTS ${safeTable} (${colDefs.join(', ')}) SERVER ${safeServerName} ${optionsStr}`;
+        await client.query(queryStr);
+        await client.query(`ALTER TABLE ${safeTable} OWNER TO fabric_user`);
+        await client.query(`GRANT ALL ON TABLE ${safeTable} TO fabric_user`);
 
       } else if (type === 'ALTER_TABLE') {
         if (!safeTable) throw new Error('ALTER_TABLE requires a table');
@@ -250,6 +364,23 @@ export class QueryEngineService {
         const safeIdxName = `"${indexDef.name.replace(/[^a-zA-Z0-9_]/g, '')}"`;
         const idxCols = indexDef.columns.map(c => `"${c.replace(/[^a-zA-Z0-9_]/g, '')}"`).join(', ');
         queryStr = `CREATE ${indexDef.unique ? 'UNIQUE ' : ''}INDEX IF NOT EXISTS ${safeIdxName} ON ${safeTable} (${idxCols})`;
+
+      } else if (type === 'CREATE_VIEW') {
+        if (!viewDef || !viewDef.name || !viewDef.query) throw new Error('CREATE_VIEW requires viewDef');
+        const safeViewName = `"${schemaName}"."${viewDef.name.replace(/[^a-zA-Z0-9_]/g, '')}"`;
+        queryStr = `CREATE ${viewDef.materialized ? 'MATERIALIZED ' : ''}VIEW ${safeViewName} AS ${viewDef.query}`;
+        await client.query(queryStr);
+        await client.query(`ALTER ${viewDef.materialized ? 'MATERIALIZED ' : ''}VIEW ${safeViewName} OWNER TO fabric_user`);
+        await client.query(`GRANT ALL ON ${viewDef.materialized ? 'MATERIALIZED ' : ''}VIEW ${safeViewName} TO fabric_user`);
+
+      } else if (type === 'CREATE_SEQUENCE') {
+        if (!sequenceDef || !sequenceDef.name) throw new Error('CREATE_SEQUENCE requires sequenceDef');
+        const safeSeqName = `"${schemaName}"."${sequenceDef.name.replace(/[^a-zA-Z0-9_]/g, '')}"`;
+        queryStr = `CREATE SEQUENCE IF NOT EXISTS ${safeSeqName} START WITH ${sequenceDef.start || 1} INCREMENT BY ${sequenceDef.increment || 1}`;
+        await client.query(queryStr);
+        await client.query(`ALTER SEQUENCE ${safeSeqName} OWNER TO fabric_user`);
+        await client.query(`GRANT ALL ON SEQUENCE ${safeSeqName} TO fabric_user`);
+
       } else {
         throw new Error(`Unsupported query type: ${type}`);
       }
@@ -257,9 +388,9 @@ export class QueryEngineService {
       const { rows, command, rowCount } = await client.query(queryStr, params);
       
       // For DDL, return a summary rather than rows
-      const ddlTypes = ['CREATE_SCHEMA', 'CREATE_TABLE', 'CREATE_FOREIGN_TABLE', 'ALTER_TABLE', 'DROP_TABLE', 'CREATE_INDEX'];
+      const ddlTypes = ['CREATE_SCHEMA', 'CREATE_TABLE', 'CREATE_FOREIGN_TABLE', 'ALTER_TABLE', 'DROP_TABLE', 'CREATE_INDEX', 'CREATE_VIEW', 'CREATE_SEQUENCE'];
       if (ddlTypes.includes(type)) {
-         return { command, target: type === 'CREATE_SCHEMA' ? schemaName : safeTable, status: 'SUCCESS' };
+         return { command, target: type === 'CREATE_SCHEMA' ? schemaName : (type === 'CREATE_VIEW' ? viewDef?.name : (type === 'CREATE_SEQUENCE' ? sequenceDef?.name : safeTable)), status: 'SUCCESS' };
       }
       // For DML, return rows or affected count
       return type === 'SELECT' ? rows : { command, rowCount, returning: rows };
@@ -294,23 +425,55 @@ export class QueryEngineService {
   }
 
   /**
-   * Executes a raw SQL query with tenant context propagation (RLS Enforcement).
+   * Performance & Cost Governance Safety Shield
+   * Prevents runaway queries and accidental data wipes
    */
-  static async executeRawSql(tenantId: string, username: string, sql: string) {
-    const { queryWithContext } = require('../../config/database');
-    const { rows } = await queryWithContext(sql, [], { tenantId, username });
-    return rows;
+  static applySafetyShield(sql: string): { sanitizedSql: string, safetyApplied: boolean } {
+    let sanitizedSql = sql.trim();
+    let safetyApplied = false;
+
+    // 1. Enforce LIMIT on SELECTs if missing
+    if (sanitizedSql.toUpperCase().startsWith('SELECT') && !sanitizedSql.toUpperCase().includes('LIMIT')) {
+      sanitizedSql = `${sanitizedSql.replace(/;$/, '')} LIMIT 1000`;
+      safetyApplied = true;
+    }
+
+    // 2. Block Dangerous Mutations without WHERE
+    const upperSql = sanitizedSql.toUpperCase();
+    if ((upperSql.startsWith('DELETE') || upperSql.startsWith('UPDATE')) && !upperSql.includes('WHERE')) {
+      throw new Error('INDUSTRIAL GOVERNANCE BLOCK: Destructive operations without a WHERE clause are prohibited.');
+    }
+
+    return { sanitizedSql, safetyApplied };
   }
 
   /**
-   * Asynchronous Raw SQL Execution
+   * Execute Synchronous SQL with RLS Injection and Parameters
    */
-  static executeAsyncRawSql(tenantId: string, username: string, sql: string): string {
+  static async executeRawSql(tenantId: string, username: string, sql: string, params: any[] = []) {
+    const { queryWithContext } = require('../../config/database');
+    const { sanitizedSql, safetyApplied } = this.applySafetyShield(sql);
+    
+    const result = await queryWithContext(sanitizedSql, params, { 
+      tenantId, 
+      username 
+    });
+
+    return {
+      results: result.rows,
+      safetyApplied
+    };
+  }
+
+  /**
+   * Asynchronous Raw SQL Execution with Parameters
+   */
+  static executeAsyncRawSql(tenantId: string, username: string, sql: string, params: any[] = []): string {
     const jobId = randomUUID();
     
     QueryEngineService.jobs.set(jobId, { status: 'PENDING', createdAt: new Date() });
-
-    QueryEngineService.executeRawSql(tenantId, username, sql)
+    
+    QueryEngineService.executeRawSql(tenantId, username, sql, params)
       .then(result => {
         QueryEngineService.jobs.set(jobId, { status: 'COMPLETED', result, createdAt: new Date() });
       })

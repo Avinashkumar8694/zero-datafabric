@@ -61,5 +61,17 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
+  # Remote Datasource for Virtualization Testing
+  remote_db:
+    image: postgres:15-alpine
+    container_name: datafabric-remote
+    environment:
+      POSTGRES_USER: remote_admin
+      POSTGRES_PASSWORD: remote_password
+      POSTGRES_DB: remote_warehouse
+    ports:
+      - "5436:5432"
+    restart: unless-stopped
+
 volumes:
   pgdata:

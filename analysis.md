@@ -222,7 +222,7 @@ This template is the "Master Blueprint" for the entire fabric, integrating the e
             "columns": ["id", "name", "manager_id", "path", "level"],
             "base": {
               "select": ["id", "name", "manager_id", { "expression": "name", "alias": "path" }, { "expression": "1", "alias": "level" }],
-              "from": "employees",
+              "from": { "resource": "employees" },
               "where": [{ "column": "manager_id", "operator": "IS_NULL" }]
             },
             "unionAll": {
@@ -233,7 +233,7 @@ This template is the "Master Blueprint" for the entire fabric, integrating the e
           }
         ],
         "select": ["*"],
-        "from": "emp_path"
+        "from": { "resource": "emp_path" }
       }
     },
     {
@@ -261,16 +261,16 @@ This template is the "Master Blueprint" for the entire fabric, integrating the e
       "federationStrategy": "VIRTUAL",
       "query": {
         "union": [
-          { "select": ["sku", "stock"], "from": "local_warehouse_pg" },
-          { "select": ["item_id", "qty"], "source": "Activity_Mongo", "from": "remote_depot_mongo" }
+          { "select": ["sku", "stock"], "from": { "resource": "local_warehouse_pg" } },
+          { "select": ["item_id", "qty"], "from": { "resource": "remote_depot_mongo", "source": "Activity_Mongo" } }
         ],
         "intersect": [
-          { "select": ["sku"], "from": "active_products_pg" },
-          { "select": ["product_id"], "source": "Activity_Mongo", "from": "mongo_product_catalog" }
+          { "select": ["sku"], "from": { "resource": "active_products_pg" } },
+          { "select": ["product_id"], "from": { "resource": "mongo_product_catalog", "source": "Activity_Mongo" } }
         ],
         "except": [
-          { "select": ["sku"], "from": "local_warehouse_pg" },
-          { "select": ["sku"], "from": "discontinued_items_csv" }
+          { "select": ["sku"], "from": { "resource": "local_warehouse_pg" } },
+          { "select": ["sku"], "from": { "resource": "discontinued_items_csv" } }
         ]
       }
     },
@@ -281,7 +281,7 @@ This template is the "Master Blueprint" for the entire fabric, integrating the e
       "refreshInterval": "1 hour",
       "query": {
         "select": [{ "column": "region" }, { "aggregate": "COUNT", "alias": "volume" }],
-        "from": "shipments",
+        "from": { "resource": "shipments" },
         "groupBy": ["region"]
       },
       "indexes": [{ "columns": ["region"], "unique": true }]
@@ -510,6 +510,20 @@ These define the direction and fields of the link.
 If the `source` property in the `from` block does not match the `source` in the `to` block, the Data Fabric automatically upgrades the link to a **Federated Relationship**.
 - **Behavior**: The Fabric Hub will fetch data from both sources and perform an in-memory hash-join.
 - **Integrity**: Physical constraints (FKs) are ignored; the link is maintained purely through Metadata.
+
+#### **4. Relationship Detachment vs. Data Deletion**
+It is critical to distinguish between **Logical Links** and **Physical Data**:
+- **Detachment**: Removing a relationship from the AST deletes the **Metadata Link** and any physical **Foreign Key Constraints**. It **NEVER** deletes the underlying data columns or rows.
+- **Re-Attachment**: When re-adding a previously removed relationship, the Fabric treats it as a "New Entity" and triggers a full **Pre-flight Integrity Scan** to ensure the data hasn't drifted while the relationship was inactive.
+
+#### **8.12 Relationship Evolution & Symmetry**
+To maintain a lean and unambiguous metadata model, the Fabric follows these governance rules:
+
+1.  **Principle of Symmetry**: Relationships are bi-directional by default. Developers must **only define a link once** (usually from the Primary Key "Parent" side to the Foreign Key "Child" side). The Fabric automatically generates the inverse lookup logic in the API layer.
+2.  **Upgrading Cardinality (1:M to 1:1)**: This is a high-risk operation. The Fabric will block the `apply` if the physical data already contains duplicates that violate the new `1:1` rule. Data cleanup is a prerequisite for this upgrade.
+3.  **No Redundant Definitions**: Defining both `A -> B` and `B -> A` in the same AST will trigger a validation error. This prevents "Logical Paradoxes" where two sides of the same link define conflicting cardinality or source mapping.
+
+---
 
 ---
 

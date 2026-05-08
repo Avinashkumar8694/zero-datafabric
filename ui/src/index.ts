@@ -51,6 +51,10 @@ app.get('/catalog', (req, res) => {
   res.render('catalog', { title: 'Zero Data Fabric - Discovery Catalog' });
 });
 
+app.get('/metadata', (req, res) => {
+  res.render('metadata', { title: 'Zero Data Fabric - Metadata Orchestration' });
+});
+
 app.get('/settings', (req, res) => {
   res.render('settings', { title: 'Zero Data Fabric - Settings' });
 });

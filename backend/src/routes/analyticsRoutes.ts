@@ -8,6 +8,7 @@ router.post('/query', QueryEngineController.executeQuery);
 router.post('/query-async', QueryEngineController.executeAsyncQuery);
 
 router.get('/jobs/:jobId', QueryEngineController.getJobStatus);
+router.get('/query/status/:jobId', QueryEngineController.getJobStatus);
 
 router.post('/refresh-view', QueryEngineController.refreshView);
 

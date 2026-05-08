@@ -1,0 +1,12 @@
+{
+  "name": "Local_Hub",
+  "config": {
+    "type": "postgres",
+    "host": "localhost",
+    "port": 5434,
+    "dbName": "datafabric",
+    "user": "fabric_admin",
+    "pass": "fabric_password",
+    "syncType": "VIRTUAL"
+  }
+}

@@ -17,8 +17,10 @@ export class TenantService {
       );
 
       // 2. Call the DB orchestrator to create the physical schema
-      // This function also handles GRANTs and search_path setup
       await client.query('SELECT fabric_admin.create_tenant_namespace($1)', [id]);
+      
+      // 3. Grant CREATE permission (missing in the DB function)
+      await client.query(`GRANT CREATE ON SCHEMA "tenant_${id}" TO fabric_user`);
 
       await client.query('COMMIT');
       return result.rows[0];
@@ -31,10 +33,10 @@ export class TenantService {
     }
   }
 
-  static async updateStatus(id: string, status: 'ACTIVE' | 'SUSPENDED' | 'ARCHIVED') {
+  static async updateTenant(id: string, name: string, status: 'ACTIVE' | 'SUSPENDED' | 'ARCHIVED') {
     const { rows } = await pool.query(
-      'UPDATE public.tenants SET status = $1 WHERE id = $2 RETURNING *',
-      [status, id]
+      'UPDATE public.tenants SET name = $1, status = $2 WHERE id = $3 RETURNING *',
+      [name, status, id]
     );
     return rows[0];
   }

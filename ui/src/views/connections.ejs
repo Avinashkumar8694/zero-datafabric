@@ -1,38 +1,102 @@
 <%- include('partials/header') %>
 
 <div class="fade-in">
-    <div class="grid" style="grid-template-columns: 1fr 2fr;">
-        <!-- Connection Form -->
-        <section class="glass-card">
-            <h3>Register Remote Source</h3>
-            <p class="text-muted" style="margin-bottom: 1.5rem;">Virtualize external PostgreSQL databases into the fabric.</p>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <div>
+            <h1 style="font-family:'Outfit'; font-weight:800; font-size:1.75rem;">Source Connectivity</h1>
+            <p style="color:var(--text-muted);">Manage your heterogeneous data fabric engines and sync strategies.</p>
+        </div>
+        <div id="connCountBadge" class="badge badge-connected" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+            <i class="fas fa-network-wired"></i> <span id="connCountText">0 Sources Active</span>
+        </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns: 350px 1fr; gap: 2rem;">
+        <!-- Advanced Connection Form -->
+        <section class="glass-card" style="position: sticky; top: 1rem; height: fit-content;">
+            <h3 style="margin-bottom: 1.5rem; font-size: 1.1rem;"><i class="fas fa-plus-circle"></i> Add New Source</h3>
+            
             <form id="connectionForm">
-                <div class="form-group"><input type="text" id="connName" placeholder="Source Name" required class="context-select" style="width:100%"></div>
-                <div class="form-group"><input type="text" id="connHost" placeholder="Host (e.g. 127.0.0.1)" required class="context-select" style="width:100%"></div>
-                <div class="form-group"><input type="number" id="connPort" value="5432" class="context-select" style="width:100%"></div>
-                <div class="form-group"><input type="text" id="connDB" placeholder="Database Name" required class="context-select" style="width:100%"></div>
-                <div class="form-group"><input type="text" id="connUser" placeholder="Username" required class="context-select" style="width:100%"></div>
-                <div class="form-group"><input type="password" id="connPass" placeholder="Password" required class="context-select" style="width:100%"></div>
-                <button type="submit" class="btn-primary" style="width:100%">Virtualize Source</button>
+                <div style="margin-bottom: 1rem;">
+                    <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Source Name</label>
+                    <input type="text" id="connName" placeholder="e.g. Production_PG" required class="context-select" style="width:100%">
+                </div>
+
+                <div style="margin-bottom: 1rem;">
+                    <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Database Engine</label>
+                    <select id="connType" class="context-select" style="width:100%" onchange="updateDefaultPort()">
+                        <option value="postgres">PostgreSQL</option>
+                        <option value="mysql">MySQL / MariaDB</option>
+                        <option value="mongodb">MongoDB</option>
+                    </select>
+                </div>
+
+                <div style="margin-bottom: 1rem;">
+                    <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Sync Strategy</label>
+                    <select id="syncType" class="context-select" style="width:100%">
+                        <option value="VIRTUAL">VIRTUAL (FDW Federation)</option>
+                        <option value="SYNC">SYNC (Hub Ingestion)</option>
+                    </select>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 3fr 1fr; gap: 0.5rem; margin-bottom: 1rem;">
+                    <div>
+                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Host</label>
+                        <input type="text" id="connHost" placeholder="localhost" required class="context-select" style="width:100%">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Port</label>
+                        <input type="number" id="connPort" value="5432" class="context-select" style="width:100%">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1rem;">
+                    <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Database Name</label>
+                    <input type="text" id="connDB" placeholder="datafabric" required class="context-select" style="width:100%">
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 1.5rem;">
+                    <div>
+                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">User</label>
+                        <input type="text" id="connUser" placeholder="admin" required class="context-select" style="width:100%">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Password</label>
+                        <input type="password" id="connPass" placeholder="••••" required class="context-select" style="width:100%">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-primary" style="width:100%; padding: 0.8rem;">
+                    <i class="fas fa-bolt"></i> CONNECT SOURCE
+                </button>
             </form>
-            <div id="connStatus" style="margin-top: 1rem;"></div>
+            <div id="connStatus" style="margin-top: 1rem; text-align: center; font-size: 0.85rem;"></div>
         </section>
 
-        <!-- Active Connections Table -->
-        <section class="glass-card">
-            <h3>Virtualized Servers</h3>
+        <!-- Source Registry -->
+        <section class="glass-card" style="padding:0; overflow:hidden;">
+            <div style="padding: 1.5rem; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+                <h3 style="font-size: 1.1rem;"><i class="fas fa-layer-group"></i> Fabric Source Registry</h3>
+                <button class="btn-outline" style="padding:0.4rem 0.8rem; font-size:0.8rem;" onclick="loadConnections()"><i class="fas fa-sync"></i> Refresh</button>
+            </div>
+            
             <div class="table-wrapper">
-                <table>
+                <table style="border-radius:0;">
                     <thead>
                         <tr>
-                            <th>Name</th>
-                            <th>Host</th>
-                            <th>Status</th>
+                            <th>Engine</th>
+                            <th>Source Identity</th>
+                            <th>Sync Strategy</th>
+                            <th>Connection Endpoint</th>
+                            <th>Health Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="connectionsBody">
-                        <tr><td colspan="4">Loading connections...</td></tr>
+                        <tr><td colspan="6" style="text-align: center; padding: 4rem;">
+                            <div class="loading-spinner"></div>
+                            <p class="text-muted">Orchestrating Source Registry...</p>
+                        </td></tr>
                     </tbody>
                 </table>
             </div>
@@ -41,54 +105,108 @@
 </div>
 
 <script>
+    function updateDefaultPort() {
+        const type = document.getElementById('connType').value;
+        const portMap = { 'postgres': 5432, 'mysql': 3306, 'mongodb': 27017 };
+        document.getElementById('connPort').value = portMap[type];
+    }
+
+    function getStatusBadge(status) {
+        const color = status === 'CONNECTED' ? 'var(--success)' : 'var(--danger)';
+        const bg = status === 'CONNECTED' ? '#ECFDF5' : '#FEF2F2';
+        return `<div class="badge" style="background:${bg}; color:${color}; font-size:0.7rem; border: 1px solid ${color}20;">${status}</div>`;
+    }
+
     async function loadConnections() {
         const body = document.getElementById('connectionsBody');
         try {
-            const response = await fetch(`${API_BASE}/admin/connections`, {
-                headers: getAuthHeaders()
-            });
+            const response = await fetch(`${API_BASE}/admin/connections`, { headers: getAuthHeaders() });
             const data = await response.json();
+            document.getElementById('connCountText').innerText = `${data.length} Sources Active`;
+            
+            if (data.length === 0) {
+                body.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 4rem; color:var(--text-muted);">No integrated sources found in this tenant.</td></tr>';
+                return;
+            }
+
             body.innerHTML = data.map(c => `
                 <tr class="fade-in">
-                    <td><strong>${c.name}</strong></td>
-                    <td><code>${c.config.host}</code></td>
-                    <td><span class="badge-sync">${c.status}</span></td>
+                    <td><div class="badge" style="background:#F3F4F6; color:var(--text);">${c.type.toUpperCase()}</div></td>
                     <td>
-                        <button onclick="removeConnection('${c.id}')" class="btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; color: var(--danger);">Disconnect</button>
+                        <div style="font-weight: 700; color:var(--text);">${c.name}</div>
+                        <div style="font-size: 0.7rem; color: var(--text-muted)">ID: ${c.id.substring(0,8)}...</div>
+                    </td>
+                    <td><div class="badge badge-connected" style="background:#EBF2FF; color:var(--primary); font-size:0.7rem;">${c.sync_type}</div></td>
+                    <td><code>${c.config.host}:${c.config.port}</code></td>
+                    <td>${getStatusBadge(c.status)}</td>
+                    <td>
+                        <div style="display:flex; gap:0.5rem;">
+                            <button onclick="toggleConnectionStatus('${c.id}', '${c.status === 'CONNECTED' ? 'DISCONNECTED' : 'CONNECTED'}')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
+                                <i class="fas fa-power-off"></i> ${c.status === 'CONNECTED' ? 'Disconnect' : 'Connect'}
+                            </button>
+                            <button onclick="removeConnection('${c.id}', '${c.name}')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; color: var(--danger); border-color: #FEE2E2;"><i class="fas fa-trash-alt"></i></button>
+                        </div>
                     </td>
                 </tr>
             `).join('');
         } catch (err) {
-            body.innerHTML = '<tr><td colspan="4">Failed to load connections</td></tr>';
+            body.innerHTML = '<tr><td colspan="6" class="text-danger" style="text-align:center; padding:2rem;">Failed to synchronize with Fabric API.</td></tr>';
         }
     }
 
-    async function removeConnection(id) {
-        if (!confirm('Are you sure you want to disconnect this source? All virtual tables will be removed.')) return;
+    async function toggleConnectionStatus(id, newStatus) {
         try {
-            const res = await fetch(`${API_BASE}/admin/connections/${id}`, {
-                method: 'DELETE',
-                headers: getAuthHeaders()
+            const res = await fetch(`${API_BASE}/admin/connections`, {
+                method: 'PATCH',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ id, status: newStatus })
             });
-            if (res.ok) loadConnections();
-        } catch (e) { alert('Removal failed'); }
+            if (res.ok) {
+                showModal('Success', `Source is now ${newStatus.toLowerCase()}.`);
+                loadConnections();
+            } else {
+                const err = await res.json();
+                showModal('Status Update Failed', err.error);
+            }
+        } catch (e) { showModal('Error', 'Status API unreachable.'); }
+    }
+
+    async function removeConnection(id, name) {
+        showModal('Purge Source Registry', `Are you absolutely sure you want to remove '${name}'? This will permanently delete all metadata, virtual tables, and ingested cache.`, async () => {
+            try {
+                const res = await fetch(`${API_BASE}/admin/connections/${id}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+                if (res.ok) {
+                    showModal('Zero-Trace Success', 'Source and all associated footprints have been purged from the fabric.');
+                    loadConnections();
+                } else {
+                    const err = await res.json();
+                    showModal('Purge Failed', err.error);
+                }
+            } catch (e) { showModal('Error', 'Purge API unreachable.'); }
+        }, 'CONFIRM PURGE');
     }
 
     document.getElementById('connectionForm').addEventListener('submit', async (e) => {
         e.preventDefault();
+        const statusEl = document.getElementById('connStatus');
+        statusEl.innerHTML = '<span class="text-muted"><i class="fas fa-circle-notch fa-spin"></i> Initializing Orchestration...</span>';
+
         const payload = {
             name: document.getElementById('connName').value,
             config: {
+                type: document.getElementById('connType').value,
                 host: document.getElementById('connHost').value,
                 port: parseInt(document.getElementById('connPort').value),
                 dbName: document.getElementById('connDB').value,
                 user: document.getElementById('connUser').value,
                 pass: document.getElementById('connPass').value,
-                syncType: 'VIRTUAL'
+                syncType: document.getElementById('syncType').value
             }
         };
 
-        const statusEl = document.getElementById('connStatus');
         try {
             const response = await fetch(`${API_BASE}/admin/connections`, {
                 method: 'POST',
@@ -96,14 +214,19 @@
                 body: JSON.stringify(payload)
             });
             const data = await response.json();
-            statusEl.innerText = response.ok ? `Source integrated successfully.` : (data.error || 'Integration failed');
-            statusEl.style.color = response.ok ? 'var(--success)' : 'var(--danger)';
+            
             if (response.ok) {
+                showModal('Fabric Integrated', `Source '${payload.serverName}' has been successfully virtualized and cataloged.`);
+                statusEl.innerHTML = '';
                 document.getElementById('connectionForm').reset();
+                updateDefaultPort();
                 loadConnections();
+            } else {
+                statusEl.innerHTML = `<span style="color: var(--danger)">Integration Failed: ${data.error}</span>`;
+                showModal('Integration Error', data.error);
             }
         } catch (err) {
-            statusEl.innerText = 'API Connection Error';
+            statusEl.innerText = 'CRITICAL: Fabric API Offline';
         }
     });
 

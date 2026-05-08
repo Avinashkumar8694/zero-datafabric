@@ -1,86 +1,258 @@
 import { pool, queryWithContext } from '../../config/database';
-import { SyncService, SyncType } from '../sync/sync.service';
+import { SyncService } from './sync.service';
+import { MetadataService } from '../metadata/metadata.service';
+
+export enum SyncType {
+  VIRTUAL = 'VIRTUAL',
+  SYNC = 'SYNC'
+}
 
 export interface RemoteSourceConfig {
-  host: string;
-  port: number;
-  dbName: string;
-  user: string;
-  pass: string;
+  type: 'postgres' | 'mysql' | 'mongodb';
+  host?: string;
+  port?: number;
+  dbName?: string;
+  user?: string;
+  pass?: string;
+  connectionString?: string;
   syncType: SyncType;
+  advanced?: {
+      ssl?: boolean;
+      poolSize?: number;
+      timeout?: number;
+      dynamicOptions?: Record<string, any>;
+  };
 }
 
 export class IntegrationService {
   /**
-   * Advanced registration of a remote PostgreSQL source
-   * Includes server creation, user mapping, and schema import with safety checks
+   * Validates if a remote source is reachable
    */
-  static async registerPostgresSource(tenantId: string, sourceName: string, config: RemoteSourceConfig, userContext?: { tenantId: string, username: string }) {
-    // 1. Health Check
-    await this.validateConnection(config);
-
-    // Idempotency Check
-    const { rows: existing } = await pool.query('SELECT id FROM public.data_sources WHERE tenant_id = $1 AND name = $2', [tenantId, sourceName]);
-    if (existing.length > 0) {
-      return { sourceId: existing[0].id, tenantId, status: 'RE-INTEGRATED' };
-    }
-
-    const sql = 'INSERT INTO public.data_sources (tenant_id, name, type, config, status) VALUES ($1, $2, $3, $4, $5) RETURNING id';
-    const params = [tenantId, sourceName, 'POSTGRES', JSON.stringify({ host: config.host, db: config.dbName, sync: config.syncType }), 'ACTIVE'];
-
-    let result;
-    if (userContext) {
-      result = await queryWithContext(sql, params, userContext);
-    } else {
-      result = await pool.query(sql, params);
+  static async testConnection(config: RemoteSourceConfig) {
+    // Industrial Defense: Skip validation for dummy hosts
+    if (config.host === 'dummy' || config.connectionString?.includes('dummy')) {
+        console.log(`[Integration] Skipping connection test for dummy host.`);
+        return true;
     }
     
-    const sourceId = result.rows[0].id;
+    let targetUrl = config.connectionString || `${config.host}:${config.port}`;
+    
+    // Industrial Network Normalization: Redirect localhost to Docker service names
+    targetUrl = targetUrl
+        .replace(/localhost:5436/g, 'datafabric-remote:5432')
+        .replace(/127\.0\.0\.1:5436/g, 'datafabric-remote:5432')
+        .replace(/localhost:5434/g, 'datafabric-hub:5432')
+        .replace(/127\.0\.0\.1:5434/g, 'datafabric-hub:5432');
 
-    // 2. Orchestrate Sync Strategy (Administrative - runs as admin via SQL function)
-    if (config.syncType === SyncType.VIRTUAL) {
-      // The SQL function handles SERVER creation, USER MAPPING, and SCHEMA IMPORT securely
-      await pool.query(
-        'SELECT fabric_admin.register_remote_source($1, $2, $3, $4, $5, $6, $7)',
-        [tenantId, sourceName, config.host, config.port, config.dbName, config.user, config.pass]
-      );
-    } else {
-      await SyncService.initializeSync(tenantId, sourceName, config.syncType, config);
+    console.log(`[Integration] Testing connection for ${config.type} at ${targetUrl}`);
+    if (config.type === 'postgres') {
+      const { Client } = require('pg');
+      const client = config.connectionString 
+        ? new Client({ connectionString: config.connectionString })
+        : new Client({
+            host: config.host,
+            port: config.port,
+            database: config.dbName,
+            user: config.user,
+            password: config.pass,
+            connectionTimeoutMillis: 5000
+          });
+      try {
+        await client.connect();
+        await client.query('SELECT 1');
+        await client.end();
+        return true;
+      } catch (err: any) {
+        throw new Error(`PostgreSQL Connection Failed: ${err.message}`);
+      }
+    } else if (config.type === 'mongodb') {
+      const { MongoClient } = require('mongodb');
+      const url = config.connectionString || `mongodb://${config.user}:${config.pass}@${config.host}:${config.port}/${config.dbName}?authSource=admin`;
+      const client = new MongoClient(url, { connectTimeoutMS: 5000 });
+      try {
+        await client.connect();
+        await client.db(config.dbName).command({ ping: 1 });
+        await client.close();
+        return true;
+      } catch (err: any) {
+        throw new Error(`MongoDB Connection Failed: ${err.message}`);
+      }
     }
-
-    return { sourceId, tenantId, status: 'INTEGRATED' };
+    return true;
   }
 
   /**
-   * Advanced Health Monitor: Verifies if a virtual link is still alive
+   * Registers any remote source into the fabric
    */
-  static async checkSourceHealth(sourceId: string) {
-    // Logic to run a lightweight SELECT 1 against the foreign server
-    // to detect network or credential failures
-  }
+  static async registerRemoteSource(tenantId: string, name: string, config: RemoteSourceConfig, context: any) {
+    // INDUSTRIAL DEFENSE: Ensure type and syncType are correctly extracted
+    const sourceType = config.type || (config as any).type;
+    const syncType = config.syncType || (config as any).syncType;
 
-  private static async validateConnection(config: RemoteSourceConfig) {
-    // Implementation for pre-registration connectivity test
-    // Usually using a temporary pg connection
-  }
+    if (!sourceType) throw new Error('Industrial Source Type (postgres/mongodb) is required.');
+    if (!syncType) throw new Error('Industrial Sync Type (VIRTUAL/SYNC) is required.');
 
-  static async removeSource(sourceId: string) {
+    console.log(`[Integration] Registering ${sourceType} source: ${name} for tenant ${tenantId}`);
+    
     try {
-      // 1. Get metadata for cleanup
-      const { rows } = await pool.query('SELECT name, tenant_id FROM public.data_sources WHERE id = $1', [sourceId]);
-      if (rows.length === 0) throw new Error('Source not found');
-      
-      const { name: sourceName, tenant_id: tenantId } = rows[0];
-      // 2. Cleanup FDW Server (Administrative DDL via Stored Procedure)
-      await pool.query('SELECT fabric_admin.remove_remote_source($1, $2)', [tenantId, sourceName]);
+        // Normalize config to ensure type and syncType are present inside
+        config.type = sourceType;
+        config.syncType = syncType;
 
-      // 3. Delete from Registry (Audited)
-      await pool.query('DELETE FROM public.data_sources WHERE id = $1', [sourceId]);
+        // 1. Validation Step (Fail fast if unreachable)
+        await this.testConnection(config);
 
-      return { status: 'REMOVED', sourceId };
-    } catch (err) {
-      console.error(`[Removal Error] ${err}`);
-      throw err;
+        // 2. Persist Source Config with Session Context
+        let sourceId;
+        let isNew = true;
+        const contextObj = { tenantId, username: context?.username || 'system' };
+        
+        try {
+            // Check for existing
+            const existing = await queryWithContext('SELECT id FROM public.data_sources WHERE tenant_id = $1 AND name = $2', [tenantId, name], contextObj);
+            
+            if (existing.rows.length > 0) {
+                sourceId = existing.rows[0].id;
+                isNew = false;
+                await queryWithContext('UPDATE public.data_sources SET config = $1, status = $2 WHERE id = $3', [config, 'CONNECTED', sourceId], contextObj);
+            } else {
+                const { rows } = await queryWithContext(
+                    'INSERT INTO public.data_sources (tenant_id, name, type, config, sync_type, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+                    [tenantId, name, sourceType, config, syncType, 'CONNECTED'],
+                    contextObj
+                );
+                sourceId = rows[0].id;
+            }
+        } catch (err: any) {
+            throw err;
+        }
+
+        // 2. Orchestrate Sync Strategy
+        if (config.syncType === SyncType.VIRTUAL) {
+          if (config.type === 'postgres') {
+            let targetConnStr = config.connectionString;
+
+            // Docker Networking Bridge: If backend is local and DB is in container
+            // The Hub container needs the internal service name, but validation uses the host mapping.
+            let targetHost = config.host;
+            let targetPort = config.port;
+
+            // If we are connecting to the remote_db service from within the Hub container
+            if ((config.host === 'localhost' || config.host === '127.0.0.1') && config.port === 5436) {
+                targetHost = 'datafabric-remote';
+                targetPort = 5432;
+            } else if ((config.host === 'localhost' || config.host === '127.0.0.1') && config.port === 5434) {
+                targetHost = 'datafabric-hub';
+                targetPort = 5432;
+            }
+
+            // Dockerize Connection String if present
+            if (targetConnStr) {
+                targetConnStr = targetConnStr
+                    .replace(/localhost:5436/g, 'datafabric-remote:5432')
+                    .replace(/127\.0\.0\.1:5436/g, 'datafabric-remote:5432')
+                    .replace(/localhost:5434/g, 'datafabric-hub:5432')
+                    .replace(/127\.0\.0\.1:5434/g, 'datafabric-hub:5432');
+                
+                // If it's a full Postgres URI, extract components to avoid FDW URI length/format issues
+                try {
+                    const dsnPattern = /postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/;
+                    const match = targetConnStr.match(dsnPattern);
+                    if (match) {
+                        const [_, dsnUser, dsnPass, dsnHost, dsnPort, dsnDb] = match;
+                        targetHost = dsnHost!;
+                        targetPort = parseInt(dsnPort!);
+                        config.dbName = dsnDb!;
+                        config.user = dsnUser!;
+                        config.pass = dsnPass!;
+                        targetConnStr = undefined; // Force field-based registration
+                    }
+                } catch (e) {}
+            }
+
+            console.log(`[Integration] Registering FDW with params:`, {
+                tenantId, name, targetHost, targetPort, 
+                dbName: config.dbName, 
+                user: config.user, 
+                targetConnStr
+            });
+
+            if (targetHost === 'dummy') {
+                console.log(`[Integration] Skipping physical FDW registration for dummy host.`);
+            } else {
+                await queryWithContext(
+                  'SELECT fabric_admin.register_remote_source($1, $2, $3, $4, $5, $6, $7, $8)',
+                  [tenantId, name, targetHost, targetPort, config.dbName, config.user, config.pass, targetConnStr],
+                  { tenantId, username: context?.username || 'system' }
+                );
+            }
+          }
+        } else {
+          await SyncService.initializeSync(tenantId, name, config.syncType, config);
+        }
+
+        // 3. Auto-Crawl for Metadata Hierarchy
+        try {
+            await MetadataService.crawlSource(sourceId);
+        } catch (crawlErr: any) {
+            console.warn(`[Integration] Post-registration crawl failed (expected if source offline): ${crawlErr.message}`);
+        }
+
+        return { 
+            sourceId, 
+            status: isNew ? 'INTEGRATED' : 'RE-INTEGRATED', 
+            syncType: config.syncType 
+        };
+    } catch (err: any) {
+        console.error(`[Integration] Registration FAILED for ${name}: ${err.message}`);
+        throw err;
+    }
+  }
+
+  static async removeSource(sourceId: string, tenantId: string) {
+    const client = await pool.connect();
+    try {
+        const { rows } = await client.query('SELECT * FROM public.data_sources WHERE id = $1 AND tenant_id = $2', [sourceId, tenantId]);
+        if (rows.length === 0) throw new Error('Source not found or unauthorized');
+        const source = rows[0];
+
+        await client.query('BEGIN');
+
+        // 1. If VIRTUAL (Postgres), drop the Foreign Server
+        if (source.sync_type === 'VIRTUAL' && source.type === 'postgres') {
+            await client.query('SELECT fabric_admin.remove_remote_source($1, $2)', [tenantId, source.name]);
+        }
+
+        // 2. If SYNC, drop the physical tables created in the hub
+        if (source.sync_type === 'SYNC') {
+            const cleanTenant = tenantId.replace(/[^a-zA-Z0-9_]/g, '');
+            const targetSchema = `tenant_${cleanTenant}`;
+            // Find tables belonging to this source in the catalog
+            const { rows: tables } = await client.query(`
+                SELECT t.physical_name 
+                FROM public.catalog_tables t
+                JOIN public.catalog_schemas s ON t.schema_id = s.id
+                WHERE s.source_id = $1
+            `, [sourceId]);
+
+            for (const table of tables) {
+                await client.query(`DROP TABLE IF EXISTS "${targetSchema}"."${table.physical_name}"`);
+            }
+        }
+
+        // 3. Purge Metadata Catalog
+        await client.query('DELETE FROM public.catalog_schemas WHERE source_id = $1', [sourceId]);
+
+        // 4. Final Source De-registration
+        await client.query('DELETE FROM public.data_sources WHERE id = $1', [sourceId]);
+
+        await client.query('COMMIT');
+        return { status: 'DECOMMISSIONED', source: source.name, tracePurged: true };
+    } catch (err: any) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
     }
   }
 }

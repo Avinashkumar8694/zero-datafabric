@@ -1,0 +1,35 @@
+{
+  "hub": {
+    "type": "postgresql",
+    "host": "localhost",
+    "port": 5434,
+    "user": "fabric_admin",
+    "pass": "fabric_password",
+    "database": "datafabric",
+    "dsn": "postgresql://fabric_admin:fabric_password@localhost:5434/datafabric"
+  },
+  "remote_warehouse": {
+    "type": "postgresql",
+    "host": "localhost",
+    "port": 5436,
+    "user": "remote_admin",
+    "pass": "remote_password",
+    "database": "remote_warehouse",
+    "dsn": "postgresql://remote_admin:remote_password@localhost:5436/remote_warehouse"
+  },
+  "local_mongodb": {
+    "type": "mongodb",
+    "host": "localhost",
+    "port": 27017,
+    "user": "admin",
+    "pass": "mongo_password",
+    "database": "admin",
+    "dsn": "mongodb://admin:mongo_password@localhost:27017/admin?authSource=admin"
+  },
+  "atlas_mongodb": {
+    "type": "mongodb",
+    "dsn": "mongodb+srv://kumarAviNit:OmbHwoeeRSJ3LjQb@clusterecommerce.x2x0e.mongodb.net/?appName=ClusterEcommerce",
+    "cluster": "ClusterEcommerce",
+    "user": "kumarAviNit"
+  }
+}

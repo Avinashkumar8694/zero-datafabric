@@ -7,7 +7,7 @@ services:
     container_name: datafabric-hub
     environment:
       POSTGRES_USER: fabric_admin
-      POSTGRES_PASSWORD: super_secret_password
+      POSTGRES_PASSWORD: fabric_password
       POSTGRES_DB: datafabric
     ports:
       - "5434:5432"
@@ -30,7 +30,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      PGRST_DB_URI: postgres://authenticator:super_secret_password@db:5432/datafabric
+      PGRST_DB_URI: postgres://authenticator:fabric_password@db:5432/datafabric
       PGRST_DB_SCHEMA: public
       PGRST_DB_ANON_ROLE: web_anon
       PGRST_JWT_SECRET: "reallyreallyreallyreallyverysecret"
@@ -71,6 +71,17 @@ services:
       POSTGRES_DB: remote_warehouse
     ports:
       - "5436:5432"
+    restart: unless-stopped
+
+  # NoSQL Datasource for Federated Query Testing
+  mongodb:
+    image: mongo:6.0
+    container_name: datafabric-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: mongo_password
     restart: unless-stopped
 
 volumes:

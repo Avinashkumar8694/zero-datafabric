@@ -6,7 +6,13 @@ import jwt from 'jsonwebtoken';
 describe('Module 2: Query Engine', () => {
   const secret = process.env.JWT_SECRET || 'reallyreallyreallyreallyverysecret';
   const tenantId = 'query_test_tenant';
-  const token = jwt.sign({ tenant_id: tenantId, username: 'tester' }, secret);
+  const token = jwt.sign({ 
+    tenant_id: tenantId, 
+    username: 'tester', 
+    internal_role: 'USER',
+    iat: Math.floor(Date.now() / 1000),
+    iss: 'zero-data-fabric'
+  }, secret);
 
   beforeAll(async () => {
     // Setup tenant for testing
@@ -85,7 +91,8 @@ describe('Module 2: Query Engine', () => {
         queryConfig: {
           type: 'SELECT',
           table: 'test_table',
-          select: ['data']
+          select: ['data'],
+          limit: 10
         }
       });
 
@@ -138,7 +145,8 @@ describe('Module 2: Query Engine', () => {
       .send({
         queryConfig: {
           type: 'SELECT',
-          table: 'test_table'
+          table: 'test_table',
+          limit: 10
         }
       });
 

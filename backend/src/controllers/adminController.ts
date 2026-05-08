@@ -1,31 +1,198 @@
 import { Request, Response } from 'express';
 import * as adminService from '../services/adminService';
+import { IntegrationService } from '../modules/integration/integration.service';
+import { TenantService } from '../modules/tenant/tenant.service';
+import { AuthService } from '../modules/auth/auth.service';
+import { pool, queryWithContext } from '../config/database';
+
+// --- Tenant Management ---
+export const getTenants = async (req: Request, res: Response) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM public.tenants ORDER BY created_at DESC');
+    res.json(rows);
+  } catch (err: any) { 
+    console.error(`[Admin] Error in ${req.url}:`, err.message);
+    res.status(500).json({ error: err.message }); 
+  }
+};
 
 export const createTenant = async (req: Request, res: Response) => {
-  const { tenantName } = req.body;
-  if (!tenantName) return res.status(400).json({ error: 'tenantName is required' });
-
+  const { id, name } = req.body;
+  if (!id || !name) return res.status(400).json({ error: 'id and name are required' });
   try {
-    const result = await adminService.createTenant(tenantName);
-    res.json({ message: 'Tenant Provisioned Successfully', ...result });
-  } catch (error) {
-    console.error('Tenant provisioning failed:', error);
-    res.status(500).json({ error: 'Provisioning failed' });
+    const result = await TenantService.createTenant(id, name);
+    res.status(201).json(result);
+  } catch (err: any) { 
+    console.error(`[Admin] Error in ${req.url}:`, err.message);
+    res.status(500).json({ error: err.message }); 
+  }
+};
+
+export const updateTenant = async (req: Request, res: Response) => {
+  try {
+    const { name, status } = req.body;
+    const result = await TenantService.updateTenant(req.params.id as string, name, status);
+    res.json(result);
+  } catch (err: any) { 
+    console.error(`[Admin] Error in ${req.url}:`, err.message);
+    res.status(500).json({ error: err.message }); 
+  }
+};
+
+export const deleteTenant = async (req: Request, res: Response) => {
+  try {
+    const result = await TenantService.deleteTenant(req.params.id as string);
+    res.json(result);
+  } catch (err: any) { 
+    console.error(`[Admin] Error in ${req.url}:`, err.message);
+    res.status(500).json({ error: err.message }); 
+  }
+};
+
+// --- Connection Management ---
+export const getConnections = async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  try {
+    const result = await queryWithContext('SELECT * FROM public.data_sources', [], { tenantId: user.tenant_id, username: user.username });
+    res.json(result.rows);
+  } catch (err: any) { 
+    console.error(`[Admin] Error in ${req.url}:`, err.message);
+    res.status(500).json({ error: err.message }); 
   }
 };
 
 export const createConnection = async (req: Request, res: Response) => {
-  const { tenantId, serverName, host, port, dbname, remoteUser, remotePassword } = req.body;
-  
-  if (!tenantId || !serverName || !host || !port || !dbname || !remoteUser || !remotePassword) {
-    return res.status(400).json({ error: 'Missing required connection parameters' });
-  }
-
+  const { name, config } = req.body;
+  const user = (req as any).user;
+  if (!name || !config) return res.status(400).json({ error: 'name and config are required' });
   try {
-    const result = await adminService.createConnection(req.body);
-    res.json(result);
-  } catch (error) {
-    console.error('FDW Connection failed:', error);
-    res.status(500).json({ error: 'Connection failed' });
+    const result = await IntegrationService.registerRemoteSource(user.tenant_id, name, config, { username: user.username });
+    const statusCode = result.status === 'RE-INTEGRATED' ? 200 : 201;
+    res.status(statusCode).json(result);
+  } catch (err: any) { 
+    console.error(`[Admin] Error in ${req.url}:`, err.message);
+    res.status(500).json({ error: err.message }); 
   }
+};
+
+export const updateConnectionStatus = async (req: Request, res: Response) => {
+  const { sourceId, status } = req.body;
+  if (!sourceId || !status) return res.status(400).json({ error: 'sourceId and status are required' });
+  try {
+    const result = await adminService.disconnectSource(sourceId, status);
+    res.json(result);
+  } catch (err: any) { 
+    console.error(`[Admin] Error in ${req.url}:`, err.message);
+    res.status(500).json({ error: err.message }); 
+  }
+};
+
+export const removeConnection = async (req: Request, res: Response) => {
+  const sourceId = req.params.id;
+  const user = (req as any).user;
+  if (!sourceId) return res.status(400).json({ error: 'sourceId is required' });
+  try {
+    const result = await IntegrationService.removeSource(sourceId as string, user.tenant_id);
+    res.json(result);
+  } catch (err: any) { 
+    console.error(`[Admin] Error in ${req.url}:`, err.message);
+    res.status(500).json({ error: err.message }); 
+  }
+};
+
+// --- User Management ---
+export const getUsers = async (req: Request, res: Response) => {
+  try {
+    const { rows } = await pool.query('SELECT id, username, tenant_id, role, status FROM public.users');
+    res.json(rows);
+  } catch (err: any) { 
+    console.error(`[Admin] Error in ${req.url}:`, err.message);
+    res.status(500).json({ error: err.message }); 
+  }
+};
+
+export const createUser = async (req: Request, res: Response) => {
+  const { username, password, tenantId, role } = req.body;
+  try {
+    const result = await AuthService.createUser(username, password, tenantId, role);
+    res.status(201).json(result);
+  } catch (err: any) { 
+    console.error(`[Admin] Error in ${req.url}:`, err.message);
+    res.status(500).json({ error: err.message }); 
+  }
+};
+
+export const updateUser = async (req: Request, res: Response) => {
+  const { username, password, tenantId, role } = req.body;
+  try {
+    const result = await AuthService.updateUser(req.params.id as string, username, password, tenantId, role);
+    res.json(result);
+  } catch (err: any) { 
+    console.error(`[Admin] Error in ${req.url}:`, err.message);
+    res.status(500).json({ error: err.message }); 
+  }
+};
+
+export const deleteUser = async (req: Request, res: Response) => {
+  try {
+    const result = await AuthService.deleteUser(req.params.id as string);
+    res.json(result);
+  } catch (err: any) { 
+    console.error(`[Admin] Error in ${req.url}:`, err.message);
+    res.status(500).json({ error: err.message }); 
+  }
+};
+
+// --- Insights ---
+export const getDashboardStats = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const [tenants, connections, audits] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM public.tenants'),
+      pool.query('SELECT COUNT(*) FROM public.data_sources'),
+      pool.query("SELECT COUNT(*) FROM public.audit_logs WHERE changed_at > NOW() - INTERVAL '24 hours'")
+    ]);
+    
+    res.json({
+      tenants: parseInt(tenants.rows[0].count),
+      connections: parseInt(connections.rows[0].count),
+      audits: parseInt(audits.rows[0].count)
+    });
+  } catch (err: any) { 
+    console.error(`[Admin] Error in ${req.url}:`, err.message);
+    res.status(500).json({ error: err.message }); 
+  }
+};
+
+export const getAuditLogs = async (req: Request, res: Response) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM public.audit_logs ORDER BY changed_at DESC LIMIT 50');
+    res.json(rows);
+  } catch (err: any) { 
+    console.error(`[Admin] Error in ${req.url}:`, err.message);
+    res.status(500).json({ error: err.message }); 
+  }
+};
+
+export const getCatalogSummary = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const { rows } = await queryWithContext(`
+      SELECT 
+        s.physical_name as schema_name, 
+        t.physical_name as table_name, 
+        t.row_count, 
+        t.last_crawled_at 
+      FROM public.catalog_tables t
+      JOIN public.catalog_schemas s ON t.schema_id = s.id
+      WHERE ($1::text IS NULL OR (
+          s.source_id IN (SELECT id FROM public.data_sources WHERE tenant_id = $1)
+          OR s.physical_name LIKE 'tenant_' || $1 || '%'
+      ))
+      ORDER BY s.physical_name, t.physical_name ASC`, [user.tenant_id], {
+      tenantId: user.tenant_id,
+      username: user.username || 'unknown'
+    });
+    res.json(rows);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 };

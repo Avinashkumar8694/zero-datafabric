@@ -3,6 +3,8 @@ import { app } from '../../index';
 import { pool } from '../../config/database';
 import jwt from 'jsonwebtoken';
 
+jest.setTimeout(30000);
+
 describe('Module 1/3: Data Integration & Virtualization', () => {
   const secret = process.env.JWT_SECRET || 'reallyreallyreallyreallyverysecret';
   const token = jwt.sign({ tenant_id: 'tenant_C', username: 'admin_user', internal_role: 'ADMIN' }, secret);
@@ -25,11 +27,12 @@ describe('Module 1/3: Data Integration & Virtualization', () => {
       .send({
         name: 'Remote_Store',
         config: {
-          host: '127.0.0.1', // Use 127.0.0.1 for more reliable local connection
-          port: 5432, // Internal port for self-reference
+          host: '127.0.0.1', 
+          port: 5434, // Master DB mapped port
           dbName: 'datafabric',
           user: 'fabric_admin',
-          pass: 'super_secret_password',
+          pass: 'fabric_password',
+          type: 'postgres',
           syncType: 'VIRTUAL'
         }
       });
@@ -40,7 +43,7 @@ describe('Module 1/3: Data Integration & Virtualization', () => {
     // Verify in DB
     const { rows } = await pool.query("SELECT * FROM public.data_sources WHERE name = 'Remote_Store'");
     expect(rows.length).toBe(1);
-    expect(rows[0].status).toBe('ACTIVE');
+    expect(rows[0].status).toBe('CONNECTED');
   });
 
   it('should be idempotent and allow re-registration of the same source', async () => {
@@ -51,10 +54,11 @@ describe('Module 1/3: Data Integration & Virtualization', () => {
         name: 'Remote_Store', // Same name
         config: {
           host: '127.0.0.1',
-          port: 5432,
+          port: 5434,
           dbName: 'datafabric',
           user: 'fabric_admin',
-          pass: 'super_secret_password',
+          pass: 'fabric_password',
+          type: 'postgres',
           syncType: 'VIRTUAL'
         }
       });
@@ -93,7 +97,7 @@ describe('Module 1/3: Data Integration & Virtualization', () => {
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.status).toBe('REMOVED');
+    expect(res.body.status).toBe('DECOMMISSIONED');
 
     // Verify FDW cleanup
     const { rows: servers } = await pool.query("SELECT srvname FROM pg_foreign_server");

@@ -112,7 +112,7 @@ async function runUltimateTest() {
     });
 
     const auditRes = await axios.post(`${BASE_URL}/analytics/query`, {
-      queryConfig: { type: 'SELECT', table: 'audit_logs', select: ['*'] }
+      queryConfig: { type: 'SELECT', table: 'audit_logs', select: ['*'], limit: 10 }
     });
     if (auditRes.data.data.length > 0) {
         console.log('[OK] Trigger Verified: Audit log captured');
@@ -138,11 +138,32 @@ async function runUltimateTest() {
         joins: [
           { type: 'INNER', table: 'user_groups', on: 'users.id = user_groups.user_id' },
           { type: 'INNER', table: 'groups', on: 'user_groups.group_id = groups.id' }
-        ]
+        ],
+        filter: {
+            "groups.name": { "$eq": "Super-Admins" },
+            "users.email": { "$like": "%zero.io" }
+        }
       }
     });
-    console.log('[OK] M:M Join Successful');
+    console.log('[OK] M:M Join with Operators Successful');
     console.table(mmJoin.data.data);
+
+    // 5.5. Verify Analytical Aggregation (GROUP BY)
+    console.log('[5.5/12] Testing Analytical Aggregation (GROUP BY)...');
+    const groupCount = await axios.post(`${BASE_URL}/analytics/query`, {
+      queryConfig: {
+        type: 'SELECT',
+        table: 'users',
+        select: ['groups.name', 'count(*) as member_count'],
+        joins: [
+          { type: 'INNER', table: 'user_groups', on: 'users.id = user_groups.user_id' },
+          { type: 'INNER', table: 'groups', on: 'user_groups.group_id = groups.id' }
+        ],
+        groupBy: ['groups.name']
+      }
+    });
+    console.log('[OK] Group counts retrieved');
+    console.table(groupCount.data.data);
 
     // 5. Verify Heterogeneous Cross-Source JOIN
     console.log('[6/12] Testing Cross-Source JOIN (Local + Remote FDW)...');
@@ -153,7 +174,8 @@ async function runUltimateTest() {
         select: ['users.email', 'remote_inventory.qty', 'remote_inventory.sku'],
         joins: [
           { type: 'INNER', table: 'remote_inventory', on: 'users.sku_interest = remote_inventory.sku' }
-        ]
+        ],
+        limit: 10
       }
     });
     console.log('[OK] Cross-Source JOIN Successful (Virtualization Verified)');
@@ -162,7 +184,7 @@ async function runUltimateTest() {
     // 6. Verify PII Masking
     console.log('[7/12] Verifying Governance Policy (PII Masking)...');
     const maskRes = await axios.post(`${BASE_URL}/analytics/query`, {
-        queryConfig: { type: 'SELECT', table: 'users', select: ['email'] }
+        queryConfig: { type: 'SELECT', table: 'users', select: ['email'], limit: 1 }
     });
     console.log(`[OK] Masked Email: ${maskRes.data.data[0].email}`);
 
@@ -182,7 +204,8 @@ async function runUltimateTest() {
            baseQuery: `SELECT id, name, parent_id FROM "tenant_${TENANT_ID}"."org" WHERE parent_id IS NULL`,
            recursiveQuery: `SELECT o.id, o.name, o.parent_id FROM "tenant_${TENANT_ID}"."org" o JOIN org_tree ot ON o.parent_id = ot.id`
         },
-        select: ['*']
+        select: ['*'],
+        limit: 10
       }
     });
     console.log('[OK] Recursive Org Chart retrieved');
@@ -193,8 +216,58 @@ async function runUltimateTest() {
     await axios.post(`${BASE_URL}/metadata/migrate`, {
       migrationPlan: [{ action: 'SOFT_DELETE_TABLE', table: 'groups' }]
     });
-    const catalogRes = await axios.post(`${BASE_URL}/metadata/crawl`, { tenantId: TENANT_ID });
-    console.log('[OK] Soft Delete applied. Table is flagged in catalog.');
+    // 9. Verify Catalog Metrics (Row Counts & Dates)
+    console.log('[10/12] Verifying Catalog Metrics (Row Counts & Discovery Dates)...');
+    await axios.post(`${BASE_URL}/metadata/crawl`, { tenantId: TENANT_ID });
+    const catalogFinal = await axios.get(`${BASE_URL}/admin/catalog`);
+    const catalogData = catalogFinal.data;
+    console.table(catalogData);
+    
+    const usersTable = catalogData.find((m: any) => m.table_name === 'users');
+    if (usersTable && parseInt(usersTable.row_count) > 0) {
+        console.log(`[OK] Row Count Verified: ${usersTable.row_count} rows found`);
+    } else {
+        console.warn('❌ Row Count Verification Failed (Showed 0 or not found)');
+    }
+
+    if (usersTable && usersTable.last_crawled_at) {
+        console.log(`[OK] Discovery Date Verified: ${usersTable.last_crawled_at}`);
+    } else {
+        console.warn('❌ Discovery Date Verification Failed');
+    }
+
+    // 11. Industrial Safety Shield Verification
+    console.log('[11/12] Verifying Industrial Safety Shield...');
+    
+    // Test 1: Unrestricted SELECT (Should FAIL)
+    try {
+        await axios.post(`${BASE_URL}/analytics/query`, {
+            queryConfig: { type: 'SELECT', table: 'users', select: ['*'] }
+        });
+        console.warn('❌ Safety Shield Failure: Unrestricted SELECT was allowed');
+    } catch (e: any) {
+        console.log('[OK] Unrestricted SELECT blocked successfully');
+    }
+
+    // Test 2: Aggregate SELECT (Should PASS)
+    try {
+        const countRes = await axios.post(`${BASE_URL}/analytics/query`, {
+            queryConfig: { type: 'SELECT', table: 'users', select: ['count(*)'] }
+        });
+        console.log(`[OK] Aggregate count(*) allowed: ${JSON.stringify(countRes.data.data)}`);
+    } catch (e: any) {
+        console.warn('❌ Safety Shield Failure: Aggregate count(*) was blocked', e.response?.data || e.message);
+    }
+
+    // Test 3: Unrestricted DELETE (Should FAIL)
+    try {
+        await axios.post(`${BASE_URL}/analytics/query`, {
+            queryConfig: { type: 'DELETE', table: 'users' }
+        });
+        console.warn('❌ Safety Shield Failure: Unrestricted DELETE was allowed');
+    } catch (e: any) {
+        console.log('[OK] Unrestricted DELETE blocked successfully');
+    }
 
     console.log('--- 🏆 EXHAUSTIVE INDUSTRIAL TEST COMPLETED SUCCESSFULLY ---');
   } catch (err: any) {

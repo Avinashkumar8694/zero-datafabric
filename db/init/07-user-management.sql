@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS public.users (
 
 -- Provision Initial Management Tenant
 INSERT INTO public.tenants (id, name) VALUES ('tenant_A', 'System Admin') ON CONFLICT (id) DO NOTHING;
+SELECT fabric_admin.create_tenant_namespace('tenant_A');
 
 -- Seed an Industrial Admin User
 -- Password is 'admin'

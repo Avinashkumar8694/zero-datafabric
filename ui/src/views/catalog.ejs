@@ -1,76 +1,224 @@
 <%- include('partials/header') %>
 
 <div class="fade-in">
-    <div class="glass-card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-            <div>
-                <h3>Data Discovery Catalog</h3>
-                <p class="text-muted">Unified inventory of all virtualized schemas and metadata.</p>
-            </div>
-            <button onclick="loadCatalog()" class="btn-outline">Refresh Catalog</button>
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
+        <div>
+            <h1 style="font-family:'Outfit'; font-weight:800; font-size:1.75rem;">Fabric Explorer</h1>
+            <p style="color:var(--text-muted);">Navigate the unified logical hierarchy and technical lineage of your data fabric.</p>
         </div>
+        <div class="search-box" style="position: relative; width: 350px;">
+            <i class="fas fa-search" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+            <input type="text" id="catalogSearch" placeholder="Search across catalog..." class="context-select" style="width: 100%; padding-left: 2.75rem; height: 45px; border-radius: 12px; background:white; box-shadow: var(--shadow);" onkeyup="filterCatalog()">
+        </div>
+    </div>
 
-        <div class="grid">
-            <div class="glass-card" style="background: var(--bg);">
-                <h4>Schema Distribution</h4>
-                <canvas id="schemaChart" style="max-height: 200px;"></canvas>
-            </div>
-            <div class="glass-card" style="background: var(--bg);">
-                <h4>Discovery Stats</h4>
-                <div id="catalogStats" style="font-size: 0.9rem; padding-top: 1rem;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom: 0.5rem;"><span>Discovered Schemas</span><span id="stat-schemas" class="badge-sync">--</span></div>
-                    <div style="display:flex; justify-content:space-between; margin-bottom: 0.5rem;"><span>Total Tables</span><span id="stat-tables" class="badge-sync">--</span></div>
-                    <div style="display:flex; justify-content:space-between; margin-bottom: 0.5rem;"><span>Catalog Records</span><span id="stat-records" class="badge-sync">--</span></div>
-                </div>
+    <div class="drill-down-container">
+        <!-- Sources -->
+        <div class="drill-down-column">
+            <div class="column-header"><i class="fas fa-server"></i> SOURCES</div>
+            <div id="sourcesList" class="drill-down-list">
+                <div style="padding: 2rem; text-align: center;"><div class="loading-spinner"></div></div>
             </div>
         </div>
 
-        <div class="table-wrapper" style="margin-top: 2rem;">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Schema</th>
-                        <th>Table Name</th>
-                        <th>Record Count</th>
-                        <th>Discovered At</th>
-                    </tr>
-                </thead>
-                <tbody id="catalogBody">
-                    <tr><td colspan="4">Synchronizing with catalog registry...</td></tr>
-                </tbody>
-            </table>
+        <!-- Schemas -->
+        <div class="drill-down-column">
+            <div class="column-header"><i class="fas fa-folder-open"></i> SCHEMAS</div>
+            <div id="schemasList" class="drill-down-list">
+                <p class="empty-state">Select a source</p>
+            </div>
+        </div>
+
+        <!-- Tables -->
+        <div class="drill-down-column">
+            <div class="column-header"><i class="fas fa-table"></i> TABLES</div>
+            <div id="tablesList" class="drill-down-list">
+                <p class="empty-state">Select a schema</p>
+            </div>
+        </div>
+
+        <!-- Metadata -->
+        <div class="drill-down-column" style="flex: 1.4; background: #F9FAFB;">
+            <div class="column-header"><i class="fas fa-microchip"></i> TECHNICAL LINEAGE</div>
+            <div id="metadataView" class="drill-down-list" style="padding: 1.5rem;">
+                <p class="empty-state">Select a table to inspect</p>
+            </div>
         </div>
     </div>
 </div>
 
+<style>
+    .drill-down-container { display: flex; gap: 1.5rem; height: calc(100vh - 220px); }
+    .drill-down-column {
+        flex: 1;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        box-shadow: var(--shadow);
+    }
+    .column-header {
+        padding: 1rem 1.25rem;
+        background: #F9FAFB;
+        border-bottom: 1px solid var(--border);
+        font-weight: 700;
+        font-size: 0.75rem;
+        letter-spacing: 0.05rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+    }
+    .drill-down-list { flex: 1; overflow-y: auto; }
+    .drill-down-item {
+        padding: 0.85rem 1.25rem;
+        cursor: pointer;
+        border-bottom: 1px solid #F3F4F6;
+        transition: 0.2s;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: var(--text);
+    }
+    .drill-down-item:hover { background: #F9FAFB; }
+    .drill-down-item.active { background: #EBF2FF; color: var(--primary); border-right: 4px solid var(--primary); }
+    .empty-state { padding: 3rem 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; font-style: italic; }
+    
+    .meta-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.25rem; }
+    .meta-label { font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem; display: block; }
+    pre { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: #1e293b; background: #F1F5F9; padding: 1rem; border-radius: 8px; overflow-x: auto; max-height: 300px; }
+</style>
+
 <script>
-    async function loadCatalog() {
-        const body = document.getElementById('catalogBody');
+    let allData = { sources: [], schemas: [], tables: [] };
+
+    async function loadSources() {
+        const list = document.getElementById('sourcesList');
         try {
-            // Fetch from Metadata Catalog (Unified API)
-            const response = await fetch(`${API_BASE}/admin/catalog`, {
-                headers: getAuthHeaders()
-            });
-            const data = await response.json();
-            
-            body.innerHTML = data.map(m => `
-                <tr class="fade-in">
-                    <td><span class="badge-sync" style="background: var(--surface-hover); color: var(--primary)">${m.schema_name}</span></td>
-                    <td><strong>${m.table_name}</strong></td>
-                    <td><code>${m.row_count || '0'}</code></td>
-                    <td class="text-muted">${new Date(m.created_at).toLocaleDateString()}</td>
-                </tr>
-            `).join('');
-
-            document.getElementById('stat-schemas').innerText = [...new Set(data.map(m => m.schema_name))].length;
-            document.getElementById('stat-tables').innerText = data.length;
-            document.getElementById('stat-records').innerText = data.reduce((acc, m) => acc + (m.row_count || 0), 0);
-
-        } catch (err) {
-            body.innerHTML = '<tr><td colspan="4">Failed to synchronize catalog</td></tr>';
+            const res = await fetch(`${API_BASE}/metadata/sources`, { headers: getAuthHeaders() });
+            allData.sources = await res.json();
+            renderSources();
+        } catch (e) {
+            list.innerHTML = '<p class="text-danger">Failed to connect to Catalog API.</p>';
         }
     }
-    loadCatalog();
+
+    function renderSources(filter = '') {
+        const list = document.getElementById('sourcesList');
+        const filtered = allData.sources.filter(s => s.name.toLowerCase().includes(filter.toLowerCase()));
+        list.innerHTML = filtered.map(s => `
+            <div class="drill-down-item" onclick="selectSource('${s.id}', this)">
+                <div>
+                    <div>${s.name}</div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); font-weight:400;">${s.type.toUpperCase()}</div>
+                </div>
+                <i class="fas fa-chevron-right" style="font-size: 0.7rem; opacity:0.3;"></i>
+            </div>
+        `).join('') || '<p class="empty-state">No sources found.</p>';
+    }
+
+    async function selectSource(sourceId, el) {
+        document.querySelectorAll('#sourcesList .drill-down-item').forEach(i => i.classList.remove('active'));
+        el.classList.add('active');
+        
+        const list = document.getElementById('schemasList');
+        list.innerHTML = '<div style="padding: 2rem; text-align: center;"><div class="loading-spinner"></div></div>';
+        document.getElementById('tablesList').innerHTML = '<p class="empty-state">Select a schema</p>';
+        document.getElementById('metadataView').innerHTML = '<p class="empty-state">Select a table to inspect</p>';
+        
+        try {
+            const res = await fetch(`${API_BASE}/metadata/schemas?sourceId=${sourceId}`, { headers: getAuthHeaders() });
+            allData.schemas = await res.json();
+            renderSchemas();
+        } catch (e) { list.innerHTML = '<p class="text-danger">Failed to load schemas.</p>'; }
+    }
+
+    function renderSchemas(filter = '') {
+        const list = document.getElementById('schemasList');
+        const filtered = allData.schemas.filter(s => s.name.toLowerCase().includes(filter.toLowerCase()));
+        list.innerHTML = filtered.map(s => `
+            <div class="drill-down-item" onclick="selectSchema('${s.schemaId}', this)">
+                <span>${s.name}</span>
+                <i class="fas fa-chevron-right" style="font-size: 0.7rem; opacity:0.3;"></i>
+            </div>
+        `).join('') || '<p class="empty-state">No schemas available.</p>';
+    }
+
+    async function selectSchema(schemaId, el) {
+        document.querySelectorAll('#schemasList .drill-down-item').forEach(i => i.classList.remove('active'));
+        el.classList.add('active');
+        
+        const list = document.getElementById('tablesList');
+        list.innerHTML = '<div style="padding: 2rem; text-align: center;"><div class="loading-spinner"></div></div>';
+        
+        try {
+            const res = await fetch(`${API_BASE}/metadata/tables?schemaId=${schemaId}`, { headers: getAuthHeaders() });
+            allData.tables = await res.json();
+            renderTables();
+        } catch (e) { list.innerHTML = '<p class="text-danger">Failed to load tables.</p>'; }
+    }
+
+    function renderTables(filter = '') {
+        const list = document.getElementById('tablesList');
+        const filtered = allData.tables.filter(t => t.name.toLowerCase().includes(filter.toLowerCase()));
+        list.innerHTML = filtered.map(t => `
+            <div class="drill-down-item" onclick="selectTable('${t.tableId}', this)">
+                <span>${t.name}</span>
+                <span class="badge" style="background:#EBF2FF; color:var(--primary); font-size:0.65rem;">${t.rowCount || 0} ROWS</span>
+            </div>
+        `).join('') || '<p class="empty-state">No tables found.</p>';
+    }
+
+    async function selectTable(tableId, el) {
+        document.querySelectorAll('#tablesList .drill-down-item').forEach(i => i.classList.remove('active'));
+        el.classList.add('active');
+        
+        const view = document.getElementById('metadataView');
+        const table = allData.tables.find(t => t.tableId === tableId);
+        
+        view.innerHTML = `
+            <div class="meta-card">
+                <span class="meta-label">Logical Identifier</span>
+                <div style="font-weight: 700; font-size: 1.1rem; color: var(--primary); margin-bottom: 0.5rem;">${table.name}</div>
+                <code style="font-size: 0.7rem; color: var(--text-muted);">${tableId}</code>
+            </div>
+            
+            <div class="meta-card">
+                <span class="meta-label">Physical Mapping</span>
+                <div style="background: #F9FAFB; padding: 0.75rem; border-radius: 8px; font-family: monospace; font-size: 0.85rem;">
+                    ${table.physicalName}
+                </div>
+            </div>
+
+            <div class="meta-card">
+                <span class="meta-label">Source Context</span>
+                <div style="display:flex; gap:0.5rem;">
+                    <span class="badge badge-connected">${table.schemaId.substring(0,8)}</span>
+                    <span class="badge badge-active">SYNC_STABLE</span>
+                </div>
+            </div>
+
+            <div class="meta-card">
+                <span class="meta-label">Technical Descriptor</span>
+                <pre>${JSON.stringify(table, null, 2)}</pre>
+            </div>
+
+            <button class="btn-primary" style="width: 100%; height: 45px; border-radius: 12px;" onclick="window.location.href='/workbench?tableId=${tableId}'">
+                <i class="fas fa-external-link-alt"></i> OPEN IN WORKBENCH
+            </button>
+        `;
+    }
+
+    function filterCatalog() {
+        const val = document.getElementById('catalogSearch').value;
+        renderSources(val);
+        renderSchemas(val);
+        renderTables(val);
+    }
+
+    loadSources();
 </script>
 
 <%- include('partials/footer') %>

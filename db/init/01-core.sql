@@ -8,7 +8,7 @@ CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
 DO $$ 
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'authenticator') THEN
-    CREATE ROLE authenticator NOINHERIT LOGIN PASSWORD 'super_secret_password';
+    CREATE ROLE authenticator NOINHERIT LOGIN PASSWORD 'fabric_password';
   END IF;
   IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'web_anon') THEN
     CREATE ROLE web_anon NOLOGIN;
@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS public.data_sources (
     name VARCHAR(255) NOT NULL,
     type VARCHAR(50) NOT NULL,
     config JSONB NOT NULL,
+    sync_type VARCHAR(50) DEFAULT 'VIRTUAL',
     status VARCHAR(50) DEFAULT 'CONNECTED',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -60,6 +61,7 @@ CREATE POLICY tenant_isolation_policy ON public.data_sources
         tenant_id::text = current_setting('app.tenant_id', true)::text 
         OR tenant_id::text = (current_setting('request.jwt.claims', true)::json->>'tenant_id')
         OR (current_setting('request.jwt.claims', true)::json->>'internal_role' = 'ADMIN')
+        OR current_user = 'fabric_admin'
     );
 
 DROP POLICY IF EXISTS tenant_self_isolation_policy ON public.tenants;
@@ -68,6 +70,7 @@ CREATE POLICY tenant_self_isolation_policy ON public.tenants
         id = current_setting('app.tenant_id', true)
         OR id = (current_setting('request.jwt.claims', true)::json->>'tenant_id')
         OR (current_setting('request.jwt.claims', true)::json->>'internal_role' = 'ADMIN')
+        OR current_user = 'fabric_admin'
     );
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.data_sources TO fabric_user;

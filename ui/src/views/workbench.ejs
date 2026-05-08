@@ -1,76 +1,282 @@
 <%- include('partials/header') %>
 
 <div class="fade-in">
-    <div class="glass-card">
-        <h3>SQL Analytics Workbench</h3>
-        <p class="text-muted" style="margin-bottom: 1.5rem;">Execute queries across the entire fabric. Row-Level Security is automatically enforced.</p>
-        
-        <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-            <textarea id="sqlInput" placeholder="SELECT * FROM tenant_tenant_A.users LIMIT 10;" style="flex: 1; height: 150px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 1rem; font-family: 'Monaco', monospace;"></textarea>
-        </div>
-        <div style="display: flex; justify-content: flex-end; gap: 1rem;">
-            <button id="runBtn" class="btn-primary">Execute Query</button>
-        </div>
-    </div>
-
-    <!-- Results -->
-    <div class="glass-card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <h3>Result Set</h3>
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <span id="safetyBadge" class="badge-sync" style="display: none; background: var(--warning); color: black;">Safety Applied</span>
-                <span id="execTime" class="text-muted" style="font-size: 0.8rem;"></span>
+    <div style="display: grid; grid-template-columns: 280px 1fr; gap: 2rem; height: calc(100vh - 140px);">
+        <!-- Sidebar: Catalog Explorer -->
+        <aside class="glass-card" style="padding: 0; display: flex; flex-direction: column;">
+            <div style="padding: 1.25rem; border-bottom: 1px solid var(--border);">
+                <h3 style="font-size: 1rem; font-family:'Outfit';"><i class="fas fa-database"></i> Fabric Explorer</h3>
+                <div style="margin-top: 1rem;">
+                    <input type="text" id="explorerSearch" placeholder="Search catalog..." class="context-select" style="width: 100%; font-size: 0.8rem;" onkeyup="filterExplorer()">
+                </div>
             </div>
-        </div>
-        <div class="table-wrapper">
-            <table id="resultsTable">
-                <thead id="resultsHead"></thead>
-                <tbody id="resultsBody">
-                    <tr><td class="text-muted">Enter a query to begin analysis</td></tr>
-                </tbody>
-            </table>
+            
+            <div id="explorerTree" style="flex:1; overflow-y:auto; padding: 1rem;">
+                <div class="loading-spinner"></div>
+            </div>
+        </aside>
+
+        <!-- Main: IDE Workspace -->
+        <div style="display: flex; flex-direction: column; gap: 1.5rem; overflow: hidden;">
+            <!-- Query Orchestrator -->
+            <section class="glass-card" style="padding: 1.25rem; margin-bottom: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                    <div style="display: flex; background: #F3F4F6; padding: 0.3rem; border-radius: 8px; gap: 0.2rem;">
+                        <button onclick="setMode('SQL')" id="modeSql" class="editor-mode-btn active">SQL</button>
+                        <button onclick="setMode('CONFIG')" id="modeConfig" class="editor-mode-btn">Unified JSON</button>
+                    </div>
+                    <div style="display: flex; gap: 0.75rem;">
+                        <button onclick="newQuery()" class="btn-outline" style="padding: 0.5rem 1rem;"><i class="fas fa-eraser"></i> Clear</button>
+                        <button id="runBtn" class="btn-primary" onclick="executeCurrentQuery()" style="padding: 0.5rem 1.5rem;"><i class="fas fa-play"></i> Run Query</button>
+                    </div>
+                </div>
+
+                <div id="sqlEditor">
+                    <textarea id="sqlInput" spellcheck="false" placeholder="-- SQL Mode (PostgreSQL Syntax)
+SELECT * FROM tables LIMIT 20;" class="ide-textarea"></textarea>
+                </div>
+
+                <div id="configEditor" style="display: none;">
+                    <textarea id="configInput" spellcheck="false" placeholder='{ "type": "SELECT", "tableId": "...", "limit": 20 }' class="ide-textarea"></textarea>
+                </div>
+            </section>
+
+            <!-- Execution Context & Results -->
+            <section class="glass-card" style="flex: 1; padding: 0; display: flex; flex-direction: column; overflow: hidden;">
+                <div style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="font-size: 1rem;"><i class="fas fa-list-ul"></i> Result Pipeline</h3>
+                    <div style="display: flex; gap: 1.5rem; align-items: center;">
+                        <span id="sourceBadge" class="badge badge-connected" style="display: none;"></span>
+                        <span id="execTime" style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;"></span>
+                    </div>
+                </div>
+                
+                <div style="flex: 1; overflow: auto; background: white;">
+                    <table id="resultsTable" style="border-radius: 0;">
+                        <thead id="resultsHead"></thead>
+                        <tbody id="resultsBody">
+                            <tr><td style="text-align: center; padding: 5rem; color: var(--text-muted);">
+                                <i class="fas fa-terminal" style="font-size: 2rem; margin-bottom: 1rem; display: block; opacity: 0.3;"></i>
+                                Ready for execution. Select a catalog object or write a query.
+                            </td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </div>
     </div>
 </div>
 
+<style>
+    .editor-mode-btn {
+        border: none;
+        background: transparent;
+        padding: 0.4rem 1.2rem;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        color: var(--text-muted);
+        transition: 0.2s;
+    }
+    .editor-mode-btn.active {
+        background: white;
+        color: var(--primary);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .ide-textarea {
+        width: 100%;
+        height: 180px;
+        background: #F9FAFB;
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        font-family: 'JetBrains Mono', 'Monaco', monospace;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        resize: vertical;
+        outline: none;
+        transition: border-color 0.2s;
+    }
+    .ide-textarea:focus { border-color: var(--primary); background: white; }
+
+    .tree-source-header { font-weight: 700; padding: 0.5rem; color: var(--text); font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; }
+    .tree-schema { margin-left: 0.75rem; border-left: 1px solid var(--border); }
+    .tree-schema-header { padding: 0.4rem 0.75rem; color: var(--text-muted); font-size: 0.8rem; display: flex; align-items: center; gap: 0.4rem; font-weight: 600; }
+    .tree-table { margin-left: 1rem; padding: 0.3rem 0.75rem; cursor: pointer; font-size: 0.8rem; color: var(--text-muted); border-radius: 4px; display: flex; align-items: center; gap: 0.4rem; transition: 0.2s; }
+    .tree-table:hover { background: #EBF2FF; color: var(--primary); }
+    .tree-table i { font-size: 0.7rem; opacity: 0.7; }
+</style>
+
 <script>
-    document.getElementById('runBtn').addEventListener('click', async () => {
-        const sql = document.getElementById('sqlInput').value;
-        const head = document.getElementById('resultsHead');
-        const body = document.getElementById('resultsBody');
-        const timeEl = document.getElementById('execTime');
+    let currentMode = 'SQL';
+    let allExplorerData = [];
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.getElementById('modeSql').classList.toggle('active', mode === 'SQL');
+        document.getElementById('modeConfig').classList.toggle('active', mode === 'CONFIG');
+        document.getElementById('sqlEditor').style.display = mode === 'SQL' ? 'block' : 'none';
+        document.getElementById('configEditor').style.display = mode === 'CONFIG' ? 'block' : 'none';
+    }
+
+    async function loadExplorer() {
+        const explorer = document.getElementById('explorerTree');
+        try {
+            const sRes = await fetch(`${API_BASE}/metadata/sources`, { headers: getAuthHeaders() });
+            const sources = await sRes.json();
+            
+            allExplorerData = [];
+            for (const s of sources) {
+                const schemasRes = await fetch(`${API_BASE}/metadata/schemas?sourceId=${s.id}`, { headers: getAuthHeaders() });
+                const schemas = await schemasRes.json();
+                
+                const sourceNode = { ...s, schemas: [] };
+                for (const sch of schemas) {
+                    const tablesRes = await fetch(`${API_BASE}/metadata/tables?schemaId=${sch.schemaId}`, { headers: getAuthHeaders() });
+                    const tables = await tablesRes.json();
+                    sourceNode.schemas.push({ ...sch, tables });
+                }
+                allExplorerData.push(sourceNode);
+            }
+            renderExplorer();
+        } catch (e) {
+            explorer.innerHTML = '<p class="text-danger">Failed to load catalog.</p>';
+        }
+    }
+
+    function renderExplorer(filter = '') {
+        const explorer = document.getElementById('explorerTree');
+        explorer.innerHTML = '';
         
-        body.innerHTML = '<tr><td>Executing query...</td></tr>';
-        const start = performance.now();
+        allExplorerData.forEach(s => {
+            const sourceEl = document.createElement('div');
+            sourceEl.style.marginBottom = '0.75rem';
+            sourceEl.innerHTML = `<div class="tree-source-header"><i class="fas fa-server" style="color:var(--primary)"></i> ${s.name}</div>`;
+            
+            let sourceVisible = false;
+            s.schemas.forEach(sch => {
+                const schemaEl = document.createElement('div');
+                schemaEl.className = 'tree-schema';
+                schemaEl.innerHTML = `<div class="tree-schema-header"><i class="fas fa-folder-open"></i> ${sch.name}</div>`;
+                
+                let schemaVisible = false;
+                sch.tables.forEach(t => {
+                    if (filter && !t.name.toLowerCase().includes(filter.toLowerCase())) return;
+                    schemaVisible = true;
+                    sourceVisible = true;
+                    const tableEl = document.createElement('div');
+                    tableEl.className = 'tree-table';
+                    tableEl.innerHTML = `<i class="fas fa-table"></i> ${t.name}`;
+                    tableEl.onclick = () => exploreTable(t.tableId, t.name, s.name);
+                    schemaEl.appendChild(tableEl);
+                });
+                if (schemaVisible) sourceEl.appendChild(schemaEl);
+            });
+            if (sourceVisible || !filter) explorer.appendChild(sourceEl);
+        });
+    }
+
+    function filterExplorer() {
+        renderExplorer(document.getElementById('explorerSearch').value);
+    }
+
+    function exploreTable(tableId, tableName, sourceName) {
+        document.getElementById('sourceBadge').style.display = 'inline-flex';
+        document.getElementById('sourceBadge').innerText = `${sourceName} / ${tableName}`;
+        
+        const config = { type: 'SELECT', tableId: tableId, limit: 50 };
+        document.getElementById('configInput').value = JSON.stringify(config, null, 2);
+        document.getElementById('sqlInput').value = `SELECT * FROM "${tableName}" LIMIT 50;`;
+    }
+
+    function newQuery() {
+        document.getElementById('sourceBadge').style.display = 'none';
+        document.getElementById('sqlInput').value = '';
+        document.getElementById('configInput').value = '';
+        document.getElementById('resultsHead').innerHTML = '';
+        document.getElementById('resultsBody').innerHTML = '<tr><td style="text-align:center; padding:5rem; color:var(--text-muted);">Editor cleared. Write a query to begin.</td></tr>';
+        document.getElementById('execTime').innerText = '';
+    }
+
+    async function executeCurrentQuery() {
+        const btn = document.getElementById('runBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executing...';
 
         try {
-            const response = await fetch(`${API_BASE}/queries/exec`, {
+            if (currentMode === 'SQL') {
+                const sql = document.getElementById('sqlInput').value;
+                if (!sql.trim()) return showModal('Query Error', 'SQL editor is empty.');
+                await executeSql(sql);
+            } else {
+                const configStr = document.getElementById('configInput').value;
+                if (!configStr.trim()) return showModal('Query Error', 'JSON editor is empty.');
+                const config = JSON.parse(configStr);
+                await executeConfigQuery(config);
+            }
+        } catch (e) {
+            showModal('JSON Error', 'Failed to parse Unified Query JSON.');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-play"></i> Run Query';
+        }
+    }
+
+    async function executeSql(sql) {
+        const start = performance.now();
+        try {
+            const res = await fetch(`${API_BASE}/queries/exec`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ sql })
             });
-            const data = await response.json();
-            const end = performance.now();
-            timeEl.innerText = `Executed in ${Math.round(end - start)}ms`;
-            
-            const safetyBadge = document.getElementById('safetyBadge');
-            safetyBadge.style.display = data.safetyApplied ? 'inline-block' : 'none';
+            const data = await res.json();
+            renderResults(data.results, performance.now() - start, data.error);
+        } catch (e) { renderResults(null, 0, 'Fabric API connection failed.'); }
+    }
 
-            if (response.ok && data.results && data.results.length > 0) {
-                const cols = Object.keys(data.results[0]);
-                head.innerHTML = `<tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr>`;
-                body.innerHTML = data.results.map(row => `
-                    <tr>${cols.map(c => `<td>${row[c]}</td>`).join('')}</tr>
-                `).join('');
-            } else if (response.ok) {
-                body.innerHTML = '<tr><td>Query returned successfully but with no results.</td></tr>';
-            } else {
-                body.innerHTML = `<tr><td style="color: var(--danger)">Error: ${data.error}</td></tr>`;
-            }
-        } catch (err) {
-            body.innerHTML = '<tr><td>Execution Failed: Connection error.</td></tr>';
+    async function executeConfigQuery(config) {
+        const start = performance.now();
+        try {
+            const res = await fetch(`${API_BASE}/queries/engine`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(config)
+            });
+            const data = await res.json();
+            const results = Array.isArray(data) ? data : (data.results || [data]);
+            renderResults(results, performance.now() - start, data.error);
+        } catch (e) { renderResults(null, 0, 'Fabric Engine connection failed.'); }
+    }
+
+    function renderResults(results, duration, error) {
+        const head = document.getElementById('resultsHead');
+        const body = document.getElementById('resultsBody');
+        const timeEl = document.getElementById('execTime');
+        
+        timeEl.innerText = `${Math.round(duration)}ms`;
+        head.innerHTML = '';
+        
+        if (error) {
+            body.innerHTML = `<tr><td style="color:var(--danger); padding:2rem; text-align:center;"><i class="fas fa-exclamation-circle"></i> Error: ${error}</td></tr>`;
+            return;
         }
-    });
+
+        if (!results || results.length === 0) {
+            body.innerHTML = '<tr><td style="text-align:center; padding:2rem; color:var(--text-muted);">Query executed successfully but returned no rows.</td></tr>';
+            return;
+        }
+
+        const cols = Object.keys(results[0]);
+        head.innerHTML = `<tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr>`;
+        body.innerHTML = results.map(row => `
+            <tr>${cols.map(c => `<td>${row[c] !== null ? row[c] : '<span style="opacity:0.3">null</span>'}</td>`).join('')}</tr>
+        `).join('');
+    }
+
+    loadExplorer();
 </script>
 
 <%- include('partials/footer') %>

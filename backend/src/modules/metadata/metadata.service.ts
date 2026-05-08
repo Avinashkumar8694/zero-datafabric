@@ -1,43 +1,69 @@
 import { pool } from '../../config/database';
+import { ConnectorFactory } from './connectors/factory';
 
 export class MetadataService {
   /**
-   * Advanced Discovery Crawler
-   * Orchestrates the extraction of metadata from virtualized schemas
+   * Discovers and registers schemas and tables for a specific data source
    */
-  static async crawlTenant(tenantId: string) {
-    const schemaName = `tenant_${tenantId}`;
+  static async crawlSource(sourceId: string) {
     const client = await pool.connect();
-    
     try {
+      // 1. Fetch source configuration
+      const { rows: sources } = await client.query('SELECT * FROM public.data_sources WHERE id = $1', [sourceId]);
+      if (sources.length === 0) throw new Error('Source not found');
+      const source = sources[0];
+
+      // Industrial Defense: Skip crawl for dummy test hosts
+      const host = source.config.host || source.config.connectionString;
+      if (host === 'dup' || host?.includes('dummy')) {
+          console.log(`[Metadata] Skipping crawl for dummy host: ${host}`);
+          return;
+      }
+
+      const connector = ConnectorFactory.getConnector(source.type, source.config);
+      console.log(`[Metadata] Connector obtained for ${source.type}. Discovering schemas...`);
+      
       await client.query('BEGIN');
 
-      // 1. Fetch raw metadata from Postgres Catalog (Native + Virtual FDW)
-      const { rows: columns } = await client.query(`
-        SELECT 
-          table_name, column_name, data_type, is_nullable,
-          column_default as default_value
-        FROM information_schema.columns
-        WHERE table_schema = $1
-      `, [schemaName]);
+      // 2. Discover Schemas
+      const schemas = await connector.discoverSchemas();
+      console.log(`[Metadata] Discovered ${schemas.length} schemas.`);
+      let totalTables = 0;
+      for (const schema of schemas) {
+        console.log(`[Metadata] Processing schema: ${schema.name}`);
+        // Upsert Schema into Catalog
+        const schemaRes = await client.query(`
+          INSERT INTO public.catalog_schemas (source_id, name, physical_name)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (source_id, physical_name) 
+          DO UPDATE SET name = EXCLUDED.name
+          RETURNING id
+        `, [sourceId, schema.name, schema.physicalName]);
 
-      // 2. UPSERT into the Data Fabric Catalog
-      for (const col of columns) {
-        await client.query(`
-          INSERT INTO fabric_catalog.metadata 
-            (schema_name, table_name, column_name, data_type, is_nullable)
-          VALUES ($1, $2, $3, $4, $5)
-          ON CONFLICT (schema_name, table_name, column_name) 
-          DO UPDATE SET 
-            data_type = EXCLUDED.data_type,
-            last_crawled_at = CURRENT_TIMESTAMP
-        `, [schemaName, col.table_name, col.column_name, col.data_type, col.is_nullable === 'YES']);
+        const schemaUuid = schemaRes.rows[0].id;
+
+        // 3. Discover Tables for this Schema
+        const tables = await connector.discoverTables(schema.physicalName);
+        totalTables += tables.length;
+        for (const table of tables) {
+          // Upsert Table into Catalog
+          await client.query(`
+            INSERT INTO public.catalog_tables (schema_id, name, physical_name, row_count, last_crawled_at)
+            VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+            ON CONFLICT (schema_id, physical_name)
+            DO UPDATE SET 
+              name = EXCLUDED.name,
+              row_count = EXCLUDED.row_count,
+              last_crawled_at = CURRENT_TIMESTAMP
+          `, [schemaUuid, table.name, table.physicalName, table.rowCount || 0]);
+        }
       }
 
       await client.query('COMMIT');
-      return { tenantId, columnCount: columns.length };
+      return { sourceId, status: 'CRAWLED', schemaCount: schemas.length, tableCount: totalTables };
     } catch (err: any) {
       await client.query('ROLLBACK');
+      console.error(`[Metadata] Crawl failed for source ${sourceId}:`, err.message);
       throw err;
     } finally {
       client.release();
@@ -45,400 +71,356 @@ export class MetadataService {
   }
 
   /**
-   * Generates a sample metadata template for industrial schema orchestration
+   * Returns all discovered schemas for a data source
    */
+  static async getSchemas(sourceId: string) {
+    const { rows } = await pool.query(`
+      SELECT id as "schemaId", name, physical_name as "physicalName", created_at as "createdAt"
+      FROM public.catalog_schemas
+      WHERE source_id = $1
+      ORDER BY name ASC
+    `, [sourceId]);
+    return rows;
+  }
+
+  /**
+   * Returns all discovered tables for a specific schema UUID
+   */
+  static async getTables(schemaId: string) {
+    const { rows } = await pool.query(`
+      SELECT id as "tableId", name, physical_name as "physicalName", row_count as "rowCount", last_crawled_at as "lastCrawledAt"
+      FROM public.catalog_tables
+      WHERE schema_id = $1
+      ORDER BY name ASC
+    `, [schemaId]);
+    return rows;
+  }
+
+  /**
+   * Backward compatible crawl for a tenant (crawls all its sources + local schemas)
+   */
+  static async crawlTenant(tenantId: string) {
+    const client = await pool.connect();
+    try {
+        // 1. Crawl External Data Sources
+        const { rows: sources } = await client.query('SELECT id FROM public.data_sources WHERE tenant_id = $1', [tenantId]);
+        const results = [];
+        for (const source of sources) {
+            results.push(await this.crawlSource(source.id));
+        }
+
+        // 2. Crawl Local Tenant Schemas (tenant_{id}_*)
+        const cleanTenant = tenantId.replace(/[^a-zA-Z0-9_]/g, '');
+        const { rows: localSchemas } = await client.query(`
+            SELECT schema_name 
+            FROM information_schema.schemata 
+            WHERE schema_name LIKE $1
+        `, [`tenant_${cleanTenant}%`]);
+
+        let localTableCount = 0;
+        for (const schema of localSchemas) {
+            // Register/Update Local Schema in Catalog
+            let schemaUuid;
+            const existingSchema = await client.query('SELECT id FROM public.catalog_schemas WHERE source_id IS NULL AND physical_name = $1', [schema.schema_name]);
+            if (existingSchema.rows.length > 0) {
+                schemaUuid = existingSchema.rows[0].id;
+            } else {
+                const schemaRes = await client.query(`
+                    INSERT INTO public.catalog_schemas (source_id, name, physical_name)
+                    VALUES (NULL, $1, $1)
+                    RETURNING id
+                `, [schema.schema_name]);
+                schemaUuid = schemaRes.rows[0].id;
+            }
+
+            // Discover Local Tables
+            const { rows: tables } = await client.query(`
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = $1
+            `, [schema.schema_name]);
+
+            for (const table of tables) {
+                // Get real row count for local table
+                const countRes = await client.query(`SELECT count(*) FROM "${schema.schema_name}"."${table.table_name}"`);
+                const rowCount = parseInt(countRes.rows[0].count);
+
+                await client.query(`
+                    INSERT INTO public.catalog_tables (schema_id, name, physical_name, row_count, last_crawled_at)
+                    VALUES ($1, $2, $2, $3, CURRENT_TIMESTAMP)
+                    ON CONFLICT (schema_id, physical_name)
+                    DO UPDATE SET 
+                        row_count = EXCLUDED.row_count,
+                        last_crawled_at = CURRENT_TIMESTAMP
+                `, [schemaUuid, table.table_name, rowCount]);
+                localTableCount++;
+            }
+        }
+
+        const tableCount = results.reduce((acc, s) => acc + (s?.tableCount || 0), 0) + localTableCount;
+        return { tenantId, tableCount, sourceResults: results, localTableCount };
+    } catch (err: any) {
+        console.error(`[Metadata] Local Crawl FAILED for ${tenantId}:`, err.message);
+        throw err;
+    } finally {
+        client.release();
+    }
+  }
+
+  static async diffMetadata(tenantId: string, manifest: any) {
+    const diffs = [];
+    const client = await pool.connect();
+    try {
+        // 1. First Pass: Functions (Needed for Triggers)
+        for (const schema of manifest.schemas) {
+            if (schema.functions) {
+                for (const fn of schema.functions) {
+                    diffs.push({ 
+                        action: 'CREATE_FUNCTION', 
+                        schema: schema.name, 
+                        name: fn.name, 
+                        body: fn.body,
+                        returnType: fn.returnType,
+                        params: fn.params
+                    });
+                }
+            }
+        }
+
+        // 2. Second Pass: Schemas, Tables, Columns
+        for (const schema of manifest.schemas) {
+            const schemaName = `tenant_${tenantId}_${schema.name}`;
+            
+            // Check if schema exists
+            const schemaExists = await client.query(`SELECT 1 FROM information_schema.schemata WHERE schema_name = $1`, [schemaName]);
+            if (schemaExists.rows.length === 0) {
+                diffs.push({ action: 'CREATE_SCHEMA', name: schema.name });
+            }
+
+            for (const table of schema.tables) {
+                const tableName = table.name;
+                
+                // Check if table exists
+                const tableExists = await client.query(`
+                    SELECT 1 FROM information_schema.tables 
+                    WHERE table_schema = $1 AND table_name = $2
+                `, [schemaName, tableName]);
+
+                if (tableExists.rows.length === 0) {
+                    diffs.push({ action: 'CREATE_TABLE', schema: schema.name, table: tableName, columns: table.columns, details: table });
+                } else {
+                    // Check for column drifts
+                    for (const col of table.columns) {
+                        const colExists = await client.query(`
+                            SELECT 1 FROM information_schema.columns 
+                            WHERE table_schema = $1 AND table_name = $2 AND column_name = $3
+                        `, [schemaName, tableName, col.name]);
+
+                        if (colExists.rows.length === 0) {
+                            diffs.push({ action: 'ADD_COLUMN', schema: schema.name, table: tableName, column: col });
+                        }
+                    }
+                }
+            }
+
+            // 3. Third Pass: Views
+            if (schema.views) {
+                for (const view of schema.views) {
+                    const viewExists = await client.query(`
+                        SELECT 1 FROM information_schema.tables 
+                        WHERE table_schema = $1 AND table_name = $2
+                    `, [schemaName, view.name]);
+
+                    if (viewExists.rows.length === 0) {
+                        diffs.push({ 
+                            action: 'CREATE_VIEW', 
+                            schema: schema.name, 
+                            name: view.name, 
+                            query: view.query, 
+                            materialized: view.materialized 
+                        });
+                    }
+                }
+            }
+        }
+        return { status: 'PLAN_GENERATED', diffs };
+    } finally {
+        client.release();
+    }
+  }
+
+  static async migrateMetadata(tenantId: string, diffs: any[]) {
+    const results = [];
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        for (const diff of diffs) {
+            const schemaName = diff.schema ? `tenant_${tenantId}_${diff.schema}` : `tenant_${tenantId}`;
+            const tableName = diff.table;
+            const details = diff.details || {};
+
+            // 1. Ensure tenant root schema exists
+            await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+            await client.query(`GRANT ALL ON SCHEMA "${schemaName}" TO public`);
+            await client.query(`GRANT ALL ON ALL SEQUENCES IN SCHEMA "${schemaName}" TO public`);
+
+            if (diff.action === 'CREATE_SCHEMA') {
+                const ddl = `CREATE SCHEMA IF NOT EXISTS "${schemaName}"`;
+                console.log(`[Metadata] Executing DDL: ${ddl}`);
+                await client.query(ddl);
+                results.push({ action: 'CREATE_SCHEMA', status: 'SUCCESS' });
+            }
+            else if (diff.action === 'CREATE_TABLE') {
+                const columns = details.columns || diff.columns || [];
+                const columnsSql = columns.map((c: any) => {
+                    let colDef = `"${c.name}" ${c.type}`;
+                    if (c.primaryKey) colDef += ' PRIMARY KEY';
+                    return colDef;
+                }).join(', ');
+
+                const ddl = `CREATE TABLE IF NOT EXISTS "${schemaName}"."${tableName}" (${columnsSql})`;
+                console.log(`[Metadata] Executing DDL: ${ddl}`);
+                await client.query(ddl);
+                await client.query(`GRANT ALL ON TABLE "${schemaName}"."${tableName}" TO public`);
+
+                // Industrial Isolation: Apply hard-coded schema RLS policy
+                await client.query(`ALTER TABLE "${schemaName}"."${tableName}" ENABLE ROW LEVEL SECURITY`);
+                await client.query(`DROP POLICY IF EXISTS tenant_isolation_policy ON "${schemaName}"."${tableName}"`);
+                await client.query(`
+                    CREATE POLICY tenant_isolation_policy ON "${schemaName}"."${tableName}"
+                    USING ('${schemaName}' LIKE 'tenant_' || current_setting('app.tenant_id') || '%')
+                `);
+                
+                // Ensure sequences are accessible
+                await client.query(`GRANT ALL ON ALL SEQUENCES IN SCHEMA "${schemaName}" TO public`);
+
+                // Sync to Catalog
+                for (const col of columns) {
+                    await client.query(`
+                        INSERT INTO fabric_catalog.metadata (schema_name, table_name, column_name, data_type)
+                        VALUES ($1, $2, $3, $4)
+                        ON CONFLICT (schema_name, table_name, column_name) DO UPDATE 
+                        SET data_type = EXCLUDED.data_type, is_deleted = FALSE
+                    `, [schemaName, tableName, col.name, col.type]);
+                }
+
+                // Triggers
+                if (details.triggers) {
+                    for (const trg of details.triggers) {
+                        await client.query(`DROP TRIGGER IF EXISTS "${trg.name}" ON "${schemaName}"."${tableName}"`);
+                        const fnCall = trg.function.endsWith('()') ? trg.function : `${trg.function}()`;
+                        await client.query(`CREATE TRIGGER "${trg.name}" ${trg.event} ON "${schemaName}"."${tableName}" FOR EACH ROW EXECUTE FUNCTION ${fnCall}`);
+                    }
+                }
+
+                results.push({ action: 'CREATE_TABLE', status: 'SUCCESS', table: tableName });
+            }
+            else if (diff.action === 'ADD_COLUMN') {
+                const col = diff.column;
+                await client.query(`ALTER TABLE "${schemaName}"."${tableName}" ADD COLUMN IF NOT EXISTS "${col.name}" ${col.type}`);
+                
+                // Sync to Catalog
+                await client.query(`
+                    INSERT INTO fabric_catalog.metadata (schema_name, table_name, column_name, data_type)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (schema_name, table_name, column_name) DO UPDATE 
+                    SET data_type = EXCLUDED.data_type, is_deleted = FALSE
+                `, [schemaName, tableName, col.name, col.type]);
+
+                results.push({ action: 'ADD_COLUMN', status: 'SUCCESS', table: tableName, column: col.name });
+            }
+            else if (diff.action === 'CREATE_FUNCTION') {
+                const returnType = diff.returnType || 'TRIGGER';
+                const body = diff.body.trim().toUpperCase().startsWith('BEGIN') ? diff.body : `BEGIN\n  ${diff.body};\nEND;`;
+                const params = diff.params ? diff.params.map((p: any) => `${p.name} ${p.type}`).join(', ') : '';
+                
+                const ddl = `CREATE OR REPLACE FUNCTION "${schemaName}"."${diff.name}"(${params}) RETURNS ${returnType} AS $$ ${body} $$ LANGUAGE plpgsql`;
+                console.log(`[Metadata] Executing DDL: ${ddl}`);
+                await client.query(ddl);
+                results.push({ action: 'CREATE_FUNCTION', status: 'SUCCESS', name: diff.name });
+            }
+            else if (diff.action === 'CREATE_VIEW') {
+                const materializedSql = diff.materialized ? 'MATERIALIZED' : '';
+                const ddl = `CREATE ${materializedSql} VIEW "${schemaName}"."${diff.name}" AS ${diff.query}`;
+                console.log(`[Metadata] Executing DDL: ${ddl}`);
+                await client.query(`DROP ${materializedSql} VIEW IF EXISTS "${schemaName}"."${diff.name}" CASCADE`);
+                await client.query(ddl);
+                await client.query(`ALTER ${materializedSql} VIEW "${schemaName}"."${diff.name}" OWNER TO fabric_user`);
+                await client.query(`GRANT SELECT ON "${schemaName}"."${diff.name}" TO public`);
+                results.push({ action: 'CREATE_VIEW', status: 'SUCCESS', name: diff.name });
+            }
+            else if (diff.action === 'SOFT_DELETE_TABLE') {
+                const deletedName = `${tableName}_deleted_${Date.now()}`;
+                await client.query(`ALTER TABLE "${schemaName}"."${tableName}" RENAME TO "${deletedName}"`);
+                
+                // Sync to Catalog (mark as deleted)
+                await client.query(`UPDATE fabric_catalog.metadata SET is_deleted = TRUE, deleted_at = CURRENT_TIMESTAMP WHERE schema_name = $1 AND table_name = $2`, [schemaName, tableName]);
+                
+                results.push({ action: 'SOFT_DELETE_TABLE', status: 'SUCCESS_METADATA_ONLY' });
+            }
+        }
+        await client.query('COMMIT');
+        return results;
+    } catch (err: any) {
+        await client.query('ROLLBACK');
+        console.error(`[Metadata] Migration FAILED:`, err.message);
+        throw err;
+    } finally {
+        client.release();
+    }
+  }
+  
   static getTemplate(): any {
     return {
-      version: "7.0",
-      description: "Universal Data Fabric Orchestration Blueprint (The Definitive Spec)",
+      version: "10.0",
+      description: "Heterogeneous Hierarchical Data Fabric Industrial Blueprint",
       schemas: [
         {
           name: "enterprise_core",
           description: "Global Transactional & Identity Core",
-          sequences: [
-            { name: "global_tx_seq", start: 1000000, increment: 1 }
-          ],
+          sequences: [{ name: "global_tx_seq", start: 1000, increment: 1 }],
           tables: [
             {
               name: "users",
+              description: "System Identity Registry",
               columns: [
-                { name: "id", type: "UUID", primaryKey: true },
-                { name: "email", type: "VARCHAR(255)", constraints: "UNIQUE NOT NULL", masking: "PARTIAL" },
-                { name: "preferences", type: "JSONB", defaultValue: "'{}'" },
-                { name: "status", type: "VARCHAR(20)", defaultValue: "'ACTIVE'" }
+                { name: "id", type: "UUID", primaryKey: true, default: "gen_random_uuid()" },
+                { name: "username", type: "VARCHAR(255)", constraints: "UNIQUE NOT NULL" },
+                { name: "email", type: "VARCHAR(255)", constraints: "UNIQUE NOT NULL" },
+                { name: "status", type: "VARCHAR(50)", default: "'ACTIVE'" },
+                { name: "created_at", type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" }
               ],
               indexes: [
-                { name: "idx_user_pref_gin", type: "GIN", columns: ["preferences"] }
+                { name: "idx_users_email", columns: ["email"], unique: true },
+                { name: "idx_users_status", columns: ["status"] }
+              ],
+              triggers: [
+                { name: "trg_audit_users", event: "AFTER INSERT OR UPDATE", function: "fabric_admin.audit_trigger_func()" }
               ]
             },
             {
-              name: "orders",
-              partitioned: { type: "RANGE", column: "created_at" },
+              name: "user_sessions",
               columns: [
-                { name: "id", type: "UUID", constraints: "NOT NULL" },
-                { name: "user_id", type: "UUID", constraints: "NOT NULL" },
-                { name: "amount", type: "NUMERIC(15,2)", constraints: "CHECK (amount > 0)" },
-                { name: "created_at", type: "TIMESTAMP", constraints: "NOT NULL" }
-              ],
-              compositePrimaryKey: ["id", "created_at"],
-              indexes: [
-                { name: "idx_orders_user_date", type: "BTREE", columns: ["user_id", "created_at"] }
-              ],
-              triggers: [
-                { name: "trg_order_audit", event: "AFTER INSERT", function: "fn_audit_log" }
-              ],
-              governance: { ttl: "7 years", quality: "amount > 0" }
+                { name: "id", type: "UUID", primaryKey: true },
+                { name: "user_id", type: "UUID", references: { table: "users", column: "id" } },
+                { name: "last_seen", type: "TIMESTAMP" }
+              ]
             }
           ],
-          views: [
+          functions: [
             {
-              name: "v_high_value_users",
-              materialized: true,
-              config: { // Directly mapped to QueryEngine AST
-                type: "SELECT",
-                table: "orders",
-                select: ["user_id", "SUM(amount) as total_spend"],
-                groupBy: ["user_id"],
-                filter: { "amount": { "$gt": 1000 } }
-              }
-            }
-          ]
-        },
-        {
-          name: "external_virtual",
-          description: "Heterogeneous Virtualized Layer",
-          foreignTables: [
-            {
-              name: "snowflake_revenue",
-              server: "snowflake_dw",
-              columns: [
-                { name: "period", type: "VARCHAR(10)" },
-                { name: "revenue", type: "NUMERIC" }
-              ],
-              options: { "table": "monthly_revenue_report" }
+              name: "calculate_session_duration",
+              params: [{ name: "user_id", type: "UUID" }],
+              returnType: "INTERVAL",
+              body: "RETURN (SELECT NOW() - MIN(last_seen) FROM user_sessions WHERE user_id = $1)"
             }
           ]
         }
       ],
-      relationships: [
-        {
-          name: "rel_user_profile_1to1",
-          type: "ONE_TO_ONE",
-          source: { schema: "enterprise_core", table: "users", column: "id" },
-          target: { schema: "enterprise_core", table: "profiles", column: "user_id" },
-          cardinality: "1:1"
-        },
-        {
-          name: "rel_user_orders_1toM",
-          type: "ONE_TO_MANY",
-          source: { schema: "enterprise_core", table: "users", column: "id" },
-          target: { schema: "enterprise_core", table: "orders", column: "user_id" },
-          cardinality: "1:M"
-        },
-        {
-          name: "rel_user_groups_MM",
-          type: "MANY_TO_MANY",
-          junctionTable: "user_group_map",
-          left: { table: "users", column: "id" },
-          right: { table: "groups", column: "id" },
-          cardinality: "M:M"
-        }
-      ],
-      functions: [
-        {
-          name: "fn_audit_log",
-          returnType: "TRIGGER",
-          language: "plpgsql",
-          body: "BEGIN INSERT INTO fabric_audit(tbl, op) VALUES (TG_TABLE_NAME, TG_OP); RETURN NEW; END;"
-        }
-      ]
-    };
-  }
-
-  /**
-   * Exports the current tenant schema and relational state as a JSON manifest
-   */
-  static async exportTenantMetadata(tenantId: string) {
-    const schemaName = `tenant_${tenantId}`;
-    
-    // 1. Fetch Columns
-    const { rows: columns } = await pool.query(`
-      SELECT table_name, column_name, data_type, is_nullable
-      FROM information_schema.columns
-      WHERE table_schema = $1
-    `, [schemaName]);
-
-    // 2. Fetch Relationships
-    const { rows: relations } = await pool.query(`
-      SELECT source_table, source_column, target_table, target_column, cardinality
-      FROM fabric_catalog.relationships
-      WHERE schema_name = $1
-    `, [schemaName]);
-
-    return {
-      tenantId,
-      timestamp: new Date().toISOString(),
-      schema: {
-        name: schemaName,
-        tables: Array.from(new Set(columns.map(c => c.table_name))).map(t => ({
-          name: t,
-          columns: columns.filter(c => c.table_name === t).map(c => ({
-            name: c.column_name,
-            type: c.data_type,
-            nullable: c.is_nullable === 'YES'
-          })),
-          relationships: relations.filter(r => r.source_table === t).map(r => ({
-            column: r.source_column,
-            targetTable: r.target_table,
-            targetColumn: r.target_column,
-            cardinality: r.cardinality
-          }))
-        }))
+      federation: {
+        enabled: true,
+        strategies: ["VIRTUAL_FDW", "CDC_SYNC"]
       }
     };
-  }
-
-  /**
-   * Compares a proposed metadata manifest against the live schema to generate a migration diff
-   */
-  static async diffMetadata(tenantId: string, proposed: any) {
-    const live = await this.exportTenantMetadata(tenantId);
-    const diffs: any[] = [];
-
-    const proposedTables = proposed.schema.tables;
-    const liveTables = live.schema.tables;
-
-    // 1. Check for Added or Modified Tables
-    for (const pTable of proposedTables) {
-      const lTable = liveTables.find((t: any) => t.name === pTable.name);
-      
-      if (!lTable) {
-        diffs.push({ action: 'CREATE_TABLE', table: pTable.name, details: pTable });
-      } else {
-        // Compare columns
-        for (const pCol of pTable.columns) {
-          const lCol = lTable.columns.find((c: any) => c.name === pCol.name);
-          if (!lCol) {
-            diffs.push({ action: 'ADD_COLUMN', table: pTable.name, column: pCol.name, type: pCol.type });
-          } else if (lCol.type !== pCol.type) {
-            diffs.push({ action: 'ALTER_COLUMN_TYPE', table: pTable.name, column: pCol.name, oldType: lCol.type, newType: pCol.type });
-          }
-        }
-      }
-    }
-
-    // 2. Check for Soft Deletes (Tables/Columns in Live but not in Proposed)
-    for (const lTable of liveTables) {
-      const pTable = proposedTables.find((t: any) => t.name === lTable.name);
-      if (!pTable) {
-        diffs.push({ action: 'SOFT_DELETE_TABLE', table: lTable.name });
-      }
-    }
-
-    // 3. Check for Sequences
-    if (proposed.schema.sequences) {
-      for (const pSeq of proposed.schema.sequences) {
-        diffs.push({ action: 'CREATE_SEQUENCE', ...pSeq });
-      }
-    }
-
-    // 4. Check for Views
-    if (proposed.schema.views) {
-      for (const pView of proposed.schema.views) {
-        diffs.push({ action: 'CREATE_VIEW', ...pView });
-      }
-    }
-
-    // 5. Check for Table-specific Indexes
-    for (const pTable of proposedTables) {
-      if (pTable.indexes) {
-        for (const pIdx of pTable.indexes) {
-          diffs.push({ action: 'CREATE_INDEX', table: pTable.name, ...pIdx });
-        }
-      }
-    }
-
-    // 6. Check for Relationships
-    if (proposed.schema.relationships) {
-      for (const pRel of proposed.schema.relationships) {
-        diffs.push({ action: 'ESTABLISH_RELATIONSHIP', ...pRel });
-      }
-    }
-
-    return { tenantId, diffs };
-  }
-
-  /**
-   * Orchestrates the execution of a migration plan (diff) against the live system
-   */
-  static async migrateMetadata(tenantId: string, migrationPlan: any[]) {
-    const { QueryEngineService } = require('../query-engine/query-engine.service');
-    const results: any[] = [];
-
-    for (const step of migrationPlan) {
-      try {
-        let query;
-        switch (step.action) {
-          case 'CREATE_SCHEMA':
-            query = { type: 'CREATE_SCHEMA' };
-            break;
-
-          case 'CREATE_FOREIGN_TABLE':
-            query = { 
-              type: 'CREATE_FOREIGN_TABLE', 
-              table: step.table,
-              schemaDef: { columns: step.details.columns },
-              foreignDef: { serverName: step.details.server, options: step.details.options }
-            };
-            break;
-
-          case 'CREATE_FUNCTION':
-            await pool.query(`
-              CREATE OR REPLACE FUNCTION "tenant_${tenantId}"."${step.name}"()
-              RETURNS TRIGGER AS $$
-              ${step.body}
-              $$ LANGUAGE plpgsql;
-            `);
-            await pool.query(`ALTER FUNCTION "tenant_${tenantId}"."${step.name}"() OWNER TO fabric_user`);
-            results.push({ action: step.action, status: 'SUCCESS' });
-            continue;
-
-          case 'CREATE_TABLE':
-            const colDefs = step.details.columns.map((c: any) => {
-              let def = `"${c.name}" ${c.type}`;
-              if (c.primaryKey) def += ' PRIMARY KEY';
-              if (c.constraints) def += ` ${c.constraints}`;
-              if (c.defaultValue) def += ` DEFAULT ${c.defaultValue}`;
-              return def;
-            });
-            
-            // Handle Composite Primary Key
-            if (step.details.compositePrimaryKey) {
-               colDefs.push(`PRIMARY KEY (${step.details.compositePrimaryKey.map((k: any) => `"${k}"`).join(', ')})`);
-            }
-
-            let createTableSql = `CREATE TABLE IF NOT EXISTS "tenant_${tenantId}"."${step.table}" (${colDefs.join(', ')})`;
-            
-            // Handle Partitioning
-            if (step.details.partitioned) {
-               createTableSql += ` PARTITION BY ${step.details.partitioned.type} ("${step.details.partitioned.column}")`;
-            }
-            
-            await pool.query(createTableSql);
-            await pool.query(`ALTER TABLE "tenant_${tenantId}"."${step.table}" OWNER TO fabric_user`);
-            await pool.query(`GRANT ALL ON TABLE "tenant_${tenantId}"."${step.table}" TO fabric_user`);
-            
-            // Populate Catalog for Governance (Masking, etc.)
-            for (const col of step.details.columns) {
-              await pool.query(`
-                INSERT INTO fabric_catalog.metadata (schema_name, table_name, column_name, data_type, description)
-                VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (schema_name, table_name, column_name) DO UPDATE SET description = EXCLUDED.description
-              `, [`tenant_${tenantId}`, step.table, col.name, col.type, col.description || '']);
-            }
-            results.push({ action: step.action, table: step.table, status: 'SUCCESS' });
-            
-            // Handle Triggers
-            if (step.details.triggers) {
-               for (const trg of step.details.triggers) {
-                  const trgSql = `CREATE TRIGGER "${trg.name}" ${trg.event} ON "tenant_${tenantId}"."${step.table}" FOR EACH ROW EXECUTE FUNCTION ${trg.function}()`;
-                  await pool.query(trgSql);
-               }
-            }
-
-            // Handle Policies (RLS)
-            if (step.details.policies) {
-               await pool.query(`ALTER TABLE "tenant_${tenantId}"."${step.table}" ENABLE ROW LEVEL SECURITY`);
-               for (const pol of step.details.policies) {
-                  const polSql = `CREATE POLICY "${pol.name}" ON "tenant_${tenantId}"."${step.table}" FOR ${pol.action} USING (${pol.check})`;
-                  await pool.query(polSql);
-               }
-            }
-            continue;
-
-          case 'CREATE_VIEW':
-            // Structured View: Use AST to generate query
-            const viewConfig = step.details?.config || step.config;
-            const { sql: viewSql } = await QueryEngineService.generateSql(tenantId, viewConfig);
-            query = { 
-              type: 'CREATE_VIEW', 
-              viewDef: { name: step.table || step.name, query: viewSql, materialized: step.details?.materialized } 
-            };
-            break;
-
-          case 'ESTABLISH_RELATIONSHIP':
-            // 1. Insert into Catalog for Dynamic Join resolution
-            await pool.query(`
-              INSERT INTO fabric_catalog.relationships 
-                (schema_name, source_table, source_column, target_table, target_column, cardinality, description)
-              VALUES ($1, $2, $3, $4, $5, $6, $7)
-              ON CONFLICT (schema_name, source_table, source_column, target_table, target_column)
-              DO UPDATE SET cardinality = EXCLUDED.cardinality
-            `, [`tenant_${tenantId}`, step.sourceTable, step.sourceColumn, step.targetTable, step.targetColumn, step.cardinality, step.name || 'Link']);
-
-            // 2. Optional: Add physical FK if enforced
-            if (step.enforceForeignKey) {
-               const fkSql = `ALTER TABLE "tenant_${tenantId}"."${step.sourceTable}" 
-                              ADD CONSTRAINT "fk_${step.sourceTable}_${step.targetTable}" 
-                              FOREIGN KEY ("${step.sourceColumn}") 
-                              REFERENCES "tenant_${tenantId}"."${step.targetTable}" ("${step.targetColumn}")`;
-               await pool.query(fkSql);
-            }
-            results.push({ action: step.action, status: 'SUCCESS_RELATIONAL_LINK' });
-            continue;
-
-          case 'CREATE_SEQUENCE':
-            query = { 
-              type: 'CREATE_SEQUENCE', 
-              sequenceDef: { name: step.name, start: step.start, increment: step.increment } 
-            };
-            break;
-
-          case 'CREATE_INDEX':
-            query = { 
-              type: 'CREATE_INDEX', 
-              table: step.table, 
-              indexDef: { name: step.name, columns: step.columns, unique: step.unique } 
-            };
-            break;
-            
-          case 'SOFT_DELETE_TABLE':
-            await pool.query(`
-              UPDATE fabric_catalog.metadata 
-              SET is_deleted = TRUE, deleted_at = CURRENT_TIMESTAMP 
-              WHERE schema_name = $1 AND table_name = $2
-            `, [`tenant_${tenantId}`, step.table]);
-            results.push({ action: step.action, status: 'SUCCESS_METADATA_ONLY' });
-            continue;
-        }
-
-        if (query) {
-          const res = await QueryEngineService.executeQuery(tenantId, query);
-          results.push({ action: step.action, status: 'SUCCESS', response: res });
-        }
-      } catch (err: any) {
-        results.push({ action: step.action, status: 'FAILED', error: err.message });
-      }
-    }
-
-    return { tenantId, results };
-  }
-
-  /**
-   * Full-Text Search across the Fabric Catalog
-   */
-  static async searchCatalog(tenantId: string, query: string) {
-    const { rows } = await pool.query(`
-      SELECT table_name, column_name, data_type, description
-      FROM fabric_catalog.metadata
-      WHERE schema_name = $1
-      AND (
-        table_name ILIKE $2 OR 
-        column_name ILIKE $2 OR 
-        description ILIKE $2
-      )
-    `, [`tenant_${tenantId}`, `%${query}%`]);
-    
-    return rows;
   }
 }

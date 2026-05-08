@@ -26,7 +26,7 @@
         }
     </script>
 </head>
-<body class="dark-theme <%= title.includes('Login') ? 'login-page' : '' %>">
+<body class="light-theme <%= title.includes('Login') ? 'login-page' : '' %>">
     <div class="app-layout">
         <% if (!title.includes('Login')) { %>
         <!-- Sidebar Navigation -->
@@ -34,48 +34,27 @@
             <div class="sidebar-header">
                 <div class="logo">
                     <div class="logo-icon"></div>
-                    <span>Data Fabric</span>
+                    <span>Zero Fabric</span>
                 </div>
             </div>
             <nav class="sidebar-nav">
-                <a href="/dashboard" class="nav-item" id="nav-dashboard">
-                    <span class="icon">📊</span> Overview
-                </a>
-                <a href="/tenants" class="nav-item" id="nav-tenants">
-                    <span class="icon">🏢</span> Tenants
-                </a>
-                <a href="/connections" class="nav-item" id="nav-connections">
-                    <span class="icon">🔗</span> Connections
-                </a>
-                <a href="/workbench" class="nav-item" id="nav-workbench">
-                    <span class="icon">💻</span> Workbench
-                </a>
-                <a href="/catalog" class="nav-item" id="nav-catalog">
-                    <span class="icon">🔎</span> Discovery
-                </a>
-                <a href="/iam" class="nav-item" id="nav-iam">
-                    <span class="icon">🛡️</span> IAM
-                </a>
-                <a href="/audit" class="nav-item" id="nav-audit">
-                    <span class="icon">📜</span> Audit Logs
-                </a>
-                <a id="nav-docs" target="_blank" class="nav-item">
-                    <span class="icon">📚</span> API Reference
-                </a>
-                <script>
-                    document.getElementById('nav-docs').href = `http://${window.location.hostname}:4000/api-docs`;
-                </script>
+                <a href="/dashboard" class="nav-item" id="nav-dashboard"><i class="fas fa-chart-line"></i> Overview</a>
+                <a href="/tenants" class="nav-item" id="nav-tenants"><i class="fas fa-building"></i> Tenants</a>
+                <a href="/connections" class="nav-item" id="nav-connections"><i class="fas fa-link"></i> Connections</a>
+                <a href="/workbench" class="nav-item" id="nav-workbench"><i class="fas fa-terminal"></i> Workbench</a>
+                <a href="/catalog" class="nav-item" id="nav-catalog"><i class="fas fa-search"></i> Explorer</a>
+                <a href="/metadata" class="nav-item" id="nav-metadata"><i class="fas fa-cubes"></i> Catalog</a>
+                <a href="/iam" class="nav-item" id="nav-iam"><i class="fas fa-users-cog"></i> Identity</a>
+                <a href="/audit" class="nav-item" id="nav-audit"><i class="fas fa-shield-halved"></i> Audit Logs</a>
                 <div class="nav-spacer"></div>
-                <a href="/settings" class="nav-item" id="nav-settings">
-                    <span class="icon">⚙️</span> Settings
-                </a>
+                <a href="/settings" class="nav-item" id="nav-settings"><i class="fas fa-cog"></i> Settings</a>
             </nav>
             <div class="sidebar-footer">
                 <div class="user-profile">
                     <div class="avatar" id="userAvatar">A</div>
                     <div class="user-info">
-                        <span class="username" id="displayUsername">Admin</span>
-                        <span class="tenant" id="displayTenant">tenant_A</span>
+                        <span class="username" id="displayUsername" style="font-weight:600; font-size:0.9rem;">Admin</span>
+                        <span class="tenant" id="displayTenant" style="font-size:0.75rem; color:var(--text-muted);">tenant_A</span>
                     </div>
                 </div>
                 <button id="logoutBtn" class="logout-btn">Log Out</button>
@@ -88,75 +67,103 @@
             <% if (!title.includes('Login')) { %>
             <header class="top-bar">
                 <div class="top-bar-left">
-                    <h2 id="pageTitle"><%= title.split(' - ')[1] %></h2>
+                    <h2><%= title.split(' - ')[1] %></h2>
                 </div>
                 <div class="top-bar-right">
                     <div class="identity-context">
-                        <label>Identity context:</label>
-                        <select id="tenantSwitcher" class="context-select">
-                            <option value="">Loading Tenants...</option>
-                        </select>
-                        <script>
-                            async function loadTenantSwitcher() {
-                                const switcher = document.getElementById('tenantSwitcher');
-                                if (!switcher) return;
-                                
-                                try {
-                                    const res = await fetch(`${API_BASE}/admin/tenants`, {
-                                        headers: getAuthHeaders()
-                                    });
-                                    const tenants = await res.json();
-                                    
-                                    if (Array.isArray(tenants)) {
-                                        switcher.innerHTML = tenants.map(t => 
-                                            `<option value="${t.id}">${t.name} (${t.id})</option>`
-                                        ).join('');
-                                        
-                                        // Set initial value from localStorage if exists
-                                        const activeTenant = localStorage.getItem('active_tenant');
-                                        if (activeTenant) {
-                                            switcher.value = activeTenant;
-                                        } else if (tenants.length > 0) {
-                                            localStorage.setItem('active_tenant', tenants[0].id);
-                                        }
-                                    }
-                                } catch (e) {
-                                    switcher.innerHTML = '<option value="">Error Loading</option>';
-                                }
-                            }
-                            
-                            document.getElementById('tenantSwitcher').addEventListener('change', (e) => {
-                                localStorage.setItem('active_tenant', e.target.value);
-                                // Industrial Reload: Force UI to resync with new context
-                                window.location.reload();
-                            });
-
-                            window.addEventListener('load', loadTenantSwitcher);
-
-                            const logoutBtn = document.getElementById('logoutBtn');
-                            if (logoutBtn) {
-                                logoutBtn.addEventListener('click', () => {
-                                    localStorage.removeItem('token');
-                                    localStorage.removeItem('active_tenant');
-                                    window.location.href = '/login';
-                                });
-                            }
-
-                            const topLogoutBtn = document.getElementById('topLogoutBtn');
-                            if (topLogoutBtn) {
-                                topLogoutBtn.addEventListener('click', () => {
-                                    localStorage.removeItem('token');
-                                    localStorage.removeItem('active_tenant');
-                                    window.location.href = '/login';
-                                });
-                            }
-                        </script>
+                        <select id="tenantSwitcher" class="context-select"></select>
                     </div>
-                    <div class="status-indicator">
-                        <span class="dot-online"></span> Secure Session
-                    </div>
-                    <button id="topLogoutBtn" class="logout-btn" style="width: auto; padding: 0.4rem 1rem; font-size: 0.8rem;">Log Out</button>
+                    <button id="topLogoutBtn" class="btn-outline" style="padding: 0.4rem 1rem; font-size: 0.8rem;">Log Out</button>
                 </div>
             </header>
             <% } %>
             <div class="content-wrapper">
+
+    <!-- Premium Modal Overlay -->
+    <div id="fabricModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modalTitle">Notification</h3>
+                <button onclick="closeModal()" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--text-muted);">&times;</button>
+            </div>
+            <div id="modalBody" class="modal-body">
+                Message goes here...
+            </div>
+            <div class="modal-footer">
+                <button id="modalSecondaryBtn" class="btn-outline" onclick="closeModal()">Cancel</button>
+                <button id="modalPrimaryBtn" class="btn-primary" onclick="closeModal()">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        // Premium Modal Orchestrator
+        function showModal(title, message, onConfirm = null, confirmText = 'OK') {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalBody').innerText = message;
+            const primaryBtn = document.getElementById('modalPrimaryBtn');
+            primaryBtn.innerText = confirmText;
+            
+            const secondaryBtn = document.getElementById('modalSecondaryBtn');
+            secondaryBtn.style.display = onConfirm ? 'block' : 'none';
+
+            primaryBtn.onclick = () => {
+                if (onConfirm) onConfirm();
+                closeModal();
+            };
+            
+            document.getElementById('fabricModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('fabricModal').classList.remove('active');
+        }
+
+        // Global Alert Override for Premium UX
+        window.alert = (msg) => showModal('Notice', msg);
+
+        // Identity context logic
+        async function loadTenantSwitcher() {
+            const switcher = document.getElementById('tenantSwitcher');
+            if (!switcher) return;
+            try {
+                const res = await fetch(`${API_BASE}/admin/tenants`, { headers: getAuthHeaders() });
+                const tenants = await res.json();
+                if (Array.isArray(tenants)) {
+                    switcher.innerHTML = tenants.map(t => `<option value="${t.id}">${t.name} (${t.id})</option>`).join('');
+                    const activeTenant = localStorage.getItem('active_tenant');
+                    if (activeTenant) switcher.value = activeTenant;
+                    else if (tenants.length > 0) localStorage.setItem('active_tenant', tenants[0].id);
+                }
+            } catch (e) { switcher.innerHTML = '<option value="">Error Loading</option>'; }
+        }
+
+        document.getElementById('tenantSwitcher')?.addEventListener('change', async (e) => {
+            const newTenant = e.target.value;
+            try {
+                const res = await fetch(`${API_BASE}/auth/token`, {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ tenantId: newTenant })
+                });
+                const data = await res.json();
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('active_tenant', newTenant);
+                    window.location.reload();
+                }
+            } catch (err) { console.error('[Identity] Switch failed'); }
+        });
+
+        window.addEventListener('load', loadTenantSwitcher);
+
+        const logoutHandler = () => {
+            localStorage.removeItem('token');
+            localStorage.removeItem('active_tenant');
+            window.location.href = '/login';
+        };
+        document.getElementById('logoutBtn')?.addEventListener('click', logoutHandler);
+        document.getElementById('topLogoutBtn')?.addEventListener('click', logoutHandler);
+    </script>

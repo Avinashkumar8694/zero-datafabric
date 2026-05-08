@@ -1,0 +1,165 @@
+<%- include('partials/header') %>
+
+<div class="fade-in">
+    <div class="glass-card">
+        <h3>Metadata Orchestration</h3>
+        <p class="text-muted" style="margin-bottom: 2rem;">Declarative schema management via industrial orchestration blueprints.</p>
+        
+        <div class="grid">
+            <!-- Template Download -->
+            <section class="glass-card" style="background: var(--bg);">
+                <h4>Orchestration Blueprint</h4>
+                <p class="text-muted" style="font-size: 0.8rem; margin-bottom: 1.5rem;">Download the definitive V7.0 specification as a reference for your target state.</p>
+                <button onclick="downloadTemplate()" class="btn-outline" style="width: 100%;">Download Spec (V7.0)</button>
+            </section>
+
+            <!-- File Upload for Diff/Apply -->
+            <section class="glass-card" style="background: var(--bg);">
+                <h4>Target State Manifest</h4>
+                <p class="text-muted" style="font-size: 0.8rem; margin-bottom: 1.5rem;">Select a manifest file (.json) to analyze or apply schema changes.</p>
+                <div style="display: flex; gap: 0.5rem; flex-direction: column;">
+                    <input type="file" id="manifestFile" accept=".json" class="context-select" style="width: 100%; height: auto; padding: 0.5rem;">
+                    <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                        <button onclick="analyzeManifest()" id="diffBtn" class="btn-outline" style="flex: 1;">Analyze Drift (Diff)</button>
+                        <button onclick="applyManifest()" id="applyBtn" class="btn-primary" style="flex: 1;">Orchestrate (Apply)</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Orchestration Plan / Results -->
+    <div id="resultCard" class="glass-card" style="display: none; margin-top: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h3 id="resultTitle">Orchestration Plan</h3>
+            <span id="resultBadge" class="badge-sync" style="background: var(--primary);">ANALYZED</span>
+        </div>
+        
+        <div id="planSummary" class="text-muted" style="margin-bottom: 1.5rem; font-size: 0.9rem;"></div>
+
+        <div class="table-wrapper">
+            <table id="planTable">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Table</th>
+                        <th>Operation</th>
+                        <th>Details</th>
+                        <th id="statusCol" style="display: none;">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="planBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function downloadTemplate() {
+        try {
+            const res = await fetch(`${API_BASE}/metadata/template`, { headers: getAuthHeaders() });
+            const data = await res.json();
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'data_fabric_orchestration_spec.json';
+            a.click();
+        } catch (e) {
+            alert('Failed to download template');
+        }
+    }
+
+    async function analyzeManifest() {
+        const fileInput = document.getElementById('manifestFile');
+        if (!fileInput.files[0]) return alert('Please select a manifest file first.');
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        const btn = document.getElementById('diffBtn');
+        const originalText = btn.innerText;
+        btn.innerText = 'Analyzing...';
+        btn.disabled = true;
+
+        try {
+            const res = await fetch(`${API_BASE}/metadata/diff`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'x-tenant-id': localStorage.getItem('active_tenant') },
+                body: formData
+            });
+            const data = await res.json();
+            displayPlan(data.diffs, 'Orchestration Plan', 'ANALYZED', false);
+        } catch (e) {
+            alert('Analysis failed: ' + e.message);
+        } finally {
+            btn.innerText = originalText;
+            btn.disabled = false;
+        }
+    }
+
+    async function applyManifest() {
+        const fileInput = document.getElementById('manifestFile');
+        if (!fileInput.files[0]) return alert('Please select a manifest file first.');
+
+        if (!confirm('Industrial Warning: This will execute DDL/DML operations on the live fabric. Proceed?')) return;
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        const btn = document.getElementById('applyBtn');
+        const originalText = btn.innerText;
+        btn.innerText = 'Orchestrating...';
+        btn.disabled = true;
+
+        try {
+            const res = await fetch(`${API_BASE}/metadata/apply`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'x-tenant-id': localStorage.getItem('active_tenant') },
+                body: formData
+            });
+            const data = await res.json();
+            displayPlan(data.plan, 'Orchestration Results', 'SUCCESS', true, data.results);
+        } catch (e) {
+            alert('Orchestration failed: ' + e.message);
+        } finally {
+            btn.innerText = originalText;
+            btn.disabled = false;
+        }
+    }
+
+    function displayPlan(plan, title, badgeText, showStatus, results = []) {
+        const card = document.getElementById('resultCard');
+        const body = document.getElementById('planBody');
+        const titleEl = document.getElementById('resultTitle');
+        const badgeEl = document.getElementById('resultBadge');
+        const summaryEl = document.getElementById('planSummary');
+        const statusCol = document.getElementById('statusCol');
+
+        card.style.display = 'block';
+        titleEl.innerText = title;
+        badgeEl.innerText = badgeText;
+        badgeEl.style.background = badgeText === 'SUCCESS' ? 'var(--success)' : 'var(--primary)';
+        statusCol.style.display = showStatus ? 'table-cell' : 'none';
+
+        if (!plan || plan.length === 0) {
+            summaryEl.innerText = 'No schema drift detected. Live environment matches target state.';
+            body.innerHTML = '<tr><td colspan="5" class="text-muted">Empty Plan</td></tr>';
+            return;
+        }
+
+        summaryEl.innerText = `${plan.length} pending operations detected to align with industrial target state.`;
+
+        body.innerHTML = plan.map((p, idx) => `
+            <tr>
+                <td><span class="badge-sync" style="background: var(--surface-hover);">${p.action || p.type}</span></td>
+                <td><strong>${p.table || p.name || 'N/A'}</strong></td>
+                <td>${p.operation || p.action}</td>
+                <td class="text-muted" style="font-size: 0.8rem;"><code>${JSON.stringify(p.details).substring(0, 50)}...</code></td>
+                ${showStatus ? `<td><span class="badge-sync" style="background: ${results[idx]?.status === 'SUCCESS' || results[idx]?.status?.startsWith('SUCCESS') ? 'var(--success)' : 'var(--danger)'}; color: black;">${results[idx]?.status === 'SUCCESS' || results[idx]?.status?.startsWith('SUCCESS') ? 'DONE' : 'ERROR'}</span></td>` : ''}
+            </tr>
+        `).join('');
+    }
+</script>
+
+<%- include('partials/footer') %>

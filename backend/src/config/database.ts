@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-export const pool = new Pool({
+const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgres://fabric_admin:super_secret_password@localhost:5432/datafabric',
   statement_timeout: 10000, // 10 seconds industrial timeout
 });
@@ -12,7 +12,7 @@ export const pool = new Pool({
  * Executes a query within a temporary session context
  * This is critical for Module 3.1 (RLS) and 3.2 (Audit)
  */
-export async function queryWithContext(sql: string, params: any[], context: { tenantId: string, username: string }) {
+async function queryWithContext(sql: string, params: any[], context: { tenantId: string, username: string }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -23,6 +23,10 @@ export async function queryWithContext(sql: string, params: any[], context: { te
     // 2. Inject identity into the Postgres session (Industrial Grade App Context)
     await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [context.tenantId]);
     await client.query(`SELECT set_config('app.user_name', $1, true)`, [context.username]);
+    
+    // 3. Set Search Path to Tenant Primary Schema
+    const schemaName = `tenant_${context.tenantId.replace(/[^a-zA-Z0-9_]/g, '')}`;
+    await client.query(`SET LOCAL search_path TO "${schemaName}", public`);
     
     const result = await client.query(sql, params);
     
@@ -41,3 +45,5 @@ export async function queryWithContext(sql: string, params: any[], context: { te
 pool.on('connect', () => {
   console.log('PostgreSQL Pool Connected');
 });
+
+export { pool, queryWithContext };

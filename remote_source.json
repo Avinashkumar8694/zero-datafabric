@@ -1,0 +1,12 @@
+{
+  "name": "Remote_Warehouse",
+  "config": {
+    "type": "postgres",
+    "host": "localhost",
+    "port": 5436,
+    "dbName": "remote_warehouse",
+    "user": "remote_admin",
+    "pass": "remote_password",
+    "syncType": "VIRTUAL"
+  }
+}

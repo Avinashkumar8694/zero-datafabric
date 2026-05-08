@@ -32,4 +32,16 @@ export class EventService {
     // (This would be wrapped in a BullMQ job in production)
     console.log(`[Events] Dispatching event to ${url}...`);
   }
+
+  /**
+   * Internal Event Emitter
+   */
+  static async emit(eventType: string, payload: any) {
+    console.log(`[Events] Emitting ${eventType}:`, JSON.stringify(payload));
+    // In production, this would write to fabric_events or a message broker
+    await pool.query(
+      'INSERT INTO public.audit_logs (action, table_name, tenant_id, new_data) VALUES ($1, $2, $3, $4)', 
+      [eventType, payload.table || 'SYSTEM', payload.tenantId || 'SYSTEM', JSON.stringify(payload)]
+    );
+  }
 }

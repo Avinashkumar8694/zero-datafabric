@@ -65,30 +65,19 @@
 <script>
     async function loadStats() {
         try {
-            const resTenants = await fetch(`${API_BASE}/admin/tenants`, {
+            const res = await fetch(`${API_BASE}/admin/stats`, {
                 headers: getAuthHeaders()
             });
-            if (resTenants.ok) {
-                const tenants = await resTenants.json();
-                document.getElementById('stat-tenants').innerText = Array.isArray(tenants) ? tenants.length : '0';
-            } else {
-                document.getElementById('stat-tenants').innerText = 'Err';
-            }
-
-            const resConn = await fetch(`${API_BASE}/admin/connections`, {
-                headers: getAuthHeaders()
-            });
-            if (resConn.ok) {
-                const connections = await resConn.json();
-                document.getElementById('stat-connections').innerText = Array.isArray(connections) ? connections.length : '0';
-            } else {
-                document.getElementById('stat-connections').innerText = 'Err';
-            }
+            const stats = await res.json();
             
-            document.getElementById('stat-audits').innerText = '12'; // Mock for now
+            document.getElementById('stat-tenants').innerText = stats.tenants || '0';
+            document.getElementById('stat-connections').innerText = stats.connections || '0';
+            document.getElementById('stat-audits').innerText = stats.audits || '0';
         } catch (e) {
-            document.getElementById('stat-tenants').innerText = 'Offline';
-            document.getElementById('stat-connections').innerText = 'Offline';
+            console.error('[Dashboard] Stats fetch failed', e);
+            document.getElementById('stat-tenants').innerText = '--';
+            document.getElementById('stat-connections').innerText = '--';
+            document.getElementById('stat-audits').innerText = '--';
         }
     }
 
@@ -110,9 +99,36 @@
         }
     }
 
+    async function loadEvents() {
+        const body = document.getElementById('activityBody');
+        try {
+            const res = await fetch(`${API_BASE}/events`, {
+                headers: getAuthHeaders()
+            });
+            const events = await res.json();
+            
+            if (Array.isArray(events) && events.length > 0) {
+                body.innerHTML = events.map(e => `
+                    <tr>
+                        <td style="text-transform: uppercase; font-size: 0.7rem; font-weight: bold;">${e.action.split('.')[0] || 'ENGINE'}</td>
+                        <td>${e.action}</td>
+                        <td><span class="badge-sync">${e.tableName || 'N/A'}</span></td>
+                        <td class="text-muted">${new Date(e.createdAt).toLocaleTimeString()}</td>
+                    </tr>
+                `).join('');
+            } else {
+                body.innerHTML = '<tr><td colspan="4">No recent activity detected</td></tr>';
+            }
+        } catch (e) {
+            body.innerHTML = '<tr><td colspan="4" class="text-danger">Failed to load events</td></tr>';
+        }
+    }
+
     loadStats();
     loadHealth();
-    setInterval(loadHealth, 10000); // Poll every 10s
+    loadEvents();
+    setInterval(loadHealth, 10000); 
+    setInterval(loadEvents, 10000); 
 </script>
 
 <%- include('partials/footer') %>

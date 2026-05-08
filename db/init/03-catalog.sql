@@ -19,6 +19,29 @@ CREATE TABLE IF NOT EXISTS fabric_catalog.metadata (
     UNIQUE (schema_name, table_name, column_name)
 );
 
+-- Source Discovery Catalog
+CREATE TABLE IF NOT EXISTS public.catalog_schemas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_id UUID REFERENCES public.data_sources(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    physical_name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (source_id, physical_name)
+);
+
+CREATE TABLE IF NOT EXISTS public.catalog_tables (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    schema_id UUID REFERENCES public.catalog_schemas(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    physical_name VARCHAR(255) NOT NULL,
+    row_count BIGINT DEFAULT 0,
+    last_crawled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (schema_id, physical_name)
+);
+
+GRANT ALL ON public.catalog_schemas TO public;
+GRANT ALL ON public.catalog_tables TO public;
+
 -- Relationship & Cardinality Registry
 CREATE TABLE IF NOT EXISTS fabric_catalog.relationships (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -47,7 +70,7 @@ ALTER TABLE fabric_catalog.metadata ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS tenant_metadata_policy ON fabric_catalog.metadata;
 CREATE POLICY tenant_metadata_policy ON fabric_catalog.metadata
-    USING (schema_name = 'tenant_' || current_setting('app.tenant_id', true));
+    USING (schema_name LIKE 'tenant_' || current_setting('app.tenant_id', true) || '%');
 
 GRANT ALL ON ALL TABLES IN SCHEMA fabric_catalog TO public;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA fabric_catalog TO public;

@@ -28,6 +28,7 @@ export interface ColumnDefinition {
     type: string;
     length?: number;
     primaryKey?: boolean;
+    unique?: boolean;
     default?: string;
     strategy?: 'UUID_V7' | 'IDENTITY_ALWAYS' | 'LEGACY_SERIAL' | 'FUNCTIONAL' | 'SOFT_DELETE';
     generated?: string;
@@ -35,6 +36,8 @@ export interface ColumnDefinition {
     nullable?: boolean;
     index?: { type: 'Btree' | 'GIN' | 'BRIN' | 'GIST'; unique?: boolean };
     comment?: string;
+    ref?: string;
+    collation?: string;
 }
 
 export interface ConstraintDefinition {
@@ -42,34 +45,51 @@ export interface ConstraintDefinition {
     type: 'CHECK' | 'EXCLUDE' | 'FOREIGN_KEY';
     expression?: string;
     using?: string;
-    columns?: any[];
+    columns?: { name: string; operator: string }[];
 }
 
 export interface TableDefinition {
     type: 'TABLE';
     name: string;
     comment?: string;
+    version?: string;
+    partitionBy?: { type: 'RANGE' | 'LIST'; column: string };
+    identity?: { type: 'PRIMARY_KEY'; columns: string[] };
+    maintenance?: { autovacuum_enabled?: boolean; fillfactor?: number };
     columns: ColumnDefinition[];
     constraints?: ConstraintDefinition[];
     triggers?: TriggerDefinition[];
-    partitionBy?: { type: 'RANGE' | 'LIST'; column: string };
     security?: {
         enable_rls?: boolean;
         masking?: { column: string; roles: string[]; expression: string }[];
         policies?: { name: string; roles?: string[]; using: string }[];
-        grants?: { role: string; privileges: string[] }[];
+        grants?: { role: string; roles?: string[]; privileges: string[] }[];
     };
+}
+
+export interface QueryAST {
+    with?: { name: string; columns: string[]; base: any; unionAll?: any }[];
+    select?: any[];
+    from: { resource: string; alias?: string; source?: string };
+    joins?: { type: 'INNER' | 'LEFT' | 'RIGHT'; resource: string; alias?: string; on: { left: string; operator: string; right: string } }[];
+    where?: any[];
+    groupBy?: string[];
+    orderBy?: { column: string; direction: 'ASC' | 'DESC' }[];
+    union?: any[];
+    intersect?: any[];
+    except?: any[];
 }
 
 export interface ViewDefinition {
     type: 'VIEW' | 'MATERIALIZED_VIEW';
     name: string;
-    query: any;
+    query: QueryAST;
     recursive?: boolean;
     materialized?: boolean;
     refreshStrategy?: 'STANDARD' | 'CONCURRENTLY' | 'INCREMENTAL';
     refreshInterval?: string;
     indexes?: { columns: string[]; unique?: boolean }[];
+    federationStrategy?: 'VIRTUAL' | 'NATIVE';
 }
 
 export interface FunctionDefinition {
@@ -93,6 +113,7 @@ export interface RelationshipDefinition {
 export interface SchemaDefinition {
     name: string;
     resources: ResourceDefinition[];
+    targetSource?: string;
 }
 
 export interface MetadataManifest {
@@ -100,6 +121,8 @@ export interface MetadataManifest {
     namespace?: string;
     targetSource?: string;
     consistencyMode?: 'SAGA' | 'STRONG';
+    downstream?: { type: string; enabled: boolean; strategy?: string; fallback?: string }[];
+    extensions?: string[];
     schemas: SchemaDefinition[];
     relationships?: RelationshipDefinition[];
 }

@@ -52,6 +52,118 @@
  *             role: { type: string }
  *             tenant_id: { type: string }
  *
+ *     MetadataManifest:
+ *       type: object
+ *       required: [version, schemas]
+ *       properties:
+ *         version: { type: string, example: "4.0" }
+ *         namespace: { type: string, example: "Global_Supply_Chain" }
+ *         targetSource: { type: string, example: "Fabric_Hub_Postgres" }
+ *         consistencyMode: { type: string, enum: [SAGA, STRONG], example: "SAGA" }
+ *         downstream:
+ *           type: array
+ *           items: { $ref: '#/components/schemas/DownstreamTarget' }
+ *         extensions:
+ *           type: array
+ *           items: { type: string, example: "uuid-ossp" }
+ *         relationships:
+ *           type: array
+ *           items: { $ref: '#/components/schemas/RelationshipDefinition' }
+ *       example:
+ *         version: "4.0"
+ *         namespace: "Global_Supply_Chain"
+ *         consistencyMode: "SAGA"
+ *         downstream:
+ *           - type: "ELASTICSEARCH"
+ *             enabled: true
+ *             fallback: "PRIMARY_SQL"
+ *           - type: "SNOWFLAKE"
+ *             enabled: true
+ *             strategy: "CDC"
+ *         extensions: ["uuid-ossp", "pg_stat_statements"]
+ *         schemas:
+ *           - name: "GSC_Core"
+ *             resources:
+ *               - type: "TABLE"
+ *                 name: "shipments"
+ *                 columns:
+ *                   - { name: "id", type: "uuid", strategy: "UUID_V7", pk: true }
+ *                   - { name: "status", type: "varchar", default: "PENDING" }
+ *               - type: "VIEW"
+ *                 name: "active_orders"
+ *                 query:
+ *                   select: ["*"]
+ *                   from: { resource: "orders" }
+ *                   where: [{ column: "status", op: "=", value: "ACTIVE" }]
+ *
+ *     DownstreamTarget:
+ *       type: object
+ *       properties:
+ *         type: { type: string, enum: [ELASTICSEARCH, SNOWFLAKE] }
+ *         enabled: { type: boolean }
+ *         fallback: { type: string, enum: [PRIMARY_SQL, FAIL_FAST, STALE_CACHE], description: "Resiliency plan for ELASTICSEARCH" }
+ *         strategy: { type: string, enum: [CDC, BATCH_UPSERT, FULL_RELOAD], description: "Replication strategy for SNOWFLAKE" }
+ *
+ *     SchemaDefinition:
+ *       type: object
+ *       properties:
+ *         name: { type: string }
+ *         resources: { type: array, items: { $ref: '#/components/schemas/ResourceDefinition' } }
+ *
+ *     ResourceDefinition:
+ *       type: object
+ *       properties:
+ *         type: { type: string, enum: [ENUM, SEQUENCE, TABLE, VIEW, MATERIALIZED_VIEW, FUNCTION, PROCEDURE] }
+ *         name: { type: string }
+ *
+ *     RelationshipDefinition:
+ *       type: object
+ *       properties:
+ *         name: { type: string }
+ *         cardinality: { type: string, enum: ["1:1", "1:M", "M:N"] }
+ *         bridge: { type: string, description: "Bridge table for M:N" }
+ *         from: { type: object }
+ *         to: { type: object }
+ *
+ *     ColumnDefinition:
+ *       type: object
+ *       properties:
+ *         name: { type: string, example: "id" }
+ *         type: { type: string, example: "uuid" }
+ *         pk: { type: boolean, example: true }
+ *         strategy: { type: string, enum: [UUID_V7, IDENTITY_ALWAYS, LEGACY_SERIAL, FUNCTIONAL] }
+ *         generated: { type: string, description: "SQL expression for virtual columns" }
+ *
+ *     QueryAST:
+ *       type: object
+ *       description: Universal Query Syntax for Virtualized Views. Supports complex joins across federated sources.
+ *       properties:
+ *         select:
+ *           type: array
+ *           items: { type: string, example: "id", description: "List of columns or '*' for all" }
+ *         from:
+ *           type: object
+ *           required: [resource]
+ *           properties:
+ *             resource: { type: string, example: "shipments" }
+ *             source: { type: string, example: "Fabric_Hub_Postgres" }
+ *         joins:
+ *           type: array
+ *           items:
+ *             type: object
+ *             properties:
+ *               resource: { type: string, example: "users" }
+ *               on: { type: string, example: "shipments.user_id = users.id" }
+ *               type: { type: string, enum: [LEFT, INNER, RIGHT], default: "LEFT" }
+ *         where:
+ *           type: array
+ *           items:
+ *             type: object
+ *             properties:
+ *               column: { type: string, example: "status" }
+ *               op: { type: string, enum: ["=", "!=", ">", "<", "LIKE", "ILIKE"], default: "=" }
+ *               value: { type: string, example: "DELIVERED" }
+ *
  * tags:
  *   - name: Tenants
  *     description: Industrial Isolation & Provisioning
@@ -374,16 +486,14 @@
  *
  * /api/metadata/diff:
  *   post:
- *     summary: Analyze Schema Drift (Idempotent)
+ *     summary: Analyze Schema Drift (JSON or File)
+ *     description: Performs a deep structural analysis between the provided Industrial Blueprint (JSON or Uploaded File) and the live database state.
  *     tags: [Metadata]
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       content:
  *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               schema: { type: object }
+ *           schema: { $ref: '#/components/schemas/MetadataManifest' }
  *         multipart/form-data:
  *           schema:
  *             type: object
@@ -391,9 +501,31 @@
  *               file:
  *                 type: string
  *                 format: binary
+ *                 description: Industrial Metadata Manifest file (JSON format)
  *     responses:
  *       200:
- *         description: Success
+ *         description: Success (Plan Ready)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status: { type: string, example: "PLAN_READY" }
+ *                 summary: { type: object, example: { total: 17, highRisk: 0 } }
+ *                 changes:
+ *                   type: array
+ *                   items: { type: object }
+ *             example:
+ *               status: "PLAN_READY"
+ *               summary: { total: 17, highRisk: 0 }
+ *               changes:
+ *                 - action: "CREATE_SCHEMA"
+ *                   name: "Global_Supply_Chain"
+ *                 - action: "PROVISION_EXTENSIONS"
+ *                   extensions: ["uuid-ossp"]
+ *                 - action: "CREATE_TABLE"
+ *                   name: "shipments"
+ *                   risk: "LOW"
  *
  * /api/metadata/migrate:
  *   post:
@@ -415,19 +547,14 @@
  *
  * /api/metadata/apply:
  *   post:
- *     summary: Declarative Schema Apply (Orchestration)
+ *     summary: Declarative Schema Apply (JSON or File)
  *     tags: [Metadata]
- *     description: Automatically diffs a target manifest against the live environment and applies all necessary migrations in a single transaction.
+ *     description: Reconciles the database state with the provided Industrial Blueprint (JSON or Uploaded File).
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       content:
  *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               schema:
- *                 type: object
- *                 description: Target metadata manifest (template format)
+ *           schema: { $ref: '#/components/schemas/MetadataManifest' }
  *         multipart/form-data:
  *           schema:
  *             type: object
@@ -435,6 +562,7 @@
  *               file:
  *                 type: string
  *                 format: binary
+ *                 description: Industrial Metadata Manifest file (JSON format)
  *     responses:
  *       200:
  *         description: Successful orchestration
@@ -449,4 +577,13 @@
  *                 results:
  *                   type: array
  *                   description: Execution results per step
+ *             example:
+ *               status: "APPLIED"
+ *               appliedCount: 17
+ *               results:
+ *                 - action: "CREATE_SCHEMA"
+ *                   status: "SUCCESS"
+ *                 - action: "CREATE_TABLE"
+ *                   name: "shipments"
+ *                   status: "SUCCESS"
  */

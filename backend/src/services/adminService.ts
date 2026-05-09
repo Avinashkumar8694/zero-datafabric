@@ -1,4 +1,4 @@
-import pool from '../config/db';
+import { pool } from '../config/database';
 
 export const createTenant = async (tenantName: string) => {
   const tenantId = tenantName.toLowerCase().replace(/[^a-z0-9]/g, '_');

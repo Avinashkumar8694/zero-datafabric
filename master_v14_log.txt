@@ -1,0 +1,209 @@
+
+> zero-data-fabric-monorepo@1.0.0 test
+> cd backend && npm test -- --runInBand backend/src/tests/apis/master_metadata_validation.test.ts
+
+
+> backend@1.0.0 test
+> jest --runInBand backend/src/tests/apis/master_metadata_validation.test.ts
+
+  console.log
+    ◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+  console.log
+    ◇ injected env (0) from .env // tip: ⌘ enable debugging { debug: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+  console.log
+    [Auth] Attempting login for: [admin] (length: 5)
+
+      at Function.login (src/modules/auth/auth.service.ts:13:13)
+
+  console.log
+    PostgreSQL Pool Connected
+
+      at BoundPool.<anonymous> (src/config/database.ts:46:11)
+
+  console.log
+    [Auth] Login successful for: admin, Tenant: tenant_A, Role: ADMIN
+
+      at Function.login (src/modules/auth/auth.service.ts:33:13)
+
+[0mPOST /api/auth/login [32m200[0m 255.581 ms - 384[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: tenant_A
+
+      at src/index.ts:42:19
+
+[0mPOST /api/admin/tenants [32m201[0m 70.368 ms - 147[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: tenant_A
+
+      at src/index.ts:42:19
+
+  console.log
+    [Auth] Issued tenant-scoped token for admin -> master_v4_2_1778295365504
+
+      at refreshToken (src/controllers/authController.ts:25:11)
+
+[0mPOST /api/auth/token [32m200[0m 3.692 ms - 312[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295365504
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply [32m200[0m 170.097 ms - 633[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295365504
+
+      at src/index.ts:42:19
+
+  console.error
+    [MetadataController] Apply Error: CRITICAL: 3 High-Risk changes detected. Use force=true to override.
+
+      108 |         res.json(result);
+      109 |     } catch (err: any) {
+    > 110 |         console.error(`[MetadataController] Apply Error: ${err.message}`);
+          |                 ^
+      111 |         
+      112 |         // Industrial Guardrail Violation (Section 3.2)
+      113 |         if (err.message.includes('CRITICAL') || err.message.includes('Validation') || err.message.includes('High-Risk')) {
+
+      at applyMetadata (src/controllers/metadataController.ts:110:17)
+
+[0mPOST /api/metadata/apply [33m400[0m 15.147 ms - 122[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295365504
+
+      at src/index.ts:42:19
+
+  console.error
+    [MetadataController] Apply Error: syntax error at or near "undefined"
+
+      108 |         res.json(result);
+      109 |     } catch (err: any) {
+    > 110 |         console.error(`[MetadataController] Apply Error: ${err.message}`);
+          |                 ^
+      111 |         
+      112 |         // Industrial Guardrail Violation (Section 3.2)
+      113 |         if (err.message.includes('CRITICAL') || err.message.includes('Validation') || err.message.includes('High-Risk')) {
+
+      at applyMetadata (src/controllers/metadataController.ts:110:17)
+
+[0mPOST /api/metadata/apply [31m500[0m 23.864 ms - 82[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295365504
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply [32m200[0m 27.249 ms - 350[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295365504
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply [32m200[0m 15.070 ms - 193[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295365504
+
+      at src/index.ts:42:19
+
+  console.error
+    [MetadataController] Apply Error: CRITICAL: 1 High-Risk changes detected. Use force=true to override.
+
+      108 |         res.json(result);
+      109 |     } catch (err: any) {
+    > 110 |         console.error(`[MetadataController] Apply Error: ${err.message}`);
+          |                 ^
+      111 |         
+      112 |         // Industrial Guardrail Violation (Section 3.2)
+      113 |         if (err.message.includes('CRITICAL') || err.message.includes('Validation') || err.message.includes('High-Risk')) {
+
+      at applyMetadata (src/controllers/metadataController.ts:110:17)
+
+[0mPOST /api/metadata/apply [33m400[0m 5.540 ms - 122[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295365504
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply?force=true [32m200[0m 8.707 ms - 137[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295365504
+
+      at src/index.ts:42:19
+
+[0mGET /api/metadata/history [32m200[0m 7.271 ms - 629[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295365504
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/rollback/285a2fad-0272-452f-bf00-c3386e255147 [32m200[0m 20.991 ms - 74[0m
+FAIL src/tests/apis/master_metadata_validation.test.ts
+  Industrial Data Fabric: Master Metadata Validation Suite v4.2 (Absolute Exhaustive)
+    ✕ Exhaustive Test: Complete Supply Chain Ecosystem (Postgres + NoSQL Virtualization) (180 ms)
+    ✕ Scenario: Trigger Guardrails & Relative Scheduling (18 ms)
+    ✕ Scenario: Recursive Views (Org Chart) (26 ms)
+    ✓ Scenario: Complex Set Operations (Federated Virtualization) (35 ms)
+    ✓ Scenario: Industrial Risk & Time-Machine Rollback (73 ms)
+
+  ● Industrial Data Fabric: Master Metadata Validation Suite v4.2 (Absolute Exhaustive) › Exhaustive Test: Complete Supply Chain Ecosystem (Postgres + NoSQL Virtualization)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 6
+
+      127 |         // 2. Verify EXCLUDE Constraint
+      128 |         const exCheck = await pool.query(`SELECT conname FROM pg_constraint WHERE conname = 'exclude_product_overlap'`);
+    > 129 |         expect(exCheck.rows.length).toBe(1);
+          |                                     ^
+      130 |
+      131 |         // 3. Verify Window Function in Materialized View
+      132 |         const viewCheck = await pool.query(`SELECT definition FROM pg_matviews WHERE schemaname = $1 AND matviewname = 'v_product_analytics'`, [schemaName]);
+
+      at Object.<anonymous> (src/tests/apis/master_metadata_validation.test.ts:129:37)
+
+  ● Industrial Data Fabric: Master Metadata Validation Suite v4.2 (Absolute Exhaustive) › Scenario: Trigger Guardrails & Relative Scheduling
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 400
+
+      165 |
+      166 |         const res = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(triggerManifest);
+    > 167 |         expect(res.status).toBe(200);
+          |                            ^
+      168 |         
+      169 |         const schemaName = `tenant_${testTenantId}_inventory`;
+      170 |         const trgCheck = await pool.query(`SELECT trigger_name FROM information_schema.triggers WHERE event_object_schema = $1 AND event_object_table = 'orders'`, [schemaName]);
+
+      at Object.<anonymous> (src/tests/apis/master_metadata_validation.test.ts:167:28)
+
+  ● Industrial Data Fabric: Master Metadata Validation Suite v4.2 (Absolute Exhaustive) › Scenario: Recursive Views (Org Chart)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+      215 |
+      216 |         const res = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(recursiveManifest);
+    > 217 |         expect(res.status).toBe(200);
+          |                            ^
+      218 |         
+      219 |         const schemaName = `tenant_${testTenantId}_hr`;
+      220 |         const viewCheck = await pool.query(`SELECT definition FROM pg_views WHERE schemaname = $1 AND viewname = 'v_org_hierarchy'`, [schemaName]);
+
+      at Object.<anonymous> (src/tests/apis/master_metadata_validation.test.ts:217:28)
+
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 2 passed, 5 total
+Snapshots:   0 total
+Time:        2.158 s, estimated 3 s
+Ran all test suites matching /backend\/src\/tests\/apis\/master_metadata_validation.test.ts/i.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

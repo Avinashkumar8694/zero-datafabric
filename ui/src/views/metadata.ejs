@@ -10,7 +10,10 @@
             <section class="glass-card" style="background: var(--bg);">
                 <h4>Orchestration Blueprint</h4>
                 <p class="text-muted" style="font-size: 0.8rem; margin-bottom: 1.5rem;">Download the definitive V7.0 specification as a reference for your target state.</p>
-                <button onclick="downloadTemplate()" class="btn-outline" style="width: 100%;">Download Spec (V7.0)</button>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button onclick="downloadTemplate()" class="btn-outline" style="flex: 1;">Download Spec</button>
+                    <button onclick="loadTemplateForAnalysis()" class="btn-primary" style="flex: 1;">Load Industrial Blueprint</button>
+                </div>
             </section>
 
             <!-- File Upload for Diff/Apply -->
@@ -56,17 +59,57 @@
 
 <script>
     async function downloadTemplate() {
+        const btn = document.querySelector('button[onclick="downloadTemplate()"]');
+        const originalText = btn.innerText;
+        btn.innerText = 'Generating...';
+        btn.disabled = true;
+
         try {
             const res = await fetch(`${API_BASE}/metadata/template`, { headers: getAuthHeaders() });
+            if (!res.ok) throw new Error(`Server returned ${res.status}`);
+            
             const data = await res.json();
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = window.URL.createObjectURL(blob);
+            
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'data_fabric_orchestration_spec.json';
+            a.download = `data_fabric_blueprint_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
             a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            showModal('Success', 'Orchestration blueprint generated and downloaded successfully.');
         } catch (e) {
-            alert('Failed to download template');
+            console.error('[Metadata] Download failed:', e);
+            showModal('Error', 'Industrial Blueprint Generation Failed: ' + e.message);
+        } finally {
+            btn.innerText = originalText;
+            btn.disabled = false;
+        }
+    }
+
+    async function loadTemplateForAnalysis() {
+        if (!confirm('This will load the definitive industrial blueprint for immediate drift analysis. Proceed?')) return;
+        
+        try {
+            const res = await fetch(`${API_BASE}/metadata/template`, { headers: getAuthHeaders() });
+            const data = await res.json();
+            
+            const res2 = await fetch(`${API_BASE}/metadata/diff`, {
+                method: 'POST',
+                headers: { 
+                    'Authorization': `Bearer ${token}`, 
+                    'Content-Type': 'application/json',
+                    'x-tenant-id': localStorage.getItem('active_tenant') 
+                },
+                body: JSON.stringify(data)
+            });
+            const diffData = await res2.json();
+            displayPlan(diffData.changes || [], 'Orchestration Plan', 'ANALYZED', false);
+        } catch (e) {
+            showModal('Error', 'Template Analysis Failed: ' + e.message);
         }
     }
 
@@ -89,7 +132,7 @@
                 body: formData
             });
             const data = await res.json();
-            displayPlan(data.diffs, 'Orchestration Plan', 'ANALYZED', false);
+            displayPlan(data.changes || [], 'Orchestration Plan', 'ANALYZED', false);
         } catch (e) {
             alert('Analysis failed: ' + e.message);
         } finally {
@@ -153,9 +196,9 @@
         body.innerHTML = plan.map((p, idx) => `
             <tr>
                 <td><span class="badge-sync" style="background: var(--surface-hover);">${p.action || p.type}</span></td>
-                <td><strong>${p.table || p.name || 'N/A'}</strong></td>
+                <td><strong>${p.table || p.name || p.type || 'N/A'}</strong></td>
                 <td>${p.operation || p.action}</td>
-                <td class="text-muted" style="font-size: 0.8rem;"><code>${JSON.stringify(p.details).substring(0, 50)}...</code></td>
+                <td class="text-muted" style="font-size: 0.8rem;"><code>${p.details ? JSON.stringify(p.details).substring(0, 50) + '...' : 'System Managed'}</code></td>
                 ${showStatus ? `<td><span class="badge-sync" style="background: ${results[idx]?.status === 'SUCCESS' || results[idx]?.status?.startsWith('SUCCESS') ? 'var(--success)' : 'var(--danger)'}; color: black;">${results[idx]?.status === 'SUCCESS' || results[idx]?.status?.startsWith('SUCCESS') ? 'DONE' : 'ERROR'}</span></td>` : ''}
             </tr>
         `).join('');

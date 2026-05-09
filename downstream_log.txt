@@ -1,0 +1,111 @@
+
+> zero-data-fabric-monorepo@1.0.0 test
+> cd backend && npm test -- --runInBand backend/src/tests/apis/downstream_and_recursive.test.ts
+
+
+> backend@1.0.0 test
+> jest --runInBand backend/src/tests/apis/downstream_and_recursive.test.ts
+
+  console.log
+    ◇ injected env (0) from .env // tip: ⌘ suppress logs { quiet: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+  console.log
+    ◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+  console.log
+    [Auth] Attempting login for: [admin] (length: 5)
+
+      at Function.login (src/modules/auth/auth.service.ts:13:13)
+
+  console.log
+    PostgreSQL Pool Connected
+
+      at BoundPool.<anonymous> (src/config/database.ts:46:11)
+
+  console.log
+    [Auth] Login successful for: admin, Tenant: tenant_A, Role: ADMIN
+
+      at Function.login (src/modules/auth/auth.service.ts:33:13)
+
+[0mPOST /api/auth/login [32m200[0m 252.264 ms - 384[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: tenant_A
+
+      at src/index.ts:42:19
+
+[0mPOST /api/admin/tenants [32m201[0m 67.183 ms - 134[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: tenant_A
+
+      at src/index.ts:42:19
+
+  console.log
+    [Auth] Issued tenant-scoped token for admin -> downstream_1778297149148
+
+      at refreshToken (src/controllers/authController.ts:25:11)
+
+[0mPOST /api/auth/token [32m200[0m 3.567 ms - 311[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: downstream_1778297149148
+
+      at src/index.ts:42:19
+
+  console.error
+    [MetadataController] Apply Error: syntax error at or near "p_success"
+
+      108 |         res.json(result);
+      109 |     } catch (err: any) {
+    > 110 |         console.error(`[MetadataController] Apply Error: ${err.message}`);
+          |                 ^
+      111 |         
+      112 |         // Industrial Guardrail Violation (Section 3.2)
+      113 |         if (err.message.includes('CRITICAL') || err.message.includes('Validation') || err.message.includes('High-Risk') || err.message.includes('Integrity')) {
+
+      at applyMetadata (src/controllers/metadataController.ts:110:17)
+
+[0mPOST /api/metadata/apply [31m500[0m 62.940 ms - 82[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: downstream_1778297149148
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply [32m200[0m 52.272 ms - 289[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: downstream_1778297149148
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply [32m200[0m 23.636 ms - 367[0m
+FAIL src/tests/apis/downstream_and_recursive.test.ts
+  Industrial Data Fabric: Downstream & Recursive Orchestration Suite
+    ✕ Scenario: Global Supply Chain v4.0 with Downstream ES & Snowflake (68 ms)
+    ✓ Scenario: Recursive Organizational Hierarchy View (60 ms)
+    ✓ Scenario: Federated Inventory Analysis (UNION/INTERSECT/EXCEPT) (26 ms)
+
+  ● Industrial Data Fabric: Downstream & Recursive Orchestration Suite › Scenario: Global Supply Chain v4.0 with Downstream ES & Snowflake
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+      51 |
+      52 |         const res = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(manifest);
+    > 53 |         expect(res.status).toBe(200);
+         |                            ^
+      54 |         expect(res.body.downstream).toBeDefined();
+      55 |         expect(res.body.downstream.some((d: any) => d.type === 'ELASTICSEARCH')).toBe(true);
+      56 |         expect(res.body.downstream.some((d: any) => d.type === 'SNOWFLAKE')).toBe(true);
+
+      at Object.<anonymous> (src/tests/apis/downstream_and_recursive.test.ts:53:28)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 2 passed, 3 total
+Snapshots:   0 total
+Time:        1.968 s, estimated 2 s
+Ran all test suites matching /backend\/src\/tests\/apis\/downstream_and_recursive.test.ts/i.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

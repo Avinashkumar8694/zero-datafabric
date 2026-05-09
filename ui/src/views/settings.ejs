@@ -2,41 +2,155 @@
 
 <div class="fade-in">
     <div class="grid">
+        <!-- Infrastructure -->
         <section class="glass-card">
-            <h3>Infrastructure Configuration</h3>
-            <p class="text-muted" style="margin-bottom: 2rem;">Global fabric orchestration parameters.</p>
+            <h3>Fabric Infrastructure</h3>
+            <p class="text-muted" style="margin-bottom: 2rem;">Core orchestration endpoints and environment status.</p>
             
             <div class="form-group">
                 <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">Orchestrator URL</label>
-                <input type="text" value="http://127.0.0.1:4000" class="context-select" style="width: 100%; opacity: 0.7;" disabled>
+                <input type="text" value="http://127.0.0.1:4000" class="context-select" style="width: 100%;" readonly>
             </div>
             
             <div class="form-group">
                 <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">PostgREST Gateway</label>
-                <input type="text" value="http://localhost:3000" class="context-select" style="width: 100%; opacity: 0.7;" disabled>
+                <input type="text" value="http://localhost:3000" class="context-select" style="width: 100%;" readonly>
             </div>
 
-            <div class="form-group">
-                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">Environment Mode</label>
-                <span class="badge-sync" style="background: var(--warning)">INDUSTRIAL PROTOTYPE</span>
+            <div class="form-group" style="margin-top: 1.5rem;">
+                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">Industrial Grade</label>
+                <span class="badge-sync" style="background: var(--success)">V4.0 COMPLIANT</span>
             </div>
         </section>
 
+        <!-- Downstream Registry (Interactive Toggles) -->
         <section class="glass-card">
-            <h3>Advanced Settings</h3>
-            <p class="text-muted" style="margin-bottom: 2rem;">Experimental and tuning options.</p>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <h3>Downstream Control Center</h3>
+                <button onclick="location.href='/metadata'" class="btn-outline" style="padding: 0.3rem 0.8rem; font-size: 0.8rem;">Full Manifest Editor</button>
+            </div>
+            <p class="text-muted" style="margin-bottom: 1.5rem;">Enable or disable search/analytics targets in real-time. Changes trigger an atomic re-orchestration.</p>
             
-            <label class="nav-item" style="cursor: pointer; border: 1px solid var(--border);">
-                <input type="checkbox" checked disabled>
-                <span>Enable Row-Level Security Enforcement</span>
-            </label>
+            <div id="downstreamList" style="display: flex; flex-direction: column; gap: 1rem;">
+                <div class="text-muted" style="text-align: center; padding: 2rem;">Scanning registry...</div>
+            </div>
+        </section>
 
-            <label class="nav-item" style="cursor: pointer; border: 1px solid var(--border); margin-top: 1rem;">
-                <input type="checkbox" checked disabled>
-                <span>Enable Real-Time Audit Triggers</span>
-            </label>
+        <!-- Feature Toggles (Baseline) -->
+        <section class="glass-card">
+            <h3>Advanced Guardrails</h3>
+            <p class="text-muted" style="margin-bottom: 2rem;">Enforcement and consistency policies.</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                <div class="nav-item" style="display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border);">
+                    <span>Row-Level Security (RLS)</span>
+                    <span class="badge-sync" style="background: var(--primary)">ENFORCED</span>
+                </div>
+                <div class="nav-item" style="display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border);">
+                    <span>Soft Delete Strategy</span>
+                    <span class="badge-sync" style="background: var(--surface-hover)">ACTIVE</span>
+                </div>
+                <div class="nav-item" style="display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border);">
+                    <span>Audit Trail Gating</span>
+                    <span class="badge-sync" style="background: var(--primary)">ENABLED</span>
+                </div>
+            </div>
         </section>
     </div>
 </div>
+
+<style>
+    /* Premium Toggle Switch */
+    .switch {
+        position: relative;
+        display: inline-block;
+        width: 46px;
+        height: 24px;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background-color: var(--surface-hover);
+        transition: .4s;
+        border-radius: 24px;
+        border: 1px solid var(--border);
+    }
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 18px; width: 18px;
+        left: 3px; bottom: 2px;
+        background-color: var(--text-muted);
+        transition: .4s;
+        border-radius: 50%;
+    }
+    input:checked + .slider { background-color: var(--success); border-color: var(--success); }
+    input:checked + .slider:before { transform: translateX(21px); background-color: black; }
+</style>
+
+<script>
+    async function loadDownstreamStatus() {
+        try {
+            const res = await fetch(`${API_BASE}/metadata/downstream`, { headers: getAuthHeaders() });
+            const data = await res.json();
+            const container = document.getElementById('downstreamList');
+            
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="text-muted" style="text-align: center; padding: 2rem;">No downstream targets configured. Apply a manifest to see targets.</div>';
+                return;
+            }
+
+            container.innerHTML = data.map(target => `
+                <div class="nav-item" style="display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); background: var(--bg); padding: 1rem;">
+                    <div>
+                        <strong style="color: var(--primary);">${target.target_type}</strong>
+                        <div style="font-size: 0.7rem; color: var(--text-muted);">${target.target_type === 'ELASTICSEARCH' ? 'Elasticsearch Search Sync' : 'Snowflake CDC Analytics'}</div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.8rem;">
+                        <span style="font-size: 0.7rem; font-weight: bold; color: ${target.status === 'ACTIVE' ? 'var(--success)' : 'var(--text-muted)'};">
+                            ${target.status}
+                        </span>
+                        <label class="switch">
+                            <input type="checkbox" ${target.status === 'ACTIVE' ? 'checked' : ''} onchange="toggleTarget('${target.target_type}', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+            `).join('');
+        } catch (e) {
+            console.error('Failed to load downstream status', e);
+        }
+    }
+
+    async function toggleTarget(type, enabled) {
+        try {
+            const res = await fetch(`${API_BASE}/metadata/downstream/toggle`, {
+                method: 'POST',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetType: type, enabled })
+            });
+            const data = await res.json();
+            if (data.status === 'SUCCESS') {
+                showToast(`${type} status updated to ${enabled ? 'ENABLED' : 'DISABLED'}`);
+                loadDownstreamStatus(); // Refresh UI
+            } else {
+                alert('Toggle failed: ' + (data.message || data.error));
+                loadDownstreamStatus(); // Revert UI
+            }
+        } catch (e) {
+            alert('Error toggling target: ' + e.message);
+            loadDownstreamStatus();
+        }
+    }
+
+    function showToast(msg) {
+        // Simple toast implementation or just console log for now
+        console.log('[Fabric Notification]', msg);
+    }
+
+    document.addEventListener('DOMContentLoaded', loadDownstreamStatus);
+</script>
 
 <%- include('partials/footer') %>

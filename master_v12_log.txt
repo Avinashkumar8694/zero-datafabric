@@ -1,0 +1,169 @@
+
+> zero-data-fabric-monorepo@1.0.0 test
+> cd backend && npm test -- --runInBand backend/src/tests/apis/master_metadata_validation.test.ts
+
+
+> backend@1.0.0 test
+> jest --runInBand backend/src/tests/apis/master_metadata_validation.test.ts
+
+  console.log
+    ◇ injected env (0) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+  console.log
+    ◇ injected env (0) from .env // tip: ⌘ enable debugging { debug: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+  console.log
+    [Auth] Attempting login for: [admin] (length: 5)
+
+      at Function.login (src/modules/auth/auth.service.ts:13:13)
+
+  console.log
+    PostgreSQL Pool Connected
+
+      at BoundPool.<anonymous> (src/config/database.ts:46:11)
+
+  console.log
+    [Auth] Login successful for: admin, Tenant: tenant_A, Role: ADMIN
+
+      at Function.login (src/modules/auth/auth.service.ts:33:13)
+
+[0mPOST /api/auth/login [32m200[0m 245.595 ms - 384[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: tenant_A
+
+      at src/index.ts:42:19
+
+[0mPOST /api/admin/tenants [32m201[0m 70.010 ms - 147[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: tenant_A
+
+      at src/index.ts:42:19
+
+  console.log
+    [Auth] Issued tenant-scoped token for admin -> master_v4_2_1778295237307
+
+      at refreshToken (src/controllers/authController.ts:25:11)
+
+[0mPOST /api/auth/token [32m200[0m 3.703 ms - 312[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295237307
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply [32m200[0m 159.405 ms - 633[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295237307
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply [31m500[0m 9.502 ms - 79[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295237307
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply [31m500[0m 22.339 ms - 49[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295237307
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply [32m200[0m 23.715 ms - 350[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295237307
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply [32m200[0m 14.493 ms - 193[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295237307
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply [31m500[0m 4.548 ms - 79[0m
+FAIL src/tests/apis/master_metadata_validation.test.ts
+  Industrial Data Fabric: Master Metadata Validation Suite v4.2 (Absolute Exhaustive)
+    ✕ Exhaustive Test: Complete Supply Chain Ecosystem (Postgres + NoSQL Virtualization) (169 ms)
+    ✕ Scenario: Trigger Guardrails & Relative Scheduling (12 ms)
+    ✕ Scenario: Recursive Views (Org Chart) (25 ms)
+    ✓ Scenario: Complex Set Operations (Federated Virtualization) (32 ms)
+    ✕ Scenario: Industrial Risk & Time-Machine Rollback (24 ms)
+
+  ● Industrial Data Fabric: Master Metadata Validation Suite v4.2 (Absolute Exhaustive) › Exhaustive Test: Complete Supply Chain Ecosystem (Postgres + NoSQL Virtualization)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 4
+
+      127 |         // 2. Verify EXCLUDE Constraint
+      128 |         const exCheck = await pool.query(`SELECT conname FROM pg_constraint WHERE conname = 'exclude_product_overlap'`);
+    > 129 |         expect(exCheck.rows.length).toBe(1);
+          |                                     ^
+      130 |
+      131 |         // 3. Verify Window Function in Materialized View
+      132 |         const viewCheck = await pool.query(`SELECT definition FROM pg_matviews WHERE schemaname = $1 AND matviewname = 'v_product_analytics'`, [schemaName]);
+
+      at Object.<anonymous> (src/tests/apis/master_metadata_validation.test.ts:129:37)
+
+  ● Industrial Data Fabric: Master Metadata Validation Suite v4.2 (Absolute Exhaustive) › Scenario: Trigger Guardrails & Relative Scheduling
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+      165 |
+      166 |         const res = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(triggerManifest);
+    > 167 |         expect(res.status).toBe(200);
+          |                            ^
+      168 |         
+      169 |         const schemaName = `tenant_${testTenantId}_inventory`;
+      170 |         const trgCheck = await pool.query(`SELECT trigger_name FROM information_schema.triggers WHERE event_object_schema = $1 AND event_object_table = 'orders'`, [schemaName]);
+
+      at Object.<anonymous> (src/tests/apis/master_metadata_validation.test.ts:167:28)
+
+  ● Industrial Data Fabric: Master Metadata Validation Suite v4.2 (Absolute Exhaustive) › Scenario: Recursive Views (Org Chart)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+      215 |
+      216 |         const res = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(recursiveManifest);
+    > 217 |         expect(res.status).toBe(200);
+          |                            ^
+      218 |         
+      219 |         const schemaName = `tenant_${testTenantId}_hr`;
+      220 |         const viewCheck = await pool.query(`SELECT definition FROM pg_views WHERE schemaname = $1 AND viewname = 'v_org_hierarchy'`, [schemaName]);
+
+      at Object.<anonymous> (src/tests/apis/master_metadata_validation.test.ts:217:28)
+
+  ● Industrial Data Fabric: Master Metadata Validation Suite v4.2 (Absolute Exhaustive) › Scenario: Industrial Risk & Time-Machine Rollback
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 400
+    Received: 500
+
+      271 |         const v2 = { version: "2.0", schemas: [{ name: "core", resources: [] }] };
+      272 |         const resFail = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(v2);
+    > 273 |         expect(resFail.status).toBe(400);
+          |                                ^
+      274 |
+      275 |         // 3. Force Apply
+      276 |         await request(app).post('/api/metadata/apply?force=true').set('Authorization', `Bearer ${tenantToken}`).send(v2);
+
+      at Object.<anonymous> (src/tests/apis/master_metadata_validation.test.ts:273:32)
+
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 1 passed, 5 total
+Snapshots:   0 total
+Time:        2.058 s, estimated 3 s
+Ran all test suites matching /backend\/src\/tests\/apis\/master_metadata_validation.test.ts/i.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

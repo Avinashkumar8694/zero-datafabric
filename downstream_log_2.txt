@@ -1,0 +1,117 @@
+
+> zero-data-fabric-monorepo@1.0.0 test
+> cd backend && npm test -- --runInBand backend/src/tests/apis/downstream_and_recursive.test.ts
+
+
+> backend@1.0.0 test
+> jest --runInBand backend/src/tests/apis/downstream_and_recursive.test.ts
+
+  console.log
+    ◇ injected env (0) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+  console.log
+    ◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+  console.log
+    [Auth] Attempting login for: [admin] (length: 5)
+
+      at Function.login (src/modules/auth/auth.service.ts:13:13)
+
+  console.log
+    PostgreSQL Pool Connected
+
+      at BoundPool.<anonymous> (src/config/database.ts:46:11)
+
+  console.log
+    [Auth] Login successful for: admin, Tenant: tenant_A, Role: ADMIN
+
+      at Function.login (src/modules/auth/auth.service.ts:33:13)
+
+[0mPOST /api/auth/login [32m200[0m 258.148 ms - 384[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: tenant_A
+
+      at src/index.ts:42:19
+
+[0mPOST /api/admin/tenants [32m201[0m 76.597 ms - 134[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: tenant_A
+
+      at src/index.ts:42:19
+
+  console.log
+    [Auth] Issued tenant-scoped token for admin -> downstream_1778297334299
+
+      at refreshToken (src/controllers/authController.ts:25:11)
+
+[0mPOST /api/auth/token [32m200[0m 23.652 ms - 311[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: downstream_1778297334299
+
+      at src/index.ts:42:19
+
+  console.log
+    [DownstreamService] Reconciling downstream targets for tenant: downstream_1778297334299
+
+      at Function.provision (src/modules/metadata/downstream_service.ts:12:17)
+
+  console.log
+    [Elasticsearch] Provisioning search indices for downstream_1778297334299. Fallback: PRIMARY_SQL
+
+      at Function.provisionElasticsearch (src/modules/metadata/downstream_service.ts:46:17)
+
+  console.log
+    PostgreSQL Pool Connected
+
+      at BoundPool.<anonymous> (src/config/database.ts:46:11)
+
+  console.log
+    [Snowflake] Setting up CDC Stream for downstream_1778297334299. Strategy: CDC
+
+      at Function.provisionSnowflake (src/modules/metadata/downstream_service.ts:61:17)
+
+[0mPOST /api/metadata/apply [32m200[0m 245.186 ms - 500[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: downstream_1778297334299
+
+      at src/index.ts:42:19
+
+  console.log
+    [DownstreamService] Reconciling downstream targets for tenant: downstream_1778297334299
+
+      at Function.provision (src/modules/metadata/downstream_service.ts:12:17)
+
+  console.log
+    [Elasticsearch] Provisioning search indices for downstream_1778297334299. Fallback: PRIMARY_SQL
+
+      at Function.provisionElasticsearch (src/modules/metadata/downstream_service.ts:46:17)
+
+[0mPOST /api/metadata/apply [32m200[0m 41.720 ms - 220[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: downstream_1778297334299
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply [32m200[0m 34.396 ms - 289[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: downstream_1778297334299
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply [32m200[0m 21.881 ms - 367[0m
+PASS src/tests/apis/downstream_and_recursive.test.ts
+  Industrial Data Fabric: Downstream & Recursive Orchestration Suite
+    ✓ Scenario: Global Supply Chain v4.0 with Downstream ES & Snowflake (299 ms)
+    ✓ Scenario: Recursive Organizational Hierarchy View (40 ms)
+    ✓ Scenario: Federated Inventory Analysis (UNION/INTERSECT/EXCEPT) (26 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total
+Snapshots:   0 total
+Time:        2.203 s, estimated 3 s
+Ran all test suites matching /backend\/src\/tests\/apis\/downstream_and_recursive.test.ts/i.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

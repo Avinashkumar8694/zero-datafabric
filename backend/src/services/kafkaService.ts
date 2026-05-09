@@ -1,5 +1,5 @@
 import { Kafka } from 'kafkajs';
-import pool from '../config/db';
+import { pool } from '../config/database';
 
 const kafka = new Kafka({
   clientId: 'data-fabric-hub',

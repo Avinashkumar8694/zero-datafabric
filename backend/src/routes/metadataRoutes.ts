@@ -18,5 +18,7 @@ router.post('/migrate', metadataController.migrateMetadata);
 
 router.get('/history', metadataController.getMetadataHistory);
 router.post('/rollback/:id', metadataController.rollbackMetadata);
+router.get('/downstream', metadataController.getDownstreamStatus);
+router.post('/downstream/toggle', metadataController.toggleDownstream);
 
 export default router;

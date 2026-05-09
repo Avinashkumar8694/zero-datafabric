@@ -1,0 +1,504 @@
+
+> zero-data-fabric-monorepo@1.0.0 test
+> cd backend && npm test -- --runInBand backend/src/tests/apis/master_metadata_validation.test.ts
+
+
+> backend@1.0.0 test
+> jest --runInBand backend/src/tests/apis/master_metadata_validation.test.ts
+
+  console.log
+    ◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+  console.log
+    ◇ injected env (0) from .env // tip: ⌘ enable debugging { debug: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+  console.log
+    [Auth] Attempting login for: [admin] (length: 5)
+
+      at Function.login (src/modules/auth/auth.service.ts:13:13)
+
+  console.log
+    PostgreSQL Pool Connected
+
+      at BoundPool.<anonymous> (src/config/database.ts:46:11)
+
+  console.log
+    [Auth] Login successful for: admin, Tenant: tenant_A, Role: ADMIN
+
+      at Function.login (src/modules/auth/auth.service.ts:33:13)
+
+[0mPOST /api/auth/login [32m200[0m 466.279 ms - 384[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: tenant_A
+
+      at src/index.ts:42:19
+
+[0mPOST /api/admin/tenants [32m201[0m 148.690 ms - 147[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: tenant_A
+
+      at src/index.ts:42:19
+
+  console.log
+    [Auth] Issued tenant-scoped token for admin -> master_v4_2_1778295293820
+
+      at refreshToken (src/controllers/authController.ts:25:11)
+
+[0mPOST /api/auth/token [32m200[0m 4.913 ms - 312[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295293820
+
+      at src/index.ts:42:19
+
+  console.error
+    [MetadataController] Apply Error: orchestrator.apply is not a function
+
+      15 |         res.json(result);
+      16 |     } catch (err: any) {
+    > 17 |         console.error(`[MetadataController] Apply Error: ${err.message}`);
+         |                 ^
+      18 |         if (err.message.includes('CRITICAL') || err.message.includes('Validation') || err.message.includes('High-Risk')) {
+      19 |             return res.status(400).json({ error: 'Industrial Guardrail Violation', message: err.message });
+      20 |         }
+
+      at applyMetadata (src/controllers/metadataController.ts:17:17)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at next (node_modules/router/lib/route.js:157:13)
+      at multerMiddleware (node_modules/multer/lib/make-middleware.js:18:41)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at next (node_modules/router/lib/route.js:157:13)
+      at Route.dispatch (node_modules/router/lib/route.js:117:3)
+      at handle (node_modules/router/index.js:435:11)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at node_modules/router/index.js:295:15
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at Function.handle (node_modules/router/index.js:186:3)
+      at router (node_modules/router/index.js:60:12)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at requireAuth (src/index.ts:54:5)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at src/index.ts:49:3
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at logger (node_modules/morgan/index.js:144:5)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at node_modules/body-parser/lib/read.js:171:5
+      at invokeCallback (node_modules/raw-body/index.js:238:16)
+      at done (node_modules/raw-body/index.js:227:7)
+      at IncomingMessage.onEnd (node_modules/raw-body/index.js:287:7)
+
+[0mPOST /api/metadata/apply [31m500[0m 9.930 ms - 81[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295293820
+
+      at src/index.ts:42:19
+
+  console.error
+    [MetadataController] Apply Error: orchestrator.apply is not a function
+
+      15 |         res.json(result);
+      16 |     } catch (err: any) {
+    > 17 |         console.error(`[MetadataController] Apply Error: ${err.message}`);
+         |                 ^
+      18 |         if (err.message.includes('CRITICAL') || err.message.includes('Validation') || err.message.includes('High-Risk')) {
+      19 |             return res.status(400).json({ error: 'Industrial Guardrail Violation', message: err.message });
+      20 |         }
+
+      at applyMetadata (src/controllers/metadataController.ts:17:17)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at next (node_modules/router/lib/route.js:157:13)
+      at multerMiddleware (node_modules/multer/lib/make-middleware.js:18:41)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at next (node_modules/router/lib/route.js:157:13)
+      at Route.dispatch (node_modules/router/lib/route.js:117:3)
+      at handle (node_modules/router/index.js:435:11)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at node_modules/router/index.js:295:15
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at Function.handle (node_modules/router/index.js:186:3)
+      at router (node_modules/router/index.js:60:12)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at requireAuth (src/index.ts:54:5)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at src/index.ts:49:3
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at logger (node_modules/morgan/index.js:144:5)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at node_modules/body-parser/lib/read.js:171:5
+      at invokeCallback (node_modules/raw-body/index.js:238:16)
+      at done (node_modules/raw-body/index.js:227:7)
+      at IncomingMessage.onEnd (node_modules/raw-body/index.js:287:7)
+
+[0mPOST /api/metadata/apply [31m500[0m 4.608 ms - 81[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295293820
+
+      at src/index.ts:42:19
+
+  console.error
+    [MetadataController] Apply Error: orchestrator.apply is not a function
+
+      15 |         res.json(result);
+      16 |     } catch (err: any) {
+    > 17 |         console.error(`[MetadataController] Apply Error: ${err.message}`);
+         |                 ^
+      18 |         if (err.message.includes('CRITICAL') || err.message.includes('Validation') || err.message.includes('High-Risk')) {
+      19 |             return res.status(400).json({ error: 'Industrial Guardrail Violation', message: err.message });
+      20 |         }
+
+      at applyMetadata (src/controllers/metadataController.ts:17:17)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at next (node_modules/router/lib/route.js:157:13)
+      at multerMiddleware (node_modules/multer/lib/make-middleware.js:18:41)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at next (node_modules/router/lib/route.js:157:13)
+      at Route.dispatch (node_modules/router/lib/route.js:117:3)
+      at handle (node_modules/router/index.js:435:11)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at node_modules/router/index.js:295:15
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at Function.handle (node_modules/router/index.js:186:3)
+      at router (node_modules/router/index.js:60:12)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at requireAuth (src/index.ts:54:5)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at src/index.ts:49:3
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at logger (node_modules/morgan/index.js:144:5)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at node_modules/body-parser/lib/read.js:171:5
+      at invokeCallback (node_modules/raw-body/index.js:238:16)
+      at done (node_modules/raw-body/index.js:227:7)
+      at IncomingMessage.onEnd (node_modules/raw-body/index.js:287:7)
+
+[0mPOST /api/metadata/apply [31m500[0m 4.034 ms - 81[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295293820
+
+      at src/index.ts:42:19
+
+  console.error
+    [MetadataController] Apply Error: orchestrator.apply is not a function
+
+      15 |         res.json(result);
+      16 |     } catch (err: any) {
+    > 17 |         console.error(`[MetadataController] Apply Error: ${err.message}`);
+         |                 ^
+      18 |         if (err.message.includes('CRITICAL') || err.message.includes('Validation') || err.message.includes('High-Risk')) {
+      19 |             return res.status(400).json({ error: 'Industrial Guardrail Violation', message: err.message });
+      20 |         }
+
+      at applyMetadata (src/controllers/metadataController.ts:17:17)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at next (node_modules/router/lib/route.js:157:13)
+      at multerMiddleware (node_modules/multer/lib/make-middleware.js:18:41)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at next (node_modules/router/lib/route.js:157:13)
+      at Route.dispatch (node_modules/router/lib/route.js:117:3)
+      at handle (node_modules/router/index.js:435:11)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at node_modules/router/index.js:295:15
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at Function.handle (node_modules/router/index.js:186:3)
+      at router (node_modules/router/index.js:60:12)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at requireAuth (src/index.ts:54:5)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at src/index.ts:49:3
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at logger (node_modules/morgan/index.js:144:5)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at node_modules/body-parser/lib/read.js:171:5
+      at invokeCallback (node_modules/raw-body/index.js:238:16)
+      at done (node_modules/raw-body/index.js:227:7)
+      at IncomingMessage.onEnd (node_modules/raw-body/index.js:287:7)
+
+[0mPOST /api/metadata/apply [31m500[0m 3.882 ms - 81[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295293820
+
+      at src/index.ts:42:19
+
+  console.error
+    [MetadataController] Apply Error: orchestrator.apply is not a function
+
+      15 |         res.json(result);
+      16 |     } catch (err: any) {
+    > 17 |         console.error(`[MetadataController] Apply Error: ${err.message}`);
+         |                 ^
+      18 |         if (err.message.includes('CRITICAL') || err.message.includes('Validation') || err.message.includes('High-Risk')) {
+      19 |             return res.status(400).json({ error: 'Industrial Guardrail Violation', message: err.message });
+      20 |         }
+
+      at applyMetadata (src/controllers/metadataController.ts:17:17)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at next (node_modules/router/lib/route.js:157:13)
+      at multerMiddleware (node_modules/multer/lib/make-middleware.js:18:41)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at next (node_modules/router/lib/route.js:157:13)
+      at Route.dispatch (node_modules/router/lib/route.js:117:3)
+      at handle (node_modules/router/index.js:435:11)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at node_modules/router/index.js:295:15
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at Function.handle (node_modules/router/index.js:186:3)
+      at router (node_modules/router/index.js:60:12)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at requireAuth (src/index.ts:54:5)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at src/index.ts:49:3
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at logger (node_modules/morgan/index.js:144:5)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at node_modules/body-parser/lib/read.js:171:5
+      at invokeCallback (node_modules/raw-body/index.js:238:16)
+      at done (node_modules/raw-body/index.js:227:7)
+      at IncomingMessage.onEnd (node_modules/raw-body/index.js:287:7)
+
+[0mPOST /api/metadata/apply [31m500[0m 4.096 ms - 81[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295293820
+
+      at src/index.ts:42:19
+
+  console.error
+    [MetadataController] Apply Error: orchestrator.apply is not a function
+
+      15 |         res.json(result);
+      16 |     } catch (err: any) {
+    > 17 |         console.error(`[MetadataController] Apply Error: ${err.message}`);
+         |                 ^
+      18 |         if (err.message.includes('CRITICAL') || err.message.includes('Validation') || err.message.includes('High-Risk')) {
+      19 |             return res.status(400).json({ error: 'Industrial Guardrail Violation', message: err.message });
+      20 |         }
+
+      at applyMetadata (src/controllers/metadataController.ts:17:17)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at next (node_modules/router/lib/route.js:157:13)
+      at multerMiddleware (node_modules/multer/lib/make-middleware.js:18:41)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at next (node_modules/router/lib/route.js:157:13)
+      at Route.dispatch (node_modules/router/lib/route.js:117:3)
+      at handle (node_modules/router/index.js:435:11)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at node_modules/router/index.js:295:15
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at Function.handle (node_modules/router/index.js:186:3)
+      at router (node_modules/router/index.js:60:12)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at requireAuth (src/index.ts:54:5)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at src/index.ts:49:3
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at logger (node_modules/morgan/index.js:144:5)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at node_modules/body-parser/lib/read.js:171:5
+      at invokeCallback (node_modules/raw-body/index.js:238:16)
+      at done (node_modules/raw-body/index.js:227:7)
+      at IncomingMessage.onEnd (node_modules/raw-body/index.js:287:7)
+
+[0mPOST /api/metadata/apply [31m500[0m 3.790 ms - 81[0m
+FAIL src/tests/apis/master_metadata_validation.test.ts
+  Industrial Data Fabric: Master Metadata Validation Suite v4.2 (Absolute Exhaustive)
+    ✕ Exhaustive Test: Complete Supply Chain Ecosystem (Postgres + NoSQL Virtualization) (17 ms)
+    ✕ Scenario: Trigger Guardrails & Relative Scheduling (9 ms)
+    ✕ Scenario: Recursive Views (Org Chart) (8 ms)
+    ✕ Scenario: Complex Set Operations (Federated Virtualization) (7 ms)
+    ✕ Scenario: Industrial Risk & Time-Machine Rollback (17 ms)
+
+  ● Industrial Data Fabric: Master Metadata Validation Suite v4.2 (Absolute Exhaustive) › Exhaustive Test: Complete Supply Chain Ecosystem (Postgres + NoSQL Virtualization)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+      113 |         const res = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(masterManifest);
+      114 |         
+    > 115 |         expect(res.status).toBe(200);
+          |                            ^
+      116 |         expect(res.body.status).toBe('APPLIED');
+      117 |         
+      118 |         const schemaName = `tenant_${testTenantId}_inventory`;
+
+      at Object.<anonymous> (src/tests/apis/master_metadata_validation.test.ts:115:28)
+
+  ● Industrial Data Fabric: Master Metadata Validation Suite v4.2 (Absolute Exhaustive) › Scenario: Trigger Guardrails & Relative Scheduling
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+      165 |
+      166 |         const res = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(triggerManifest);
+    > 167 |         expect(res.status).toBe(200);
+          |                            ^
+      168 |         
+      169 |         const schemaName = `tenant_${testTenantId}_inventory`;
+      170 |         const trgCheck = await pool.query(`SELECT trigger_name FROM information_schema.triggers WHERE event_object_schema = $1 AND event_object_table = 'orders'`, [schemaName]);
+
+      at Object.<anonymous> (src/tests/apis/master_metadata_validation.test.ts:167:28)
+
+  ● Industrial Data Fabric: Master Metadata Validation Suite v4.2 (Absolute Exhaustive) › Scenario: Recursive Views (Org Chart)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+      215 |
+      216 |         const res = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(recursiveManifest);
+    > 217 |         expect(res.status).toBe(200);
+          |                            ^
+      218 |         
+      219 |         const schemaName = `tenant_${testTenantId}_hr`;
+      220 |         const viewCheck = await pool.query(`SELECT definition FROM pg_views WHERE schemaname = $1 AND viewname = 'v_org_hierarchy'`, [schemaName]);
+
+      at Object.<anonymous> (src/tests/apis/master_metadata_validation.test.ts:217:28)
+
+  ● Industrial Data Fabric: Master Metadata Validation Suite v4.2 (Absolute Exhaustive) › Scenario: Complex Set Operations (Federated Virtualization)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+      253 |
+      254 |         const res = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(setOpsManifest);
+    > 255 |         expect(res.status).toBe(200);
+          |                            ^
+      256 |         
+      257 |         const schemaName = `tenant_${testTenantId}_warehouse`;
+      258 |         const viewCheck = await pool.query(`SELECT definition FROM pg_views WHERE schemaname = $1 AND viewname = 'v_federated_inventory'`, [schemaName]);
+
+      at Object.<anonymous> (src/tests/apis/master_metadata_validation.test.ts:255:28)
+
+  ● Industrial Data Fabric: Master Metadata Validation Suite v4.2 (Absolute Exhaustive) › Scenario: Industrial Risk & Time-Machine Rollback
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 400
+    Received: 500
+
+      271 |         const v2 = { version: "2.0", schemas: [{ name: "core", resources: [] }] };
+      272 |         const resFail = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(v2);
+    > 273 |         expect(resFail.status).toBe(400);
+          |                                ^
+      274 |
+      275 |         // 3. Force Apply
+      276 |         await request(app).post('/api/metadata/apply?force=true').set('Authorization', `Bearer ${tenantToken}`).send(v2);
+
+      at Object.<anonymous> (src/tests/apis/master_metadata_validation.test.ts:273:32)
+
+Test Suites: 1 failed, 1 total
+Tests:       5 failed, 5 total
+Snapshots:   0 total
+Time:        2.384 s
+Ran all test suites matching /backend\/src\/tests\/apis\/master_metadata_validation.test.ts/i.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

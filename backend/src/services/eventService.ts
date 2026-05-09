@@ -1,6 +1,6 @@
 import { Server } from 'socket.io';
 import axios from 'axios';
-import pool from '../config/db';
+import { pool } from '../config/database';
 
 let io: Server;
 

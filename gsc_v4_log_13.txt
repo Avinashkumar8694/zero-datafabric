@@ -1,0 +1,221 @@
+
+> zero-data-fabric-monorepo@1.0.0 test
+> cd backend && npm test -- --runInBand backend/src/tests/apis/global_supply_chain_v4.test.ts
+
+
+> backend@1.0.0 test
+> jest --runInBand backend/src/tests/apis/global_supply_chain_v4.test.ts
+
+  console.log
+    ◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+  console.log
+    ◇ injected env (0) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+  console.log
+    [Auth] Attempting login for: [admin] (length: 5)
+
+      at Function.login (src/modules/auth/auth.service.ts:13:13)
+
+  console.log
+    PostgreSQL Pool Connected
+
+      at BoundPool.<anonymous> (src/config/database.ts:46:11)
+
+  console.log
+    [Auth] Login successful for: admin, Tenant: tenant_A, Role: ADMIN
+
+      at Function.login (src/modules/auth/auth.service.ts:33:13)
+
+[0mPOST /api/auth/login [32m200[0m 251.798 ms - 384[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: tenant_A
+
+      at src/index.ts:42:19
+
+[0mPOST /api/admin/tenants [32m201[0m 70.829 ms - 137[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: tenant_A
+
+      at src/index.ts:42:19
+
+  console.log
+    [Auth] Issued tenant-scoped token for admin -> gsc_v4_1778296340057
+
+      at refreshToken (src/controllers/authController.ts:25:11)
+
+[0mPOST /api/auth/token [32m200[0m 3.440 ms - 305[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: gsc_v4_1778296340057
+
+      at src/index.ts:42:19
+
+  console.log
+    [DiffEngine] Detecting retired resources for tenant_gsc_v4_1778296340057_Global_Supply_Chain. Live: 0, AST: 2
+
+      at Function.detectRetiredResources (src/modules/metadata/diff_engine.ts:120:17)
+
+  console.log
+    [Transpiler] Executing: CREATE SCHEMA IF NOT EXISTS "tenant_gsc_v4_1778296340057_Global_Supply_Chain"
+
+      at MetadataOrchestrator.apply (src/modules/metadata/orchestrator.ts:35:29)
+
+  console.log
+    [Transpiler] Executing: CREATE TYPE "tenant_gsc_v4_1778296340057_Global_Supply_Chain"."shipment_status" AS ENUM ('PENDING', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED')
+
+      at MetadataOrchestrator.apply (src/modules/metadata/orchestrator.ts:35:29)
+
+  console.log
+    [Transpiler] Executing: CREATE SEQUENCE IF NOT EXISTS "tenant_gsc_v4_1778296340057_Global_Supply_Chain"."tracking_seq" START WITH 100000 INCREMENT BY 1 MINVALUE 100000 MAXVALUE 999999999 CACHE 20
+
+      at MetadataOrchestrator.apply (src/modules/metadata/orchestrator.ts:35:29)
+
+  console.log
+    [Transpiler] Executing: CREATE OR REPLACE FUNCTION "tenant_gsc_v4_1778296340057_Global_Supply_Chain"."generate_custom_id"("p_region" IN TEXT) RETURNS TEXT AS $$ DECLARE v_seq BIGINT; BEGIN v_seq := nextval('tracking_seq'); RETURN p_region || '-' || to_char(NOW(), 'YYYY') || '-' || lpad(v_seq::text, 8, '0'); END; $$ LANGUAGE plpgsql
+
+      at MetadataOrchestrator.apply (src/modules/metadata/orchestrator.ts:35:29)
+
+  console.log
+    [Transpiler] Executing: CREATE TABLE IF NOT EXISTS "tenant_gsc_v4_1778296340057_Global_Supply_Chain"."shipments" ("id" UUID DEFAULT gen_random_uuid(), "internal_id" BIGINT GENERATED ALWAYS AS IDENTITY, "legacy_id" SERIAL, "custom_id" TEXT, "region" TEXT, "full_tracking_label" TEXT GENERATED ALWAYS AS (id || ' [' || region || ']') STORED, "status" "tenant_gsc_v4_1778296340057_Global_Supply_Chain"."shipment_status" DEFAULT 'PENDING', "metadata" JSONB, "created_at" TIMESTAMP DEFAULT NOW(), PRIMARY KEY ("id", "region", "created_at"), CONSTRAINT "exclude_overlapping_shipments" EXCLUDE USING GIST ("region" WITH =, "created_at" WITH =)) PARTITION BY RANGE("created_at")
+
+      at MetadataOrchestrator.apply (src/modules/metadata/orchestrator.ts:35:29)
+
+  console.log
+    [Transpiler] Executing: COMMENT ON TABLE "tenant_gsc_v4_1778296340057_Global_Supply_Chain"."shipments" IS 'Master table for global logistics tracking'
+
+      at MetadataOrchestrator.apply (src/modules/metadata/orchestrator.ts:35:29)
+
+  console.log
+    [Transpiler] Executing: CREATE OR REPLACE FUNCTION "tenant_gsc_v4_1778296340057_Global_Supply_Chain"."fn_func_shipments_custom_id"() RETURNS TRIGGER AS $$
+                            BEGIN
+                                IF NEW."custom_id" IS NULL THEN
+                                    NEW."custom_id" := generate_custom_id(region);
+                                END IF;
+                                RETURN NEW;
+                            END; $$ LANGUAGE plpgsql;
+
+      at MetadataOrchestrator.apply (src/modules/metadata/orchestrator.ts:35:29)
+
+  console.log
+    [Transpiler] Executing: DROP TRIGGER IF EXISTS "trg_func_shipments_custom_id" ON "tenant_gsc_v4_1778296340057_Global_Supply_Chain"."shipments"
+
+      at MetadataOrchestrator.apply (src/modules/metadata/orchestrator.ts:35:29)
+
+  console.log
+    [Transpiler] Executing: CREATE TRIGGER "trg_func_shipments_custom_id" BEFORE INSERT ON "tenant_gsc_v4_1778296340057_Global_Supply_Chain"."shipments" FOR EACH ROW EXECUTE FUNCTION "tenant_gsc_v4_1778296340057_Global_Supply_Chain"."fn_func_shipments_custom_id"()
+
+      at MetadataOrchestrator.apply (src/modules/metadata/orchestrator.ts:35:29)
+
+  console.log
+    [Transpiler] Executing: COMMENT ON COLUMN "tenant_gsc_v4_1778296340057_Global_Supply_Chain"."shipments"."metadata" IS 'Flexible attributes'
+
+      at MetadataOrchestrator.apply (src/modules/metadata/orchestrator.ts:35:29)
+
+  console.log
+    [Transpiler] Executing: CREATE INDEX IF NOT EXISTS "idx_shipments_metadata" ON "tenant_gsc_v4_1778296340057_Global_Supply_Chain"."shipments" USING GIN ("metadata")
+
+      at MetadataOrchestrator.apply (src/modules/metadata/orchestrator.ts:35:29)
+
+  console.log
+    [Transpiler] Executing: CREATE INDEX IF NOT EXISTS "idx_shipments_created_at" ON "tenant_gsc_v4_1778296340057_Global_Supply_Chain"."shipments" USING BRIN ("created_at")
+
+      at MetadataOrchestrator.apply (src/modules/metadata/orchestrator.ts:35:29)
+
+  console.log
+    [Transpiler] Executing: CREATE TABLE IF NOT EXISTS "tenant_gsc_v4_1778296340057_Global_Supply_Chain"."shipment_details" ("shipment_id" UUID PRIMARY KEY, "total_amount" NUMERIC)
+
+      at MetadataOrchestrator.apply (src/modules/metadata/orchestrator.ts:35:29)
+
+  console.log
+    [Transpiler] Executing: CREATE OR REPLACE VIEW "tenant_gsc_v4_1778296340057_Global_Supply_Chain"."high_value_regional_summary" AS SELECT s.region, SUM(d.total_amount) AS "revenue", RANK() OVER (PARTITION BY s.region ORDER BY d.total_amount DESC) AS "rank" FROM "tenant_gsc_v4_1778296340057_Global_Supply_Chain"."shipments" AS "s" LEFT JOIN "tenant_gsc_v4_1778296340057_Global_Supply_Chain"."shipment_details" AS "d" ON s.id = d.shipment_id GROUP BY s.region, d.total_amount
+
+      at MetadataOrchestrator.apply (src/modules/metadata/orchestrator.ts:35:29)
+
+[0mPOST /api/metadata/apply [32m200[0m 155.345 ms - 581[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: gsc_v4_1778296340057
+
+      at src/index.ts:42:19
+
+  console.log
+    [DiffEngine] Detecting retired resources for tenant_gsc_v4_1778296340057_Global_Supply_Chain. Live: 2, AST: 0
+
+      at Function.detectRetiredResources (src/modules/metadata/diff_engine.ts:120:17)
+
+  console.log
+    [DiffEngine] RETIRING TABLE: shipments
+
+      at Function.detectRetiredResources (src/modules/metadata/diff_engine.ts:124:25)
+
+  console.log
+    [DiffEngine] RETIRING TABLE: shipment_details
+
+      at Function.detectRetiredResources (src/modules/metadata/diff_engine.ts:124:25)
+
+  console.error
+    [MetadataController] Apply Error: CRITICAL: 2 High-Risk changes detected. Use force=true to override.
+
+      108 |         res.json(result);
+      109 |     } catch (err: any) {
+    > 110 |         console.error(`[MetadataController] Apply Error: ${err.message}`);
+          |                 ^
+      111 |         
+      112 |         // Industrial Guardrail Violation (Section 3.2)
+      113 |         if (err.message.includes('CRITICAL') || err.message.includes('Validation') || err.message.includes('High-Risk') || err.message.includes('Integrity')) {
+
+      at applyMetadata (src/controllers/metadataController.ts:110:17)
+
+[0mPOST /api/metadata/apply [33m400[0m 9.228 ms - 122[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: gsc_v4_1778296340057
+
+      at src/index.ts:42:19
+
+  console.log
+    [DiffEngine] Detecting retired resources for tenant_gsc_v4_1778296340057_Global_Supply_Chain. Live: 2, AST: 0
+
+      at Function.detectRetiredResources (src/modules/metadata/diff_engine.ts:120:17)
+
+  console.log
+    [DiffEngine] RETIRING TABLE: shipments
+
+      at Function.detectRetiredResources (src/modules/metadata/diff_engine.ts:124:25)
+
+  console.log
+    [DiffEngine] RETIRING TABLE: shipment_details
+
+      at Function.detectRetiredResources (src/modules/metadata/diff_engine.ts:124:25)
+
+[0mPOST /api/metadata/apply?force=true [32m200[0m 13.704 ms - 218[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: gsc_v4_1778296340057
+
+      at src/index.ts:42:19
+
+[0mGET /api/metadata/history [32m200[0m 10.437 ms - 317[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: gsc_v4_1778296340057
+
+      at src/index.ts:42:19
+
+  console.log
+    [DiffEngine] Detecting retired resources for tenant_gsc_v4_1778296340057_Global_Supply_Chain. Live: 2, AST: 2
+
+      at Function.detectRetiredResources (src/modules/metadata/diff_engine.ts:120:17)
+
+[0mPOST /api/metadata/rollback/fec4f7af-b1f2-495a-b781-0d857519067d [32m200[0m 58.922 ms - 76[0m
+PASS src/tests/apis/global_supply_chain_v4.test.ts
+  Industrial Data Fabric: Global Supply Chain v4.0 (The Ultimate Test)
+    ✓ Scenario: Global Supply Chain v4.0 Full Deployment (187 ms)
+    ✓ Scenario: Industrial Rollback (Time-Machine) for Global Supply Chain (104 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+Snapshots:   0 total
+Time:        2.326 s
+Ran all test suites matching /backend\/src\/tests\/apis\/global_supply_chain_v4.test.ts/i.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

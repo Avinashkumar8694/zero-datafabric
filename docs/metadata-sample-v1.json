@@ -1,0 +1,203 @@
+{
+    "version": "4.0",
+    "consistencyMode": "SAGA",
+    "downstream": [
+        {
+            "type": "ELASTICSEARCH",
+            "enabled": true,
+            "fallback": "PRIMARY_SQL"
+        },
+        {
+            "type": "SNOWFLAKE",
+            "enabled": true,
+            "strategy": "CDC"
+        }
+    ],
+    "extensions": [
+        "uuid-ossp",
+        "pg_stat_statements"
+    ],
+    "schemas": [
+        {
+            "name": "Global_Supply_Chain",
+            "targetSource": "Fabric_Hub_Postgres",
+            "resources": [
+                {
+                    "type": "ENUM",
+                    "name": "shipment_status",
+                    "values": [
+                        "PENDING",
+                        "IN_TRANSIT",
+                        "DELIVERED",
+                        "CANCELLED"
+                    ]
+                },
+                {
+                    "type": "SEQUENCE",
+                    "name": "tracking_seq",
+                    "start": 100000,
+                    "increment": 1,
+                    "minValue": 100000,
+                    "maxValue": 999999999,
+                    "ownedBy": {
+                        "table": "shipments",
+                        "column": "id"
+                    }
+                },
+                {
+                    "type": "TABLE",
+                    "name": "employees",
+                    "columns": [
+                        {
+                            "name": "id",
+                            "type": "UUID",
+                            "strategy": "UUID_V7",
+                            "primaryKey": true
+                        },
+                        {
+                            "name": "name",
+                            "type": "STRING",
+                            "length": 100
+                        },
+                        {
+                            "name": "manager_id",
+                            "type": "UUID",
+                            "nullable": true
+                        }
+                    ]
+                },
+                {
+                    "type": "TABLE",
+                    "name": "shipments",
+                    "identity": {
+                        "type": "PRIMARY_KEY",
+                        "columns": [
+                            "id"
+                        ]
+                    },
+                    "columns": [
+                        {
+                            "name": "id",
+                            "type": "UUID",
+                            "default": "uuid_generate_v7()",
+                            "strategy": "UUID_V7"
+                        },
+                        {
+                            "name": "region",
+                            "type": "STRING",
+                            "length": 10
+                        },
+                        {
+                            "name": "status",
+                            "type": "ENUM",
+                            "ref": "shipment_status",
+                            "default": "PENDING"
+                        },
+                        {
+                            "name": "total_amount",
+                            "type": "NUMERIC"
+                        },
+                        {
+                            "name": "created_at",
+                            "type": "TIMESTAMP",
+                            "default": "NOW()"
+                        }
+                    ],
+                    "constraints": [
+                        {
+                            "name": "chk_positive_amount",
+                            "type": "CHECK",
+                            "expression": "total_amount > 0"
+                        }
+                    ]
+                },
+                {
+                    "type": "VIEW",
+                    "name": "regional_summary",
+                    "query": {
+                        "select": [
+                            "region",
+                            {
+                                "aggregate": "SUM",
+                                "column": "total_amount",
+                                "alias": "revenue"
+                            }
+                        ],
+                        "from": {
+                            "resource": "shipments"
+                        },
+                        "groupBy": [
+                            "region"
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Activity_Logs",
+            "targetSource": "Activity_Mongo",
+            "resources": [
+                {
+                    "type": "TABLE",
+                    "name": "user_activity",
+                    "columns": [
+                        {
+                            "name": "user_id",
+                            "type": "UUID",
+                            "index": true
+                        },
+                        {
+                            "name": "action",
+                            "type": "STRING"
+                        },
+                        {
+                            "name": "timestamp",
+                            "type": "TIMESTAMP"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "External_Archive",
+            "targetSource": "External_Warehouse",
+            "resources": [
+                {
+                    "type": "TABLE",
+                    "name": "quarantined_items",
+                    "columns": [
+                        {
+                            "name": "item_id",
+                            "type": "UUID",
+                            "primaryKey": true
+                        },
+                        {
+                            "name": "reason",
+                            "type": "STRING"
+                        },
+                        {
+                            "name": "archive_date",
+                            "type": "TIMESTAMP",
+                            "default": "now()"
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "relationships": [
+        {
+            "name": "rel_shipment_to_activity",
+            "cardinality": "1:M",
+            "from": {
+                "resource": "shipments",
+                "field": "id"
+            },
+            "to": {
+                "source": "Activity_Mongo",
+                "resource": "user_activity",
+                "field": "user_id"
+            }
+        }
+    ]
+}

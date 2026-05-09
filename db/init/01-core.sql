@@ -47,7 +47,8 @@ CREATE TABLE IF NOT EXISTS public.data_sources (
     config JSONB NOT NULL,
     sync_type VARCHAR(50) DEFAULT 'VIRTUAL',
     status VARCHAR(50) DEFAULT 'CONNECTED',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id, name)
 );
 
 -- Enable RLS on core registries

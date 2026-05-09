@@ -1,4 +1,4 @@
-import pool from '../config/db';
+import { pool } from '../config/database';
 
 export const extractMetadata = async (dataSourceId: string, schemaName: string) => {
   // Extract column info from information_schema

@@ -4,6 +4,8 @@ import { MetadataOrchestrator } from '../modules/metadata/orchestrator';
 import { ManifestParser } from '../modules/metadata/manifest_parser';
 import { pool, queryWithContext } from '../config/database';
 
+const orchestrator = new MetadataOrchestrator();
+
 export const getTableDetails = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
@@ -69,6 +71,41 @@ export const getTemplate = (req: Request, res: Response) => {
     res.json(MetadataService.getTemplate());
 };
 
+/**
+ * @openapi
+ * /api/metadata/diff:
+ *   post:
+ *     summary: Analyze Drift (Diff)
+ *     description: Performs a deep structural analysis between the provided Industrial Blueprint (JSON) and the live database state. Detects new schemas, resources, and root-level orchestration requirements.
+ *     tags: [Metadata]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/MetadataManifest'
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Drift analysis complete (Plan Ready)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status: { type: string, example: "PLAN_READY" }
+ *                 changes: { type: array, items: { type: object } }
+ *       500:
+ *         description: Analysis failed
+ */
 export const diffMetadata = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
@@ -76,12 +113,13 @@ export const diffMetadata = async (req: Request, res: Response) => {
         if (req.file) {
             content = req.file.buffer.toString();
         } else {
-            content = JSON.stringify(req.body);
+            content = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
         }
         const manifest = ManifestParser.parse(content);
-        const plan = await MetadataOrchestrator.plan(user.tenant_id, manifest);
+        const plan = await orchestrator.plan(user.tenant_id, manifest);
         res.json(plan);
     } catch (err: any) {
+        console.error(`[MetadataController] Diff Error: ${err.message}`);
         res.status(500).json({ error: err.message });
     }
 };
@@ -90,25 +128,38 @@ export const applyMetadata = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
         if (!user) return res.status(401).json({ error: 'Authentication required' });
+        
         let content = '';
         if (req.file) {
             content = req.file.buffer.toString();
         } else {
-            content = JSON.stringify(req.body);
+            content = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
         }
+        
         const manifest = ManifestParser.parse(content);
         const force = req.query.force === 'true';
-        const result = await MetadataOrchestrator.apply(user.tenant_id, manifest, { force });
+        
+        const result = await orchestrator.apply(user.tenant_id, manifest, { force });
         res.json(result);
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        console.error(`[MetadataController] Apply Error: ${err.message}`);
+        
+        // Industrial Guardrail Violation (Section 3.2)
+        if (err.message.includes('CRITICAL') || err.message.includes('Validation') || err.message.includes('High-Risk') || err.message.includes('Integrity')) {
+            return res.status(400).json({ 
+                error: 'Industrial Guardrail Violation', 
+                message: err.message 
+            });
+        }
+        
+        res.status(500).json({ error: 'Orchestration Failed', message: err.message });
     }
 };
 
 export const getMetadataHistory = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
-        const history = await MetadataOrchestrator.getHistory(user.tenant_id);
+        const history = await orchestrator.getHistory(user.tenant_id);
         res.json(history);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -118,8 +169,8 @@ export const getMetadataHistory = async (req: Request, res: Response) => {
 export const rollbackMetadata = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
-        const versionId = req.params.id;
-        const result = await MetadataOrchestrator.rollback(user.tenant_id, versionId);
+        const versionId = req.params.id as string;
+        const result = await orchestrator.rollback(user.tenant_id, versionId);
         res.json(result);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -148,4 +199,42 @@ export const getEvents = async (req: Request, res: Response) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+};
+
+export const getDownstreamStatus = async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user;
+        const { rows } = await pool.query('SELECT target_type, config, status, updated_at FROM fabric_system.downstream_registry WHERE tenant_id = $1', [user.tenant_id]);
+        res.json(rows);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+export const toggleDownstream = async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user;
+        const { targetType, enabled } = req.body;
+        
+        // 1. Fetch Latest Manifest
+        const { rows } = await pool.query(`SELECT ast_content FROM fabric_system.metadata_history WHERE tenant_id = $1 ORDER BY applied_at DESC LIMIT 1`, [user.tenant_id]);
+        if (rows.length === 0) return res.status(404).json({ error: 'No active manifest found for tenant' });
+        
+        const manifest = rows[0].ast_content;
+        if (!manifest.downstream) manifest.downstream = [];
+        
+        // 2. Update Target State
+        const target = manifest.downstream.find((d: any) => d.type === targetType);
+        if (target) {
+            target.enabled = enabled;
+        } else {
+            manifest.downstream.push({ type: targetType, enabled });
+        }
+        
+        // 3. Re-Apply Manifest (Force to bypass risk checks for simple toggles)
+        const result = await orchestrator.apply(user.tenant_id, manifest, { force: true });
+        res.json({ status: 'SUCCESS', result });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
 };

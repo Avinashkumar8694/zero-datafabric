@@ -1,0 +1,162 @@
+
+> zero-data-fabric-monorepo@1.0.0 test
+> cd backend && npm test -- --runInBand backend/src/tests/apis/master_metadata_validation.test.ts
+
+
+> backend@1.0.0 test
+> jest --runInBand backend/src/tests/apis/master_metadata_validation.test.ts
+
+  console.log
+    ◇ injected env (0) from .env // tip: ⌘ override existing { override: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+  console.log
+    ◇ injected env (0) from .env // tip: ⌘ override existing { override: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+  console.log
+    [Auth] Attempting login for: [admin] (length: 5)
+
+      at Function.login (src/modules/auth/auth.service.ts:13:13)
+
+  console.log
+    PostgreSQL Pool Connected
+
+      at BoundPool.<anonymous> (src/config/database.ts:46:11)
+
+  console.log
+    [Auth] Login successful for: admin, Tenant: tenant_A, Role: ADMIN
+
+      at Function.login (src/modules/auth/auth.service.ts:33:13)
+
+[0mPOST /api/auth/login [32m200[0m 237.734 ms - 384[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: tenant_A
+
+      at src/index.ts:42:19
+
+[0mPOST /api/admin/tenants [32m201[0m 69.673 ms - 147[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: tenant_A
+
+      at src/index.ts:42:19
+
+  console.log
+    [Auth] Issued tenant-scoped token for admin -> master_v4_2_1778295519828
+
+      at refreshToken (src/controllers/authController.ts:25:11)
+
+[0mPOST /api/auth/token [32m200[0m 3.676 ms - 312[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295519828
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply [32m200[0m 166.736 ms - 633[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295519828
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply [32m200[0m 31.428 ms - 205[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295519828
+
+      at src/index.ts:42:19
+
+  console.error
+    [MetadataController] Apply Error: column "*" does not exist
+
+      108 |         res.json(result);
+      109 |     } catch (err: any) {
+    > 110 |         console.error(`[MetadataController] Apply Error: ${err.message}`);
+          |                 ^
+      111 |         
+      112 |         // Industrial Guardrail Violation (Section 3.2)
+      113 |         if (err.message.includes('CRITICAL') || err.message.includes('Validation') || err.message.includes('High-Risk')) {
+
+      at applyMetadata (src/controllers/metadataController.ts:110:17)
+
+[0mPOST /api/metadata/apply [31m500[0m 30.616 ms - 72[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295519828
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply [32m200[0m 26.149 ms - 356[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295519828
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply [32m200[0m 13.853 ms - 193[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295519828
+
+      at src/index.ts:42:19
+
+  console.error
+    [MetadataController] Apply Error: CRITICAL: 1 High-Risk changes detected. Use force=true to override.
+
+      108 |         res.json(result);
+      109 |     } catch (err: any) {
+    > 110 |         console.error(`[MetadataController] Apply Error: ${err.message}`);
+          |                 ^
+      111 |         
+      112 |         // Industrial Guardrail Violation (Section 3.2)
+      113 |         if (err.message.includes('CRITICAL') || err.message.includes('Validation') || err.message.includes('High-Risk')) {
+
+      at applyMetadata (src/controllers/metadataController.ts:110:17)
+
+[0mPOST /api/metadata/apply [33m400[0m 7.225 ms - 122[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295519828
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/apply?force=true [32m200[0m 8.489 ms - 137[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295519828
+
+      at src/index.ts:42:19
+
+[0mGET /api/metadata/history [32m200[0m 7.634 ms - 787[0m
+  console.log
+    [Security] Authenticated user: admin, Tenant: master_v4_2_1778295519828
+
+      at src/index.ts:42:19
+
+[0mPOST /api/metadata/rollback/8fd0b868-bf67-4725-acb3-36fc15ce2ec3 [32m200[0m 18.794 ms - 74[0m
+FAIL src/tests/apis/master_metadata_validation.test.ts
+  Industrial Data Fabric: Master Metadata Validation Suite v4.2 (Absolute Exhaustive)
+    ✓ Exhaustive Test: Complete Supply Chain Ecosystem (Postgres + NoSQL Virtualization) (183 ms)
+    ✓ Scenario: Trigger Guardrails & Relative Scheduling (42 ms)
+    ✕ Scenario: Recursive Views (Org Chart) (35 ms)
+    ✓ Scenario: Complex Set Operations (Federated Virtualization) (29 ms)
+    ✓ Scenario: Industrial Risk & Time-Machine Rollback (69 ms)
+
+  ● Industrial Data Fabric: Master Metadata Validation Suite v4.2 (Absolute Exhaustive) › Scenario: Recursive Views (Org Chart)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+      214 |
+      215 |         const res = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(recursiveManifest);
+    > 216 |         expect(res.status).toBe(200);
+          |                            ^
+      217 |         
+      218 |         const schemaName = `tenant_${testTenantId}_hr`;
+      219 |         const viewCheck = await pool.query(`SELECT definition FROM pg_views WHERE schemaname = $1 AND viewname = 'v_org_hierarchy'`, [schemaName]);
+
+      at Object.<anonymous> (src/tests/apis/master_metadata_validation.test.ts:216:28)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 4 passed, 5 total
+Snapshots:   0 total
+Time:        2.333 s, estimated 3 s
+Ran all test suites matching /backend\/src\/tests\/apis\/master_metadata_validation.test.ts/i.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

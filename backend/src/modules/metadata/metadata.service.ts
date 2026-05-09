@@ -372,55 +372,189 @@ export class MetadataService {
   
   static getTemplate(): any {
     return {
-      version: "10.0",
-      description: "Heterogeneous Hierarchical Data Fabric Industrial Blueprint",
-      schemas: [
+      version: "4.0",
+      namespace: "Global_Supply_Chain",
+      targetSource: "Fabric_Hub_Postgres",
+      consistencyMode: "SAGA", 
+      downstream: [
+        { type: "ELASTICSEARCH", enabled: true, fallback: "PRIMARY_SQL" },
+        { type: "SNOWFLAKE", enabled: true, strategy: "CDC" }
+      ],
+      extensions: ["uuid-ossp", "pg_stat_statements"],
+      resources: [
         {
-          name: "enterprise_core",
-          description: "Global Transactional & Identity Core",
-          sequences: [{ name: "global_tx_seq", start: 1000, increment: 1 }],
-          tables: [
-            {
-              name: "users",
-              description: "System Identity Registry",
-              columns: [
-                { name: "id", type: "UUID", primaryKey: true, default: "gen_random_uuid()" },
-                { name: "username", type: "VARCHAR(255)", constraints: "UNIQUE NOT NULL" },
-                { name: "email", type: "VARCHAR(255)", constraints: "UNIQUE NOT NULL" },
-                { name: "status", type: "VARCHAR(50)", default: "'ACTIVE'" },
-                { name: "created_at", type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" }
-              ],
-              indexes: [
-                { name: "idx_users_email", columns: ["email"], unique: true },
-                { name: "idx_users_status", columns: ["status"] }
-              ],
-              triggers: [
-                { name: "trg_audit_users", event: "AFTER INSERT OR UPDATE", function: "fabric_admin.audit_trigger_func()" }
-              ]
-            },
-            {
-              name: "user_sessions",
-              columns: [
-                { name: "id", type: "UUID", primaryKey: true },
-                { name: "user_id", type: "UUID", references: { table: "users", column: "id" } },
-                { name: "last_seen", type: "TIMESTAMP" }
-              ]
-            }
+          type: "ENUM",
+          name: "shipment_status",
+          values: ["PENDING", "IN_TRANSIT", "DELIVERED", "CANCELLED"]
+        },
+        {
+          type: "SEQUENCE",
+          name: "tracking_seq",
+          start: 100000,
+          increment: 1,
+          minValue: 100000,
+          maxValue: 999999999,
+          cache: 20,
+          ownedBy: { table: "shipments", column: "id" }
+        },
+        {
+          type: "SEQUENCE",
+          name: "tenant_aware_seq",
+          start: 1,
+          increment: 1,
+          strategy: "PROCEDURAL",
+          generator: "generate_tenant_id(tenant_id)"
+        },
+        {
+          type: "TABLE",
+          name: "shipments",
+          comment: "Master table for global logistics tracking",
+          partitionBy: { type: "RANGE", column: "created_at" },
+          identity: { type: "PRIMARY_KEY", columns: ["id", "region"] },
+          version: "1.4.2",
+          maintenance: { autovacuum_enabled: true, fillfactor: 80 },
+          columns: [
+            { name: "id", type: "UUID", default: "uuid_generate_v7()", strategy: "UUID_V7" },
+            { name: "internal_id", type: "BIGINT", strategy: "IDENTITY_ALWAYS" },
+            { name: "legacy_id", type: "SERIAL", strategy: "LEGACY_SERIAL" },
+            { name: "custom_id", type: "STRING", default: "generate_custom_id(region)", strategy: "FUNCTIONAL" },
+            { name: "region", type: "STRING", length: 10, collation: "en_US.UTF-8" },
+            { name: "full_tracking_label", type: "STRING", generated: "id || ' [' || region || ']'", stored: true },
+            { name: "status", type: "ENUM", ref: "shipment_status", default: "PENDING" },
+            { name: "metadata", type: "JSONB", comment: "Flexible attributes for custom carrier data", index: { type: "GIN" } },
+            { name: "created_at", type: "TIMESTAMP", default: "NOW()", index: { type: "BRIN" } },
+            { name: "created_by", type: "UUID", default: "current_user_id()", readonly: true },
+            { name: "deleted_at", type: "TIMESTAMP", nullable: true, strategy: "SOFT_DELETE" }
           ],
-          functions: [
-            {
-              name: "calculate_session_duration",
-              params: [{ name: "user_id", type: "UUID" }],
-              returnType: "INTERVAL",
-              body: "RETURN (SELECT NOW() - MIN(last_seen) FROM user_sessions WHERE user_id = $1)"
-            }
-          ]
+          constraints: [
+            { name: "check_region_format", type: "CHECK", expression: "region ~ '^[A-Z]{2,3}$'" },
+            { name: "exclude_overlapping_shipments", type: "EXCLUDE", using: "GIST", columns: [{ name: "region", operator: "=" }, { name: "created_at", operator: "&&" }] }
+          ],
+          triggers: [
+            { name: "trg_audit_shipment", timing: "AFTER", events: ["INSERT", "UPDATE"], execution: "row", procedure: "audit_log_fn" }
+          ],
+          security: {
+            enable_rls: true,
+            masking: [{ column: "metadata", roles: ["logistics_viewer"], expression: "'REDACTED'" }],
+            policies: [
+              { name: "regional_isolation", roles: ["fabric_user"], using: "region = current_setting('app.current_region')" },
+              { name: "hide_deleted", using: "deleted_at IS NULL" }
+            ],
+            grants: [{ role: "logistics_viewer", privileges: ["SELECT"] }]
+          }
+        },
+        {
+          type: "FUNCTION",
+          name: "generate_custom_id",
+          arguments: [{ name: "p_region", type: "STRING" }],
+          returnType: "STRING",
+          body: "DECLARE v_seq BIGINT; BEGIN v_seq := nextval('tracking_seq'); RETURN p_region || '-' || to_char(NOW(), 'YYYY') || '-' || lpad(v_seq::text, 8, '0'); END;"
+        },
+        {
+          type: "PROCEDURE",
+          name: "process_delivery",
+          parameters: [
+            { name: "p_shipment_id", type: "BIGINT", mode: "IN" },
+            { name: "p_success", type: "BOOLEAN", mode: "OUT" }
+          ],
+          body: "UPDATE shipments SET status = 'DELIVERED' WHERE id = p_shipment_id; p_success := true;"
+        },
+        {
+          type: "VIEW",
+          name: "org_hierarchy_recursive",
+          recursive: true,
+          query: {
+            with: [
+              {
+                name: "emp_path",
+                columns: ["id", "name", "manager_id", "path", "level"],
+                base: {
+                  select: ["id", "name", "manager_id", { expression: "name", alias: "path" }, { expression: "1", alias: "level" }],
+                  from: { resource: "employees" },
+                  where: [{ column: "manager_id", operator: "IS_NULL" }]
+                },
+                unionAll: {
+                  select: ["e.id", "e.name", "e.manager_id", { expression: "ep.path || ' -> ' || e.name" }, { expression: "ep.level + 1" }],
+                  from: { resource: "employees", alias: "e" },
+                  joins: [{ type: "INNER", resource: "emp_path", alias: "ep", on: { left: "e.manager_id", operator: "EQ", right: "ep.id" } }]
+                }
+              }
+            ],
+            select: ["*"],
+            from: { resource: "emp_path" }
+          }
+        },
+        {
+          type: "VIEW",
+          name: "high_value_regional_summary",
+          query: {
+            select: [
+              { column: "s.region" },
+              { aggregate: "SUM", column: "s.total_amount", alias: "revenue" },
+              { window: "RANK", partitionBy: ["s.region"], orderBy: [{ column: "s.total_amount", direction: "DESC" }], alias: "rank" }
+            ],
+            from: { resource: "shipments", alias: "s" },
+            joins: [
+              { type: "LEFT", resource: "shipment_details", alias: "d", on: { left: "s.id", operator: "EQ", right: "d.shipment_id" } }
+            ],
+            where: [
+              { search: { column: "d.notes", type: "FULL_TEXT", query: "priority" } }
+            ],
+            groupBy: ["s.region", "s.total_amount"]
+          }
+        },
+        {
+          type: "VIEW",
+          name: "federated_inventory_analysis",
+          federationStrategy: "VIRTUAL",
+          query: {
+            union: [
+              { select: ["sku", "stock"], from: { resource: "local_inventory", source: "Fabric_Hub_Postgres" } },
+              { select: ["item_id", "qty"], from: { resource: "remote_depot_mongo", source: "Activity_Mongo" } }
+            ],
+            intersect: [
+              { select: ["sku"], from: { resource: "active_products", source: "External_Warehouse" } },
+              { select: ["product_id"], from: { resource: "mongo_product_catalog", source: "Activity_Mongo" } }
+            ],
+            except: [
+              { select: ["sku"], from: { resource: "quarantined_items", source: "External_Warehouse" } }
+            ]
+          }
+        },
+        {
+          type: "MATERIALIZED_VIEW",
+          name: "regional_volume_stats",
+          refreshStrategy: "CONCURRENTLY",
+          refreshInterval: "1 hour",
+          query: {
+            select: [{ column: "region" }, { aggregate: "COUNT", alias: "volume" }],
+            from: { resource: "shipments" },
+            groupBy: ["region"]
+          },
+          indexes: [{ columns: ["region"], unique: true }]
         }
       ],
-      federation: {
-        enabled: true,
-        strategies: ["VIRTUAL_FDW", "CDC_SYNC"]
-      }
+      relationships: [
+        {
+          name: "rel_1_1_shipment_details",
+          cardinality: "1:1",
+          from: { resource: "shipments", field: "id" },
+          to: { resource: "shipment_details", field: "shipment_id" }
+        },
+        {
+          name: "rel_1_M_shipment_logs",
+          cardinality: "1:M",
+          from: { resource: "shipments", field: "id" },
+          to: { source: "Activity_Mongo", resource: "shipment_audit_logs", field: "shipment_id" }
+        },
+        {
+          name: "rel_M_N_shipment_tags",
+          cardinality: "M:N",
+          bridge: "shipment_tags_link",
+          from: { resource: "shipments", field: "id" },
+          to: { source: "External_Warehouse", resource: "global_tags", field: "id" }
+        }
+      ]
     };
   }
 }

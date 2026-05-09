@@ -137,7 +137,7 @@
                         <div style="font-size: 0.7rem; color: var(--text-muted)">ID: ${c.id.substring(0,8)}...</div>
                     </td>
                     <td><div class="badge badge-connected" style="background:#EBF2FF; color:var(--primary); font-size:0.7rem;">${c.sync_type}</div></td>
-                    <td><code>${c.config.host}:${c.config.port}</code></td>
+                    <td><code>${c.config.host ? `${c.config.host}:${c.config.port}` : (c.config.uri || 'N/A')}</code></td>
                     <td>${getStatusBadge(c.status)}</td>
                     <td>
                         <div style="display:flex; gap:0.5rem;">
@@ -159,7 +159,7 @@
             const res = await fetch(`${API_BASE}/admin/connections`, {
                 method: 'PATCH',
                 headers: getAuthHeaders(),
-                body: JSON.stringify({ id, status: newStatus })
+                body: JSON.stringify({ sourceId: id, status: newStatus })
             });
             if (res.ok) {
                 showModal('Success', `Source is now ${newStatus.toLowerCase()}.`);
@@ -216,7 +216,7 @@
             const data = await response.json();
             
             if (response.ok) {
-                showModal('Fabric Integrated', `Source '${payload.serverName}' has been successfully virtualized and cataloged.`);
+                showModal('Fabric Integrated', `Source '${payload.name}' has been successfully virtualized and cataloged.`);
                 statusEl.innerHTML = '';
                 document.getElementById('connectionForm').reset();
                 updateDefaultPort();

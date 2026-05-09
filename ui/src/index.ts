@@ -23,6 +23,10 @@ app.get('/login', (req, res) => {
   res.render('login', { title: 'Zero Data Fabric - Login' });
 });
 
+app.get('/logout', (req, res) => {
+  res.render('logout', { title: 'Zero Data Fabric - Logout' });
+});
+
 app.get('/dashboard', (req, res) => {
   res.render('dashboard', { title: 'Zero Data Fabric - Dashboard' });
 });

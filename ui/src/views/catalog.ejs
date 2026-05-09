@@ -168,7 +168,20 @@
     .lineage-node.highlight { border-color: var(--active-blue); color: var(--active-blue); background: #eff6ff; }
     .lineage-node small { font-weight: 400; color: var(--text-dim); }
 
-    pre { background: #f8fafc; padding: 1.5rem; border-radius: 12px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; border: 1px solid var(--border-color); overflow-x: auto; }
+    pre {
+        background: #f8fafc;
+        padding: 1.5rem;
+        border-radius: 12px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.8rem;
+        border: 1px solid var(--border-color);
+        overflow: auto;
+        max-width: 100%;
+        box-sizing: border-box;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
     .status-indicator { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.75rem; }
     .status-indicator::before { content: ''; width: 8px; height: 8px; background: #10b981; border-radius: 50%; }
 </style>

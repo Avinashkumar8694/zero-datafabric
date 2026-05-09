@@ -41,8 +41,15 @@ export class HeterogeneousDispatcher {
             connectionTimeoutMillis: 5000
         };
 
-        // Industrial Safety: Only attach password if it's a valid string
-        const pass = config.password || config.pass;
+        // Industrial Safety + Local Dev Resilience:
+        // Some seeded source configs may omit password while docker-compose uses known defaults.
+        let pass = config.password || config.pass;
+        if ((typeof pass !== 'string' || pass.length === 0) && config.user === 'fabric_admin') {
+            pass = 'fabric_password';
+        }
+        if ((typeof pass !== 'string' || pass.length === 0) && config.user === 'remote_admin') {
+            pass = 'remote_password';
+        }
         if (typeof pass === 'string' && pass.length > 0) {
             clientConfig.password = pass;
         }

@@ -237,11 +237,26 @@ export class Transpiler {
 
                     const fromCol = `${rel.from.resource}_${rel.from.field}`;
                     const toCol = `${rel.to.resource}_${rel.to.field}`;
-                    sql.push(`CREATE TABLE IF NOT EXISTS "${schemaName}"."${rel.bridge}" (
-                        "${fromCol}" ${this.normalizeType(fromType)} REFERENCES "${schemaName}"."${rel.from.resource}"("${rel.from.field}"),
-                        "${toCol}" ${this.normalizeType(toType)} REFERENCES "${schemaName}"."${rel.to.resource}"("${rel.to.field}"),
-                        PRIMARY KEY ("${fromCol}", "${toCol}")
-                    )`);
+                    if (rel.to.source || rel.from.source) {
+                        // Cross-source M:N cannot enforce DB-level FK to remote engines.
+                        sql.push(`CREATE TABLE IF NOT EXISTS "${schemaName}"."${rel.bridge}" (
+                            "${fromCol}" ${this.normalizeType(fromType)},
+                            "${toCol}" ${this.normalizeType(toType)},
+                            PRIMARY KEY ("${fromCol}", "${toCol}")
+                        )`);
+                        sql.push(`DO $$ BEGIN
+                            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_${rel.name}_from') THEN
+                                ALTER TABLE "${schemaName}"."${rel.bridge}" ADD CONSTRAINT "fk_${rel.name}_from" FOREIGN KEY ("${fromCol}") REFERENCES "${schemaName}"."${rel.from.resource}"("${rel.from.field}");
+                            END IF;
+                        END $$;`);
+                        sql.push(`-- FEDERATED RELATIONSHIP: ${rel.name} target side (${rel.to.source || rel.from.source}) enforced at Fabric layer`);
+                    } else {
+                        sql.push(`CREATE TABLE IF NOT EXISTS "${schemaName}"."${rel.bridge}" (
+                            "${fromCol}" ${this.normalizeType(fromType)} REFERENCES "${schemaName}"."${rel.from.resource}"("${rel.from.field}"),
+                            "${toCol}" ${this.normalizeType(toType)} REFERENCES "${schemaName}"."${rel.to.resource}"("${rel.to.field}"),
+                            PRIMARY KEY ("${fromCol}", "${toCol}")
+                        )`);
+                    }
                 } else if (rel.cardinality === '1:M' || rel.cardinality === '1:1') {
                     if (rel.to.source) {
                         sql.push(`-- FEDERATED RELATIONSHIP: ${rel.name} (Cross-Source to ${rel.to.source})`);

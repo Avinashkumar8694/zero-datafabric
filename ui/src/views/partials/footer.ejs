@@ -3,9 +3,9 @@
     </div> <!-- app-layout -->
 
     <script>
-        // Shared UI Orchestration (token is inherited from header)
-        if (!token && window.location.pathname !== '/login') {
-            window.location.href = '/login';
+        // Shared UI Orchestration
+        if (!getToken() && window.location.pathname !== '/login' && window.location.pathname !== '/logout') {
+            window.location.href = '/logout';
         }
 
         // Active Link Highlighting
@@ -17,43 +17,10 @@
             }
         });
 
-        // Logout
-        document.getElementById('logoutBtn')?.addEventListener('click', () => {
-            localStorage.removeItem('token');
-            window.location.href = '/login';
-        });
-
-        // Identity Context Management
-        const switcher = document.getElementById('tenantSwitcher');
-        if (switcher) {
-            switcher.value = localStorage.getItem('activeTenant') || 'tenant_A';
-            switcher.addEventListener('change', async (e) => {
-                const newTenant = e.target.value;
-                localStorage.setItem('activeTenant', newTenant);
-                
-                // Refresh token for new context
-                try {
-                    const res = await fetch(`${API_BASE}/auth/token`, {
-                        method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify({ tenantId: newTenant })
-                    });
-                    const data = await res.json();
-                    if (data.token) {
-                        localStorage.setItem('token', data.token);
-                        location.reload();
-                    }
-                } catch (err) {
-                    console.error('Failed to switch context');
-                }
-            });
-        }
-
         // Update User Profile UI
         try {
+            const token = getToken();
+            if (!token) throw new Error('No token');
             const payload = JSON.parse(atob(token.split('.')[1]));
             document.getElementById('displayUsername').innerText = payload.username || 'Admin';
             document.getElementById('displayTenant').innerText = payload.tenant_id || 'System';

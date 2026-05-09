@@ -84,5 +84,17 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: mongo_password
     restart: unless-stopped
 
+  # Search Engine for Downstream Provisioning
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    container_name: datafabric-elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    restart: unless-stopped
+
 volumes:
   pgdata:

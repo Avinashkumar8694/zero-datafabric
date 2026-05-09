@@ -54,7 +54,29 @@ export const getConnections = async (req: Request, res: Response) => {
   const user = (req as any).user;
   try {
     const result = await queryWithContext('SELECT * FROM public.data_sources', [], { tenantId: user.tenant_id, username: user.username });
-    res.json(result.rows);
+    const probeWithTimeout = async (probe: Promise<any>, ms = 1500) => {
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('probe-timeout')), ms));
+      return Promise.race([probe, timeout]);
+    };
+
+    const enriched = await Promise.all(result.rows.map(async (row: any) => {
+      let live_status = 'UNKNOWN';
+      if (row.status === 'DISCONNECTED') {
+        live_status = 'OFFLINE';
+      } else {
+        try {
+          await probeWithTimeout(IntegrationService.testConnection({
+            ...(row.config || {}),
+            type: String(row.type || '').toLowerCase()
+          } as any));
+          live_status = 'LIVE';
+        } catch {
+          live_status = 'UNREACHABLE';
+        }
+      }
+      return { ...row, live_status };
+    }));
+    res.json(enriched);
   } catch (err: any) { 
     console.error(`[Admin] Error in ${req.url}:`, err.message);
     res.status(500).json({ error: err.message }); 

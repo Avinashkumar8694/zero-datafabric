@@ -107,9 +107,12 @@
                     <div>
                         <strong style="color: var(--primary);">${target.target_type}</strong>
                         <div style="font-size: 0.7rem; color: var(--text-muted);">${target.target_type === 'ELASTICSEARCH' ? 'Elasticsearch Search Sync' : 'Snowflake CDC Analytics'}</div>
+                        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">
+                            ${(target.config && target.config.detail && target.config.detail.message) ? target.config.detail.message : 'Connector ready'}
+                        </div>
                     </div>
                     <div style="display: flex; align-items: center; gap: 0.8rem;">
-                        <span style="font-size: 0.7rem; font-weight: bold; color: ${target.status === 'ACTIVE' ? 'var(--success)' : 'var(--text-muted)'};">
+                        <span style="font-size: 0.7rem; font-weight: bold; color: ${target.status === 'ACTIVE' ? 'var(--success)' : (target.status === 'ERROR' || target.status === 'NOT_CONFIGURED' ? 'var(--danger)' : 'var(--text-muted)')};">
                             ${target.status}
                         </span>
                         <label class="switch">

@@ -11,19 +11,35 @@
     <script>
         // Global Industrial API Orchestration
         const API_BASE = `http://${window.location.hostname}:4000/api`;
-        const token = localStorage.getItem('token');
-        if (!token && !window.location.pathname.includes('/login')) {
-            window.location.href = '/login';
+        function getToken() {
+            return localStorage.getItem('token');
+        }
+        function performLogout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('active_tenant');
+            window.location.href = '/logout';
+        }
+        if (!getToken() && !window.location.pathname.includes('/login') && !window.location.pathname.includes('/logout')) {
+            window.location.href = '/logout';
         }
 
         // Industrial Identity Propagation Helper
         function getAuthHeaders() {
             return {
-                'Authorization': `Bearer ${token}`,
+                'Authorization': `Bearer ${getToken()}`,
                 'Content-Type': 'application/json',
                 'x-tenant-id': localStorage.getItem('active_tenant') || 'tenant_A'
             };
         }
+
+        const nativeFetch = window.fetch.bind(window);
+        window.fetch = async (...args) => {
+            const response = await nativeFetch(...args);
+            if (response.status === 401 || response.status === 403) {
+                performLogout();
+            }
+            return response;
+        };
     </script>
 </head>
 <body class="light-theme <%= title.includes('Login') ? 'login-page' : '' %>">
@@ -159,11 +175,6 @@
 
         window.addEventListener('load', loadTenantSwitcher);
 
-        const logoutHandler = () => {
-            localStorage.removeItem('token');
-            localStorage.removeItem('active_tenant');
-            window.location.href = '/login';
-        };
-        document.getElementById('logoutBtn')?.addEventListener('click', logoutHandler);
-        document.getElementById('topLogoutBtn')?.addEventListener('click', logoutHandler);
+        document.getElementById('logoutBtn')?.addEventListener('click', performLogout);
+        document.getElementById('topLogoutBtn')?.addEventListener('click', performLogout);
     </script>

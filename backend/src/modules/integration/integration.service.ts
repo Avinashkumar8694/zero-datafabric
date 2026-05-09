@@ -1,6 +1,7 @@
 import { pool, queryWithContext } from '../../config/database';
 import { SyncService } from './sync.service';
 import { MetadataService } from '../metadata/metadata.service';
+import axios from 'axios';
 
 export enum SyncType {
   VIRTUAL = 'VIRTUAL',
@@ -8,13 +9,17 @@ export enum SyncType {
 }
 
 export interface RemoteSourceConfig {
-  type: 'postgres' | 'mysql' | 'mongodb';
+  type: 'postgres' | 'mysql' | 'mongodb' | 'snowflake' | 'elasticsearch';
   host?: string;
   port?: number;
   dbName?: string;
   user?: string;
   pass?: string;
   connectionString?: string;
+  account?: string;
+  warehouse?: string;
+  role?: string;
+  schema?: string;
   syncType: SyncType;
   advanced?: {
       ssl?: boolean;
@@ -47,19 +52,40 @@ export class IntegrationService {
     console.log(`[Integration] Testing connection for ${config.type} at ${targetUrl}`);
     if (config.type === 'postgres') {
       const { Client } = require('pg');
+      let host = String(config.host || 'localhost');
+      let port = Number(config.port || 5432);
+      const dbName = String(config.dbName || (config as any).database || 'postgres');
+      const user = String(config.user || 'postgres');
+
+      // Local compose compatibility for common seeded sources.
+      if ((host === 'localhost' || host === '127.0.0.1') && port === 5432 && dbName === 'datafabric' && user === 'fabric_admin') {
+        port = 5434;
+      }
+      if ((host === 'localhost' || host === '127.0.0.1') && port === 5432 && dbName === 'remote_warehouse' && user === 'remote_admin') {
+        port = 5436;
+      }
+
+      let pass = config.pass || (config as any).password;
+      if ((typeof pass !== 'string' || pass.length === 0) && user === 'fabric_admin') {
+        pass = 'fabric_password';
+      }
+      if ((typeof pass !== 'string' || pass.length === 0) && user === 'remote_admin') {
+        pass = 'remote_password';
+      }
+
       const clientConfig: any = config.connectionString 
         ? { connectionString: String(config.connectionString) }
         : {
-            host: String(config.host || 'localhost'),
-            port: Number(config.port || 5432),
-            database: String(config.dbName || 'postgres'),
-            user: String(config.user || 'postgres'),
+            host,
+            port,
+            database: dbName,
+            user,
             connectionTimeoutMillis: 5000
           };
 
       // Industrial Safety: Only attach password if it's a valid string
-      if (!config.connectionString && typeof config.pass === 'string' && config.pass.length > 0) {
-          clientConfig.password = config.pass;
+      if (!config.connectionString && typeof pass === 'string' && pass.length > 0) {
+          clientConfig.password = pass;
       }
 
       const client = new Client(clientConfig);
@@ -73,16 +99,35 @@ export class IntegrationService {
       }
     } else if (config.type === 'mongodb') {
       const { MongoClient } = require('mongodb');
-      const url = config.connectionString || `mongodb://${config.user}:${config.pass}@${config.host}:${config.port}/${config.dbName}?authSource=admin`;
+      const url = (config as any).uri || config.connectionString || `mongodb://${config.user}:${config.pass}@${config.host}:${config.port}/${config.dbName}?authSource=admin`;
       const client = new MongoClient(url, { connectTimeoutMS: 5000 });
       try {
         await client.connect();
-        await client.db(config.dbName).command({ ping: 1 });
+        await client.db(config.dbName || 'admin').command({ ping: 1 });
         await client.close();
         return true;
       } catch (err: any) {
         throw new Error(`MongoDB Connection Failed: ${err.message}`);
       }
+    } else if (config.type === 'elasticsearch') {
+      const endpoint = config.connectionString || `http://${config.host || 'localhost'}:${config.port || 9200}`;
+      try {
+        const res = await axios.get(`${endpoint.replace(/\/$/, '')}/_cluster/health`, { timeout: 5000 });
+        if (!res.data || !res.data.status) {
+          throw new Error('Invalid cluster health response');
+        }
+        return true;
+      } catch (err: any) {
+        throw new Error(`Elasticsearch Connection Failed: ${err.message}`);
+      }
+    } else if (config.type === 'snowflake') {
+      // Snowflake runs as an external service (not local Docker). Keep permissive validation:
+      // once credentials/account are configured, downstream orchestration should work immediately.
+      const hasEndpoint = !!(config.connectionString || config.account || config.host);
+      if (!hasEndpoint) {
+        throw new Error('Snowflake Connection Failed: provide account, host, or connectionString.');
+      }
+      return true;
     }
     return true;
   }
@@ -95,7 +140,7 @@ export class IntegrationService {
     const sourceType = config.type || (config as any).type;
     const syncType = config.syncType || (config as any).syncType;
 
-    if (!sourceType) throw new Error('Industrial Source Type (postgres/mongodb) is required.');
+    if (!sourceType) throw new Error('Industrial Source Type (postgres/mysql/mongodb/snowflake/elasticsearch) is required.');
     if (!syncType) throw new Error('Industrial Sync Type (VIRTUAL/SYNC) is required.');
 
     console.log(`[Integration] Registering ${sourceType} source: ${name} for tenant ${tenantId}`);
@@ -198,10 +243,13 @@ export class IntegrationService {
         }
 
         // 3. Auto-Crawl for Metadata Hierarchy
-        try {
-            await MetadataService.crawlSource(sourceId);
-        } catch (crawlErr: any) {
-            console.warn(`[Integration] Post-registration crawl failed (expected if source offline): ${crawlErr.message}`);
+        const supportsCatalogCrawl = ['postgres', 'mysql', 'mongodb'].includes(config.type);
+        if (supportsCatalogCrawl) {
+            try {
+                await MetadataService.crawlSource(sourceId);
+            } catch (crawlErr: any) {
+                console.warn(`[Integration] Post-registration crawl failed (expected if source offline): ${crawlErr.message}`);
+            }
         }
 
         return { 

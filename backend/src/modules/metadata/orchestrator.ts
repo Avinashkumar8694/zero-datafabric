@@ -228,7 +228,22 @@ export class MetadataOrchestrator {
         // 2. Sync Catalog (Industrial Integrity: Ensure UI Explorer works)
         for (const schema of manifest.schemas) {
             const targetSourceName = schema.targetSource || manifest.targetSource || 'Fabric_Hub_Postgres';
-            const { rows: sourceRows } = await client.query('SELECT id FROM public.data_sources WHERE name = $1', [targetSourceName]);
+            let { rows: sourceRows } = await client.query(
+                'SELECT id FROM public.data_sources WHERE tenant_id = $1 AND name = $2',
+                [tenantId, targetSourceName]
+            );
+
+            // Keep Explorer in sync even when Hub source was not pre-seeded for this tenant.
+            if (sourceRows.length === 0 && targetSourceName === 'Fabric_Hub_Postgres') {
+                const upsert = await client.query(`
+                    INSERT INTO public.data_sources (tenant_id, name, type, config, sync_type, status)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    ON CONFLICT (tenant_id, name) DO UPDATE SET status = EXCLUDED.status
+                    RETURNING id
+                `, [tenantId, targetSourceName, 'POSTGRES', JSON.stringify({ local: true }), 'VIRTUAL', 'ACTIVE']);
+                sourceRows = upsert.rows;
+            }
+
             if (sourceRows.length === 0) continue;
 
             const sourceId = sourceRows[0].id;

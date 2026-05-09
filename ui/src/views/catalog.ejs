@@ -427,15 +427,16 @@
         try {
             const res = await fetch(`${API_BASE}/metadata/preview?tableId=${tableId}&limit=50`, { headers: getAuthHeaders() });
             const data = await res.json();
+            const rows = Array.isArray(data) ? data : (Array.isArray(data?.results) ? data.results : []);
             
-            if (!data || data.length === 0) {
+            if (!rows || rows.length === 0) {
                 body.innerHTML = '<tr><td colspan="100" style="text-align:center;">No records found.</td></tr>';
                 return;
             }
 
-            const columns = Object.keys(data[0]);
+            const columns = Object.keys(rows[0]);
             head.innerHTML = columns.map(c => `<th>${c}</th>`).join('');
-            body.innerHTML = data.map(row => `
+            body.innerHTML = rows.map(row => `
                 <tr>
                     ${columns.map(c => `<td>${typeof row[c] === 'object' ? JSON.stringify(row[c]) : row[c]}</td>`).join('')}
                 </tr>

@@ -47,16 +47,22 @@ export class IntegrationService {
     console.log(`[Integration] Testing connection for ${config.type} at ${targetUrl}`);
     if (config.type === 'postgres') {
       const { Client } = require('pg');
-      const client = config.connectionString 
-        ? new Client({ connectionString: config.connectionString })
-        : new Client({
-            host: config.host,
-            port: config.port,
-            database: config.dbName,
-            user: config.user,
-            password: config.pass,
+      const clientConfig: any = config.connectionString 
+        ? { connectionString: String(config.connectionString) }
+        : {
+            host: String(config.host || 'localhost'),
+            port: Number(config.port || 5432),
+            database: String(config.dbName || 'postgres'),
+            user: String(config.user || 'postgres'),
             connectionTimeoutMillis: 5000
-          });
+          };
+
+      // Industrial Safety: Only attach password if it's a valid string
+      if (!config.connectionString && typeof config.pass === 'string' && config.pass.length > 0) {
+          clientConfig.password = config.pass;
+      }
+
+      const client = new Client(clientConfig);
       try {
         await client.connect();
         await client.query('SELECT 1');

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { MetadataService } from '../modules/metadata/metadata.service';
+import { QueryEngineService } from '../modules/query-engine/query-engine.service';
 import { MetadataOrchestrator } from '../modules/metadata/orchestrator';
 import { ManifestParser } from '../modules/metadata/manifest_parser';
 import { pool, queryWithContext } from '../config/database';
@@ -62,6 +63,25 @@ export const getTables = async (req: Request, res: Response) => {
         const user = (req as any).user;
         const { rows } = await queryWithContext('SELECT id as "tableId", name, physical_name as "physicalName", row_count as "rowCount", resource_type as "resourceType" FROM public.catalog_tables WHERE schema_id = $1', [schemaId], { tenantId: user.tenant_id, username: user.username });
         res.json(rows);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+export const getPreviewData = async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user;
+        const { tableId, limit = 50 } = req.query;
+        if (!tableId) return res.status(400).json({ error: 'tableId is required' });
+
+        const result = await QueryEngineService.executeQuery(user.tenant_id, {
+            type: 'SELECT',
+            tableId: tableId as string,
+            limit: parseInt(limit as string),
+            select: ['*']
+        });
+
+        res.json(result);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }
@@ -192,7 +212,7 @@ export const getEvents = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     const { rows } = await pool.query(
-      'SELECT id, action, table_name as "tableName", created_at as "createdAt", new_data as "details" FROM public.audit_logs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 10',
+      'SELECT id, action, table_name as "tableName", changed_at as "createdAt", new_data as "details" FROM public.audit_logs WHERE tenant_id = $1 ORDER BY changed_at DESC LIMIT 10',
       [user.tenant_id]
     );
     res.json(rows);
@@ -234,6 +254,38 @@ export const toggleDownstream = async (req: Request, res: Response) => {
         // 3. Re-Apply Manifest (Force to bypass risk checks for simple toggles)
         const result = await orchestrator.apply(user.tenant_id, manifest, { force: true });
         res.json({ status: 'SUCCESS', result });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+export const getResourceDetails = async (req: Request, res: Response) => {
+    try {
+        const resourceId = req.params.id;
+        const user = (req as any).user;
+        
+        const { rows } = await queryWithContext(`
+            SELECT 
+                ct.id as "tableId", 
+                ct.name, 
+                ct.physical_name as "physicalName", 
+                ct.resource_type as "resourceType", 
+                ct.definition_sql as "definitionSql", 
+                ct.definition_ast as "definitionAst",
+                ct.row_count as "rowCount",
+                ds.type as "sourceType",
+                ds.name as "sourceName"
+            FROM public.catalog_tables ct
+            JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+            JOIN public.data_sources ds ON cs.source_id = ds.id
+            WHERE ct.id = $1
+        `, [resourceId], { tenantId: user.tenant_id, username: user.username });
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'Resource not found' });
+        }
+
+        res.json(rows[0]);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }

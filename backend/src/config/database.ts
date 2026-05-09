@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgres://fabric_admin:super_secret_password@localhost:5432/datafabric',
+  connectionString: String(process.env.DATABASE_URL || 'postgres://fabric_admin:super_secret_password@localhost:5432/datafabric'),
   statement_timeout: 10000, // 10 seconds industrial timeout
 });
 

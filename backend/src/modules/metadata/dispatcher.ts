@@ -33,14 +33,21 @@ export class HeterogeneousDispatcher {
             // Since backend is local, we use local host/port.
         }
 
-        const client = new Client({
+        const clientConfig: any = {
             host: targetHost,
             port: targetPort,
-            database: config.database || config.dbName,
-            user: config.user,
-            password: config.password || config.pass,
+            database: String(config.database || config.dbName || 'postgres'),
+            user: String(config.user || 'postgres'),
             connectionTimeoutMillis: 5000
-        });
+        };
+
+        // Industrial Safety: Only attach password if it's a valid string
+        const pass = config.password || config.pass;
+        if (typeof pass === 'string' && pass.length > 0) {
+            clientConfig.password = pass;
+        }
+
+        const client = new Client(clientConfig);
 
         try {
             await client.connect();

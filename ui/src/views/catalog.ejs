@@ -1,256 +1,451 @@
 <%- include('partials/header') %>
 
-<div class="fade-in">
-    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
-        <div>
-            <h1 style="font-family:'Outfit'; font-weight:800; font-size:1.75rem;">Fabric Explorer</h1>
-            <p style="color:var(--text-muted);">Navigate the unified logical hierarchy and technical lineage of your data fabric.</p>
+<div class="fabric-container fade-in">
+    <!-- Sidebar: Hierarchical Tree -->
+    <div class="fabric-sidebar">
+        <div class="sidebar-header">
+            <h1 class="sidebar-title">Management Studio</h1>
+            <div class="search-container">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" id="catalogSearch" placeholder="Search resources..." onkeyup="filterTree()">
+            </div>
         </div>
-        <div class="search-box" style="position: relative; width: 350px;">
-            <i class="fas fa-search" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
-            <input type="text" id="catalogSearch" placeholder="Search across catalog..." class="context-select" style="width: 100%; padding-left: 2.75rem; height: 45px; border-radius: 12px; background:white; box-shadow: var(--shadow);" onkeyup="filterCatalog()">
+        <div id="fabricTree" class="tree-view">
+            <div class="loading-state"><div class="loading-spinner"></div></div>
         </div>
     </div>
 
-    <div class="drill-down-container">
-        <!-- Sources -->
-        <div class="drill-down-column">
-            <div class="column-header"><i class="fas fa-server"></i> SOURCES</div>
-            <div id="sourcesList" class="drill-down-list">
-                <div style="padding: 2rem; text-align: center;"><div class="loading-spinner"></div></div>
+    <!-- Main Panel: Tabbed Interface -->
+    <div class="fabric-main">
+        <div id="welcomeView" class="view-panel active">
+            <div class="welcome-content">
+                <i class="fas fa-project-diagram welcome-icon"></i>
+                <h2>Welcome to Fabric Management Studio</h2>
+                <p>Select a resource from the tree to explore its properties, data, and technical lineage across the distributed fabric.</p>
             </div>
         </div>
 
-        <!-- Schemas -->
-        <div class="drill-down-column">
-            <div class="column-header"><i class="fas fa-folder-open"></i> SCHEMAS</div>
-            <div id="schemasList" class="drill-down-list">
-                <p class="empty-state">Select a source</p>
+        <div id="resourceView" class="view-panel">
+            <div class="resource-header">
+                <div class="resource-identity">
+                    <i id="resIcon" class="fas fa-table res-header-icon"></i>
+                    <div>
+                        <h2 id="resName">Resource Name</h2>
+                        <span id="resEngine" class="engine-badge">POSTGRESQL</span>
+                    </div>
+                </div>
+                <div id="tabBar" class="resource-tabs">
+                    <!-- Dynamic Tabs -->
+                </div>
             </div>
-        </div>
 
-        <!-- Resources -->
-        <div class="drill-down-column">
-            <div class="column-header"><i class="fas fa-layer-group"></i> RESOURCES</div>
-            <div id="tablesList" class="drill-down-list">
-                <p class="empty-state">Select a schema</p>
+            <div class="tab-content" id="tab-properties">
+                <div id="propertyCards" class="grid-layout">
+                    <!-- Dynamic Property Cards -->
+                </div>
+                
+                <!-- NEW: Columns Inspector -->
+                <div id="columnsSection" class="meta-card full-width" style="margin-top:1.5rem; display:none;">
+                    <span class="meta-label">Schema & Constraints</span>
+                    <div class="data-grid-container" style="max-height: 300px;">
+                        <table id="columnsGrid">
+                            <thead>
+                                <tr>
+                                    <th>Column</th>
+                                    <th>Type</th>
+                                    <th>Strategy</th>
+                                    <th>Nullable</th>
+                                    <th>PK</th>
+                                </tr>
+                            </thead>
+                            <tbody id="columnsBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="meta-card full-width" style="margin-top:1.5rem;">
+                    <span class="meta-label">Technical Descriptor (Raw AST)</span>
+                    <pre id="propRaw" style="max-height: 200px; overflow: auto;">{}</pre>
+                </div>
             </div>
-        </div>
 
-        <!-- Metadata -->
-        <div class="drill-down-column" style="flex: 1.4; background: #F9FAFB;">
-            <div class="column-header"><i class="fas fa-microchip"></i> TECHNICAL LINEAGE</div>
-            <div id="metadataView" class="drill-down-list" style="padding: 1.5rem;">
-                <p class="empty-state">Select a table to inspect</p>
+            <div class="tab-content" id="tab-data" style="display:none;">
+                <div class="data-toolbar">
+                    <span>Showing top 50 rows</span>
+                    <button class="btn-secondary btn-sm" onclick="refreshData()"><i class="fas fa-sync"></i> Refresh</button>
+                </div>
+                <div class="data-grid-container">
+                    <table id="previewGrid">
+                        <thead><tr id="gridHeader"></tr></thead>
+                        <tbody id="gridBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-lineage" style="display:none;">
+                <div class="lineage-flow">
+                    <div class="lineage-node">Source Engine<br><small id="linSource">Postgres</small></div>
+                    <i class="fas fa-long-arrow-alt-right"></i>
+                    <div class="lineage-node highlight">Logical Mesh<br><small id="linLogical">Table</small></div>
+                    <i class="fas fa-long-arrow-alt-right"></i>
+                    <div class="lineage-node">Downstream<br><small>Synced</small></div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-ddl" style="display:none;">
+                <pre id="ddlCode" class="language-sql">-- Generating DDL...</pre>
+            </div>
+            <div class="tab-content" id="tab-ast" style="display:none;">
+                <pre id="astCode" class="language-json">-- Generating AST...</pre>
             </div>
         </div>
     </div>
 </div>
 
 <style>
-    .drill-down-container { display: flex; gap: 1.5rem; height: calc(100vh - 220px); }
-    .drill-down-column {
-        flex: 1;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 16px;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-        box-shadow: var(--shadow);
+    :root {
+        --sidebar-bg: #f8fafc;
+        --border-color: #e2e8f0;
+        --header-bg: #ffffff;
+        --active-blue: #2563eb;
+        --text-main: #1e293b;
+        --text-dim: #64748b;
     }
-    .column-header {
-        padding: 1rem 1.25rem;
-        background: #F9FAFB;
-        border-bottom: 1px solid var(--border);
-        font-weight: 700;
-        font-size: 0.75rem;
-        letter-spacing: 0.05rem;
-        color: var(--text-muted);
-        text-transform: uppercase;
-    }
-    .drill-down-list { flex: 1; overflow-y: auto; }
-    .drill-down-item {
-        padding: 0.85rem 1.25rem;
-        cursor: pointer;
-        border-bottom: 1px solid #F3F4F6;
-        transition: 0.2s;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 0.9rem;
-        font-weight: 500;
-        color: var(--text);
-    }
-    .drill-down-item:hover { background: #F9FAFB; }
-    .drill-down-item.active { background: #EBF2FF; color: var(--primary); border-right: 4px solid var(--primary); }
-    .empty-state { padding: 3rem 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; font-style: italic; }
+
+    .fabric-container { display: flex; height: calc(100vh - 80px); background: #fff; overflow: hidden; }
     
-    .meta-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.25rem; }
-    .meta-label { font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem; display: block; }
-    pre { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: #1e293b; background: #F1F5F9; padding: 1rem; border-radius: 8px; overflow-x: auto; max-height: 300px; }
+    /* Sidebar Styles */
+    .fabric-sidebar { width: 320px; background: var(--sidebar-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; }
+    .sidebar-header { padding: 1.5rem; border-bottom: 1px solid var(--border-color); }
+    .sidebar-title { font-size: 1.1rem; font-weight: 800; color: var(--text-main); margin-bottom: 1rem; }
+    .search-container { position: relative; }
+    .search-icon { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 0.8rem; }
+    #catalogSearch { width: 100%; padding: 0.6rem 0.75rem 0.6rem 2.25rem; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.85rem; }
+
+    /* Tree Styles */
+    .tree-view { flex: 1; overflow-y: auto; padding: 1rem 0; }
+    .tree-item { padding: 0.5rem 1.5rem; cursor: pointer; display: flex; align-items: center; gap: 0.75rem; font-size: 0.9rem; color: var(--text-main); transition: 0.2s; }
+    .tree-item:hover { background: #f1f5f9; }
+    .tree-item.active { background: #e0e7ff; color: var(--active-blue); font-weight: 600; border-right: 3px solid var(--active-blue); }
+    .tree-node { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; color: var(--text-dim); font-size: 0.75rem; text-transform: uppercase; margin-top: 1rem; margin-bottom: 0.25rem; padding: 0 1.5rem; }
+    .tree-sub-item { padding-left: 2.5rem; }
+    
+    /* Main Panel Styles */
+    .fabric-main { flex: 1; display: flex; flex-direction: column; background: #fff; }
+    .view-panel { display: none; flex: 1; flex-direction: column; }
+    .view-panel.active { display: flex; }
+
+    .welcome-content { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--text-dim); padding: 4rem; }
+    .welcome-icon { font-size: 4rem; color: #cbd5e1; margin-bottom: 2rem; }
+
+    .resource-header { padding: 1.5rem 2rem; border-bottom: 1px solid var(--border-color); background: var(--header-bg); }
+    .resource-identity { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+    .res-header-icon { font-size: 1.5rem; color: var(--active-blue); background: #eff6ff; padding: 1rem; border-radius: 12px; }
+    .resource-identity h2 { font-size: 1.25rem; font-weight: 800; margin: 0; }
+    .engine-badge { font-size: 0.65rem; font-weight: 700; background: #f1f5f9; color: var(--text-dim); padding: 0.2rem 0.5rem; border-radius: 4px; }
+
+    .resource-tabs { display: flex; gap: 1rem; }
+    .tab-btn { padding: 0.5rem 1rem; border: none; background: none; color: var(--text-dim); font-size: 0.85rem; font-weight: 600; cursor: pointer; border-radius: 6px; transition: 0.2s; }
+    .tab-btn:hover { background: #f1f5f9; }
+    .tab-btn.active { background: #eff6ff; color: var(--active-blue); }
+
+    .tab-content { padding: 2rem; flex: 1; overflow-y: auto; }
+    .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
+    .meta-card { background: #fff; border: 1px solid var(--border-color); border-radius: 12px; padding: 1.25rem; }
+    .meta-label { display: block; font-size: 0.7rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; margin-bottom: 1rem; }
+    .property-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+    .property-row span { color: var(--text-dim); }
+    .property-row b, .property-row code { color: var(--text-main); }
+    
+    .data-grid-container { border: 1px solid var(--border-color); border-radius: 12px; overflow: auto; max-height: 500px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th { background: #f8fafc; padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border-color); color: var(--text-dim); position: sticky; top: 0; }
+    td { padding: 0.75rem 1rem; border-bottom: 1px solid #f1f5f9; color: var(--text-main); }
+    tr:hover { background: #f8fafc; }
+
+    .lineage-flow { display: flex; align-items: center; justify-content: center; gap: 2rem; padding: 4rem 2rem; }
+    .lineage-node { background: #fff; border: 2px solid var(--border-color); border-radius: 12px; padding: 1.5rem; text-align: center; font-weight: 700; width: 180px; }
+    .lineage-node.highlight { border-color: var(--active-blue); color: var(--active-blue); background: #eff6ff; }
+    .lineage-node small { font-weight: 400; color: var(--text-dim); }
+
+    pre { background: #f8fafc; padding: 1.5rem; border-radius: 12px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; border: 1px solid var(--border-color); overflow-x: auto; }
+    .status-indicator { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.75rem; }
+    .status-indicator::before { content: ''; width: 8px; height: 8px; background: #10b981; border-radius: 50%; }
 </style>
 
 <script>
-    let allData = { sources: [], schemas: [], tables: [] };
+    let allData = { sources: [], schemas: [], tables: [], currentTable: null };
 
-    async function loadSources() {
-        const list = document.getElementById('sourcesList');
+    async function loadTree() {
+        const treeEl = document.getElementById('fabricTree');
         try {
-            const res = await fetch(`${API_BASE}/metadata/sources`, { headers: getAuthHeaders() });
-            allData.sources = await res.json();
-            renderSources();
+            const sourcesRes = await fetch(`${API_BASE}/metadata/sources`, { headers: getAuthHeaders() });
+            allData.sources = await sourcesRes.json();
+            
+            let html = '';
+            for (const source of allData.sources) {
+                html += `
+                    <div class="tree-node"><i class="fas fa-server"></i> ${source.name} <small>(${source.type})</small></div>
+                    <div id="source-${source.id}-schemas">
+                        <div style="padding-left:1.5rem; font-size:0.8rem; color:var(--text-dim);">Loading schemas...</div>
+                    </div>
+                `;
+            }
+            treeEl.innerHTML = html;
+
+            // Now that containers exist, trigger loading
+            for (const source of allData.sources) {
+                loadSchemas(source.id);
+            }
         } catch (e) {
-            list.innerHTML = '<p class="text-danger">Failed to connect to Catalog API.</p>';
+            treeEl.innerHTML = '<p class="text-danger" style="padding:1rem;">Failed to load tree.</p>';
         }
     }
 
-    function renderSources(filter = '') {
-        const list = document.getElementById('sourcesList');
-        const filtered = allData.sources.filter(s => s.name.toLowerCase().includes(filter.toLowerCase()));
-        list.innerHTML = filtered.map(s => `
-            <div class="drill-down-item" onclick="selectSource('${s.id}', this)">
-                <div>
-                    <div>${s.name}</div>
-                    <div style="font-size: 0.7rem; color: var(--text-muted); font-weight:400;">${s.type.toUpperCase()}</div>
-                </div>
-                <i class="fas fa-chevron-right" style="font-size: 0.7rem; opacity:0.3;"></i>
-            </div>
-        `).join('') || '<p class="empty-state">No sources found.</p>';
-    }
-
-    async function selectSource(sourceId, el) {
-        document.querySelectorAll('#sourcesList .drill-down-item').forEach(i => i.classList.remove('active'));
-        el.classList.add('active');
-        
-        const list = document.getElementById('schemasList');
-        list.innerHTML = '<div style="padding: 2rem; text-align: center;"><div class="loading-spinner"></div></div>';
-        document.getElementById('tablesList').innerHTML = '<p class="empty-state">Select a schema</p>';
-        document.getElementById('metadataView').innerHTML = '<p class="empty-state">Select a table to inspect</p>';
-        
+    async function loadSchemas(sourceId) {
+        const schemaEl = document.getElementById(`source-${sourceId}-schemas`);
         try {
             const res = await fetch(`${API_BASE}/metadata/schemas?sourceId=${sourceId}`, { headers: getAuthHeaders() });
-            allData.schemas = await res.json();
-            renderSchemas();
-        } catch (e) { list.innerHTML = '<p class="text-danger">Failed to load schemas.</p>'; }
+            const schemas = await res.json();
+            
+            schemaEl.innerHTML = schemas.map(s => `
+                <div class="tree-item tree-sub-item" data-schema-id="${s.schemaId}" onclick="toggleSchema('${s.schemaId}', this)">
+                    <i class="fas fa-folder"></i> ${s.name}
+                </div>
+                <div id="schema-${s.schemaId}-resources" style="display:none;"></div>
+            `).join('') || '<div style="padding-left:1.5rem; font-size:0.8rem; color:var(--text-dim);">No schemas</div>';
+        } catch (e) { schemaEl.innerHTML = '<p class="text-danger">Error</p>'; }
     }
 
-    function renderSchemas(filter = '') {
-        const list = document.getElementById('schemasList');
-        const filtered = allData.schemas.filter(s => s.name.toLowerCase().includes(filter.toLowerCase()));
-        list.innerHTML = filtered.map(s => `
-            <div class="drill-down-item" onclick="selectSchema('${s.schemaId}', this)">
-                <span>${s.name}</span>
-                <i class="fas fa-chevron-right" style="font-size: 0.7rem; opacity:0.3;"></i>
-            </div>
-        `).join('') || '<p class="empty-state">No schemas available.</p>';
-    }
-
-    async function selectSchema(schemaId, el) {
-        document.querySelectorAll('#schemasList .drill-down-item').forEach(i => i.classList.remove('active'));
-        el.classList.add('active');
+    async function toggleSchema(schemaId, el) {
+        const resourceEl = document.getElementById(`schema-${schemaId}-resources`);
+        const icon = el.querySelector('i');
         
-        const list = document.getElementById('tablesList');
-        list.innerHTML = '<div style="padding: 2rem; text-align: center;"><div class="loading-spinner"></div></div>';
+        if (resourceEl.style.display === 'none') {
+            resourceEl.style.display = 'block';
+            icon.className = 'fas fa-folder-open';
+            el.classList.add('active');
+            
+            if (!resourceEl.innerHTML) {
+                resourceEl.innerHTML = '<div style="padding-left:3.5rem; font-size:0.8rem; color:var(--text-dim);">Loading resources...</div>';
+                const res = await fetch(`${API_BASE}/metadata/tables?schemaId=${schemaId}`, { headers: getAuthHeaders() });
+                const resources = await res.json();
+                
+                // Manifest-Aligned Categorization
+                const groups = resources.reduce((acc, r) => {
+                    const type = r.resourceType + (r.resourceType.endsWith('S') ? '' : 'S'); 
+                    if (!acc[type]) acc[type] = [];
+                    acc[type].push(r);
+                    return acc;
+                }, {});
+
+                let html = '';
+                for (const [cat, items] of Object.entries(groups)) {
+                    if (items.length > 0) {
+                        html += `<div style="padding-left:3.5rem; font-size:0.65rem; font-weight:800; color:var(--text-dim); text-transform:uppercase; margin-top:0.5rem;">${cat}</div>`;
+                        html += items.map(t => `
+                            <div class="tree-item" style="padding-left:4rem;" data-table-id="${t.tableId}" data-schema-id="${schemaId}" onclick="selectResource('${t.tableId}', this, event)">
+                                <i class="fas ${getIcon(t.resourceType)}"></i> ${t.name}
+                            </div>
+                        `).join('');
+                    }
+                }
+                resourceEl.innerHTML = html || '<div style="padding-left:3.5rem; font-size:0.8rem; color:var(--text-dim);">Empty</div>';
+            }
+        } else {
+            resourceEl.style.display = 'none';
+            icon.className = 'fas fa-folder';
+            el.classList.remove('active');
+        }
+    }
+
+    function getIcon(type) {
+        switch(type) {
+            case 'TABLE': return 'fa-table';
+            case 'VIEW': return 'fa-eye';
+            case 'MATERIALIZED_VIEW': return 'fa-bolt';
+            case 'SEQUENCE': return 'fa-sort-numeric-up';
+            case 'FUNCTION': return 'fa-code';
+            case 'PROCEDURE': return 'fa-cogs';
+            case 'ENUM': return 'fa-list-ul';
+            case 'TRIGGER': return 'fa-running';
+            case 'POLICY': return 'fa-shield-alt';
+            default: return 'fa-cube';
+        }
+    }
+
+    async function selectResource(tableId, el, event) {
+        try {
+            event.stopPropagation();
+            document.querySelectorAll('.tree-item').forEach(i => i.classList.remove('active'));
+            el.classList.add('active');
+            
+            document.getElementById('welcomeView').classList.remove('active');
+            document.getElementById('resourceView').classList.add('active');
+            
+            // High-Fidelity Fetch: Resolve deep metadata for any resource type
+            const res = await fetch(`${API_BASE}/metadata/resource/${tableId}`, { headers: getAuthHeaders() });
+            if (!res.ok) throw new Error('Resource resolution failed');
+            const resource = await res.json();
+            
+            allData.currentTable = resource;
+
+            // Update Header
+            document.getElementById('resName').innerText = resource.name;
+            document.getElementById('resIcon').className = `fas ${getIcon(resource.resourceType)} res-header-icon`;
+            const engine = resource.physicalName.includes('Activity_Logs') || resource.physicalName.includes('mongo') ? 'MONGODB' : 'POSTGRESQL';
+            document.getElementById('resEngine').innerText = engine;
+            
+            // Dynamic Tab Generation
+            const tabs = [
+                { id: 'properties', label: 'Properties', icon: 'fa-info-circle' }
+            ];
+            
+            if (['TABLE', 'VIEW', 'MATERIALIZED_VIEW'].includes(resource.resourceType)) {
+                tabs.push({ id: 'data', label: 'Data Preview', icon: 'fa-table' });
+                tabs.push({ id: 'lineage', label: 'Lineage', icon: 'fa-link' });
+            }
+            
+            tabs.push({ id: 'ddl', label: 'SQL DDL', icon: 'fa-code' });
+            tabs.push({ id: 'ast', label: 'Fabric AST', icon: 'fa-project-diagram' });
+
+            document.getElementById('tabBar').innerHTML = tabs.map(t => `
+                <button id="btn-${t.id}" class="tab-btn ${t.id === 'properties' ? 'active' : ''}" onclick="switchTab('${t.id}')">
+                    <i class="fas ${t.icon}"></i> ${t.label}
+                </button>
+            `).join('');
+
+            // Dynamic Property Card Generation
+            const ast = resource.definitionAst || {};
+            let propHtml = `
+                <div class="meta-card">
+                    <span class="meta-label">General Information</span>
+                    <div class="property-row"><span>Logical ID</span><code>${resource.tableId}</code></div>
+                    <div class="property-row"><span>Type</span><b>${resource.resourceType}</b></div>
+                    <div class="property-row"><span>Physical Name</span><code>${resource.physicalName}</code></div>
+                </div>
+            `;
+
+            if (resource.resourceType === 'SEQUENCE') {
+                propHtml += `
+                    <div class="meta-card">
+                        <span class="meta-label">Sequence Configuration</span>
+                        <div class="property-row"><span>Start With</span><b>${ast.start || 1}</b></div>
+                        <div class="property-row"><span>Increment</span><b>${ast.increment || 1}</b></div>
+                        <div class="property-row"><span>Min/Max</span><span>${ast.minValue || 'N/A'} / ${ast.maxValue || 'N/A'}</span></div>
+                        <div class="property-row"><span>Cache</span><b>${ast.cache || 'OFF'}</b></div>
+                    </div>
+                `;
+            } else if (resource.resourceType === 'TRIGGER') {
+                propHtml += `
+                    <div class="meta-card">
+                        <span class="meta-label">Trigger Definition</span>
+                        <div class="property-row"><span>Event</span><b>${ast.event || 'N/A'}</b></div>
+                        <div class="property-row"><span>Timing</span><b>${ast.timing || 'N/A'}</b></div>
+                        <div class="property-row"><span>Level</span><b>${ast.level || 'ROW'}</b></div>
+                    </div>
+                `;
+            } else if (resource.resourceType === 'ENUM') {
+                propHtml += `
+                    <div class="meta-card">
+                        <span class="meta-label">Enum Values</span>
+                        <div style="margin-top:0.5rem;">${(ast.values || []).map(v => `<span class="engine-badge" style="margin:2px;">${v}</span>`).join('')}</div>
+                    </div>
+                `;
+            } else if (resource.resourceType.includes('VIEW')) {
+                propHtml += `
+                    <div class="meta-card">
+                        <span class="meta-label">View Optimization</span>
+                        <div class="property-row"><span>Materialized</span><b>${resource.resourceType.includes('MATERIALIZED') ? 'YES' : 'NO'}</b></div>
+                        <div class="property-row"><span>Recursive</span><b>${ast.recursive ? 'YES' : 'NO'}</b></div>
+                        <div class="property-row"><span>Federated</span><b>${ast.federationStrategy || 'NONE'}</b></div>
+                    </div>
+                `;
+            } else {
+                propHtml += `
+                    <div class="meta-card">
+                        <span class="meta-label">Storage Metrics</span>
+                        <div class="property-row"><span>Estimated Rows</span><b>${resource.rowCount || 'N/A'}</b></div>
+                        <div class="property-row"><span>Status</span><span class="status-indicator active">LIVE_SYNC</span></div>
+                    </div>
+                `;
+            }
+
+            // Columns Inspector logic
+            const colSection = document.getElementById('columnsSection');
+            const colBody = document.getElementById('columnsBody');
+            
+            if (ast.columns) {
+                colSection.style.display = 'block';
+                colBody.innerHTML = ast.columns.map(c => `
+                    <tr>
+                        <td><b>${c.name}</b></td>
+                        <td><code>${c.type}</code></td>
+                        <td><small>${c.strategy || 'NONE'}</small></td>
+                        <td>${c.nullable !== false ? '<i class="fas fa-check text-success"></i>' : '<i class="fas fa-times text-danger"></i>'}</td>
+                        <td>${c.primaryKey ? '<i class="fas fa-key text-warning"></i>' : ''}</td>
+                    </tr>
+                `).join('');
+            } else {
+                colSection.style.display = 'none';
+            }
+
+            // SQL DDL (Real Definition)
+            document.getElementById('ddlCode').innerText = resource.definitionSql || `-- DDL for ${resource.name}\n-- Target Engine: ${engine}\n\nSELECT * FROM ${resource.physicalName};`;
+            
+            // Fabric AST
+            document.getElementById('astCode').innerText = resource.definitionAst ? JSON.stringify(resource.definitionAst, null, 2) : '// No logical definition found';
+
+            switchTab('properties');
+            if (['TABLE', 'VIEW', 'MATERIALIZED_VIEW'].includes(resource.resourceType)) {
+                refreshData();
+            } else {
+                document.getElementById('tab-data').innerHTML = '<div class="empty-state">Data preview not available for this resource type.</div>';
+            }
+        } catch (e) {
+            console.error('[Discovery] Select Resource Error:', e);
+            showModal('Discovery Error', 'Failed to load resource details. The target engine may be unreachable.');
+        }
+    }
+
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+        
+        document.querySelector(`.tab-btn[onclick="switchTab('${tab}')"]`).classList.add('active');
+        document.getElementById(`tab-${tab}`).style.display = 'block';
+    }
+
+    async function refreshData() {
+        const tableId = allData.currentTable?.tableId;
+        if (!tableId) return;
+
+        const body = document.getElementById('gridBody');
+        const head = document.getElementById('gridHeader');
+        body.innerHTML = '<tr><td colspan="100" style="text-align:center;">Loading data...</td></tr>';
         
         try {
-            const res = await fetch(`${API_BASE}/metadata/tables?schemaId=${schemaId}`, { headers: getAuthHeaders() });
-            allData.tables = await res.json();
-            renderTables();
-        } catch (e) { list.innerHTML = '<p class="text-danger">Failed to load tables.</p>'; }
-    }
-
-    function renderTables(filter = '') {
-        const list = document.getElementById('tablesList');
-        const filtered = allData.tables.filter(t => t.name.toLowerCase().includes(filter.toLowerCase()));
-        
-        const getIcon = (type) => {
-            switch(type) {
-                case 'TABLE': return 'fa-table';
-                case 'VIEW': return 'fa-eye';
-                case 'MATERIALIZED_VIEW': return 'fa-bolt';
-                case 'SEQUENCE': return 'fa-sort-numeric-up';
-                case 'FUNCTION': return 'fa-code';
-                case 'PROCEDURE': return 'fa-cogs';
-                case 'ENUM': return 'fa-list-ul';
-                case 'TRIGGER': return 'fa-running';
-                case 'POLICY': return 'fa-shield-alt';
-                default: return 'fa-cube';
-            }
-        };
-
-        list.innerHTML = filtered.map(t => `
-            <div class="drill-down-item" onclick="selectTable('${t.tableId}', this)">
-                <div style="display:flex; align-items:center; gap:0.75rem;">
-                    <i class="fas ${getIcon(t.resourceType)}" style="width:16px; opacity:0.6; color:var(--primary);"></i>
-                    <div>
-                        <div>${t.name}</div>
-                        <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase;">${t.resourceType}</div>
-                    </div>
-                </div>
-                ${t.resourceType === 'TABLE' ? `<span class="badge" style="background:#EBF2FF; color:var(--primary); font-size:0.6rem;">${t.rowCount || 0} ROWS</span>` : ''}
-            </div>
-        `).join('') || '<p class="empty-state">No resources found.</p>';
-    }
-
-    async function selectTable(tableId, el) {
-        document.querySelectorAll('#tablesList .drill-down-item').forEach(i => i.classList.remove('active'));
-        el.classList.add('active');
-        
-        const view = document.getElementById('metadataView');
-        const table = allData.tables.find(t => t.tableId === tableId);
-        
-        view.innerHTML = `
-            <div class="meta-card">
-                <span class="meta-label">Logical Identifier</span>
-                <div style="font-weight: 700; font-size: 1.1rem; color: var(--primary); margin-bottom: 0.5rem;">${table.name}</div>
-                <div style="display:flex; gap:0.5rem; margin-bottom: 0.5rem;">
-                    <span class="badge" style="background:var(--primary); color:white;">${table.resourceType}</span>
-                    <span class="badge" style="background:#F1F5F9; color:#475569;">ID: ${tableId.substring(0,8)}</span>
-                </div>
-            </div>
+            const res = await fetch(`${API_BASE}/metadata/preview?tableId=${tableId}&limit=50`, { headers: getAuthHeaders() });
+            const data = await res.json();
             
-            <div class="meta-card">
-                <span class="meta-label">Fabric Orchestration Details</span>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                    <div style="background: #F9FAFB; padding: 0.75rem; border-radius: 8px;">
-                        <div style="font-size: 0.65rem; color: var(--text-muted);">PHYSICAL NAME</div>
-                        <div style="font-family: monospace; font-size: 0.8rem; word-break: break-all;">${table.physicalName}</div>
-                    </div>
-                    <div style="background: #F9FAFB; padding: 0.75rem; border-radius: 8px;">
-                        <div style="font-size: 0.65rem; color: var(--text-muted);">TARGET ENGINE</div>
-                        <div style="font-weight: 700; color: var(--primary);">${table.physicalName.includes('Activity_Logs') || table.physicalName.includes('mongo') ? 'MONGODB' : 'POSTGRESQL'}</div>
-                    </div>
-                </div>
-            </div>
+            if (!data || data.length === 0) {
+                body.innerHTML = '<tr><td colspan="100" style="text-align:center;">No records found.</td></tr>';
+                return;
+            }
 
-            <div class="meta-card">
-                <span class="meta-label">Source Lineage</span>
-                <div style="display:flex; gap:0.5rem; align-items:center;">
-                    <i class="fas fa-link" style="color:var(--success); font-size:0.8rem;"></i>
-                    <span style="font-size: 0.85rem; font-weight:500;">VIRTUALIZED_MAPPING_STABLE</span>
-                </div>
-            </div>
-
-            <div class="meta-card">
-                <span class="meta-label">Raw Descriptor</span>
-                <pre>${JSON.stringify(table, null, 2)}</pre>
-            </div>
-
-            <button class="btn-primary" style="width: 100%; height: 45px; border-radius: 12px;" onclick="window.location.href='/workbench?tableId=${tableId}'">
-                <i class="fas fa-external-link-alt"></i> OPEN IN WORKBENCH
-            </button>
-        `;
+            const columns = Object.keys(data[0]);
+            head.innerHTML = columns.map(c => `<th>${c}</th>`).join('');
+            body.innerHTML = data.map(row => `
+                <tr>
+                    ${columns.map(c => `<td>${typeof row[c] === 'object' ? JSON.stringify(row[c]) : row[c]}</td>`).join('')}
+                </tr>
+            `).join('');
+        } catch (e) {
+            body.innerHTML = '<tr><td colspan="100" style="text-align:center; color:red;">Error loading data preview.</td></tr>';
+        }
     }
 
-    function filterCatalog() {
-        const val = document.getElementById('catalogSearch').value;
-        renderSources(val);
-        renderSchemas(val);
-        renderTables(val);
-    }
-
-    loadSources();
+    loadTree();
 </script>
 
 <%- include('partials/footer') %>

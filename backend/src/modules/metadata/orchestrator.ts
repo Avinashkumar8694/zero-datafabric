@@ -1,3 +1,4 @@
+import { PoolClient } from 'pg';
 import { pool } from '../../config/database';
 import { DiffEngine } from './diff_engine';
 import { Transpiler } from './transpiler';
@@ -14,6 +15,14 @@ export class MetadataOrchestrator {
         
         if (plan.summary.highRisk > 0 && !options.force) {
             throw new Error(`CRITICAL: ${plan.summary.highRisk} High-Risk changes detected. Use force=true to override.`);
+        }
+
+        if (options.force) {
+            for (const schema of manifest.schemas) {
+                if (!plan.changes.find(c => c.action === 'CREATE_SCHEMA' && c.name === schema.name)) {
+                    plan.changes.unshift({ action: 'CREATE_SCHEMA', name: schema.name, targetSource: schema.targetSource || manifest.targetSource, risk: 'LOW' });
+                }
+            }
         }
 
         const client = await pool.connect();
@@ -33,29 +42,59 @@ export class MetadataOrchestrator {
                 }
             }
 
+            const resourceDefinitions: Map<string, { sql: string, ast: any }> = new Map();
+            const manifestResources: Map<string, any> = new Map();
+            for (const schema of manifest.schemas) {
+                for (const res of schema.resources) {
+                    manifestResources.set(`${schema.name}.${res.name}`, res);
+                }
+            }
+
             for (const diff of plan.changes) {
                 const targetSource = diff.targetSource || manifest.targetSource || 'Fabric_Hub_Postgres';
+                const isMongo = targetSource.toLowerCase().includes('mongo');
+                const sqls = isMongo ? [] : await Transpiler.toSql(diff, tenantId, manifest);
                 
-                if (targetSource.toLowerCase().includes('mongo')) {
+                const resourceName = diff.table || diff.name || (diff as any).resource;
+                const schemaName = diff.schema || (diff.action === 'CREATE_SCHEMA' ? diff.name : null);
+                
+                // 1. Capture Technical Specifications
+                if (resourceName && schemaName) {
+                    const key = `${schemaName}.${resourceName}`;
+                    resourceDefinitions.set(key, {
+                        sql: sqls.filter(s => !s.toUpperCase().includes('DROP')).join(';\n'),
+                        ast: manifestResources.get(key) || diff
+                    });
+                }
+
+                // 2. Physical Deployment
+                if (isMongo) {
                     const ops = await Transpiler.toMongo(diff, tenantId, manifest);
                     await HeterogeneousDispatcher.execute(tenantId, targetSource, ops);
                 } else {
-                    const sqls = await Transpiler.toSql(diff, tenantId, manifest);
-                    // Hub Postgres is already connected via 'client', but other Postgres sources need dispatcher
                     if (targetSource === 'Fabric_Hub_Postgres') {
                         for (const sql of sqls) {
-                            console.log(`[Orchestrator] Executing Hub SQL: ${sql}`);
+                            console.log(`[Orchestrator:Hub] Executing: ${sql}`);
                             await client.query(sql);
                         }
                     } else {
                         await HeterogeneousDispatcher.execute(tenantId, targetSource, sqls);
+                        
+                        // INDUSTRIAL SAFETY: If it's a schema creation, ensure local Hub also knows about it for metadata/caching
+                        if (diff.action === 'CREATE_SCHEMA') {
+                             const schemaName = `tenant_${tenantId}_${diff.name}`;
+                             await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+                             await client.query(`GRANT USAGE ON SCHEMA "${schemaName}" TO fabric_user`);
+                             await client.query(`GRANT SELECT ON ALL TABLES IN SCHEMA "${schemaName}" TO fabric_user`);
+                        }
                     }
                 }
                 
-                results.push({ action: diff.action, name: diff.name || diff.table, targetSource, status: 'SUCCESS' });
+                results.push({ action: diff.action, name: resourceName, targetSource, status: 'SUCCESS' });
             }
 
-            await this.persistMetadataState(client, tenantId, manifest, plan.summary);
+            // 3. Catalog Synchronization (Universal Refresh)
+            await this.persistMetadataState(client, tenantId, manifest, plan.summary, resourceDefinitions, manifestResources);
 
             // Step 4: Downstream Orchestration (Industrial Fabric Extension)
             const downstreamResults = await DownstreamService.provision(tenantId, manifest);
@@ -172,7 +211,14 @@ export class MetadataOrchestrator {
         }
     }
 
-    private async persistMetadataState(client: any, tenantId: string, manifest: MetadataManifest, summary: any) {
+    private async persistMetadataState(
+        client: PoolClient, 
+        tenantId: string, 
+        manifest: MetadataManifest, 
+        summary: any, 
+        definitions: Map<string, { sql: string, ast: any }>,
+        manifestResources: Map<string, any>
+    ) {
         // 1. Log History
         await client.query(`
             INSERT INTO fabric_system.metadata_history (tenant_id, version_tag, ast_content, summary)
@@ -186,7 +232,6 @@ export class MetadataOrchestrator {
             if (sourceRows.length === 0) continue;
 
             const sourceId = sourceRows[0].id;
-
             const physicalSchema = `tenant_${tenantId}_${schema.name}`;
             const { rows: schemaRows } = await client.query(`
                 INSERT INTO public.catalog_schemas (source_id, name, physical_name)
@@ -198,23 +243,31 @@ export class MetadataOrchestrator {
             const schemaId = schemaRows[0].id;
             const schemaPrefix = `${physicalSchema}.`;
 
-            // Sync All Resources (Tables, Views, Sequences, etc.)
             for (const resource of schema.resources) {
                 const physicalName = `${schemaPrefix}${resource.name}`;
-                await client.query(`
-                    INSERT INTO public.catalog_tables (schema_id, name, physical_name, resource_type)
-                    VALUES ($1, $2, $3, $4)
-                    ON CONFLICT (schema_id, physical_name) DO UPDATE SET last_crawled_at = NOW(), resource_type = EXCLUDED.resource_type
-                `, [schemaId, resource.name, physicalName, resource.type]);
+                const defKey = `${schema.name}.${resource.name}`;
+                const def = definitions.get(defKey);
+                const finalAst = manifestResources.get(defKey) || def?.ast || null;
 
-                // Industrial Enhancement: Sync Internal Triggers as sub-resources
+                await client.query(`
+                    INSERT INTO public.catalog_tables (schema_id, name, physical_name, resource_type, definition_sql, definition_ast)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    ON CONFLICT (schema_id, physical_name) DO UPDATE SET 
+                        last_crawled_at = NOW(), 
+                        resource_type = EXCLUDED.resource_type,
+                        definition_sql = COALESCE(EXCLUDED.definition_sql, public.catalog_tables.definition_sql),
+                        definition_ast = COALESCE(EXCLUDED.definition_ast, public.catalog_tables.definition_ast)
+                `, [schemaId, resource.name, physicalName, resource.type, def?.sql || null, finalAst ? JSON.stringify(finalAst) : null]);
+
+                // Sync Internal Triggers
                 if (resource.type === 'TABLE' && resource.triggers) {
                     for (const trg of resource.triggers) {
+                        const trgKey = trg.name; // Transpiler might need adjustment to return trigger SQL keyed by name
                         await client.query(`
-                            INSERT INTO public.catalog_tables (schema_id, name, physical_name, resource_type)
-                            VALUES ($1, $2, $3, 'TRIGGER')
-                            ON CONFLICT (schema_id, physical_name) DO UPDATE SET last_crawled_at = NOW()
-                        `, [schemaId, `${resource.name}.${trg.name}`, `${physicalName}.${trg.name}`]);
+                            INSERT INTO public.catalog_tables (schema_id, name, physical_name, resource_type, definition_ast)
+                            VALUES ($1, $2, $3, 'TRIGGER', $4)
+                            ON CONFLICT (schema_id, physical_name) DO UPDATE SET last_crawled_at = NOW(), definition_ast = EXCLUDED.definition_ast
+                        `, [schemaId, `${resource.name}.${trg.name}`, `${physicalName}.${trg.name}`, JSON.stringify(trg)]);
                     }
                 }
 
@@ -222,10 +275,10 @@ export class MetadataOrchestrator {
                 if (resource.type === 'TABLE' && resource.security?.policies) {
                     for (const pol of resource.security.policies) {
                         await client.query(`
-                            INSERT INTO public.catalog_tables (schema_id, name, physical_name, resource_type)
-                            VALUES ($1, $2, $3, 'POLICY')
-                            ON CONFLICT (schema_id, physical_name) DO UPDATE SET last_crawled_at = NOW()
-                        `, [schemaId, `${resource.name}.${pol.name}`, `${physicalName}.${pol.name}`]);
+                            INSERT INTO public.catalog_tables (schema_id, name, physical_name, resource_type, definition_ast)
+                            VALUES ($1, $2, $3, 'POLICY', $4)
+                            ON CONFLICT (schema_id, physical_name) DO UPDATE SET last_crawled_at = NOW(), definition_ast = EXCLUDED.definition_ast
+                        `, [schemaId, `${resource.name}.${pol.name}`, `${physicalName}.${pol.name}`, JSON.stringify(pol)]);
                     }
                 }
             }

@@ -16,16 +16,23 @@ export class PostgresConnector implements IConnector {
             console.log(`[Connector] Applying dynamic options:`, JSON.stringify(config.advanced.dynamicOptions));
         }
         
+        const poolConfig: any = {
+            host: String(config.host || 'localhost'),
+            port: Number(config.port || 5432),
+            database: String(config.dbName || config.database || config.db || 'postgres'),
+            user: String(config.user || 'postgres')
+        };
+
+        // Industrial Safety: Only attach password if it's a valid string
+        const pass = config.pass || config.password;
+        if (typeof pass === 'string' && pass.length > 0) {
+            poolConfig.password = pass;
+        }
+
         if (config.connectionString) {
-            this.pool = new Pool({ connectionString: config.connectionString });
+            this.pool = new Pool({ connectionString: String(config.connectionString) });
         } else {
-            this.pool = new Pool({
-                host: config.host,
-                port: config.port,
-                database: config.dbName || config.database || config.db,
-                user: config.user,
-                password: config.pass || config.password
-            });
+            this.pool = new Pool(poolConfig);
         }
     }
 
@@ -54,12 +61,24 @@ export class PostgresConnector implements IConnector {
     }
 
     async query(schema: string, table: string, config: any): Promise<any[]> {
-        // In virtual mode, we can generate SQL and execute it
-        // (Implementation similar to QueryEngineService.generateSql but for generic PG)
-        let sql = `SELECT * FROM "${schema}"."${table}"`;
-        if (config.limit) sql += ` LIMIT ${config.limit}`;
-        const { rows } = await this.pool.query(sql);
-        return rows;
+        // INDUSTRIAL RESILIENCE: Try specified schema, fallback to public if needed
+        try {
+            let sql = `SELECT * FROM "${schema}"."${table}"`;
+            if (config.limit) sql += ` LIMIT ${config.limit}`;
+            const { rows } = await this.pool.query(sql);
+            return rows;
+        } catch (err: any) {
+            console.warn(`[PostgresConnector] Schema "${schema}" failed, falling back to public for table "${table}"`);
+            try {
+                let sql = `SELECT * FROM "public"."${table}"`;
+                if (config.limit) sql += ` LIMIT ${config.limit}`;
+                const { rows } = await this.pool.query(sql);
+                return rows;
+            } catch (innerErr: any) {
+                console.error(`[PostgresConnector] Query failed on both "${schema}" and "public":`, innerErr.message);
+                throw innerErr;
+            }
+        }
     }
 
     async close() {

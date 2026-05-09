@@ -8,6 +8,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.get('/sources', metadataController.getSources);
 router.get('/schemas', metadataController.getSchemas);
 router.get('/tables', metadataController.getTables);
+router.get('/resource/:id', metadataController.getResourceDetails);
+router.get('/preview', metadataController.getPreviewData);
 router.get('/tables/:name', metadataController.getTableDetails);
 router.get('/template', metadataController.getTemplate);
 

@@ -1,0 +1,46 @@
+FAIL src/tests/apis/master_metadata_validation.test.ts
+  Industrial Data Fabric: Master Metadata Validation Suite v4.0
+    ✕ Exhaustive Test: Complete Supply Chain Ecosystem (Postgres + NoSQL Virtualization) (83 ms)
+    ✓ Scenario: Trigger Guardrails & Relative Scheduling (81 ms)
+    ✕ Scenario: Recursive Views (Org Chart) (21 ms)
+
+  ● Industrial Data Fabric: Master Metadata Validation Suite v4.0 › Exhaustive Test: Complete Supply Chain Ecosystem (Postgres + NoSQL Virtualization)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+      92 |         const res = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(masterManifest);
+      93 |         
+    > 94 |         expect(res.status).toBe(200);
+         |                            ^
+      95 |         expect(res.body.status).toBe('APPLIED');
+      96 |         expect(res.body.appliedCount).toBeGreaterThan(5);
+      97 |     });
+
+      at Object.<anonymous> (src/tests/apis/master_metadata_validation.test.ts:94:28)
+
+  ● Industrial Data Fabric: Master Metadata Validation Suite v4.0 › Scenario: Recursive Views (Org Chart)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+      175 |
+      176 |         const res = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(recursiveManifest);
+    > 177 |         expect(res.status).toBe(200);
+          |                            ^
+      178 |     });
+      179 | });
+      180 |
+
+      at Object.<anonymous> (src/tests/apis/master_metadata_validation.test.ts:177:28)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 1 passed, 3 total
+Snapshots:   0 total
+Time:        2.138 s
+Ran all test suites matching /backend\/src\/tests\/apis\/master_metadata_validation.test.ts/i.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

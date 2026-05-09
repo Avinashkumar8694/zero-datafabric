@@ -1,0 +1,45 @@
+FAIL src/tests/apis/metadata_orchestrator_v4.test.ts
+  Metadata Orchestrator v4.0: Industrial Validation
+    ✕ Stage 1: Provision Universal AST v4.0 (ENUM -> TABLE -> TRIGGER) (80 ms)
+    ✕ Stage 2: Verify autoDrop Lifecycle (55 ms)
+
+  ● Metadata Orchestrator v4.0: Industrial Validation › Stage 1: Provision Universal AST v4.0 (ENUM -> TABLE -> TRIGGER)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+      55 |
+      56 |         const res = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(manifest);
+    > 57 |         expect(res.status).toBe(200);
+         |                            ^
+      58 |         expect(res.body.status).toBe('APPLIED');
+      59 |     });
+      60 |
+
+      at Object.<anonymous> (src/tests/apis/metadata_orchestrator_v4.test.ts:57:28)
+
+  ● Metadata Orchestrator v4.0: Industrial Validation › Stage 2: Verify autoDrop Lifecycle
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+      84 |
+      85 |         const res = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(manifestV41);
+    > 86 |         expect(res.status).toBe(200);
+         |                            ^
+      87 |     });
+      88 | });
+      89 |
+
+      at Object.<anonymous> (src/tests/apis/metadata_orchestrator_v4.test.ts:86:28)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 2 total
+Snapshots:   0 total
+Time:        2.086 s, estimated 11 s
+Ran all test suites matching /backend\/src\/tests\/apis\/metadata_orchestrator_v4.test.ts/i.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

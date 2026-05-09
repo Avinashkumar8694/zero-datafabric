@@ -16,4 +16,7 @@ router.post('/diff', upload.single('file'), metadataController.diffMetadata);
 router.post('/apply', upload.single('file'), metadataController.applyMetadata);
 router.post('/migrate', metadataController.migrateMetadata);
 
+router.get('/history', metadataController.getMetadataHistory);
+router.post('/rollback/:id', metadataController.rollbackMetadata);
+
 export default router;

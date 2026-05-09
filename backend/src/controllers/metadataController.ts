@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { MetadataService } from '../modules/metadata/metadata.service';
+import { MetadataOrchestrator } from '../modules/metadata/orchestrator';
+import { ManifestParser } from '../modules/metadata/manifest_parser';
 import { pool, queryWithContext } from '../config/database';
 
 export const getTableDetails = async (req: Request, res: Response) => {
@@ -70,11 +72,14 @@ export const getTemplate = (req: Request, res: Response) => {
 export const diffMetadata = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
-        let manifest = req.body;
+        let content = '';
         if (req.file) {
-            manifest = JSON.parse(req.file.buffer.toString());
+            content = req.file.buffer.toString();
+        } else {
+            content = JSON.stringify(req.body);
         }
-        const plan = await MetadataService.diffMetadata(user.tenant_id, manifest);
+        const manifest = ManifestParser.parse(content);
+        const plan = await MetadataOrchestrator.plan(user.tenant_id, manifest);
         res.json(plan);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -85,13 +90,37 @@ export const applyMetadata = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
         if (!user) return res.status(401).json({ error: 'Authentication required' });
-        let manifest = req.body;
+        let content = '';
         if (req.file) {
-            manifest = JSON.parse(req.file.buffer.toString());
+            content = req.file.buffer.toString();
+        } else {
+            content = JSON.stringify(req.body);
         }
-        const planObj = await MetadataService.diffMetadata(user.tenant_id, manifest);
-        const migrationResponse = await MetadataService.migrateMetadata(user.tenant_id, planObj.diffs);
-        res.json({ success: true, plan: planObj.diffs, results: migrationResponse });
+        const manifest = ManifestParser.parse(content);
+        const force = req.query.force === 'true';
+        const result = await MetadataOrchestrator.apply(user.tenant_id, manifest, { force });
+        res.json(result);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+export const getMetadataHistory = async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user;
+        const history = await MetadataOrchestrator.getHistory(user.tenant_id);
+        res.json(history);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+export const rollbackMetadata = async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user;
+        const versionId = req.params.id;
+        const result = await MetadataOrchestrator.rollback(user.tenant_id, versionId);
+        res.json(result);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }

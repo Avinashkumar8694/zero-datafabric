@@ -60,7 +60,7 @@ export const getTables = async (req: Request, res: Response) => {
         const schemaId = req.query.schemaId as string;
         if (!schemaId) return res.status(400).json({ error: 'schemaId is required' });
         const user = (req as any).user;
-        const { rows } = await queryWithContext('SELECT id as "tableId", name, physical_name as "physicalName", row_count as "rowCount" FROM public.catalog_tables WHERE schema_id = $1', [schemaId], { tenantId: user.tenant_id, username: user.username });
+        const { rows } = await queryWithContext('SELECT id as "tableId", name, physical_name as "physicalName", row_count as "rowCount", resource_type as "resourceType" FROM public.catalog_tables WHERE schema_id = $1', [schemaId], { tenantId: user.tenant_id, username: user.username });
         res.json(rows);
     } catch (err: any) {
         res.status(500).json({ error: err.message });

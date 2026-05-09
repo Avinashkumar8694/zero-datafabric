@@ -196,14 +196,37 @@ export class MetadataOrchestrator {
             `, [sourceId, schema.name, physicalSchema]);
 
             const schemaId = schemaRows[0].id;
+            const schemaPrefix = `${physicalSchema}.`;
 
+            // Sync All Resources (Tables, Views, Sequences, etc.)
             for (const resource of schema.resources) {
-                if (resource.type === 'TABLE' || resource.type === 'VIEW' || resource.type === 'MATERIALIZED_VIEW') {
-                    await client.query(`
-                        INSERT INTO public.catalog_tables (schema_id, name, physical_name, row_count)
-                        VALUES ($1, $2, $3, 0)
-                        ON CONFLICT (schema_id, physical_name) DO UPDATE SET name = EXCLUDED.name
-                    `, [schemaId, resource.name, resource.name]);
+                const physicalName = `${schemaPrefix}${resource.name}`;
+                await client.query(`
+                    INSERT INTO public.catalog_tables (schema_id, name, physical_name, resource_type)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (schema_id, physical_name) DO UPDATE SET last_crawled_at = NOW(), resource_type = EXCLUDED.resource_type
+                `, [schemaId, resource.name, physicalName, resource.type]);
+
+                // Industrial Enhancement: Sync Internal Triggers as sub-resources
+                if (resource.type === 'TABLE' && resource.triggers) {
+                    for (const trg of resource.triggers) {
+                        await client.query(`
+                            INSERT INTO public.catalog_tables (schema_id, name, physical_name, resource_type)
+                            VALUES ($1, $2, $3, 'TRIGGER')
+                            ON CONFLICT (schema_id, physical_name) DO UPDATE SET last_crawled_at = NOW()
+                        `, [schemaId, `${resource.name}.${trg.name}`, `${physicalName}.${trg.name}`]);
+                    }
+                }
+
+                // Sync RLS Policies
+                if (resource.type === 'TABLE' && resource.security?.policies) {
+                    for (const pol of resource.security.policies) {
+                        await client.query(`
+                            INSERT INTO public.catalog_tables (schema_id, name, physical_name, resource_type)
+                            VALUES ($1, $2, $3, 'POLICY')
+                            ON CONFLICT (schema_id, physical_name) DO UPDATE SET last_crawled_at = NOW()
+                        `, [schemaId, `${resource.name}.${pol.name}`, `${physicalName}.${pol.name}`]);
+                    }
                 }
             }
         }

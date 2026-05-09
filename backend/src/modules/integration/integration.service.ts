@@ -112,7 +112,11 @@ export class IntegrationService {
     } else if (config.type === 'elasticsearch') {
       const endpoint = config.connectionString || `http://${config.host || 'localhost'}:${config.port || 9200}`;
       try {
-        const res = await axios.get(`${endpoint.replace(/\/$/, '')}/_cluster/health`, { timeout: 5000 });
+        const axiosConfig: any = { timeout: 5000 };
+        if (config.user && config.pass) {
+          axiosConfig.auth = { username: config.user, password: config.pass };
+        }
+        const res = await axios.get(`${endpoint.replace(/\/$/, '')}/_cluster/health`, axiosConfig);
         if (!res.data || !res.data.status) {
           throw new Error('Invalid cluster health response');
         }

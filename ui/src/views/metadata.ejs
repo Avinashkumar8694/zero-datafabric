@@ -102,7 +102,7 @@
             const res2 = await fetch(`${API_BASE}/metadata/diff`, {
                 method: 'POST',
                 headers: { 
-                    'Authorization': `Bearer ${token}`, 
+                    'Authorization': `Bearer ${getToken()}`, 
                     'Content-Type': 'application/json',
                     'x-tenant-id': localStorage.getItem('active_tenant') 
                 },
@@ -131,7 +131,7 @@
         try {
             const res = await fetch(`${API_BASE}/metadata/diff`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'x-tenant-id': localStorage.getItem('active_tenant') },
+                headers: { 'Authorization': `Bearer ${getToken()}`, 'x-tenant-id': localStorage.getItem('active_tenant') },
                 body: formData
             });
             const data = await res.json();
@@ -162,7 +162,7 @@
         try {
             const res = await fetch(`${API_BASE}/metadata/apply`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'x-tenant-id': localStorage.getItem('active_tenant') },
+                headers: { 'Authorization': `Bearer ${getToken()}`, 'x-tenant-id': localStorage.getItem('active_tenant') },
                 body: formData
             });
             const data = await res.json();

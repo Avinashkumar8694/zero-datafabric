@@ -17,7 +17,7 @@
     <section class="glass-card" style="padding:0; overflow:hidden;">
         <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
             <h3 style="font-size: 1.05rem;"><i class="fas fa-layer-group"></i> Fabric Source Registry</h3>
-            <button class="btn-outline" style="padding:0.4rem 0.8rem; font-size:0.8rem;" onclick="loadConnections()"><i class="fas fa-sync"></i> Refresh</button>
+            <button class="btn-outline" style="padding:0.4rem 0.8rem; font-size:0.8rem;" onclick="loadConnections()"><i class="fas fa-heartbeat"></i> Check All Connections</button>
         </div>
         <div class="table-wrapper">
             <table style="border-radius:0;">
@@ -58,7 +58,7 @@
                     </div>
                     <div>
                         <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Database Engine</label>
-                        <select id="connType" class="context-select" style="width:100%" onchange="updateDefaultPort()">
+                        <select id="connType" class="context-select" style="width:100%" onchange="applyEngineFieldConfig()">
                             <option value="postgres">PostgreSQL</option>
                             <option value="mysql">MySQL / MariaDB</option>
                             <option value="mongodb">MongoDB</option>
@@ -80,29 +80,52 @@
                 </div>
 
                 <div style="display:grid; grid-template-columns:3fr 1fr; gap:0.9rem; margin-bottom:0.9rem;">
-                    <div>
+                    <div id="row-host">
                         <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Host</label>
                         <input type="text" id="connHost" placeholder="localhost" required class="context-select" style="width:100%">
                     </div>
-                    <div>
+                    <div id="row-port">
                         <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Port</label>
                         <input type="number" id="connPort" value="5432" class="context-select" style="width:100%">
                     </div>
                 </div>
 
-                <div style="margin-bottom:0.9rem;">
+                <div id="row-db" style="margin-bottom:0.9rem;">
                     <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Database Name</label>
                     <input type="text" id="connDB" placeholder="datafabric" class="context-select" style="width:100%">
                 </div>
 
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.9rem; margin-bottom:1.1rem;">
-                    <div>
+                <div id="row-user-pass" style="display:grid; grid-template-columns:1fr 1fr; gap:0.9rem; margin-bottom:1.1rem;">
+                    <div id="row-user">
                         <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">User</label>
                         <input type="text" id="connUser" placeholder="admin" class="context-select" style="width:100%">
                     </div>
-                    <div>
+                    <div id="row-pass">
                         <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Password</label>
                         <input type="password" id="connPass" placeholder="••••" class="context-select" style="width:100%">
+                    </div>
+                </div>
+                <div id="row-conn-string" style="margin-bottom:0.9rem; display:none;">
+                    <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Connection String (Optional)</label>
+                    <input type="text" id="connConnString" placeholder="mongodb://... or https://..." class="context-select" style="width:100%">
+                </div>
+
+                <div id="row-snowflake" style="display:none; grid-template-columns:1fr 1fr; gap:0.9rem; margin-bottom:1.1rem;">
+                    <div>
+                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Account</label>
+                        <input type="text" id="connAccount" placeholder="xy12345.ap-south-1" class="context-select" style="width:100%">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Warehouse</label>
+                        <input type="text" id="connWarehouse" placeholder="COMPUTE_WH" class="context-select" style="width:100%">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Role</label>
+                        <input type="text" id="connRole" placeholder="SYSADMIN" class="context-select" style="width:100%">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Schema</label>
+                        <input type="text" id="connSchema" placeholder="PUBLIC" class="context-select" style="width:100%">
                     </div>
                 </div>
                 <div style="display:flex; justify-content:flex-end; gap:0.6rem;">
@@ -141,6 +164,46 @@
         const type = document.getElementById('connType').value;
         const portMap = { postgres: 5432, mysql: 3306, mongodb: 27017, snowflake: 443, elasticsearch: 9200 };
         document.getElementById('connPort').value = portMap[type] || 5432;
+    }
+    function setRequired(id, required) {
+        const el = document.getElementById(id);
+        if (el) el.required = required;
+    }
+    function toggleRow(id, show, display = 'block') {
+        const row = document.getElementById(id);
+        if (row) row.style.display = show ? display : 'none';
+    }
+    function applyEngineFieldConfig() {
+        const type = document.getElementById('connType').value;
+        updateDefaultPort();
+
+        toggleRow('row-host', true, 'block');
+        toggleRow('row-port', true, 'block');
+        toggleRow('row-db', true, 'block');
+        toggleRow('row-user-pass', true, 'grid');
+        toggleRow('row-conn-string', true, 'block');
+        toggleRow('row-snowflake', false, 'grid');
+
+        setRequired('connHost', false);
+        setRequired('connDB', false);
+        setRequired('connUser', false);
+        setRequired('connPass', false);
+        setRequired('connAccount', false);
+
+        if (type === 'postgres' || type === 'mysql') {
+            setRequired('connHost', true);
+            setRequired('connDB', true);
+            setRequired('connUser', true);
+        } else if (type === 'mongodb') {
+            setRequired('connHost', true);
+        } else if (type === 'snowflake') {
+            toggleRow('row-snowflake', true, 'grid');
+            setRequired('connAccount', true);
+            setRequired('connUser', true);
+            setRequired('connPass', true);
+        } else if (type === 'elasticsearch') {
+            setRequired('connHost', true);
+        }
     }
 
     function getStatusBadge(status) {
@@ -249,18 +312,29 @@
         const statusEl = document.getElementById('connStatus');
         statusEl.innerHTML = '<span class="text-muted"><i class="fas fa-circle-notch fa-spin"></i> Initializing orchestration...</span>';
 
-        const payload = {
-            name: document.getElementById('connName').value,
-            config: {
-                type: document.getElementById('connType').value,
-                host: document.getElementById('connHost').value,
-                port: parseInt(document.getElementById('connPort').value),
-                dbName: document.getElementById('connDB').value,
-                user: document.getElementById('connUser').value,
-                pass: document.getElementById('connPass').value,
-                syncType: document.getElementById('syncType').value
-            }
+        const type = document.getElementById('connType').value;
+        const common = {
+            type,
+            syncType: document.getElementById('syncType').value,
+            host: document.getElementById('connHost').value || undefined,
+            port: parseInt(document.getElementById('connPort').value),
+            connectionString: document.getElementById('connConnString').value || undefined,
+            user: document.getElementById('connUser').value || undefined,
+            pass: document.getElementById('connPass').value || undefined
         };
+        let config = { ...common };
+        if (type === 'postgres' || type === 'mysql' || type === 'mongodb') {
+            config = { ...common, dbName: document.getElementById('connDB').value || undefined };
+        } else if (type === 'snowflake') {
+            config = {
+                ...common,
+                account: document.getElementById('connAccount').value || undefined,
+                warehouse: document.getElementById('connWarehouse').value || undefined,
+                role: document.getElementById('connRole').value || undefined,
+                schema: document.getElementById('connSchema').value || undefined
+            };
+        }
+        const payload = { name: document.getElementById('connName').value, config };
 
         try {
             const response = await fetch(`${API_BASE}/admin/connections`, {
@@ -283,6 +357,7 @@
         }
     });
 
+    applyEngineFieldConfig();
     loadConnections();
 </script>
 

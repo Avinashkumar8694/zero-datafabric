@@ -1,5 +1,6 @@
 import { MetadataManifest } from './types';
 import { pool } from '../../config/database';
+import axios from 'axios';
 
 export class DownstreamService {
     static async provision(tenantId: string, manifest: MetadataManifest): Promise<any[]> {
@@ -63,22 +64,51 @@ export class DownstreamService {
         }
 
         console.log(`[Elasticsearch] Provisioning search indices for ${tenantId}. Fallback: ${config.fallback}`);
-        // In a real system, this would call the ES Mapping API
-        // We'll simulate creating an index for each table
-        const indices = [];
+        const indices: string[] = [];
+        const indexedTables: string[] = [];
+        const skippedTables: string[] = [];
+        const errors: string[] = [];
+        const endpoint = (connector.config?.connectionString || `http://${connector.config?.host || 'localhost'}:${connector.config?.port || 9200}`).replace(/\/$/, '');
+        const axiosConfig: any = { timeout: 4000 };
+        if (connector.config?.user && connector.config?.pass) {
+            axiosConfig.auth = { username: connector.config.user, password: connector.config.pass };
+        }
+
         for (const schema of manifest.schemas) {
+            const sourceName = schema.targetSource || manifest.targetSource || 'Fabric_Hub_Postgres';
+            const isLocalHub = sourceName === 'Fabric_Hub_Postgres';
+            const physicalSchema = `tenant_${tenantId}_${schema.name}`;
             for (const resource of schema.resources) {
                 if (resource.type === 'TABLE') {
-                    indices.push(`${tenantId}_${resource.name}`.toLowerCase());
+                    const indexName = `${tenantId}_${schema.name}_${resource.name}`.toLowerCase();
+                    indices.push(indexName);
+                    try {
+                        const mappings = this.toElasticMappings((resource as any).columns || []);
+                        await this.ensureElasticIndex(endpoint, indexName, mappings, axiosConfig);
+                        if (!isLocalHub) {
+                            skippedTables.push(`${schema.name}.${resource.name}`);
+                            continue;
+                        }
+                        const rows = await this.fetchTableRows(physicalSchema, resource.name);
+                        if (rows.length === 0) continue;
+                        await this.bulkIndexRows(endpoint, indexName, rows, axiosConfig);
+                        indexedTables.push(`${schema.name}.${resource.name}:${rows.length}`);
+                    } catch (err: any) {
+                        errors.push(`${schema.name}.${resource.name}: ${err.message || 'indexing failed'}`);
+                    }
                 }
             }
         }
+        const status = errors.length > 0 ? 'DEGRADED' : 'PROVISIONED';
         return {
             type: 'ELASTICSEARCH',
-            status: 'PROVISIONED',
+            status,
             indicesCount: indices.length,
             fallback: config.fallback,
-            connector: connector.name
+            connector: connector.name,
+            indexedTables,
+            skippedTables,
+            errors
         };
     }
 
@@ -115,5 +145,50 @@ export class DownstreamService {
         );
 
         return rows[0] || null;
+    }
+
+    private static toElasticMappings(columns: any[]) {
+        const props: Record<string, any> = {};
+        for (const col of columns) {
+            const t = String(col.type || '').toUpperCase();
+            if (['UUID', 'STRING', 'TEXT', 'ENUM'].includes(t)) props[col.name] = { type: 'keyword' };
+            else if (['TIMESTAMP', 'DATE', 'DATETIME'].includes(t)) props[col.name] = { type: 'date' };
+            else if (['BIGINT', 'INT', 'INTEGER', 'SERIAL'].includes(t)) props[col.name] = { type: 'long' };
+            else if (['NUMERIC', 'DECIMAL', 'FLOAT', 'DOUBLE'].includes(t)) props[col.name] = { type: 'double' };
+            else if (['BOOLEAN', 'BOOL'].includes(t)) props[col.name] = { type: 'boolean' };
+            else if (['JSON', 'JSONB'].includes(t)) props[col.name] = { type: 'object', enabled: true };
+            else props[col.name] = { type: 'keyword' };
+        }
+        return { properties: props };
+    }
+
+    private static async ensureElasticIndex(endpoint: string, indexName: string, mappings: any, axiosConfig: any) {
+        try {
+            await axios.head(`${endpoint}/${indexName}`, axiosConfig);
+        } catch {
+            await axios.put(`${endpoint}/${indexName}`, { mappings }, axiosConfig);
+        }
+    }
+
+    private static async fetchTableRows(schemaName: string, tableName: string) {
+        const safeSchema = schemaName.replace(/[^a-zA-Z0-9_]/g, '');
+        const safeTable = tableName.replace(/[^a-zA-Z0-9_]/g, '');
+        const sql = `SELECT * FROM "${safeSchema}"."${safeTable}" LIMIT 10000`;
+        const { rows } = await pool.query(sql);
+        return rows;
+    }
+
+    private static async bulkIndexRows(endpoint: string, indexName: string, rows: any[], axiosConfig: any) {
+        const lines: string[] = [];
+        for (const row of rows) {
+            const docId = row.id || row.item_id || undefined;
+            const action: any = { index: { _index: indexName } };
+            if (docId) action.index._id = String(docId);
+            lines.push(JSON.stringify(action));
+            lines.push(JSON.stringify(row));
+        }
+        const payload = lines.join('\n') + '\n';
+        const headers = { ...(axiosConfig.headers || {}), 'Content-Type': 'application/x-ndjson' };
+        await axios.post(`${endpoint}/_bulk?refresh=true`, payload, { ...axiosConfig, headers });
     }
 }

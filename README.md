@@ -143,3 +143,6 @@ The platform includes an **Exhaustive Industrial Verification Suite** covering 1
 ```bash
 cd backend && npx ts-node src/scripts/test_full_orchestration.ts
 ```
+
+## 📘 Additional Ops Docs
+- Elasticsearch usage, readiness, and validation flow: `docs/elasticsearch_usage.md`

@@ -23,10 +23,21 @@ async function queryWithContext(sql: string, params: any[], context: { tenantId:
     // 2. Inject identity into the Postgres session (Industrial Grade App Context)
     await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [context.tenantId]);
     await client.query(`SELECT set_config('app.user_name', $1, true)`, [context.username]);
+    await client.query(`SELECT set_config('app.current_region', $1, true)`, [process.env.DEFAULT_REGION || 'AP']);
     
-    // 3. Set Search Path to Tenant Primary Schema
-    const schemaName = `tenant_${context.tenantId.replace(/[^a-zA-Z0-9_]/g, '')}`;
-    await client.query(`SET LOCAL search_path TO "${schemaName}", public`);
+    // 3. Set Search Path to Tenant Primary + tenant sub-schemas (e.g., tenant_<id>_Global_Supply_Chain)
+    const baseSchema = `tenant_${context.tenantId.replace(/[^a-zA-Z0-9_]/g, '')}`;
+    const { rows: schemaRows } = await client.query(
+      `SELECT schema_name
+       FROM information_schema.schemata
+       WHERE schema_name = $1 OR schema_name LIKE $2
+       ORDER BY (schema_name = $1) DESC, schema_name ASC`,
+      [baseSchema, `${baseSchema}_%`]
+    );
+    const searchPath = schemaRows.length
+      ? schemaRows.map(r => `"${r.schema_name}"`).join(', ')
+      : `"${baseSchema}"`;
+    await client.query(`SET LOCAL search_path TO ${searchPath}, public`);
     
     const result = await client.query(sql, params);
     

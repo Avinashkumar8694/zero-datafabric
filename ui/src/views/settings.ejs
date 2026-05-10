@@ -1,7 +1,11 @@
 <%- include('partials/header') %>
 
-<div class="fade-in">
-    <div class="grid">
+<div class="fade-in settings-shell">
+    <div class="settings-hero">
+        <h2 style="margin:0;">Platform Settings</h2>
+        <p class="text-muted" style="margin:0.35rem 0 0;">Tenant-scoped controls for downstreams, guardrails, and trigger notification channels.</p>
+    </div>
+    <div class="grid settings-grid">
         <!-- Infrastructure -->
         <section class="glass-card">
             <h3>Fabric Infrastructure</h3>
@@ -56,10 +60,33 @@
                 </div>
             </div>
         </section>
+
+        <section class="glass-card">
+            <h3>Notification Channels (Tenant Scoped)</h3>
+            <p class="text-muted" style="margin-bottom: 1rem;">Configure EMAIL/TELEGRAM/WEBHOOK for the active tenant only.</p>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.6rem; margin-bottom:0.8rem;">
+                <select id="chType" class="context-select">
+                    <option value="EMAIL">EMAIL</option>
+                    <option value="TELEGRAM">TELEGRAM</option>
+                    <option value="WEBHOOK">WEBHOOK</option>
+                </select>
+                <input id="chName" class="context-select" placeholder="primary_email">
+            </div>
+            <textarea id="chConfig" class="context-select" style="width:100%; min-height:120px;" placeholder='{"fromEmail":"noreply@acme.com","defaultTo":"ops@acme.com"}'></textarea>
+            <div style="display:flex; gap:0.5rem; margin-top:0.7rem; align-items:center;">
+                <label style="display:flex; align-items:center; gap:0.4rem;"><input id="chDefault" type="checkbox"> default</label>
+                <button class="btn-primary" onclick="saveChannel()">Save Channel</button>
+                <button class="btn-outline" onclick="loadChannels()">Refresh</button>
+            </div>
+            <div id="channelsList" style="margin-top:0.8rem; display:flex; flex-direction:column; gap:0.4rem;"></div>
+        </section>
     </div>
 </div>
 
 <style>
+    .settings-shell { display:flex; flex-direction:column; gap:1rem; }
+    .settings-hero { border:1px solid var(--border); border-radius:14px; padding:1rem 1.2rem; background:linear-gradient(140deg,#f8fbff 0%,#ffffff 70%); }
+    .settings-grid .glass-card { border-radius:14px; box-shadow: 0 10px 28px rgba(2,6,23,0.06); }
     /* Premium Toggle Switch */
     .switch {
         position: relative;
@@ -153,7 +180,88 @@
         console.log('[Fabric Notification]', msg);
     }
 
+    async function loadChannels() {
+        const list = document.getElementById('channelsList');
+        list.innerHTML = '<div class="text-muted">Loading channels...</div>';
+        try {
+            const res = await fetch(`${API_BASE}/admin/notification-channels`, { headers: getAuthHeaders() });
+            const rows = await res.json();
+            if (!Array.isArray(rows) || rows.length === 0) {
+                list.innerHTML = '<div class="text-muted">No channels configured for this tenant.</div>';
+                return;
+            }
+            list.innerHTML = rows.map(r => `
+                <div class="nav-item" style="display:flex; justify-content:space-between; align-items:center; border:1px solid var(--border); gap:0.7rem;">
+                    <div>
+                        <strong>${r.channelType}</strong> · ${r.name} ${r.isDefault ? '<span class="badge-sync">DEFAULT</span>' : ''}
+                        <div style="font-size:0.7rem; color:var(--text-muted);">${r.status}</div>
+                        <div style="font-size:0.68rem; color:var(--text-muted); margin-top:0.2rem;">${escJson(r.config)}</div>
+                    </div>
+                    <div style="display:flex; gap:0.4rem;">
+                        <button class="btn-outline" onclick="testChannel('${r.channelType}','${r.name}')">Test</button>
+                        <button class="btn-danger" onclick="deleteChannel('${r.id}')">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        } catch (e) {
+            list.innerHTML = '<div class="text-danger">Failed to load channels</div>';
+        }
+    }
+
+    async function saveChannel() {
+        try {
+            const channelType = document.getElementById('chType').value;
+            const name = document.getElementById('chName').value.trim();
+            const cfgRaw = document.getElementById('chConfig').value.trim();
+            const isDefault = document.getElementById('chDefault').checked;
+            if (!name || !cfgRaw) return alert('Name and config are required');
+            const config = JSON.parse(cfgRaw);
+            const res = await fetch(`${API_BASE}/admin/notification-channels`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ channelType, name, config, isDefault, status: 'ACTIVE' })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Save failed');
+            showToast('Channel saved');
+            loadChannels();
+        } catch (e) {
+            alert(`Failed: ${e.message}`);
+        }
+    }
+
+    async function deleteChannel(id) {
+        const res = await fetch(`${API_BASE}/admin/notification-channels/${id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+        const data = await res.json();
+        if (!res.ok) return alert(data.error || 'Delete failed');
+        loadChannels();
+    }
+
+    async function testChannel(channelType, name) {
+        const sampleByType = {
+            EMAIL: { params: { to: 'ops@example.com', subject: 'Settings Test {{newRow.id}}', text: 'Settings test for {{triggerName}}' } },
+            TELEGRAM: { params: { chatId: '@tenant_ops', text: 'Settings test {{newRow.id}}' } },
+            WEBHOOK: { url: 'https://example.local/test', method: 'POST', payload: { kind: 'settings-test', id: '{{newRow.id}}' } }
+        };
+        const res = await fetch(`${API_BASE}/admin/notification-channels/test`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ channelType, name, sample: sampleByType[channelType] || {} })
+        });
+        const data = await res.json();
+        if (!res.ok) return alert(data.error || 'Test failed');
+        showToast(`Test job queued: ${data.jobId}`);
+    }
+
+    function escJson(obj) {
+        try { return JSON.stringify(obj); } catch { return '{}'; }
+    }
+
     document.addEventListener('DOMContentLoaded', loadDownstreamStatus);
+    document.addEventListener('DOMContentLoaded', loadChannels);
 </script>
 
 <%- include('partials/footer') %>

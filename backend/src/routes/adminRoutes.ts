@@ -26,5 +26,9 @@ router.delete('/users/:id', adminController.deleteUser);
 router.get('/stats', adminController.getDashboardStats);
 router.get('/audit-logs', adminController.getAuditLogs);
 router.get('/catalog', adminController.getCatalogSummary);
+router.get('/notification-channels', adminController.listNotificationChannels);
+router.post('/notification-channels', adminController.upsertNotificationChannel);
+router.delete('/notification-channels/:id', adminController.deleteNotificationChannel);
+router.post('/notification-channels/test', adminController.testNotificationChannel);
 
 export default router;

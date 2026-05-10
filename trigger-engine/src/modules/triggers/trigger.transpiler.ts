@@ -37,8 +37,17 @@ export class TriggerTranspiler {
         if (trg.autoDrop) {
             code += `
                 IF (${this.astToSql(trg.autoDrop.when)}) THEN
-                    INSERT INTO public.task_queue (tenant_id, task_type, payload)
-                    VALUES (current_setting('app.tenant_id', true), 'CLEANUP_TRIGGER', jsonb_build_object('trigger', '${trg.name}', 'table', '${tableName}', 'schema', '${schemaName}'));
+                    INSERT INTO public.trigger_jobs (tenant_id, trigger_id, job_type, payload, status, run_at, max_attempts, created_by)
+                    VALUES (
+                      current_setting('app.tenant_id', true),
+                      NULL,
+                      'CLEANUP_TRIGGER',
+                      jsonb_build_object('triggerName', '${trg.name}', 'tableName', '${tableName}', 'schemaName', '${schemaName}'),
+                      'PENDING',
+                      NOW(),
+                      5,
+                      current_setting('app.user_name', true)
+                    );
                 END IF;
             `;
         }
@@ -56,13 +65,29 @@ export class TriggerTranspiler {
 
             case 'WEBHOOK':
             case 'AUDIT':
+            case 'EMAIL':
+            case 'TELEGRAM':
                 code += `
-                    INSERT INTO public.task_queue (tenant_id, task_type, payload, schedule)
+                    INSERT INTO public.trigger_jobs (tenant_id, trigger_id, job_type, payload, status, run_at, max_attempts, created_by)
                     VALUES (
                         current_setting('app.tenant_id', true), 
-                        '${trg.execute.type}', 
-                        row_to_json(NEW),
-                        ${trg.schedule ? `'${JSON.stringify(trg.schedule)}'::jsonb` : 'NULL'}
+                        NULL,
+                        'EXECUTE_TRIGGER_ACTION',
+                        jsonb_build_object(
+                          'triggerName', '${trg.name}',
+                          'event', '${trg.event}',
+                          'actionType', '${trg.execute.type}',
+                          'tableName', '${tableName}',
+                          'schemaName', '${schemaName}',
+                          'newRow', row_to_json(NEW),
+                          'oldRow', row_to_json(OLD),
+                          'execute', '${JSON.stringify(trg.execute || {})}'::jsonb,
+                          'schedule', ${trg.schedule ? `'${JSON.stringify(trg.schedule)}'::jsonb` : 'NULL'}
+                        ),
+                        'PENDING',
+                        NOW(),
+                        ${trg.schedule?.maxAttempts || 5},
+                        current_setting('app.user_name', true)
                     );
                 `;
                 break;

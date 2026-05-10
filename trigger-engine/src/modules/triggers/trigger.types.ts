@@ -4,7 +4,7 @@ export type TriggerEventType =
     'BEFORE_DELETE' | 'AFTER_DELETE' | 
     'INSTEAD_OF_INSERT' | 'INSTEAD_OF_UPDATE' | 'INSTEAD_OF_DELETE';
 
-export type TriggerExecuteType = 'FUNCTION' | 'WEBHOOK' | 'EXCEPTION' | 'AUDIT';
+export type TriggerExecuteType = 'FUNCTION' | 'WEBHOOK' | 'EXCEPTION' | 'AUDIT' | 'EMAIL' | 'TELEGRAM';
 
 export interface TriggerDefinition {
     name: string;
@@ -17,15 +17,28 @@ export interface TriggerDefinition {
         method?: string;
         payload?: any;
         params?: any;
+        headers?: Record<string, string>;
+        auth?: {
+            type: 'NONE' | 'BASIC' | 'BEARER' | 'OIDC';
+            username?: string;
+            password?: string;
+            token?: string;
+            tokenEndpoint?: string;
+            clientId?: string;
+            clientSecret?: string;
+            scope?: string;
+            audience?: string;
+        };
         message?: string;
         when?: any;
     };
     schedule?: {
-        type: 'FIXED' | 'RELATIVE';
+        type: 'FIXED' | 'RELATIVE' | 'CRON';
         cron?: string;
+        every?: number;
         column?: string;
         after?: number;
-        unit?: 'MINUTE' | 'HOUR' | 'DAY' | 'MONTH';
+        unit?: 'SECOND' | 'MINUTE' | 'HOUR' | 'DAY' | 'MONTH';
         maxAttempts?: number;
     };
     autoDrop?: {

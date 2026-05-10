@@ -1,273 +1,434 @@
 <%- include('partials/header') %>
 
-<div class="fabric-container fade-in">
-    <!-- Sidebar: Catalog Explorer -->
-    <div class="fabric-sidebar">
-        <div class="sidebar-header">
-            <h1 class="sidebar-title">SQL & AST Workbench</h1>
-            <div class="search-container">
-                <i class="fas fa-search search-icon"></i>
-                <input type="text" id="explorerSearch" placeholder="Search objects..." onkeyup="filterExplorer()">
-            </div>
+<div class="wb-shell fade-in">
+    <aside class="wb-left">
+        <div class="wb-left-head">
+            <h3>Workbench Explorer</h3>
+            <input id="explorerSearch" class="wb-input" placeholder="Search sources, schemas, resources..." oninput="filterExplorer()">
         </div>
-        <div id="explorerTree" class="tree-view">
-            <div class="loading-state"><div class="loading-spinner"></div></div>
+        <div id="explorerTree" class="wb-tree">
+            <div class="wb-muted" style="padding:1rem;">Loading explorer...</div>
         </div>
-    </div>
+    </aside>
 
-    <!-- Main Panel: IDE Workspace -->
-    <div class="fabric-main">
-        <!-- Editor Section -->
-        <div class="editor-section">
-            <div class="editor-toolbar">
-                <div class="mode-selector">
-                    <button onclick="setMode('SQL')" id="modeSql" class="tab-btn active">SQL NATIVE</button>
-                    <button onclick="setMode('CONFIG')" id="modeConfig" class="tab-btn">FEDERATED JSON (AST)</button>
-                </div>
-                <div class="execution-actions">
-                    <button onclick="newQuery()" class="btn-secondary"><i class="fas fa-eraser"></i> Clear</button>
-                    <button id="runBtn" class="btn-primary" onclick="executeCurrentQuery()"><i class="fas fa-play"></i> EXECUTE</button>
-                </div>
+    <section class="wb-main">
+        <div class="wb-top">
+            <div class="wb-title">
+                <h2>Analytics & Query Workbench</h2>
+                <p>Run native SQL or structured AST queries across your Data Fabric resources.</p>
             </div>
-
-            <div id="sqlEditor" class="editor-wrapper">
-                <textarea id="sqlInput" spellcheck="false" placeholder="-- PostgreSQL Native SQL Mode
-SELECT * FROM shipments LIMIT 50;"></textarea>
-            </div>
-
-            <div id="configEditor" class="editor-wrapper" style="display: none;">
-                <textarea id="configInput" spellcheck="false" placeholder='{
-  "type": "SELECT",
-  "tableId": "UUID_HERE",
-  "limit": 50,
-  "filter": { "status": "PENDING" }
-}'></textarea>
+            <div class="wb-actions">
+                <a href="/workbench/docs" class="btn-outline" target="_blank" rel="noreferrer">Open Workbench Docs</a>
+                <button class="btn-outline" onclick="toggleGuide()">Use Cases</button>
             </div>
         </div>
 
-        <!-- Results Section -->
-        <div class="results-section">
-            <div class="results-header">
-                <div class="pipeline-title"><i class="fas fa-list-ul"></i> RESULT PIPELINE</div>
-                <div class="pipeline-metrics">
-                    <span id="sourceBadge" class="engine-badge" style="display: none;"></span>
-                    <span id="execTime" class="metrics-text"></span>
-                </div>
+        <div id="guideCard" class="wb-guide" style="display:none;">
+            <strong>Quick Start</strong>
+            <p>1) Select a resource from Explorer. 2) Choose SQL or AST mode. 3) Run query (sync/async). 4) Use templates for federated and recursive patterns.</p>
+        </div>
+
+        <div class="wb-toolbar">
+            <div class="wb-mode">
+                <button id="modeSql" class="tab-btn active" onclick="setMode('SQL')">SQL Mode</button>
+                <button id="modeAst" class="tab-btn" onclick="setMode('AST')">AST Mode</button>
             </div>
-            
-            <div class="grid-viewport">
+            <div class="wb-run-controls">
+                <select id="executionMode" class="wb-input" style="max-width: 150px;">
+                    <option value="sync">Run Sync</option>
+                    <option value="async">Run Async</option>
+                </select>
+                <button class="btn-outline" onclick="clearEditor()">Clear</button>
+                <button id="runBtn" class="btn-primary" onclick="runCurrent()">Run</button>
+            </div>
+        </div>
+
+        <div class="wb-templates">
+            <label>Templates</label>
+            <select id="templatePicker" class="wb-input" onchange="applyTemplate(this.value)">
+                <option value="">Choose a template...</option>
+                <option value="sql_basic">SQL: Basic select from selected resource</option>
+                <option value="sql_federated_union">SQL: Federated UNION pattern</option>
+                <option value="sql_recursive">SQL: Recursive hierarchy pattern</option>
+                <option value="ast_select">AST: Select with filter and sort</option>
+                <option value="ast_join_builder">AST: Build join from selected resources</option>
+            </select>
+        </div>
+
+        <div id="joinBuilder" class="wb-join" style="display:none;">
+            <strong>AST Join Builder</strong>
+            <div class="wb-join-grid">
+                <select id="joinPrimary" class="wb-input"></select>
+                <select id="joinType" class="wb-input">
+                    <option value="INNER">INNER</option>
+                    <option value="LEFT">LEFT</option>
+                    <option value="RIGHT">RIGHT</option>
+                    <option value="FULL">FULL</option>
+                </select>
+                <select id="joinSecondary" class="wb-input"></select>
+                <input id="joinOn" class="wb-input" placeholder='Join condition, e.g. "shipments.id = shipment_details.shipment_id"'>
+                <button class="btn-outline" onclick="buildJoinAst()">Generate AST</button>
+            </div>
+        </div>
+
+        <div class="wb-editor-wrap">
+            <textarea id="sqlEditor" class="wb-editor" placeholder="SELECT * FROM tenant_tenant_A_global_supply_chain.shipments LIMIT 50;"></textarea>
+            <textarea id="astEditor" class="wb-editor" style="display:none;" placeholder='{"type":"SELECT","schema":"Global_Supply_Chain","limit":50,"query":{"select":["*"],"from":{"resource":"shipments"}}}'></textarea>
+        </div>
+
+        <div class="wb-results">
+            <div class="wb-results-head">
+                <span id="resultMeta" class="wb-muted">Ready.</span>
+            </div>
+            <div class="wb-table-wrap">
                 <table id="resultsTable">
                     <thead id="resultsHead"></thead>
                     <tbody id="resultsBody">
-                        <tr>
-                            <td colspan="100" class="empty-state">
-                                <i class="fas fa-terminal"></i>
-                                <p>Ready for execution. Select a catalog object or write a query.</p>
-                            </td>
-                        </tr>
+                        <tr><td class="wb-muted" style="padding:2rem;">No results yet.</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
-    </div>
+    </section>
 </div>
 
 <style>
-    :root {
-        --sidebar-bg: #f8fafc;
-        --border-color: #e2e8f0;
-        --active-blue: #2563eb;
-        --text-main: #1e293b;
-        --text-dim: #64748b;
-        --editor-bg: #1e293b;
+    .wb-shell { display:flex; height:calc(100vh - 84px); background:#f7f9fc; }
+    .wb-left { width:320px; border-right:1px solid #e5e7eb; background:#fff; display:flex; flex-direction:column; }
+    .wb-left-head { padding:1rem; border-bottom:1px solid #eef2f7; }
+    .wb-left-head h3 { margin-bottom:0.75rem; font-size:1rem; }
+    .wb-tree { overflow:auto; padding:0.5rem 0; flex:1; }
+    .wb-main { flex:1; display:flex; flex-direction:column; gap:0.75rem; padding:1rem; min-width:0; }
+    .wb-top { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; }
+    .wb-title h2 { margin:0; font-size:1.4rem; }
+    .wb-title p { margin:0.25rem 0 0; color:#64748b; font-size:0.9rem; }
+    .wb-actions { display:flex; gap:0.5rem; }
+    .wb-guide { background:#eef6ff; border:1px solid #c9defc; border-radius:10px; padding:0.75rem; font-size:0.85rem; }
+    .wb-toolbar { display:flex; justify-content:space-between; gap:0.75rem; align-items:center; background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:0.6rem; }
+    .wb-mode { display:flex; gap:0.5rem; }
+    .tab-btn { border:none; background:#f1f5f9; border-radius:8px; padding:0.45rem 0.8rem; font-weight:700; cursor:pointer; color:#475569; }
+    .tab-btn.active { background:#dbeafe; color:#1d4ed8; }
+    .wb-run-controls { display:flex; gap:0.5rem; align-items:center; }
+    .wb-templates, .wb-join { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:0.65rem; }
+    .wb-templates label { display:block; margin-bottom:0.35rem; font-size:0.8rem; color:#64748b; }
+    .wb-join-grid { display:grid; grid-template-columns: 1.1fr 0.5fr 1.1fr 1.5fr auto; gap:0.5rem; margin-top:0.5rem; }
+    .wb-editor-wrap { flex:1; min-height:220px; background:#0f172a; border-radius:10px; border:1px solid #1e293b; overflow:hidden; }
+    .wb-editor { width:100%; height:100%; min-height:220px; border:none; outline:none; background:#0f172a; color:#e2e8f0; font-family:'JetBrains Mono', monospace; padding:1rem; line-height:1.45; resize:none; }
+    .wb-results { background:#fff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; min-height:220px; display:flex; flex-direction:column; }
+    .wb-results-head { padding:0.55rem 0.75rem; border-bottom:1px solid #eef2f7; background:#f8fafc; }
+    .wb-table-wrap { overflow:auto; flex:1; }
+    #resultsTable { width:100%; border-collapse:collapse; font-size:0.85rem; }
+    #resultsTable th, #resultsTable td { padding:0.5rem 0.65rem; border-bottom:1px solid #f1f5f9; text-align:left; white-space:nowrap; }
+    #resultsTable th { position:sticky; top:0; background:#fff; z-index:1; font-size:0.75rem; color:#64748b; text-transform:uppercase; }
+    .wb-input { width:100%; border:1px solid #dbe2ea; border-radius:8px; padding:0.5rem 0.65rem; font-size:0.85rem; }
+    .wb-muted { color:#64748b; }
+    .tree-source { padding:0.5rem 0.9rem; font-weight:700; color:#1e293b; border-top:1px solid #f1f5f9; }
+    .tree-schema { padding:0.4rem 1.5rem; color:#334155; font-size:0.85rem; }
+    .tree-item { padding:0.35rem 2.1rem; color:#475569; font-size:0.82rem; cursor:pointer; }
+    .tree-item:hover { background:#f8fafc; }
+    .tree-item.active { background:#e8f0ff; color:#1d4ed8; font-weight:700; border-right:3px solid #2563eb; }
+    @media (max-width: 1100px) {
+        .wb-shell { flex-direction:column; height:auto; }
+        .wb-left { width:100%; height:260px; }
+        .wb-join-grid { grid-template-columns:1fr; }
     }
-
-    .fabric-container { display: flex; height: calc(100vh - 80px); background: #fff; overflow: hidden; }
-    
-    /* Sidebar Styles */
-    .fabric-sidebar { width: 300px; background: var(--sidebar-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; }
-    .sidebar-header { padding: 1.5rem; border-bottom: 1px solid var(--border-color); }
-    .sidebar-title { font-size: 1rem; font-weight: 800; color: var(--text-main); margin-bottom: 1rem; }
-    .search-container { position: relative; }
-    .search-icon { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 0.8rem; }
-    #explorerSearch { width: 100%; padding: 0.5rem 0.75rem 0.5rem 2.25rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; }
-
-    /* Tree Styles */
-    .tree-view { flex: 1; overflow-y: auto; padding: 1rem 0; }
-    .tree-node { padding: 0.5rem 1.25rem; font-weight: 700; color: var(--text-main); font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
-    .tree-cat { padding: 0.25rem 2rem; font-size: 0.65rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; margin-top: 0.5rem; }
-    .tree-item { padding: 0.4rem 2.5rem; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-dim); transition: 0.2s; }
-    .tree-item:hover { background: #f1f5f9; color: var(--active-blue); }
-    .tree-item.active { background: #eff6ff; color: var(--active-blue); font-weight: 600; border-right: 3px solid var(--active-blue); }
-
-    /* Main Styles */
-    .fabric-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-    .editor-section { height: 350px; display: flex; flex-direction: column; border-bottom: 4px solid var(--border-color); }
-    .editor-toolbar { padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background: #fff; }
-    .mode-selector { display: flex; gap: 0.5rem; }
-    .tab-btn { padding: 0.4rem 0.75rem; border: none; background: none; font-size: 0.75rem; font-weight: 700; cursor: pointer; border-radius: 4px; color: var(--text-dim); }
-    .tab-btn.active { background: #eff6ff; color: var(--active-blue); }
-    .execution-actions { display: flex; gap: 0.75rem; }
-
-    .editor-wrapper { flex: 1; background: var(--editor-bg); }
-    textarea { width: 100%; height: 100%; background: transparent; border: none; padding: 1.5rem; color: #e2e8f0; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; outline: none; resize: none; line-height: 1.5; }
-
-    /* Results Styles */
-    .results-section { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #fff; }
-    .results-header { padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background: #f8fafc; }
-    .pipeline-title { font-size: 0.75rem; font-weight: 800; color: var(--text-dim); }
-    .pipeline-metrics { display: flex; align-items: center; gap: 1rem; }
-    .metrics-text { font-size: 0.7rem; font-weight: 600; color: var(--text-dim); }
-    .engine-badge { font-size: 0.65rem; font-weight: 700; background: #eff6ff; color: var(--active-blue); padding: 0.2rem 0.5rem; border-radius: 4px; border: 1px solid #dbeafe; }
-
-    .grid-viewport { flex: 1; overflow: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-    th { background: #fff; padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border-color); color: var(--text-dim); position: sticky; top: 0; z-index: 10; border-right: 1px solid #f1f5f9; }
-    td { padding: 0.6rem 1rem; border-bottom: 1px solid #f1f5f9; color: var(--text-main); border-right: 1px solid #f1f5f9; white-space: nowrap; }
-    tr:hover { background: #f8fafc; }
-
-    .empty-state { text-align: center; padding: 4rem !important; color: #cbd5e1; border: none !important; }
-    .empty-state i { font-size: 3rem; margin-bottom: 1.5rem; display: block; }
 </style>
 
 <script>
-    let currentMode = 'SQL';
-    let explorerData = [];
+    let mode = 'SQL';
+    let explorerItems = [];
+    let selectedResource = null;
+
+    function tenantId() {
+        return localStorage.getItem('active_tenant') || 'tenant_A';
+    }
+
+    function toLogicalSchemaName(schemaName) {
+        if (!schemaName) return schemaName;
+        const prefix = `tenant_${tenantId()}_`;
+        return schemaName.startsWith(prefix) ? schemaName.slice(prefix.length) : schemaName;
+    }
+
+    function toggleGuide() {
+        const el = document.getElementById('guideCard');
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function setMode(next) {
+        mode = next;
+        document.getElementById('modeSql').classList.toggle('active', next === 'SQL');
+        document.getElementById('modeAst').classList.toggle('active', next === 'AST');
+        document.getElementById('sqlEditor').style.display = next === 'SQL' ? 'block' : 'none';
+        document.getElementById('astEditor').style.display = next === 'AST' ? 'block' : 'none';
+    }
+
+    function clearEditor() {
+        document.getElementById('sqlEditor').value = '';
+        document.getElementById('astEditor').value = '';
+        document.getElementById('resultsHead').innerHTML = '';
+        document.getElementById('resultsBody').innerHTML = '<tr><td class="wb-muted" style="padding:2rem;">Editor cleared.</td></tr>';
+    }
+
+    function normalizeRows(payload) {
+        if (Array.isArray(payload)) return payload;
+        if (Array.isArray(payload?.results)) return payload.results;
+        if (Array.isArray(payload?.data)) return payload.data;
+        if (Array.isArray(payload?.data?.results)) return payload.data.results;
+        if (Array.isArray(payload?.result)) return payload.result;
+        return [];
+    }
+
+    function renderRows(rows, metaText) {
+        const head = document.getElementById('resultsHead');
+        const body = document.getElementById('resultsBody');
+        document.getElementById('resultMeta').innerText = metaText;
+
+        if (!rows.length) {
+            head.innerHTML = '';
+            body.innerHTML = '<tr><td class="wb-muted" style="padding:2rem;">Empty result set.</td></tr>';
+            return;
+        }
+        const cols = Object.keys(rows[0]);
+        head.innerHTML = `<tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr>`;
+        body.innerHTML = rows.map(r => `<tr>${cols.map(c => `<td>${typeof r[c] === 'object' && r[c] !== null ? JSON.stringify(r[c]) : (r[c] ?? '')}</td>`).join('')}</tr>`).join('');
+    }
+
+    async function pollJob(jobId, endpoint) {
+        const started = Date.now();
+        while (Date.now() - started < 120000) {
+            const res = await fetch(`${API_BASE}${endpoint}/${jobId}`, { headers: getAuthHeaders() });
+            const data = await res.json();
+            if (data.status === 'COMPLETED') {
+                const rows = normalizeRows(data.result);
+                renderRows(rows, `Async complete • ${rows.length} rows • job ${jobId}`);
+                return;
+            }
+            if (data.status === 'FAILED') {
+                throw new Error(data.error || 'Async job failed');
+            }
+            await new Promise(r => setTimeout(r, 1200));
+        }
+        throw new Error('Async query timed out while polling.');
+    }
+
+    async function runCurrent() {
+        const runBtn = document.getElementById('runBtn');
+        const execMode = document.getElementById('executionMode').value;
+        runBtn.disabled = true;
+        runBtn.innerText = execMode === 'async' ? 'Submitting...' : 'Running...';
+        const start = performance.now();
+
+        try {
+            if (mode === 'SQL') {
+                const sql = document.getElementById('sqlEditor').value.trim();
+                if (!sql) throw new Error('SQL editor is empty.');
+
+                if (execMode === 'async') {
+                    const dispatch = await fetch(`${API_BASE}/queries/exec`, {
+                        method: 'POST',
+                        headers: getAuthHeaders(),
+                        body: JSON.stringify({ sql, async: true })
+                    });
+                    const job = await dispatch.json();
+                    if (!dispatch.ok) throw new Error(job.error || 'Failed to dispatch async query');
+                    document.getElementById('resultMeta').innerText = `Async job accepted: ${job.queryId}`;
+                    await pollJob(job.queryId, '/queries/jobs');
+                } else {
+                    const res = await fetch(`${API_BASE}/queries/exec`, {
+                        method: 'POST',
+                        headers: getAuthHeaders(),
+                        body: JSON.stringify({ sql })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'SQL execution failed');
+                    const rows = normalizeRows(data);
+                    renderRows(rows, `SQL sync • ${rows.length} rows • ${Math.round(performance.now() - start)}ms`);
+                }
+            } else {
+                const raw = document.getElementById('astEditor').value.trim();
+                if (!raw) throw new Error('AST editor is empty.');
+                const config = JSON.parse(raw);
+
+                if (execMode === 'async') {
+                    const dispatch = await fetch(`${API_BASE}/analytics/query-async`, {
+                        method: 'POST',
+                        headers: getAuthHeaders(),
+                        body: JSON.stringify({ queryConfig: config })
+                    });
+                    const job = await dispatch.json();
+                    if (!dispatch.ok) throw new Error(job.error || 'Failed to dispatch async AST query');
+                    document.getElementById('resultMeta').innerText = `Async AST job accepted: ${job.jobId}`;
+                    await pollJob(job.jobId, '/analytics/jobs');
+                } else {
+                    const res = await fetch(`${API_BASE}/analytics/query`, {
+                        method: 'POST',
+                        headers: getAuthHeaders(),
+                        body: JSON.stringify({ queryConfig: config })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'AST query failed');
+                    const rows = normalizeRows(data.data ?? data);
+                    renderRows(rows, `AST sync • ${rows.length} rows • ${Math.round(performance.now() - start)}ms`);
+                }
+            }
+        } catch (err) {
+            renderRows([], `Failed: ${err.message}`);
+        } finally {
+            runBtn.disabled = false;
+            runBtn.innerText = 'Run';
+        }
+    }
+
+    function applyTemplate(key) {
+        if (!key) return;
+        const schema = `tenant_${tenantId()}_global_supply_chain`;
+        const selectedName = selectedResource?.name || 'shipments';
+
+        const templates = {
+            sql_basic: `SELECT *\nFROM "${selectedResource?.schemaPhysical || schema}"."${selectedName}"\nLIMIT 50;`,
+            sql_federated_union: `SELECT sku, stock AS quantity, 'local' AS source\nFROM "${schema}"."local_inventory"\nUNION ALL\nSELECT item_id AS sku, qty AS quantity, 'remote' AS source\nFROM "${schema}"."remote_depot_mongo"\nLIMIT 200;`,
+            sql_recursive: `WITH RECURSIVE org_tree AS (\n  SELECT id, manager_id, name, 1 AS depth\n  FROM "${schema}"."employees"\n  WHERE manager_id IS NULL\n  UNION ALL\n  SELECT e.id, e.manager_id, e.name, ot.depth + 1\n  FROM "${schema}"."employees" e\n  JOIN org_tree ot ON e.manager_id = ot.id\n)\nSELECT * FROM org_tree ORDER BY depth, name LIMIT 200;`,
+            ast_select: JSON.stringify({
+                type: 'SELECT',
+                schema: selectedResource?.schemaName || 'Global_Supply_Chain',
+                limit: 50,
+                query: {
+                    select: ['*'],
+                    from: { resource: selectedName },
+                    where: [{ column: 'status', operator: 'EQ', value: 'ACTIVE' }],
+                    orderBy: [{ column: 'updated_at', direction: 'DESC' }]
+                }
+            }, null, 2),
+            ast_join_builder: ''
+        };
+
+        if (key.startsWith('sql_')) {
+            setMode('SQL');
+            document.getElementById('sqlEditor').value = templates[key];
+        } else if (key === 'ast_join_builder') {
+            setMode('AST');
+            document.getElementById('joinBuilder').style.display = 'block';
+            populateJoinBuilder();
+        } else {
+            setMode('AST');
+            document.getElementById('joinBuilder').style.display = 'none';
+            document.getElementById('astEditor').value = templates[key];
+        }
+    }
+
+    function populateJoinBuilder() {
+        const options = explorerItems
+            .filter(i => i.resourceType === 'TABLE' || i.resourceType.includes('VIEW'))
+            .map(i => `<option value="${i.tableId}">${i.sourceName} / ${i.schemaName} / ${i.name}</option>`)
+            .join('');
+        document.getElementById('joinPrimary').innerHTML = options;
+        document.getElementById('joinSecondary').innerHTML = options;
+    }
+
+    function buildJoinAst() {
+        const p = document.getElementById('joinPrimary').value;
+        const s = document.getElementById('joinSecondary').value;
+        const t = document.getElementById('joinType').value;
+        const on = document.getElementById('joinOn').value.trim();
+        if (!p || !s || !on) return alert('Primary, secondary, and join condition are required.');
+
+        const primary = explorerItems.find(i => i.tableId === p);
+        const secondary = explorerItems.find(i => i.tableId === s);
+        const ast = {
+            type: 'SELECT',
+            schema: primary?.schemaName,
+            limit: 100,
+            query: {
+                select: ['*'],
+                from: { resource: primary?.name, source: primary?.sourceName },
+                joins: [{
+                    type: t,
+                    resource: secondary?.name,
+                    source: secondary?.sourceName,
+                    on: { left: on.split('=')[0]?.trim() || '', operator: 'EQ', right: on.split('=')[1]?.trim() || '' }
+                }]
+            }
+        };
+        setMode('AST');
+        document.getElementById('astEditor').value = JSON.stringify(ast, null, 2);
+    }
+
+    function activateTreeRow(el) {
+        document.querySelectorAll('.tree-item').forEach(x => x.classList.remove('active'));
+        el.classList.add('active');
+    }
+
+    function chooseResource(item, el) {
+        selectedResource = item;
+        activateTreeRow(el);
+        document.getElementById('resultMeta').innerText = `Selected ${item.sourceName} / ${item.schemaName} / ${item.name}`;
+        document.getElementById('sqlEditor').value = `SELECT *\nFROM "${item.schemaPhysical}"."${item.name}"\nLIMIT 50;`;
+        document.getElementById('astEditor').value = JSON.stringify({
+            type: 'SELECT',
+            schema: item.schemaName,
+            limit: 50,
+            query: {
+                select: ['*'],
+                from: { resource: item.name, source: item.sourceName }
+            }
+        }, null, 2);
+    }
+
+    function filterExplorer() {
+        const q = (document.getElementById('explorerSearch').value || '').toLowerCase().trim();
+        document.querySelectorAll('.tree-source, .tree-schema, .tree-item').forEach(el => {
+            const txt = (el.textContent || '').toLowerCase();
+            el.style.display = !q || txt.includes(q) ? '' : 'none';
+        });
+    }
 
     async function loadExplorer() {
         const tree = document.getElementById('explorerTree');
         try {
             const sRes = await fetch(`${API_BASE}/metadata/sources`, { headers: getAuthHeaders() });
             const sources = await sRes.json();
-            
             let html = '';
+            explorerItems = [];
+
             for (const s of sources) {
-                html += `<div class="tree-node"><i class="fas fa-server"></i> ${s.name}</div><div id="source-${s.id}-schemas"></div>`;
-            }
-            tree.innerHTML = html;
-
-            // Load schemas after containers exist
-            for (const s of sources) {
-                loadWorkbenchSchemas(s.id, s.name);
-            }
-        } catch (e) { tree.innerHTML = 'Error loading tree.'; }
-    }
-
-    async function loadWorkbenchSchemas(sourceId, sourceName) {
-        const schemaEl = document.getElementById(`source-${sourceId}-schemas`);
-        try {
-            const schRes = await fetch(`${API_BASE}/metadata/schemas?sourceId=${sourceId}`, { headers: getAuthHeaders() });
-            const schemas = await schRes.json();
-            
-            let html = '';
-            for (const sch of schemas) {
-                html += `<div class="tree-item" style="padding-left:1.5rem; font-weight:600;"><i class="fas fa-folder"></i> ${sch.name}</div>`;
-                const resRes = await fetch(`${API_BASE}/metadata/tables?schemaId=${sch.schemaId}`, { headers: getAuthHeaders() });
-                const resources = await resRes.json();
-                
-                const categories = {
-                    'STORAGE': resources.filter(r => r.resourceType === 'TABLE'),
-                    'VIEWS': resources.filter(r => r.resourceType.includes('VIEW')),
-                    'LOGIC': resources.filter(r => ['FUNCTION', 'PROCEDURE', 'TRIGGER'].includes(r.resourceType))
-                };
-
-                for (const [cat, items] of Object.entries(categories)) {
-                    if (items.length > 0) {
-                        html += `<div class="tree-cat">${cat}</div>`;
-                        items.forEach(t => {
-                            html += `<div class="tree-item" onclick="selectResource('${t.tableId}', '${t.name}', '${sourceName}', this)"><i class="fas ${getIcon(t.resourceType)}"></i> ${t.name}</div>`;
-                        });
-                    }
+                html += `<div class="tree-source">${s.name} <span class="wb-muted" style="font-size:0.72rem;">(${s.type})</span></div>`;
+                const schRes = await fetch(`${API_BASE}/metadata/schemas?sourceId=${s.id}`, { headers: getAuthHeaders() });
+                const schemas = await schRes.json();
+                for (const sch of schemas) {
+                    html += `<div class="tree-schema">${toLogicalSchemaName(sch.name)}</div>`;
+                    const tRes = await fetch(`${API_BASE}/metadata/tables?schemaId=${sch.schemaId}`, { headers: getAuthHeaders() });
+                    const rows = await tRes.json();
+                    rows.forEach((r) => {
+                        const item = {
+                            tableId: r.tableId,
+                            name: r.name,
+                            resourceType: r.resourceType,
+                            schemaName: toLogicalSchemaName(sch.name),
+                            schemaPhysical: sch.physicalName || sch.name,
+                            sourceName: s.name
+                        };
+                        explorerItems.push(item);
+                        html += `<div class="tree-item" data-table-id="${item.tableId}" data-name="${item.name}" data-source="${item.sourceName}" data-schema="${item.schemaName}" data-schema-physical="${item.schemaPhysical}" data-rtype="${item.resourceType}" onclick="chooseResourceFromDom(this)">• ${item.name} <span class="wb-muted" style="font-size:0.7rem;">${item.resourceType}</span></div>`;
+                    });
                 }
             }
-            schemaEl.innerHTML = html;
-        } catch (e) { schemaEl.innerHTML = 'Error loading schemas.'; }
-    }
-    function getIcon(type) {
-        switch(type) {
-            case 'TABLE': return 'fa-table';
-            case 'VIEW': return 'fa-eye';
-            case 'MATERIALIZED_VIEW': return 'fa-bolt';
-            case 'SEQUENCE': return 'fa-sort-numeric-up';
-            case 'FUNCTION': return 'fa-code';
-            case 'PROCEDURE': return 'fa-cogs';
-            case 'ENUM': return 'fa-list-ul';
-            case 'TRIGGER': return 'fa-running';
-            case 'POLICY': return 'fa-shield-alt';
-            default: return 'fa-cube';
+            tree.innerHTML = html || '<div class="wb-muted" style="padding:1rem;">No catalog resources found.</div>';
+            populateJoinBuilder();
+        } catch (err) {
+            tree.innerHTML = `<div class="wb-muted" style="padding:1rem; color:#b91c1c;">Explorer load failed: ${err.message}</div>`;
         }
     }
 
-    function selectResource(tableId, name, sourceName, el) {
-        document.querySelectorAll('.tree-item').forEach(i => i.classList.remove('active'));
-        el.classList.add('active');
-        
-        document.getElementById('sourceBadge').style.display = 'block';
-        document.getElementById('sourceBadge').innerText = `${sourceName} / ${name}`;
-        
-        const config = { type: 'SELECT', tableId: tableId, limit: 50 };
-        document.getElementById('configInput').value = JSON.stringify(config, null, 2);
-        document.getElementById('sqlInput').value = `SELECT * FROM "${name}" LIMIT 50;`;
-    }
-
-    function setMode(mode) {
-        currentMode = mode;
-        document.getElementById('modeSql').classList.toggle('active', mode === 'SQL');
-        document.getElementById('modeConfig').classList.toggle('active', mode === 'CONFIG');
-        document.getElementById('sqlEditor').style.display = mode === 'SQL' ? 'block' : 'none';
-        document.getElementById('configEditor').style.display = mode === 'CONFIG' ? 'block' : 'none';
-    }
-
-    function newQuery() {
-        document.getElementById('sqlInput').value = '';
-        document.getElementById('configInput').value = '';
-        document.getElementById('sourceBadge').style.display = 'none';
-    }
-
-    async function executeCurrentQuery() {
-        const btn = document.getElementById('runBtn');
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> RUNNING';
-        
-        const start = performance.now();
-        const head = document.getElementById('resultsHead');
-        const body = document.getElementById('resultsBody');
-        body.innerHTML = '<tr><td colspan="100" style="text-align:center; padding:5rem;">Executing query...</td></tr>';
-
-        try {
-            let res, data;
-            if (currentMode === 'SQL') {
-                res = await fetch(`${API_BASE}/queries/exec`, {
-                    method: 'POST',
-                    headers: getAuthHeaders(),
-                    body: JSON.stringify({ sql: document.getElementById('sqlInput').value })
-                });
-            } else {
-                res = await fetch(`${API_BASE}/queries/engine`, {
-                    method: 'POST',
-                    headers: getAuthHeaders(),
-                    body: JSON.stringify(JSON.parse(document.getElementById('configInput').value))
-                });
-            }
-            data = await res.json();
-            const results = Array.isArray(data) ? data : (data.results || []);
-            
-            document.getElementById('execTime').innerText = `${Math.round(performance.now() - start)}ms`;
-            
-            if (results.length === 0) {
-                body.innerHTML = '<tr><td colspan="100" style="text-align:center; padding:5rem;">Empty result set.</td></tr>';
-                return;
-            }
-
-            const cols = Object.keys(results[0]);
-            head.innerHTML = `<tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr>`;
-            body.innerHTML = results.map(row => `<tr>${cols.map(c => `<td>${typeof row[c] === 'object' ? JSON.stringify(row[c]) : row[c]}</td>`).join('')}</tr>`).join('');
-        } catch (e) {
-            body.innerHTML = `<tr><td colspan="100" style="text-align:center; padding:5rem; color:red;">Execution failed: ${e.message}</td></tr>`;
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-play"></i> EXECUTE';
-        }
+    function chooseResourceFromDom(el) {
+        const item = {
+            tableId: el.dataset.tableId,
+            name: el.dataset.name,
+            sourceName: el.dataset.source,
+            schemaName: el.dataset.schema,
+            schemaPhysical: el.dataset.schemaPhysical,
+            resourceType: el.dataset.rtype
+        };
+        chooseResource(item, el);
     }
 
     loadExplorer();

@@ -329,7 +329,7 @@
             `).join('');
 
             // Dynamic Property Card Generation
-            const ast = resource.definitionAst || {};
+            const ast = (resource.definitionAst && typeof resource.definitionAst === 'object') ? resource.definitionAst : null;
             let propHtml = `
                 <div class="meta-card">
                     <span class="meta-label">General Information</span>
@@ -343,26 +343,26 @@
                 propHtml += `
                     <div class="meta-card">
                         <span class="meta-label">Sequence Configuration</span>
-                        <div class="property-row"><span>Start With</span><b>${ast.start || 1}</b></div>
-                        <div class="property-row"><span>Increment</span><b>${ast.increment || 1}</b></div>
-                        <div class="property-row"><span>Min/Max</span><span>${ast.minValue || 'N/A'} / ${ast.maxValue || 'N/A'}</span></div>
-                        <div class="property-row"><span>Cache</span><b>${ast.cache || 'OFF'}</b></div>
+                        <div class="property-row"><span>Start With</span><b>${ast?.start || 1}</b></div>
+                        <div class="property-row"><span>Increment</span><b>${ast?.increment || 1}</b></div>
+                        <div class="property-row"><span>Min/Max</span><span>${ast?.minValue || 'N/A'} / ${ast?.maxValue || 'N/A'}</span></div>
+                        <div class="property-row"><span>Cache</span><b>${ast?.cache || 'OFF'}</b></div>
                     </div>
                 `;
             } else if (resource.resourceType === 'TRIGGER') {
                 propHtml += `
                     <div class="meta-card">
                         <span class="meta-label">Trigger Definition</span>
-                        <div class="property-row"><span>Event</span><b>${ast.event || 'N/A'}</b></div>
-                        <div class="property-row"><span>Timing</span><b>${ast.timing || 'N/A'}</b></div>
-                        <div class="property-row"><span>Level</span><b>${ast.level || 'ROW'}</b></div>
+                        <div class="property-row"><span>Event</span><b>${ast?.event || 'N/A'}</b></div>
+                        <div class="property-row"><span>Timing</span><b>${ast?.timing || 'N/A'}</b></div>
+                        <div class="property-row"><span>Level</span><b>${ast?.level || 'ROW'}</b></div>
                     </div>
                 `;
             } else if (resource.resourceType === 'ENUM') {
                 propHtml += `
                     <div class="meta-card">
                         <span class="meta-label">Enum Values</span>
-                        <div style="margin-top:0.5rem;">${(ast.values || []).map(v => `<span class="engine-badge" style="margin:2px;">${v}</span>`).join('')}</div>
+                        <div style="margin-top:0.5rem;">${(ast?.values || []).map(v => `<span class="engine-badge" style="margin:2px;">${v}</span>`).join('')}</div>
                     </div>
                 `;
             } else if (resource.resourceType.includes('VIEW')) {
@@ -370,8 +370,8 @@
                     <div class="meta-card">
                         <span class="meta-label">View Optimization</span>
                         <div class="property-row"><span>Materialized</span><b>${resource.resourceType.includes('MATERIALIZED') ? 'YES' : 'NO'}</b></div>
-                        <div class="property-row"><span>Recursive</span><b>${ast.recursive ? 'YES' : 'NO'}</b></div>
-                        <div class="property-row"><span>Federated</span><b>${ast.federationStrategy || 'NONE'}</b></div>
+                        <div class="property-row"><span>Recursive</span><b>${ast?.recursive ? 'YES' : 'NO'}</b></div>
+                        <div class="property-row"><span>Federated</span><b>${ast?.federationStrategy || 'NONE'}</b></div>
                     </div>
                 `;
             } else {
@@ -388,7 +388,7 @@
             const colSection = document.getElementById('columnsSection');
             const colBody = document.getElementById('columnsBody');
             
-            if (ast.columns) {
+            if (ast?.columns) {
                 colSection.style.display = 'block';
                 colBody.innerHTML = ast.columns.map(c => `
                     <tr>
@@ -407,7 +407,9 @@
             document.getElementById('ddlCode').innerText = resource.definitionSql || `-- DDL for ${resource.name}\n-- Target Engine: ${engine}\n\nSELECT * FROM ${resource.physicalName};`;
             
             // Fabric AST
-            document.getElementById('astCode').innerText = resource.definitionAst ? JSON.stringify(resource.definitionAst, null, 2) : '// No logical definition found';
+            const rawAstText = ast ? JSON.stringify(ast, null, 2) : '// No logical definition found';
+            document.getElementById('astCode').innerText = rawAstText;
+            document.getElementById('propRaw').innerText = rawAstText;
 
             switchTab('properties');
             if (['TABLE', 'VIEW', 'MATERIALIZED_VIEW'].includes(resource.resourceType)) {
@@ -440,7 +442,11 @@
         try {
             const res = await fetch(`${API_BASE}/metadata/preview?tableId=${tableId}&limit=50`, { headers: getAuthHeaders() });
             const data = await res.json();
-            const rows = Array.isArray(data) ? data : (Array.isArray(data?.results) ? data.results : []);
+            const rows = Array.isArray(data)
+                ? data
+                : (Array.isArray(data?.results)
+                    ? data.results
+                    : (Array.isArray(data?.data) ? data.data : []));
             
             if (!rows || rows.length === 0) {
                 body.innerHTML = '<tr><td colspan="100" style="text-align:center;">No records found.</td></tr>';

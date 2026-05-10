@@ -13,7 +13,9 @@ import authRoutes from './routes/authRoutes';
 import queryRoutes from './routes/queryRoutes';
 import metadataRoutes from './routes/metadataRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
+import triggerRoutes from './routes/triggerRoutes';
 import * as metadataController from './controllers/metadataController';
+import { ElasticsearchMutationWorker } from './modules/metadata/es_mutation_worker';
 
 import morgan from 'morgan';
 
@@ -97,6 +99,7 @@ app.use('/api/admin', requireAdmin, adminRoutes);
 app.use('/api/queries', requireAuth, queryRoutes);
 app.use('/api/metadata', requireAuth, metadataRoutes);
 app.use('/api/analytics', requireAuth, analyticsRoutes);
+app.use('/api/triggers', requireAuth, triggerRoutes);
 
 // Shared Global Events API
 app.get('/api/events', requireAuth, metadataController.getEvents);
@@ -109,6 +112,7 @@ if (process.env.NODE_ENV !== 'test') {
       await pool.query('SELECT 1');
       server.listen(PORT, '0.0.0.0', () => {
         console.log(`\x1b[32m✔ Industrial Data Fabric Orchestrator running on port ${PORT}\x1b[0m`);
+        ElasticsearchMutationWorker.start();
       });
     } catch (err: any) {
       console.error(`\x1b[31m[FATAL] Database Connectivity Failed: ${err.message}\x1b[0m`);

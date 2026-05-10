@@ -81,7 +81,11 @@ export const getPreviewData = async (req: Request, res: Response) => {
             select: ['*']
         });
 
-        res.json(result);
+        // Normalize payload for UI consumers across physical + virtual connectors.
+        if (Array.isArray(result)) return res.json(result);
+        if (Array.isArray((result as any)?.data)) return res.json((result as any).data);
+        if (Array.isArray((result as any)?.results)) return res.json((result as any).results);
+        res.json(result || []);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }
@@ -277,7 +281,7 @@ export const getResourceDetails = async (req: Request, res: Response) => {
                 ds.name as "sourceName"
             FROM public.catalog_tables ct
             JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
-            JOIN public.data_sources ds ON cs.source_id = ds.id
+            LEFT JOIN public.data_sources ds ON cs.source_id = ds.id
             WHERE ct.id = $1
         `, [resourceId], { tenantId: user.tenant_id, username: user.username });
 

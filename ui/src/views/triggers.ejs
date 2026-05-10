@@ -1,0 +1,354 @@
+<%- include('partials/header') %>
+
+<style>
+  .trg-grid { display:grid; grid-template-columns: 1.2fr 1fr; gap:1rem; }
+  .trg-card { background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:1rem; }
+  .trg-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem; }
+  .trg-scroll { max-height:360px; overflow:auto; border:1px solid var(--border); border-radius:10px; }
+  .trg-modal { position:fixed; inset:0; background:rgba(2,6,23,0.45); display:none; align-items:center; justify-content:center; z-index:10000; }
+  .trg-modal.active { display:flex; }
+  .trg-modal-card { width:min(980px,94vw); max-height:90vh; overflow:auto; background:#fff; border-radius:14px; padding:1rem; border:1px solid var(--border); }
+  .trg-form-grid { display:grid; grid-template-columns: 1fr 1fr; gap:0.7rem; }
+  .trg-form-grid .full { grid-column:1 / -1; }
+  .trg-input, .trg-select, .trg-text { width:100%; border:1px solid var(--border); border-radius:8px; padding:0.55rem 0.65rem; font-size:0.85rem; }
+  .trg-text { min-height:120px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+</style>
+
+<div class="fade-in">
+  <div class="trg-card" style="margin-bottom:1rem;">
+    <div class="trg-head">
+      <div>
+        <h3 style="margin:0;"><i class="fas fa-bolt"></i> Trigger Control Plane</h3>
+        <p class="text-muted" style="margin:0.3rem 0 0;">Row triggers + generic scheduler triggers (`every n unit`) with async execution via trigger-engine.</p>
+      </div>
+      <div style="display:flex; gap:0.5rem;">
+        <button class="btn-outline" onclick="loadAll()">Refresh</button>
+        <button class="btn-primary" onclick="openTriggerModal()">+ Create Trigger</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="trg-grid">
+    <div class="trg-card">
+      <div class="trg-head"><h4 style="margin:0;">Registry</h4></div>
+      <div class="trg-scroll">
+        <table class="table-premium">
+          <thead><tr><th>Name</th><th>Scope</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="trgBody"><tr><td colspan="5" class="text-muted" style="text-align:center;">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="trg-card">
+      <div class="trg-head"><h4 style="margin:0;">Jobs</h4></div>
+      <div class="trg-scroll">
+        <table class="table-premium">
+          <thead><tr><th>Job</th><th>Status</th><th>Attempts</th><th>Action</th></tr></thead>
+          <tbody id="jobBody"><tr><td colspan="4" class="text-muted" style="text-align:center;">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="trg-card" style="margin-top:1rem;">
+    <div class="trg-head">
+      <h4 style="margin:0;">Execution Logs</h4>
+      <span class="text-muted" id="logMeta">Auto-pagination on scroll</span>
+    </div>
+    <div class="trg-scroll" id="logScroller">
+      <table class="table-premium">
+        <thead><tr><th>Time</th><th>Trigger</th><th>Action</th><th>Status</th><th>Detail</th></tr></thead>
+        <tbody id="logBody"><tr><td colspan="5" class="text-muted" style="text-align:center;">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="triggerModal" class="trg-modal">
+  <div class="trg-modal-card">
+    <div class="trg-head">
+      <h3 id="trgModalTitle" style="margin:0;">Create Trigger</h3>
+      <button class="btn-outline" onclick="closeTriggerModal()">Close</button>
+    </div>
+    <div class="trg-form-grid">
+      <div>
+        <label>Trigger Name</label>
+        <input id="fTriggerName" class="trg-input" placeholder="trg_orders_notify">
+      </div>
+      <div>
+        <label>Mode</label>
+        <select id="fMode" class="trg-select" onchange="toggleModeFields()">
+          <option value="ROW">Row Trigger</option>
+          <option value="SCHEDULE">Scheduler Trigger</option>
+        </select>
+      </div>
+      <div id="rowFieldsA">
+        <label>Schema</label>
+        <input id="fSchema" class="trg-input" placeholder="tenant_tenant_A_Global_Supply_Chain">
+      </div>
+      <div id="rowFieldsB">
+        <label>Table</label>
+        <input id="fTable" class="trg-input" placeholder="shipments">
+      </div>
+      <div id="rowFieldsC">
+        <label>Event</label>
+        <select id="fEvent" class="trg-select">
+          <option>AFTER_INSERT</option><option>AFTER_UPDATE</option><option>AFTER_DELETE</option>
+          <option>BEFORE_INSERT</option><option>BEFORE_UPDATE</option><option>BEFORE_DELETE</option>
+        </select>
+      </div>
+      <div id="schedFieldsA" style="display:none;">
+        <label>Every</label>
+        <input id="fEvery" class="trg-input" type="number" value="1" min="1">
+      </div>
+      <div id="schedFieldsB" style="display:none;">
+        <label>Unit</label>
+        <select id="fUnit" class="trg-select"><option>SECOND</option><option>MINUTE</option><option>HOUR</option><option>DAY</option></select>
+      </div>
+      <div id="schedFieldsC" class="full" style="display:none;">
+        <label>Scheduler Mode</label>
+        <select id="fSchedType" class="trg-select" onchange="toggleSchedType()">
+          <option value="FIXED">FIXED (Every N Unit)</option>
+          <option value="CRON">CRON Expression</option>
+        </select>
+      </div>
+      <div id="schedCronWrap" class="full" style="display:none;">
+        <label>Cron Expression</label>
+        <input id="fCron" class="trg-input" placeholder="*/5 * * * *">
+      </div>
+      <div>
+        <label>Action Type</label>
+        <select id="fActionType" class="trg-select">
+          <option>AUDIT</option><option>EMAIL</option><option>TELEGRAM</option><option>WEBHOOK</option><option>FUNCTION</option><option>EXCEPTION</option>
+        </select>
+      </div>
+      <div class="full">
+        <label>Action JSON (`execute` fields: params/payload/headers/auth)</label>
+        <textarea id="fActionJson" class="trg-text">{}</textarea>
+      </div>
+      <div class="full">
+        <label>Schedule/AutoDrop JSON (optional)</label>
+        <textarea id="fExtrasJson" class="trg-text">{}</textarea>
+      </div>
+    </div>
+    <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.8rem;">
+      <button class="btn-outline" onclick="closeTriggerModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveTriggerFromModal()">Save Trigger</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let editingId = null;
+  let logOffset = 0;
+  let logLoading = false;
+  let logDone = false;
+  const LOG_PAGE = 30;
+
+  function esc(s) {
+    return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function toggleModeFields() {
+    const mode = document.getElementById('fMode').value;
+    const row = mode === 'ROW';
+    ['rowFieldsA','rowFieldsB','rowFieldsC'].forEach(id => document.getElementById(id).style.display = row ? '' : 'none');
+    ['schedFieldsA','schedFieldsB','schedFieldsC'].forEach(id => document.getElementById(id).style.display = row ? 'none' : '');
+    if (!row) toggleSchedType();
+    else document.getElementById('schedCronWrap').style.display = 'none';
+  }
+
+  function toggleSchedType() {
+    const t = document.getElementById('fSchedType').value;
+    const cron = t === 'CRON';
+    document.getElementById('schedCronWrap').style.display = cron ? '' : 'none';
+    document.getElementById('schedFieldsA').style.display = cron ? 'none' : '';
+    document.getElementById('schedFieldsB').style.display = cron ? 'none' : '';
+  }
+
+  function openTriggerModal(row = null) {
+    editingId = row?.id || null;
+    document.getElementById('trgModalTitle').innerText = editingId ? 'Edit Trigger' : 'Create Trigger';
+    const tenant = localStorage.getItem('active_tenant') || 'tenant_A';
+    document.getElementById('fTriggerName').value = row?.triggerName || 'trg_new_action';
+    const isSched = row?.schemaName === '__SYSTEM__' || row?.tableName === '__SYSTEM__' || !!row?.definition?.schedule?.type;
+    document.getElementById('fMode').value = isSched ? 'SCHEDULE' : 'ROW';
+    document.getElementById('fSchema').value = row?.schemaName && row.schemaName !== '__SYSTEM__' ? row.schemaName : `tenant_${tenant}_Global_Supply_Chain`;
+    document.getElementById('fTable').value = row?.tableName && row.tableName !== '__SYSTEM__' ? row.tableName : 'shipments';
+    document.getElementById('fEvent').value = row?.definition?.event || 'AFTER_INSERT';
+    document.getElementById('fEvery').value = row?.definition?.schedule?.every || 1;
+    document.getElementById('fUnit').value = row?.definition?.schedule?.unit || 'MINUTE';
+    document.getElementById('fSchedType').value = row?.definition?.schedule?.type || 'FIXED';
+    document.getElementById('fCron').value = row?.definition?.schedule?.cron || '*/5 * * * *';
+    document.getElementById('fActionType').value = row?.definition?.execute?.type || 'AUDIT';
+    const action = { ...row?.definition?.execute } || {};
+    delete action.type;
+    document.getElementById('fActionJson').value = JSON.stringify(action || {}, null, 2);
+    const extras = { schedule: row?.definition?.schedule || null, autoDrop: row?.definition?.autoDrop || null };
+    document.getElementById('fExtrasJson').value = JSON.stringify(extras, null, 2);
+    toggleModeFields();
+    document.getElementById('triggerModal').classList.add('active');
+  }
+
+  function closeTriggerModal() {
+    document.getElementById('triggerModal').classList.remove('active');
+  }
+
+  async function saveTriggerFromModal() {
+    try {
+      const mode = document.getElementById('fMode').value;
+      const triggerName = document.getElementById('fTriggerName').value.trim();
+      const actionType = document.getElementById('fActionType').value;
+      const actionJson = JSON.parse(document.getElementById('fActionJson').value || '{}');
+      const extras = JSON.parse(document.getElementById('fExtrasJson').value || '{}');
+
+      const definition = {
+        execute: { type: actionType, ...actionJson }
+      };
+      if (mode === 'ROW') definition.event = document.getElementById('fEvent').value;
+      if (extras?.autoDrop) definition.autoDrop = extras.autoDrop;
+      if (mode === 'SCHEDULE') {
+        const schedType = document.getElementById('fSchedType').value;
+        if (schedType === 'CRON') {
+          definition.schedule = {
+            type: 'CRON',
+            cron: document.getElementById('fCron').value.trim() || '*/5 * * * *',
+            ...(extras?.schedule || {})
+          };
+        } else {
+          definition.schedule = {
+            type: 'FIXED',
+            every: Number(document.getElementById('fEvery').value || 1),
+            unit: document.getElementById('fUnit').value,
+            ...(extras?.schedule || {})
+          };
+        }
+      } else if (extras?.schedule) {
+        definition.schedule = extras.schedule;
+      }
+
+      const payload = {
+        triggerName,
+        schemaName: mode === 'ROW' ? document.getElementById('fSchema').value.trim() : '__SYSTEM__',
+        tableName: mode === 'ROW' ? document.getElementById('fTable').value.trim() : '__SYSTEM__',
+        definition
+      };
+
+      const url = editingId ? `${API_BASE}/triggers/${editingId}` : `${API_BASE}/triggers`;
+      const method = editingId ? 'PUT' : 'POST';
+      const res = await fetch(url, { method, headers: getAuthHeaders(), body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed');
+      closeTriggerModal();
+      await loadAll();
+    } catch (e) {
+      showModal('Save Failed', e.message || 'Failed to save trigger');
+    }
+  }
+
+  async function loadTriggers() {
+    const body = document.getElementById('trgBody');
+    body.innerHTML = '<tr><td colspan="5" class="text-muted" style="text-align:center;">Loading...</td></tr>';
+    const res = await fetch(`${API_BASE}/triggers`, { headers: getAuthHeaders() });
+    const rows = await res.json();
+    if (!Array.isArray(rows) || !rows.length) {
+      body.innerHTML = '<tr><td colspan="5" class="text-muted" style="text-align:center;">No triggers</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map(r => {
+      const scope = (r.schemaName === '__SYSTEM__' || r.tableName === '__SYSTEM__') ? 'Scheduler' : `${r.schemaName}.${r.tableName}`;
+      const typ = r.definition?.execute?.type || 'N/A';
+      return `<tr>
+        <td><b>${esc(r.triggerName)}</b></td>
+        <td><code>${esc(scope)}</code></td>
+        <td>${esc(typ)}</td>
+        <td><span class="badge-sync" style="background:${r.status === 'ACTIVE' ? 'var(--success)' : '#f59e0b'}">${esc(r.status)}</span></td>
+        <td style="display:flex; gap:0.35rem;">
+          <button class="btn-outline" onclick='openTriggerModal(${JSON.stringify(JSON.stringify(r))})'>Edit</button>
+          <button class="btn-outline" onclick='deployTrigger("${r.id}")'>Deploy</button>
+          <button class="btn-danger" onclick='deleteTrigger("${r.id}","${esc(r.triggerName)}")'>Delete</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function loadJobs() {
+    const body = document.getElementById('jobBody');
+    body.innerHTML = '<tr><td colspan="4" class="text-muted" style="text-align:center;">Loading...</td></tr>';
+    const res = await fetch(`${API_BASE}/triggers/jobs/list`, { headers: getAuthHeaders() });
+    const rows = await res.json();
+    body.innerHTML = (rows || []).map(r => `<tr>
+      <td>${esc(r.jobType)}</td>
+      <td><span class="badge-sync" style="background:${r.status === 'COMPLETED' ? 'var(--success)' : (r.status === 'FAILED' ? 'var(--danger)' : 'var(--primary)')}">${esc(r.status)}</span></td>
+      <td>${r.attempts}/${r.maxAttempts}</td>
+      <td>${r.status === 'FAILED' ? `<button class="btn-outline" onclick='retryJob("${r.id}")'>Retry</button>` : ''}</td>
+    </tr>`).join('') || '<tr><td colspan="4" class="text-muted" style="text-align:center;">No jobs</td></tr>';
+  }
+
+  async function loadLogs(reset = false) {
+    if (logLoading || logDone) return;
+    if (reset) {
+      logOffset = 0; logDone = false;
+      document.getElementById('logBody').innerHTML = '';
+    }
+    logLoading = true;
+    document.getElementById('logMeta').innerText = `Loading...`;
+    const res = await fetch(`${API_BASE}/triggers/logs/list?limit=${LOG_PAGE}&offset=${logOffset}`, { headers: getAuthHeaders() });
+    const rows = await res.json();
+    const body = document.getElementById('logBody');
+    if (!Array.isArray(rows) || rows.length === 0) {
+      if (logOffset === 0) body.innerHTML = '<tr><td colspan="5" class="text-muted" style="text-align:center;">No logs</td></tr>';
+      logDone = true;
+      document.getElementById('logMeta').innerText = `No more logs`;
+      logLoading = false;
+      return;
+    }
+    body.innerHTML += rows.map(r => `<tr>
+      <td>${new Date(r.createdAt).toLocaleString()}</td>
+      <td>${esc(r.triggerName)}</td>
+      <td>${esc(r.action)}</td>
+      <td><span class="badge-sync" style="background:${r.status === 'SUCCESS' ? 'var(--success)' : 'var(--danger)'}">${esc(r.status)}</span></td>
+      <td><code style="font-size:0.75rem;">${esc(JSON.stringify(r.detail || {}))}</code></td>
+    </tr>`).join('');
+    logOffset += rows.length;
+    logLoading = false;
+    document.getElementById('logMeta').innerText = `Loaded ${logOffset} logs`;
+  }
+
+  async function deployTrigger(id) {
+    const res = await fetch(`${API_BASE}/triggers/${id}/deploy`, { method: 'POST', headers: getAuthHeaders() });
+    const data = await res.json();
+    if (!res.ok) return showModal('Deploy Failed', data.error || 'Deploy failed');
+    await loadAll();
+  }
+
+  async function deleteTrigger(id, name) {
+    showModal('Delete Trigger', `Delete '${name}'?`, async () => {
+      const res = await fetch(`${API_BASE}/triggers/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+      const data = await res.json();
+      if (!res.ok) return showModal('Delete Failed', data.error || 'Delete failed');
+      await loadAll();
+    }, 'Delete');
+  }
+
+  async function retryJob(id) {
+    const res = await fetch(`${API_BASE}/triggers/jobs/${id}/retry`, { method: 'POST', headers: getAuthHeaders() });
+    const data = await res.json();
+    if (!res.ok) return showModal('Retry Failed', data.error || 'Retry failed');
+    await loadJobs();
+  }
+
+  async function loadAll() {
+    await Promise.all([loadTriggers(), loadJobs()]);
+    await loadLogs(true);
+  }
+
+  document.getElementById('logScroller').addEventListener('scroll', (e) => {
+    const el = e.target;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) loadLogs(false);
+  });
+
+  loadAll();
+</script>
+
+<%- include('partials/footer') %>

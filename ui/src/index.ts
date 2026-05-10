@@ -43,12 +43,20 @@ app.get('/workbench', (req, res) => {
   res.render('workbench', { title: 'Zero Data Fabric - Workbench' });
 });
 
+app.get('/workbench/docs', (req, res) => {
+  res.render('workbench_docs', { title: 'Zero Data Fabric - Workbench Docs' });
+});
+
 app.get('/iam', (req, res) => {
   res.render('iam', { title: 'Zero Data Fabric - IAM' });
 });
 
 app.get('/audit', (req, res) => {
   res.render('audit', { title: 'Zero Data Fabric - Audit Logs' });
+});
+
+app.get('/triggers', (req, res) => {
+  res.render('triggers', { title: 'Zero Data Fabric - Trigger Control Plane' });
 });
 
 app.get('/catalog', (req, res) => {

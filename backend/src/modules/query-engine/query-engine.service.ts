@@ -1,7 +1,9 @@
 import { pool, queryWithContext } from '../../config/database';
 import { EventService } from '../events/event.service';
 import { ConnectorFactory } from '../metadata/connectors/factory';
+import { QueryTranspiler } from '../metadata/query_transpiler';
 import { randomUUID } from 'crypto';
+import { ElasticsearchMutationWorker } from '../metadata/es_mutation_worker';
 
 export interface QueryConfig {
   type: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 
@@ -9,7 +11,9 @@ export interface QueryConfig {
         'ALTER_TABLE' | 'DROP_TABLE' | 'CREATE_INDEX' | 
         'CREATE_VIEW' | 'CREATE_SEQUENCE';
   table?: string;
+  resource?: string;
   schema?: string;
+  source?: string;
   tableId?: string; // UUID reference to catalog_tables
   schemaId?: string; // UUID reference to catalog_schemas
   withRecursive?: {
@@ -22,8 +26,10 @@ export interface QueryConfig {
   joins?: {
     type: 'INNER' | 'LEFT' | 'RIGHT' | 'FULL' | 'CROSS';
     table?: string;
+    resource?: string;
     tableId?: string;
     schema?: string;
+    source?: string;
     on: string;
   }[];
   groupBy?: string[];
@@ -55,9 +61,53 @@ export interface QueryConfig {
   
   // SEQUENCE specific
   sequenceDef?: { name: string; start?: number; increment?: number };
+  query?: any;
 }
 
 export class QueryEngineService {
+  private static toTenantSchemaName(tenantId: string, schema?: string) {
+    const cleanTenant = tenantId.replace(/[^a-zA-Z0-9_]/g, '');
+    if (!schema) return `tenant_${cleanTenant}`;
+    const safeSchema = String(schema).replace(/[^a-zA-Z0-9_]/g, '');
+    const fullPrefix = `tenant_${cleanTenant}_`;
+    if (safeSchema === `tenant_${cleanTenant}` || safeSchema.startsWith(fullPrefix)) {
+      return safeSchema;
+    }
+    return `${fullPrefix}${safeSchema}`;
+  }
+
+  private static async resolveTarget(
+    tenantId: string,
+    cfg: { tableId?: string | undefined; schemaId?: string | undefined; source?: string | undefined; schema?: string | undefined; table?: string | undefined; resource?: string | undefined }
+  ) {
+    let schemaName = this.toTenantSchemaName(tenantId, cfg.schema);
+    let tableName = (cfg.table || cfg.resource || '').replace(/[^a-zA-Z0-9_]/g, '');
+
+    if (cfg.tableId) {
+      const { rows } = await pool.query(`
+        SELECT ct.physical_name as table_name, cs.physical_name as schema_name
+        FROM public.catalog_tables ct
+        JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+        WHERE ct.id = $1
+      `, [cfg.tableId]);
+      if (rows.length) {
+        const resolvedSchema = rows[0].schema_name;
+        const rawTable = rows[0].table_name || '';
+        // Backward-compatible parsing: some older catalog rows stored physical_name as "<schema>.<table>".
+        const resolvedTable = String(rawTable).includes('.')
+          ? String(rawTable).split('.').pop()
+          : String(rawTable);
+        return { schemaName: resolvedSchema, tableName: resolvedTable };
+      }
+    }
+
+    if (cfg.schemaId) {
+      const { rows } = await pool.query('SELECT physical_name FROM public.catalog_schemas WHERE id = $1', [cfg.schemaId]);
+      if (rows.length) schemaName = rows[0].physical_name;
+    }
+
+    return { schemaName, tableName };
+  }
   private static jobs = new Map<string, { status: string; result?: any; error?: string }>();
 
   /**
@@ -85,6 +135,51 @@ export class QueryEngineService {
         if (!hasLimit && !hasFilter && !isAggregate) {
             throw new Error('INDUSTRIAL SAFETY: Unrestricted operations (No LIMIT or WHERE) are blocked to prevent resource exhaustion.');
         }
+    }
+
+    // Manifest-style query AST execution (consistent with metadata query blocks)
+    if (
+      config.type === 'SELECT' &&
+      (
+        (config as any).query?.from?.resource ||
+        Array.isArray((config as any).query?.union) ||
+        Array.isArray((config as any).query?.intersect) ||
+        Array.isArray((config as any).query?.except) ||
+        Array.isArray((config as any).query?.with)
+      )
+    ) {
+      const schemaName = this.toTenantSchemaName(tenantId, config.schema);
+
+      const ast = JSON.parse(JSON.stringify((config as any).query || {}));
+      // Runtime analytics query executes inside tenant schema; explicit source labels are metadata-level hints.
+      if (ast.from && ast.from.source) delete ast.from.source;
+      if (Array.isArray(ast.joins)) {
+        for (const j of ast.joins) {
+          if (j && j.source) delete j.source;
+        }
+      }
+      if (Array.isArray(ast.union)) {
+        for (const u of ast.union) if (u?.from?.source) delete u.from.source;
+      }
+      if (Array.isArray(ast.intersect)) {
+        for (const u of ast.intersect) if (u?.from?.source) delete u.from.source;
+      }
+      if (Array.isArray(ast.except)) {
+        for (const u of ast.except) if (u?.from?.source) delete u.from.source;
+      }
+      const hasWhere = Array.isArray(ast.where) && ast.where.length > 0;
+      const hasLimit = typeof config.limit === 'number' && config.limit > 0;
+      const hasSetOps = Array.isArray(ast.union) || Array.isArray(ast.intersect) || Array.isArray(ast.except);
+      if (!hasWhere && !hasLimit && !hasSetOps) {
+        throw new Error('INDUSTRIAL SAFETY: Manifest-style SELECT requires either query.where or limit.');
+      }
+
+      let sql = QueryTranspiler.toSql(ast, schemaName);
+      if (hasLimit && !/\sLIMIT\s+\d+/i.test(sql)) {
+        sql = `${sql} LIMIT ${config.limit}`;
+      }
+      const result = await queryWithContext(sql, [], { tenantId, username: 'system' });
+      return result.rows;
     }
 
     // SPECIAL CASE: CREATE_SCHEMA uses stored procedure for security
@@ -135,6 +230,10 @@ export class QueryEngineService {
         }
     }
 
+    const resolvedTarget = ['INSERT', 'UPDATE', 'DELETE'].includes(config.type)
+      ? await this.resolveTarget(tenantId, config as any)
+      : null;
+
     const { sql, params } = await this.generateSql(tenantId, config);
     const result = await queryWithContext(sql, params, { tenantId, username: 'system' });
     
@@ -144,7 +243,17 @@ export class QueryEngineService {
         tenantId,
         action: config.type,
         table: config.table,
+        schema: resolvedTarget?.schemaName || null,
+        rowCount: result.rowCount || 0,
         timestamp: new Date().toISOString()
+      });
+      await ElasticsearchMutationWorker.enqueueMutation({
+        tenantId,
+        schemaName: resolvedTarget?.schemaName || this.toTenantSchemaName(tenantId, config.schema),
+        tableName: resolvedTarget?.tableName || (config.table || config.resource || ''),
+        action: config.type as 'INSERT' | 'UPDATE' | 'DELETE',
+        rows: result.rows || [],
+        ...(config.filter ? { filter: config.filter } : {})
       });
     }
 
@@ -228,31 +337,9 @@ export class QueryEngineService {
     }
 
     const cleanTenant = tenantId.replace(/[^a-zA-Z0-9_]/g, '');
-    
-    let schemaName = config.schema 
-        ? `tenant_${cleanTenant}_${config.schema.replace(/[^a-zA-Z0-9_]/g, '')}`
-        : `tenant_${cleanTenant}`;
-    
-    let tableName = table?.replace(/[^a-zA-Z0-9_]/g, '');
-
-    // INDUSTRIAL RESOLUTION: If UUIDs are provided, resolve physical locations via Catalog
-    if (config.tableId) {
-        const { rows } = await pool.query(`
-            SELECT ct.physical_name as table_name, cs.physical_name as schema_name 
-            FROM public.catalog_tables ct
-            JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
-            WHERE ct.id = $1
-        `, [config.tableId]);
-        if (rows.length > 0) {
-            tableName = rows[0].table_name;
-            schemaName = rows[0].schema_name;
-        }
-    } else if (config.schemaId) {
-        const { rows } = await pool.query('SELECT physical_name FROM public.catalog_schemas WHERE id = $1', [config.schemaId]);
-        if (rows.length > 0) {
-            schemaName = rows[0].physical_name;
-        }
-    }
+    const resolved = await this.resolveTarget(tenantId, config as any);
+    let schemaName = resolved.schemaName;
+    let tableName = resolved.tableName || table?.replace(/[^a-zA-Z0-9_]/g, '');
 
     const safeTable = `"${schemaName}"."${tableName}"`;
     
@@ -287,24 +374,15 @@ export class QueryEngineService {
       
       if (joins) {
         for (const join of joins) {
-          let joinTable = join.table;
-          let joinSchema = config.schema ? `tenant_${cleanTenant}_${config.schema}` : `tenant_${cleanTenant}`;
-
-          // RESOLVE LOGICAL TABLE IN JOIN
-          if (join.tableId) {
-             const jRes = await pool.query(`
-                SELECT ct.physical_name as t_name, cs.physical_name as s_name 
-                FROM public.catalog_tables ct
-                JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
-                WHERE ct.id = $1
-             `, [join.tableId]);
-             if (jRes.rows.length > 0) {
-                 joinTable = jRes.rows[0].t_name;
-                 joinSchema = jRes.rows[0].s_name;
-             }
-          } else if (join.schema) {
-              joinSchema = join.schema.startsWith('tenant_') ? join.schema : `tenant_${cleanTenant}_${join.schema}`;
-          }
+          const jResolved = await this.resolveTarget(tenantId, {
+            tableId: join.tableId,
+            table: join.table,
+            resource: (join as any).resource,
+            schema: join.schema,
+            source: (join as any).source
+          });
+          let joinTable = jResolved.tableName || join.table || (join as any).resource;
+          let joinSchema = jResolved.schemaName || (config.schema ? `tenant_${cleanTenant}_${config.schema}` : `tenant_${cleanTenant}`);
 
           const safeJoinTable = `"${joinSchema}"."${joinTable!.replace(/[^a-zA-Z0-9_]/g, '')}"`;
           queryStr += ` ${join.type} JOIN ${safeJoinTable} ON ${join.on}`;

@@ -95,6 +95,7 @@ export class MetadataOrchestrator {
 
             // 3. Catalog Synchronization (Universal Refresh)
             await this.persistMetadataState(client, tenantId, manifest, plan.summary, resourceDefinitions, manifestResources);
+            await this.ensureTenantSchemaPrivileges(client, tenantId, manifest);
 
             // Step 4: Downstream Orchestration (Industrial Fabric Extension)
             const downstreamResults = await DownstreamService.provision(tenantId, manifest);
@@ -116,6 +117,17 @@ export class MetadataOrchestrator {
             throw err;
         } finally {
             client.release();
+        }
+    }
+
+    private async ensureTenantSchemaPrivileges(client: PoolClient, tenantId: string, manifest: MetadataManifest) {
+        for (const schema of manifest.schemas) {
+            const schemaName = `tenant_${tenantId}_${schema.name}`;
+            await client.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fabric_user') THEN EXECUTE 'GRANT USAGE ON SCHEMA "${schemaName}" TO fabric_user'; END IF; END $$;`);
+            await client.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fabric_user') THEN EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "${schemaName}" TO fabric_user'; END IF; END $$;`);
+            await client.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fabric_user') THEN EXECUTE 'GRANT SELECT, USAGE ON ALL SEQUENCES IN SCHEMA "${schemaName}" TO fabric_user'; END IF; END $$;`);
+            await client.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fabric_user') THEN EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA "${schemaName}" GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO fabric_user'; END IF; END $$;`);
+            await client.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fabric_user') THEN EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA "${schemaName}" GRANT USAGE, SELECT ON SEQUENCES TO fabric_user'; END IF; END $$;`);
         }
     }
 
@@ -256,10 +268,10 @@ export class MetadataOrchestrator {
             `, [sourceId, schema.name, physicalSchema]);
 
             const schemaId = schemaRows[0].id;
-            const schemaPrefix = `${physicalSchema}.`;
 
             for (const resource of schema.resources) {
-                const physicalName = `${schemaPrefix}${resource.name}`;
+                // Keep physical_name as object name only; schema is tracked separately in catalog_schemas.
+                const physicalName = `${resource.name}`;
                 const defKey = `${schema.name}.${resource.name}`;
                 const def = definitions.get(defKey);
                 const finalAst = manifestResources.get(defKey) || def?.ast || null;

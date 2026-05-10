@@ -218,3 +218,95 @@ export const getCatalogSummary = async (req: Request, res: Response) => {
     res.json(rows);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 };
+
+export const listNotificationChannels = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const { rows } = await queryWithContext(
+      `SELECT id, channel_type as "channelType", name, config, is_default as "isDefault", status, updated_at as "updatedAt"
+       FROM public.notification_channels
+       ORDER BY channel_type, name`,
+      [],
+      { tenantId: user.tenant_id, username: user.username }
+    );
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const upsertNotificationChannel = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const { channelType, name, config, isDefault = false, status = 'ACTIVE' } = req.body || {};
+    if (!channelType || !name || !config) return res.status(400).json({ error: 'channelType, name, config required' });
+
+    if (isDefault) {
+      await queryWithContext(
+        `UPDATE public.notification_channels SET is_default = false, updated_at = NOW() WHERE channel_type = $1`,
+        [channelType],
+        { tenantId: user.tenant_id, username: user.username }
+      );
+    }
+
+    const { rows } = await queryWithContext(
+      `INSERT INTO public.notification_channels (tenant_id, channel_type, name, config, is_default, status)
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6)
+       ON CONFLICT (tenant_id, channel_type, name)
+       DO UPDATE SET config = EXCLUDED.config, is_default = EXCLUDED.is_default, status = EXCLUDED.status, updated_at = NOW()
+       RETURNING id, channel_type as "channelType", name, config, is_default as "isDefault", status`,
+      [user.tenant_id, channelType, name, JSON.stringify(config), !!isDefault, status],
+      { tenantId: user.tenant_id, username: user.username }
+    );
+    res.json(rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const deleteNotificationChannel = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    await queryWithContext(`DELETE FROM public.notification_channels WHERE id = $1`, [req.params.id], {
+      tenantId: user.tenant_id,
+      username: user.username
+    });
+    res.json({ status: 'SUCCESS' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const testNotificationChannel = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const { channelType, name, sample } = req.body || {};
+    if (!channelType) return res.status(400).json({ error: 'channelType required' });
+    const payload = {
+      triggerName: `settings_test_${name || channelType}`,
+      event: 'SETTINGS_TEST',
+      actionType: channelType,
+      schemaName: '__SYSTEM__',
+      tableName: '__SYSTEM__',
+      newRow: {
+        id: `test-${Date.now()}`,
+        status: 'TEST',
+        amount: 1
+      },
+      execute: {
+        type: channelType,
+        ...(sample || {})
+      }
+    };
+    const { rows } = await queryWithContext(
+      `INSERT INTO public.trigger_jobs (tenant_id, trigger_id, job_type, payload, status, run_at, max_attempts, created_by)
+       VALUES ($1, NULL, 'EXECUTE_TRIGGER_ACTION', $2::jsonb, 'PENDING', NOW(), 3, $3)
+       RETURNING id`,
+      [user.tenant_id, JSON.stringify(payload), user.username],
+      { tenantId: user.tenant_id, username: user.username }
+    );
+    res.json({ status: 'ENQUEUED', jobId: rows[0].id });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};

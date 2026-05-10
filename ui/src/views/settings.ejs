@@ -83,9 +83,20 @@
                 </div>
             </div>
             
-            <div class="full" style="margin-bottom: 0.75rem;">
-                <label class="trg-label">Configuration (JSON)</label>
-                <textarea id="chConfig" class="trg-text" style="min-height: 100px;"></textarea>
+            <div id="dynamicFieldsContainer" style="margin-bottom: 0.75rem;">
+                <!-- Fields injected here -->
+            </div>
+
+            <div class="full" style="margin-bottom: 0.75rem; display:none;" id="jsonModeContainer">
+                <div style="display:flex; justify-content:space-between; align-items: center; margin-bottom: 0.3rem;">
+                    <label class="trg-label" style="margin-bottom:0;">Configuration (JSON)</label>
+                    <a href="javascript:void(0)" onclick="toggleJsonMode()" style="font-size: 0.65rem; text-decoration: none; color: var(--primary); font-weight: 600;">Switch to Form</a>
+                </div>
+                <textarea id="chConfig" class="trg-text" style="min-height: 120px;"></textarea>
+            </div>
+            
+            <div style="text-align: right; margin-bottom: 0.75rem;">
+                <a href="javascript:void(0)" id="jsonModeToggle" onclick="toggleJsonMode()" style="font-size: 0.65rem; text-decoration: none; color: var(--text-muted);">Advanced: Edit JSON</a>
             </div>
 
             <div style="display:flex; justify-content: space-between; align-items:center;">
@@ -214,24 +225,57 @@
                 list.innerHTML = '<div class="text-muted">No channels configured for this tenant.</div>';
                 return;
             }
-            list.innerHTML = rows.map(r => `
-                <div class="nav-item" style="display:flex; justify-content:space-between; align-items:flex-start; border:1px solid var(--border); background: #fcfcfc; padding: 1rem; border-radius: 10px; gap: 1rem;">
-                    <div style="flex: 1; min-width: 0;">
-                        <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom: 0.25rem;">
-                            <strong style="font-size: 0.9rem;">${r.name}</strong>
-                            <span class="code-sm" style="background: #e2e8f0; color: #475569;">${r.channelType}</span>
-                            ${r.isDefault ? '<span class="badge-sync" style="background: var(--success);">DEFAULT</span>' : ''}
+            
+            // Clear and build list
+            list.innerHTML = '';
+            rows.forEach(r => {
+                const item = document.createElement('div');
+                item.className = 'channel-card';
+                item.style.cssText = 'border:1px solid var(--border); background: #fff; padding: 1rem; border-radius: 12px; margin-bottom: 0.75rem; position: relative;';
+                
+                const configStr = JSON.stringify(r.config, null, 2);
+                
+                item.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items: flex-start; gap: 1rem;">
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap: wrap; margin-bottom: 0.5rem;">
+                                <strong style="font-size: 0.9rem; color: var(--primary);">${r.name}</strong>
+                                <span class="badge-sync" style="background: #f1f5f9; color: #64748b; border: 1px solid var(--border); font-size: 0.6rem;">${r.channelType}</span>
+                                ${r.isDefault ? '<span class="badge-sync" style="background: var(--success); font-size: 0.6rem;">DEFAULT</span>' : ''}
+                            </div>
+                            <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom: 0.6rem;">
+                                <span style="color: var(--success);">●</span> ${r.status}
+                            </div>
+                            <div class="config-preview" style="font-family: monospace; font-size: 0.65rem; background: #f8fafc; border: 1px solid var(--border); padding: 0.4rem; border-radius: 6px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;">
+                                ${JSON.stringify(r.config)}
+                            </div>
                         </div>
-                        <div style="font-size:0.7rem; color:var(--text-muted); font-weight: 500;">Status: <span style="color: var(--success);">${r.status}</span></div>
-                        <div class="code-sm" style="margin-top:0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; cursor: pointer;" onclick="alert(JSON.stringify(${JSON.stringify(r.config)}, null, 2))">${escJson(r.config)}</div>
+                        <div style="display:flex; gap:0.35rem; align-items: center;">
+                            <button class="btn-edit btn-outline" style="padding: 0.35rem 0.6rem; font-size: 0.7rem; border-radius: 6px;">Edit</button>
+                            <button class="btn-test btn-outline" style="padding: 0.35rem 0.6rem; font-size: 0.7rem; border-radius: 6px;">Test</button>
+                            <button class="btn-del btn-outline" style="padding: 0.35rem 0.6rem; font-size: 0.7rem; border-radius: 6px; color: #ef4444; border-color: #fee2e2; background: #fef2f2;">Del</button>
+                        </div>
                     </div>
-                    <div style="display:flex; gap:0.4rem; flex-shrink: 0;">
-                        <button class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="testChannel('${r.channelType}','${r.name}')">Test</button>
-                        <button class="btn-danger" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; background: #fee2e2; color: #dc2626; border: 1px solid #fecaca;" onclick="deleteChannel('${r.id}')">Delete</button>
-                    </div>
-                </div>
-            `).join('');
+                `;
+                
+                // Secure Event Listeners
+                item.querySelector('.config-preview').onclick = () => alert(configStr);
+                item.querySelector('.btn-test').onclick = () => testChannel(r.channelType, r.name);
+                item.querySelector('.btn-del').onclick = () => deleteChannel(r.id);
+                item.querySelector('.btn-edit').onclick = () => {
+                    document.getElementById('chType').value = r.channelType;
+                    document.getElementById('chName').value = r.name;
+                    document.getElementById('chConfig').value = configStr;
+                    document.getElementById('chDefault').checked = r.isDefault;
+                    updateConfigTemplate();
+                    document.getElementById('chName').focus();
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                };
+
+                list.appendChild(item);
+            });
         } catch (e) {
+            console.error(e);
             list.innerHTML = '<div class="text-danger">Failed to load channels</div>';
         }
     }
@@ -284,20 +328,136 @@
         showToast(`Test job queued: ${data.jobId}`);
     }
 
-    function updateConfigTemplate() {
+    let isJsonMode = false;
+    function toggleJsonMode() {
+        isJsonMode = !isJsonMode;
+        document.getElementById('dynamicFieldsContainer').style.display = isJsonMode ? 'none' : 'block';
+        document.getElementById('jsonModeContainer').style.display = isJsonMode ? 'block' : 'none';
+        document.getElementById('jsonModeToggle').style.display = isJsonMode ? 'none' : 'block';
+        if (!isJsonMode) syncFieldsFromConfig();
+    }
+
+    function syncFieldsFromConfig() {
         const type = document.getElementById('chType').value;
-        const templates = {
-            EMAIL: { fromEmail: "noreply@acme.com", defaultTo: "ops@acme.com", smtp: { host: "smtp.acme.com", port: 587, auth: { user: "", pass: "" } } },
-            TELEGRAM: { botToken: "YOUR_BOT_TOKEN", chatId: "@your_channel_or_id" },
-            WEBHOOK: { url: "https://api.service.com/webhook", method: "POST", headers: { "Authorization": "Bearer ...", "Content-Type": "application/json" } }
-        };
-        const textarea = document.getElementById('chConfig');
-        const currentVal = textarea.value.trim();
-        // Only update if empty or if it looks like a default template
-        if (!currentVal || currentVal.includes('noreply@acme.com') || currentVal.includes('YOUR_BOT_TOKEN') || currentVal.includes('api.service.com')) {
-            textarea.value = JSON.stringify(templates[type] || {}, null, 2);
+        const configStr = document.getElementById('chConfig').value;
+        try {
+            const config = JSON.parse(configStr || '{}');
+            if (type === 'EMAIL') {
+                setVal('df_from', config.fromEmail);
+                setVal('df_to', config.defaultTo);
+                setVal('df_host', config.smtp?.host);
+                setVal('df_port', config.smtp?.port);
+                setVal('df_user', config.smtp?.auth?.user);
+                setVal('df_pass', config.smtp?.auth?.pass);
+            } else if (type === 'TELEGRAM') {
+                setVal('df_token', config.botToken);
+                setVal('df_chat', config.chatId);
+            } else if (type === 'WEBHOOK') {
+                setVal('df_url', config.url);
+                setVal('df_method', config.method);
+                setVal('df_headers', JSON.stringify(config.headers || {}, null, 2));
+            }
+        } catch (e) {}
+    }
+
+    function setVal(id, val) {
+        const el = document.getElementById(id);
+        if (el) el.value = val || '';
+    }
+
+    function syncConfigFromFields() {
+        const type = document.getElementById('chType').value;
+        let config = {};
+        if (type === 'EMAIL') {
+            config = {
+                fromEmail: document.getElementById('df_from').value,
+                defaultTo: document.getElementById('df_to').value,
+                smtp: {
+                    host: document.getElementById('df_host').value,
+                    port: parseInt(document.getElementById('df_port').value) || 587,
+                    auth: {
+                        user: document.getElementById('df_user').value,
+                        pass: document.getElementById('df_pass').value
+                    }
+                }
+            };
+        } else if (type === 'TELEGRAM') {
+            config = {
+                botToken: document.getElementById('df_token').value,
+                chatId: document.getElementById('df_chat').value
+            };
+        } else if (type === 'WEBHOOK') {
+            config = {
+                url: document.getElementById('df_url').value,
+                method: document.getElementById('df_method').value,
+                headers: {}
+            };
+            try { config.headers = JSON.parse(document.getElementById('df_headers').value || '{}'); } catch(e) {}
         }
+        document.getElementById('chConfig').value = JSON.stringify(config, null, 2);
+    }
+
+    function updateConfigTemplate(force = false) {
+        const type = document.getElementById('chType').value;
+        const container = document.getElementById('dynamicFieldsContainer');
+        
+        const fieldMap = {
+            EMAIL: `
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem; margin-bottom:0.75rem;">
+                    <div><label class="trg-label">From Email</label><input id="df_from" class="trg-input" oninput="syncConfigFromFields()"></div>
+                    <div><label class="trg-label">Default To</label><input id="df_to" class="trg-input" oninput="syncConfigFromFields()"></div>
+                </div>
+                <div style="display:grid; grid-template-columns: 2fr 1fr; gap:0.75rem; margin-bottom:0.75rem;">
+                    <div><label class="trg-label">SMTP Host</label><input id="df_host" class="trg-input" oninput="syncConfigFromFields()"></div>
+                    <div><label class="trg-label">Port</label><input id="df_port" class="trg-input" value="587" oninput="syncConfigFromFields()"></div>
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem;">
+                    <div><label class="trg-label">SMTP User</label><input id="df_user" class="trg-input" oninput="syncConfigFromFields()"></div>
+                    <div><label class="trg-label">SMTP Pass</label><input id="df_pass" type="password" class="trg-input" oninput="syncConfigFromFields()"></div>
+                </div>
+            `,
+            TELEGRAM: `
+                <div class="full" style="margin-bottom:0.75rem;"><label class="trg-label">Bot Token</label><input id="df_token" class="trg-input" oninput="syncConfigFromFields()"></div>
+                <div class="full"><label class="trg-label">Default Chat ID</label><input id="df_chat" class="trg-input" oninput="syncConfigFromFields()"></div>
+            `,
+            WEBHOOK: `
+                <div style="display:grid; grid-template-columns: 3fr 1fr; gap:0.75rem; margin-bottom:0.75rem;">
+                    <div><label class="trg-label">Webhook URL</label><input id="df_url" class="trg-input" oninput="syncConfigFromFields()"></div>
+                    <div><label class="trg-label">Method</label><select id="df_method" class="trg-select" oninput="syncConfigFromFields()"><option>POST</option><option>GET</option><option>PUT</option></select></div>
+                </div>
+                <div class="full"><label class="trg-label">Default Headers (JSON)</label><textarea id="df_headers" class="trg-text" oninput="syncConfigFromFields()">{}</textarea></div>
+            `
+        };
+
+        container.innerHTML = fieldMap[type] || '';
+        if (force) {
+            document.getElementById('chConfig').value = ''; 
+        }
+        syncFieldsFromConfig();
         document.getElementById('chName').placeholder = `primary_${type.toLowerCase()}`;
+    }
+
+    async function saveChannel() {
+        try {
+            if (!isJsonMode) syncConfigFromFields();
+            const channelType = document.getElementById('chType').value;
+            const name = document.getElementById('chName').value.trim();
+            const cfgRaw = document.getElementById('chConfig').value.trim();
+            const isDefault = document.getElementById('chDefault').checked;
+            if (!name || !cfgRaw) return alert('Name and config are required');
+            const config = JSON.parse(cfgRaw);
+            const res = await fetch(`${API_BASE}/admin/notification-channels`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ channelType, name, config, isDefault, status: 'ACTIVE' })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Save failed');
+            showToast('Channel saved');
+            loadChannels();
+        } catch (e) {
+            alert(`Failed: ${e.message}`);
+        }
     }
 
     document.addEventListener('DOMContentLoaded', () => {

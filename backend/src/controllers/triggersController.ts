@@ -90,3 +90,34 @@ export const retryTriggerJob = async (req: Request, res: Response) => {
     res.status(400).json({ error: err.message });
   }
 };
+
+export const listChannels = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const rows = await TriggerService.listChannels(user.tenant_id);
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const saveChannel = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const result = await TriggerService.upsertChannel(user.tenant_id, user.username, req.body);
+    res.json(result);
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+export const deleteChannel = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const id = String(req.params.id || '');
+    await TriggerService.deleteChannel(user.tenant_id, user.username, id);
+    res.json({ status: 'SUCCESS' });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+};

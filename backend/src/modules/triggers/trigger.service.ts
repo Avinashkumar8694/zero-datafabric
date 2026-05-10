@@ -199,4 +199,48 @@ export class TriggerService {
     );
     return rows[0].id;
   }
+
+  static async listChannels(tenantId: string) {
+    const { rows } = await queryWithContext(
+      `SELECT id, name, channel_type as "channelType", config, status, is_default as "isDefault", updated_at as "updatedAt"
+       FROM public.notification_channels
+       ORDER BY is_default DESC, name ASC`,
+      [],
+      { tenantId, username: 'system' }
+    );
+    return rows;
+  }
+
+  static async upsertChannel(tenantId: string, username: string, payload: any) {
+    const { name, channelType, config, status, isDefault } = payload;
+    if (!name || !channelType || !config) throw new Error('name, channelType, and config are required');
+
+    // If setting as default, unset others for this tenant and type
+    if (isDefault) {
+      await queryWithContext(
+        `UPDATE public.notification_channels SET is_default = false WHERE tenant_id = $1 AND channel_type = $2`,
+        [tenantId, channelType],
+        { tenantId, username }
+      );
+    }
+
+    const { rows } = await queryWithContext(
+      `INSERT INTO public.notification_channels (tenant_id, name, channel_type, config, status, is_default, updated_at)
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6, NOW())
+       ON CONFLICT (tenant_id, name) 
+       DO UPDATE SET channel_type = EXCLUDED.channel_type, config = EXCLUDED.config, status = EXCLUDED.status, is_default = EXCLUDED.is_default, updated_at = NOW()
+       RETURNING id, name, channel_type as "channelType", config, status, is_default as "isDefault"`,
+      [tenantId, name, channelType, JSON.stringify(config), status || 'ACTIVE', !!isDefault],
+      { tenantId, username }
+    );
+    return rows[0];
+  }
+
+  static async deleteChannel(tenantId: string, username: string, id: string) {
+    await queryWithContext(
+      `DELETE FROM public.notification_channels WHERE id = $1`,
+      [id],
+      { tenantId, username }
+    );
+  }
 }

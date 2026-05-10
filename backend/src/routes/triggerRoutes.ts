@@ -12,4 +12,9 @@ router.get('/logs/list', triggersController.listTriggerLogs);
 router.get('/jobs/list', triggersController.listTriggerJobs);
 router.post('/jobs/:id/retry', triggersController.retryTriggerJob);
 
+// Notification Channels
+router.get('/channels/list', triggersController.listChannels);
+router.post('/channels/save', triggersController.saveChannel);
+router.delete('/channels/:id', triggersController.deleteChannel);
+
 export default router;

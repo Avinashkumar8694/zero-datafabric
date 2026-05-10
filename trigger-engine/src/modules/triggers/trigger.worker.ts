@@ -33,8 +33,10 @@ export class TriggerWorker {
   }
 
   private static async tick() {
-    const client = await pool.connect();
+    let client;
+    let jobs: JobRow[] = [];
     try {
+      client = await pool.connect();
       await client.query('BEGIN');
       const { rows } = await client.query<JobRow>(
         `SELECT id, tenant_id, trigger_id, job_type, payload, attempts, max_attempts
@@ -44,16 +46,23 @@ export class TriggerWorker {
          FOR UPDATE SKIP LOCKED
          LIMIT 5`
       );
+      jobs = rows;
       await client.query('COMMIT');
-      client.release();
-
-      for (const job of rows) {
-        await this.processJob(job);
-      }
     } catch (err) {
-      await client.query('ROLLBACK');
-      client.release();
+      if (client) {
+        try { await client.query('ROLLBACK'); } catch {}
+      }
       throw err;
+    } finally {
+      if (client) client.release();
+    }
+
+    for (const job of jobs) {
+      try {
+        await this.processJob(job);
+      } catch (jobErr: any) {
+        console.error(`[TriggerWorker] Failed to process job ${job.id}:`, jobErr.message);
+      }
     }
   }
 
@@ -99,6 +108,35 @@ export class TriggerWorker {
         }
         await this.log(client, job, 'TRIGGER_DELETE', 'SUCCESS', { schemaName, tableName, triggerName });
       } else if (job.job_type === 'EXECUTE_TRIGGER_ACTION') {
+        const schedule = payload?.schedule;
+        
+        // Stop Condition Check: Terminate repeating schedule if condition is met
+        if (schedule?.stopCondition) {
+          const schemaName = payload.schemaName || 'public';
+          const tableName = payload.tableName;
+          const newRow = payload.newRow;
+          const rowId = newRow?.id || newRow?.uuid;
+
+          if (rowId && tableName) {
+            let stopSql = TriggerTranspiler.astToSql(schedule.stopCondition);
+            stopSql = stopSql.replace(/NEW\./g, '').replace(/OLD\./g, '');
+
+            const { rows: stopCheck } = await client.query(
+              `SELECT 1 FROM "${schemaName}"."${tableName}" WHERE id = $1 AND (${stopSql})`,
+              [rowId]
+            );
+
+            if (stopCheck.length > 0) {
+              await this.log(client, job, 'TRIGGER_ACTION', 'SUCCESS', { 
+                msg: 'Stop condition met. Repeating schedule terminated.',
+                condition: schedule.stopCondition 
+              });
+              await client.query(`UPDATE public.trigger_jobs SET status = 'COMPLETED', updated_at = NOW() WHERE id = $1`, [job.id]);
+              return; // Move to next job
+            }
+          }
+        }
+
         const actionType = payload.actionType || payload?.execute?.type;
         let detail: any = { actionType, mode: 'live' };
         const channelConfig = await this.loadChannelConfig(client, job.tenant_id, actionType);
@@ -106,6 +144,15 @@ export class TriggerWorker {
           detail.channelName = channelConfig.name;
           detail.channelStatus = channelConfig.status;
         }
+        const templateContext = {
+          ...payload,
+          NEW: payload?.newRow || {},
+          OLD: payload?.oldRow || {},
+          // Keep legacy for compatibility
+          newRow: payload?.newRow || {},
+          oldRow: payload?.oldRow || {}
+        };
+
         if (actionType === 'WEBHOOK') {
           detail.target = payload?.execute?.url || channelConfig?.config?.url || null;
           const mergedHeaders = {
@@ -117,7 +164,7 @@ export class TriggerWorker {
           detail.method = payload?.execute?.method || channelConfig?.config?.method || 'POST';
           detail.headers = mergedHeaders;
           detail.auth = authResolved.meta;
-          detail.body = this.renderObject(payload?.execute?.payload || payload?.newRow || {}, payload);
+          detail.body = this.renderObject(payload?.execute?.payload || payload?.newRow || {}, templateContext);
           const response = await axios.request({
             method: String(detail.method || 'POST'),
             url: String(detail.target),
@@ -140,8 +187,8 @@ export class TriggerWorker {
               JSON.stringify({
                 triggerName: payload?.triggerName,
                 event: payload?.event,
-                newRow: payload?.newRow || null,
-                oldRow: payload?.oldRow || null
+                NEW: payload?.newRow || null,
+                OLD: payload?.oldRow || null
               })
             ]
           );
@@ -149,16 +196,16 @@ export class TriggerWorker {
           detail.to = payload?.execute?.params?.to || channelConfig?.config?.defaultTo || null;
           detail.from = channelConfig?.config?.fromEmail || null;
           detail.subject = this.renderTemplate(
-            payload?.execute?.params?.subject || channelConfig?.config?.subjectTemplate || 'Data Fabric Trigger: {{triggerName}}',
-            payload
+            payload?.execute?.params?.subject || channelConfig?.config?.subjectTemplate || 'Trigger: {{triggerName}}',
+            templateContext
           );
           detail.text = this.renderTemplate(
-            payload?.execute?.params?.text || channelConfig?.config?.textTemplate || 'Trigger {{triggerName}} fired for {{tableName}}',
-            payload
+            payload?.execute?.params?.text || channelConfig?.config?.textTemplate || 'Event: {{event}} detected for ID {{NEW.id}}',
+            templateContext
           );
           detail.html = this.renderTemplate(
             payload?.execute?.params?.html || channelConfig?.config?.htmlTemplate || '<p>Trigger <b>{{triggerName}}</b> fired for <b>{{tableName}}</b></p>',
-            payload
+            templateContext
           );
           if (!channelConfig) throw new Error('No tenant EMAIL channel configured');
           const smtpHost = channelConfig.config?.smtpHost;
@@ -184,8 +231,8 @@ export class TriggerWorker {
         } else if (actionType === 'TELEGRAM') {
           detail.chatId = payload?.execute?.params?.chatId || channelConfig?.config?.chatId || null;
           detail.text = this.renderTemplate(
-            payload?.execute?.params?.text || channelConfig?.config?.textTemplate || 'Trigger {{triggerName}} fired for {{tableName}}',
-            payload
+            payload?.execute?.params?.text || channelConfig?.config?.textTemplate || 'Event: {{event}} detected for ID {{NEW.id}}',
+            templateContext
           );
           if (!channelConfig) throw new Error('No tenant TELEGRAM channel configured');
           if (String(channelConfig.config?.deliveryMode || '').toUpperCase() === 'WEBHOOK') {
@@ -249,7 +296,13 @@ export class TriggerWorker {
       }
 
       if (job.job_type !== 'SCHEDULE_TRIGGER') {
-        await client.query(`UPDATE public.trigger_jobs SET status = 'COMPLETED', updated_at = NOW() WHERE id = $1`, [job.id]);
+        const schedule = payload?.schedule || {};
+        if (schedule.type === 'FIXED' && schedule.every) {
+          const nextRun = this.calculateNextRun(schedule);
+          await client.query(`UPDATE public.trigger_jobs SET status = 'PENDING', run_at = $2, updated_at = NOW() WHERE id = $1`, [job.id, nextRun]);
+        } else {
+          await client.query(`UPDATE public.trigger_jobs SET status = 'COMPLETED', updated_at = NOW() WHERE id = $1`, [job.id]);
+        }
       }
     } catch (err: any) {
       const attempts = job.attempts + 1;
@@ -277,14 +330,16 @@ export class TriggerWorker {
       id: job.id,
       tenant_id: job.tenant_id,
       trigger_id: job.trigger_id,
+      trigger_name: actionPayload.triggerName,
       job_type: 'EXECUTE_TRIGGER_ACTION',
       payload: actionPayload,
       attempts: job.attempts,
       max_attempts: job.max_attempts
-    } as JobRow;
+    } as any;
+    const schedule = actionPayload?.schedule || {};
     // Inline minimal execution for scheduled action
     const actionType = actionPayload.actionType || actionPayload?.execute?.type;
-    let detail: any = { actionType, mode: 'simulated', schedule: job.payload?.schedule || null };
+    let detail: any = { actionType, mode: 'simulated', schedule: schedule };
     const channelConfig = await this.loadChannelConfig(client, job.tenant_id, actionType);
     if (channelConfig) {
       detail.channelName = channelConfig.name;
@@ -310,7 +365,18 @@ export class TriggerWorker {
     }
     await this.log(client, fake, 'TRIGGER_ACTION', 'SUCCESS', detail);
 
-    const schedule = job.payload?.schedule || {};
+    const nextRun = this.calculateNextRun(schedule);
+    await client.query(
+      `UPDATE public.trigger_jobs
+       SET status = 'PENDING',
+           run_at = $2,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [job.id, nextRun]
+    );
+  }
+
+  private static calculateNextRun(schedule: any): string {
     let nextRun = new Date(Date.now() + 60_000);
     if (String(schedule.type || '').toUpperCase() === 'CRON' && schedule.cron) {
       try {
@@ -325,14 +391,7 @@ export class TriggerWorker {
       const factor: Record<string, number> = { SECOND: 1000, MINUTE: 60000, HOUR: 3600000, DAY: 86400000 };
       nextRun = new Date(Date.now() + every * (factor[unit] || factor.MINUTE));
     }
-    await client.query(
-      `UPDATE public.trigger_jobs
-       SET status = 'PENDING',
-           run_at = $2,
-           updated_at = NOW()
-       WHERE id = $1`,
-      [job.id, nextRun.toISOString()]
-    );
+    return nextRun.toISOString();
   }
 
   private static async log(client: any, job: JobRow, action: string, status: string, detail: any) {
@@ -377,7 +436,11 @@ export class TriggerWorker {
       return ok ? String(whenTrue || '') : String(whenFalse || '');
     });
     return withConditionals.replace(/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g, (_m, path) => {
-      const value = this.getPath(ctx, String(path));
+      let value = this.getPath(ctx, String(path));
+      // Fallback: If not found at root, check inside NEW (parity with SQL)
+      if (value === undefined && ctx.NEW) {
+        value = this.getPath(ctx.NEW, String(path));
+      }
       return value === undefined || value === null ? '' : String(value);
     });
   }

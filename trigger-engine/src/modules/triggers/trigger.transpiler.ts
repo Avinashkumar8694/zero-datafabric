@@ -2,6 +2,7 @@ import { TriggerDefinition } from './trigger.types';
 
 export class TriggerTranspiler {
     static toSql(trg: TriggerDefinition, schemaName: string, tableName: string): string[] {
+        this.validate(trg);
         const sql: string[] = [];
         const fnName = `${trg.name}_func`;
         const timing = trg.event.split('_')[0]; 
@@ -67,6 +68,9 @@ export class TriggerTranspiler {
             case 'AUDIT':
             case 'EMAIL':
             case 'TELEGRAM':
+                const runAtExpr = trg.schedule?.type === 'RELATIVE' && trg.schedule.after 
+                    ? `NOW() + INTERVAL '${trg.schedule.after} ${trg.schedule.unit || 'MINUTE'}'` 
+                    : 'NOW()';
                 code += `
                     INSERT INTO public.trigger_jobs (tenant_id, trigger_id, job_type, payload, status, run_at, max_attempts, created_by)
                     VALUES (
@@ -85,7 +89,7 @@ export class TriggerTranspiler {
                           'schedule', ${trg.schedule ? `'${JSON.stringify(trg.schedule)}'::jsonb` : 'NULL'}
                         ),
                         'PENDING',
-                        NOW(),
+                        ${runAtExpr},
                         ${trg.schedule?.maxAttempts || 5},
                         current_setting('app.user_name', true)
                     );
@@ -101,14 +105,78 @@ export class TriggerTranspiler {
         return code;
     }
 
-    private static astToSql(ast: any): string {
+    private static validate(trg: TriggerDefinition) {
+        if (!trg.name) throw new Error("Trigger 'name' is required.");
+        if (!trg.event) throw new Error(`Trigger '${trg.name}' must specify an 'event'.`);
+        if (!trg.execute) throw new Error(`Trigger '${trg.name}' must specify an 'execute' block.`);
+        if (!trg.execute.type) throw new Error(`Trigger '${trg.name}' execution 'type' is required.`);
+
+        if (trg.execute.type === 'WEBHOOK' && !trg.execute.url) {
+            throw new Error(`Trigger '${trg.name}' of type WEBHOOK requires a 'url'.`);
+        }
+
+        if (trg.schedule) {
+            if (trg.schedule.type === 'RELATIVE' && (!trg.schedule.after || !trg.schedule.unit)) {
+                throw new Error(`Trigger '${trg.name}' with RELATIVE schedule requires 'after' and 'unit'.`);
+            }
+            if (trg.schedule.type === 'FIXED' && (!trg.schedule.every || !trg.schedule.unit)) {
+                throw new Error(`Trigger '${trg.name}' with FIXED schedule requires 'every' and 'unit'.`);
+            }
+            if (trg.schedule.type === 'CRON' && !trg.schedule.cron) {
+                throw new Error(`Trigger '${trg.name}' with CRON schedule requires a 'cron' string.`);
+            }
+        }
+    }
+
+    public static astToSql(ast: any): string {
         if (!ast) return 'TRUE';
         if (typeof ast === 'string') return ast;
-        if (ast.left && ast.operator && ast.right) {
-            const opMap: any = { 'GT': '>', 'LT': '<', 'EQ': '=', 'GTE': '>=', 'LTE': '<=', 'NEQ': '!=' };
-            const op = opMap[ast.operator] || ast.operator;
-            return `${ast.left} ${op} ${ast.right}`;
+        if (ast.expression) return ast.expression;
+
+        const left = ast.column || ast.left;
+        const operator = ast.operator;
+        const right = ast.expression || (ast.value !== undefined ? ast.value : ast.right);
+        
+        if (!left || !operator) {
+            throw new Error(`Malformed condition AST: 'column' and 'operator' are required. Received: ${JSON.stringify(ast)}`);
         }
-        return 'TRUE';
+
+        const opMap: any = { 
+            'EQ': '=', 'NE': '!=', 'GT': '>', 'LT': '<', 'GTE': '>=', 'LTE': '<=',
+            'LIKE': 'LIKE', 'ILIKE': 'ILIKE', 'IN': 'IN', 'IS_NULL': 'IS NULL', 'IS_NOT_NULL': 'IS NOT NULL'
+        };
+        
+        const op = opMap[operator.toUpperCase()];
+        if (!op) {
+            throw new Error(`Unsupported operator: '${operator}'. Supported: ${Object.keys(opMap).join(', ')}`);
+        }
+        
+        if (op === 'IS NULL' || op === 'IS NOT NULL') {
+            return `${left} ${op}`;
+        }
+
+        if (right === undefined) {
+            throw new Error(`Condition for '${left}' with operator '${operator}' is missing a 'value' or 'expression'.`);
+        }
+
+        let finalRight = right;
+        if (typeof right === 'object' && right !== null && right.expression) {
+            finalRight = right.expression;
+        } 
+        else if (typeof right === 'string') {
+            const isColumnRef = right.startsWith('NEW.') || right.startsWith('OLD.');
+            const isAlreadyQuoted = right.startsWith("'");
+            if (!isColumnRef && !isAlreadyQuoted) {
+                finalRight = `'${right}'`;
+            }
+        }
+
+        if (op === 'IN') {
+            if (!Array.isArray(right)) throw new Error(`Operator 'IN' requires an array as its value.`);
+            const values = right.map(v => typeof v === 'string' && !v.startsWith("'") ? `'${v}'` : v).join(', ');
+            return `${left} IN (${values})`;
+        }
+
+        return `${left} ${op} ${finalRight}`;
     }
 }

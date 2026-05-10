@@ -40,9 +40,10 @@ export interface TriggerDefinition {
         after?: number;
         unit?: 'SECOND' | 'MINUTE' | 'HOUR' | 'DAY' | 'MONTH';
         maxAttempts?: number;
+        stopCondition?: any; // Stops repeating job for this row
     };
     autoDrop?: {
-        when: any;
+        when: any; // Deletes the entire trigger definition
         message?: string;
     };
     scope?: 'ROW' | 'STATEMENT';

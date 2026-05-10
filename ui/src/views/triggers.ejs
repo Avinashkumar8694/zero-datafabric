@@ -1,25 +1,36 @@
 <%- include('partials/header') %>
 
 <style>
-  .trg-grid { display:grid; grid-template-columns: 1.2fr 1fr; gap:1rem; }
-  .trg-card { background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:1rem; }
-  .trg-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem; }
-  .trg-scroll { max-height:360px; overflow:auto; border:1px solid var(--border); border-radius:10px; }
-  .trg-modal { position:fixed; inset:0; background:rgba(2,6,23,0.45); display:none; align-items:center; justify-content:center; z-index:10000; }
-  .trg-modal.active { display:flex; }
-  .trg-modal-card { width:min(980px,94vw); max-height:90vh; overflow:auto; background:#fff; border-radius:14px; padding:1rem; border:1px solid var(--border); }
-  .trg-form-grid { display:grid; grid-template-columns: 1fr 1fr; gap:0.7rem; }
-  .trg-form-grid .full { grid-column:1 / -1; }
-  .trg-input, .trg-select, .trg-text { width:100%; border:1px solid var(--border); border-radius:8px; padding:0.55rem 0.65rem; font-size:0.85rem; }
-  .trg-text { min-height:120px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+  .trg-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1rem; }
+  @media (max-width: 1000px) { .trg-grid { grid-template-columns: 1fr; } }
+  .trg-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; box-shadow: var(--shadow); }
+  .trg-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+  .trg-scroll { max-height: 400px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+  .trg-modal { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.6); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 10000; padding: 1rem; }
+  .trg-modal.active { display: flex; }
+  .trg-modal-card { width: 100%; max-width: 800px; max-height: 90vh; overflow: auto; background: #fff; border-radius: 16px; padding: 1.5rem; border: 1px solid var(--border); box-shadow: var(--shadow-lg); animation: slideUp 0.3s ease-out; }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .trg-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; }
+  .trg-form-grid .full { grid-column: 1 / -1; }
+  .trg-label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.3rem; text-transform: uppercase; letter-spacing: 0.02em; }
+  .trg-input, .trg-select, .trg-text { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.6rem; font-size: 0.85rem; background: #fdfdfd; transition: border-color 0.2s; }
+  .trg-input:focus, .trg-select:focus, .trg-text:focus { border-color: var(--primary); outline: none; background: #fff; }
+  .trg-text { min-height: 100px; font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace; font-size: 0.8rem; line-height: 1.4; }
+  .badge-sync { padding: 0.2rem 0.5rem; border-radius: 6px; font-size: 0.7rem; font-weight: 600; color: white; text-transform: uppercase; }
+  .table-premium tr:hover { background: #f8fafc; }
+  .table-premium td { vertical-align: middle; }
+  .text-truncate { max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .code-sm { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text-muted); background: #f1f5f9; padding: 0.1rem 0.3rem; border-radius: 4px; }
+  .btn-danger { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: 0.2s; }
+  .btn-danger:hover { background: #fecaca; }
 </style>
 
 <div class="fade-in">
   <div class="trg-card" style="margin-bottom:1rem;">
     <div class="trg-head">
       <div>
-        <h3 style="margin:0;"><i class="fas fa-bolt"></i> Trigger Control Plane</h3>
-        <p class="text-muted" style="margin:0.3rem 0 0;">Row triggers + generic scheduler triggers (`every n unit`) with async execution via trigger-engine.</p>
+        <h3 style="margin:0; font-size: 1.1rem;"><i class="fas fa-bolt" style="color: var(--primary);"></i> Trigger Control Plane</h3>
+        <p class="text-muted" style="margin:0.2rem 0 0; font-size: 0.8rem;">Row triggers + generic scheduler triggers (`every n unit`) with async execution via trigger-engine.</p>
       </div>
       <div style="display:flex; gap:0.5rem;">
         <button class="btn-outline" onclick="loadAll()">Refresh</button>
@@ -30,7 +41,7 @@
 
   <div class="trg-grid">
     <div class="trg-card">
-      <div class="trg-head"><h4 style="margin:0;">Registry</h4></div>
+      <div class="trg-head"><h4 style="margin:0; font-size: 0.95rem;">Registry</h4></div>
       <div class="trg-scroll">
         <table class="table-premium">
           <thead><tr><th>Name</th><th>Scope</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
@@ -40,7 +51,7 @@
     </div>
 
     <div class="trg-card">
-      <div class="trg-head"><h4 style="margin:0;">Jobs</h4></div>
+      <div class="trg-head"><h4 style="margin:0; font-size: 0.95rem;">Jobs</h4></div>
       <div class="trg-scroll">
         <table class="table-premium">
           <thead><tr><th>Job</th><th>Status</th><th>Attempts</th><th>Action</th></tr></thead>
@@ -52,7 +63,7 @@
 
   <div class="trg-card" style="margin-top:1rem;">
     <div class="trg-head">
-      <h4 style="margin:0;">Execution Logs</h4>
+      <h4 style="margin:0; font-size: 0.95rem;">Execution Logs</h4>
       <span class="text-muted" id="logMeta">Auto-pagination on scroll</span>
     </div>
     <div class="trg-scroll" id="logScroller">
@@ -72,62 +83,62 @@
     </div>
     <div class="trg-form-grid">
       <div>
-        <label>Trigger Name</label>
+        <label class="trg-label">Trigger Name</label>
         <input id="fTriggerName" class="trg-input" placeholder="trg_orders_notify">
       </div>
       <div>
-        <label>Mode</label>
+        <label class="trg-label">Mode</label>
         <select id="fMode" class="trg-select" onchange="toggleModeFields()">
           <option value="ROW">Row Trigger</option>
           <option value="SCHEDULE">Scheduler Trigger</option>
         </select>
       </div>
       <div id="rowFieldsA">
-        <label>Schema</label>
+        <label class="trg-label">Schema</label>
         <input id="fSchema" class="trg-input" placeholder="tenant_tenant_A_Global_Supply_Chain">
       </div>
       <div id="rowFieldsB">
-        <label>Table</label>
+        <label class="trg-label">Table</label>
         <input id="fTable" class="trg-input" placeholder="shipments">
       </div>
       <div id="rowFieldsC">
-        <label>Event</label>
+        <label class="trg-label">Event</label>
         <select id="fEvent" class="trg-select">
           <option>AFTER_INSERT</option><option>AFTER_UPDATE</option><option>AFTER_DELETE</option>
           <option>BEFORE_INSERT</option><option>BEFORE_UPDATE</option><option>BEFORE_DELETE</option>
         </select>
       </div>
       <div id="schedFieldsA" style="display:none;">
-        <label>Every</label>
+        <label class="trg-label">Every</label>
         <input id="fEvery" class="trg-input" type="number" value="1" min="1">
       </div>
       <div id="schedFieldsB" style="display:none;">
-        <label>Unit</label>
+        <label class="trg-label">Unit</label>
         <select id="fUnit" class="trg-select"><option>SECOND</option><option>MINUTE</option><option>HOUR</option><option>DAY</option></select>
       </div>
       <div id="schedFieldsC" class="full" style="display:none;">
-        <label>Scheduler Mode</label>
+        <label class="trg-label">Scheduler Mode</label>
         <select id="fSchedType" class="trg-select" onchange="toggleSchedType()">
           <option value="FIXED">FIXED (Every N Unit)</option>
           <option value="CRON">CRON Expression</option>
         </select>
       </div>
       <div id="schedCronWrap" class="full" style="display:none;">
-        <label>Cron Expression</label>
+        <label class="trg-label">Cron Expression</label>
         <input id="fCron" class="trg-input" placeholder="*/5 * * * *">
       </div>
       <div>
-        <label>Action Type</label>
-        <select id="fActionType" class="trg-select">
+        <label class="trg-label">Action Type</label>
+        <select id="fActionType" class="trg-select" onchange="updateActionTemplate()">
           <option>AUDIT</option><option>EMAIL</option><option>TELEGRAM</option><option>WEBHOOK</option><option>FUNCTION</option><option>EXCEPTION</option>
         </select>
       </div>
       <div class="full">
-        <label>Action JSON (`execute` fields: params/payload/headers/auth)</label>
+        <label class="trg-label">Action JSON (`execute` fields: params/payload/headers/auth)</label>
         <textarea id="fActionJson" class="trg-text">{}</textarea>
       </div>
       <div class="full">
-        <label>Schedule/AutoDrop JSON (optional)</label>
+        <label class="trg-label">Schedule/AutoDrop JSON (optional)</label>
         <textarea id="fExtrasJson" class="trg-text">{}</textarea>
       </div>
     </div>
@@ -164,6 +175,23 @@
     document.getElementById('schedCronWrap').style.display = cron ? '' : 'none';
     document.getElementById('schedFieldsA').style.display = cron ? 'none' : '';
     document.getElementById('schedFieldsB').style.display = cron ? 'none' : '';
+  }
+
+  function updateActionTemplate() {
+    const type = document.getElementById('fActionType').value;
+    const templates = {
+      AUDIT: {},
+      EMAIL: { params: { to: "ops@example.com", subject: "Alert: {{triggerName}} on {{newRow.id}}", text: "Row changed in {{tableName}}. Status: {{newRow.status}}" } },
+      TELEGRAM: { params: { chatId: "@your_channel_or_id" } },
+      WEBHOOK: { url: "https://api.service.com/webhook", method: "POST", headers: { "Content-Type": "application/json" }, payload: { event: "{{event}}", row: "{{newRow}}" } },
+      FUNCTION: { name: "your_stored_procedure_name" },
+      EXCEPTION: { message: "Value too high", when: { left: "NEW.amount", operator: "GT", right: "1000" } }
+    };
+    const textarea = document.getElementById('fActionJson');
+    const currentVal = textarea.value.trim();
+    if (!currentVal || currentVal === '{}' || currentVal.includes('ops@example.com') || currentVal.includes('your_channel_or_id') || currentVal.includes('api.service.com')) {
+      textarea.value = JSON.stringify(templates[type] || {}, null, 2);
+    }
   }
 
   function openTriggerModal(row = null) {
@@ -259,13 +287,13 @@
       const scope = (r.schemaName === '__SYSTEM__' || r.tableName === '__SYSTEM__') ? 'Scheduler' : `${r.schemaName}.${r.tableName}`;
       const typ = r.definition?.execute?.type || 'N/A';
       return `<tr>
-        <td><b>${esc(r.triggerName)}</b></td>
-        <td><code>${esc(scope)}</code></td>
-        <td>${esc(typ)}</td>
+        <td><b style="font-size:0.85rem;">${esc(r.triggerName)}</b></td>
+        <td><code class="code-sm text-truncate" title="${esc(scope)}">${esc(scope)}</code></td>
+        <td><span class="code-sm">${esc(typ)}</span></td>
         <td><span class="badge-sync" style="background:${r.status === 'ACTIVE' ? 'var(--success)' : '#f59e0b'}">${esc(r.status)}</span></td>
         <td style="display:flex; gap:0.35rem;">
-          <button class="btn-outline" onclick='openTriggerModal(${JSON.stringify(JSON.stringify(r))})'>Edit</button>
-          <button class="btn-outline" onclick='deployTrigger("${r.id}")'>Deploy</button>
+          <button class="btn-outline" style="padding:0.25rem 0.6rem; font-size:0.75rem;" onclick='openTriggerModal(${JSON.stringify(JSON.stringify(r))})'>Edit</button>
+          <button class="btn-outline" style="padding:0.25rem 0.6rem; font-size:0.75rem;" onclick='deployTrigger("${r.id}")'>Deploy</button>
           <button class="btn-danger" onclick='deleteTrigger("${r.id}","${esc(r.triggerName)}")'>Delete</button>
         </td>
       </tr>`;
@@ -278,10 +306,10 @@
     const res = await fetch(`${API_BASE}/triggers/jobs/list`, { headers: getAuthHeaders() });
     const rows = await res.json();
     body.innerHTML = (rows || []).map(r => `<tr>
-      <td>${esc(r.jobType)}</td>
+      <td class="text-truncate" style="font-weight:600; max-width:120px;" title="${esc(r.jobType)}">${esc(r.jobType)}</td>
       <td><span class="badge-sync" style="background:${r.status === 'COMPLETED' ? 'var(--success)' : (r.status === 'FAILED' ? 'var(--danger)' : 'var(--primary)')}">${esc(r.status)}</span></td>
-      <td>${r.attempts}/${r.maxAttempts}</td>
-      <td>${r.status === 'FAILED' ? `<button class="btn-outline" onclick='retryJob("${r.id}")'>Retry</button>` : ''}</td>
+      <td style="font-size:0.75rem;">${r.attempts}/${r.maxAttempts}</td>
+      <td>${r.status === 'FAILED' ? `<button class="btn-outline" style="padding:0.2rem 0.5rem; font-size:0.7rem;" onclick='retryJob("${r.id}")'>Retry</button>` : ''}</td>
     </tr>`).join('') || '<tr><td colspan="4" class="text-muted" style="text-align:center;">No jobs</td></tr>';
   }
 
@@ -304,11 +332,11 @@
       return;
     }
     body.innerHTML += rows.map(r => `<tr>
-      <td>${new Date(r.createdAt).toLocaleString()}</td>
-      <td>${esc(r.triggerName)}</td>
-      <td>${esc(r.action)}</td>
+      <td style="font-size:0.75rem; white-space:nowrap;">${new Date(r.createdAt).toLocaleString()}</td>
+      <td style="font-weight:600;">${esc(r.triggerName)}</td>
+      <td><span class="code-sm">${esc(r.action)}</span></td>
       <td><span class="badge-sync" style="background:${r.status === 'SUCCESS' ? 'var(--success)' : 'var(--danger)'}">${esc(r.status)}</span></td>
-      <td><code style="font-size:0.75rem;">${esc(JSON.stringify(r.detail || {}))}</code></td>
+      <td><div class="code-sm" style="max-width:300px; max-height:60px; overflow:auto; white-space:pre-wrap; word-break:break-all;">${esc(JSON.stringify(r.detail || {}))}</div></td>
     </tr>`).join('');
     logOffset += rows.length;
     logLoading = false;
@@ -349,6 +377,7 @@
   });
 
   loadAll();
+  updateActionTemplate();
 </script>
 
 <%- include('partials/footer') %>

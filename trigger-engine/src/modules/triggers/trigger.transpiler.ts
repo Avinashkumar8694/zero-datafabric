@@ -85,7 +85,7 @@ export class TriggerTranspiler {
                           'schedule', ${trg.schedule ? `'${JSON.stringify(trg.schedule)}'::jsonb` : 'NULL'}
                         ),
                         'PENDING',
-                        NOW(),
+                        ${this.runAtExpr(trg)},
                         ${trg.schedule?.maxAttempts || 5},
                         current_setting('app.user_name', true)
                     );
@@ -99,6 +99,36 @@ export class TriggerTranspiler {
 
         code += '\nRETURN NEW;';
         return code;
+    }
+
+    /**
+     * SQL expression for a fired action's run_at, evaluated inside the trigger
+     * function on the affected row.
+     *
+     * - No schedule, or a non-RELATIVE schedule → fire immediately (NOW()).
+     * - RELATIVE with no anchor column → NOW() + after·unit (delay from firing time).
+     * - RELATIVE with an anchor column → the row's column value
+     *   (NEW on insert/update, OLD on delete) + after·unit; falls back to NOW()
+     *   when the column is null/absent so a bad column never drops the job.
+     *
+     * `after`/`unit` and the column identifier are sanitised — the column is
+     * stripped to [A-Za-z0-9_] and the unit is whitelisted — so nothing here is
+     * interpolated from untrusted free text.
+     */
+    private static runAtExpr(trg: TriggerDefinition): string {
+        const s = trg.schedule;
+        if (!s || String(s.type || '').toUpperCase() !== 'RELATIVE') return 'NOW()';
+        const after = Math.max(0, Math.floor(Number(s.after ?? s.every ?? 0)) || 0);
+        const unitRaw = String(s.unit || 'MINUTE').toUpperCase();
+        const unit = ['SECOND', 'MINUTE', 'HOUR', 'DAY', 'MONTH'].includes(unitRaw) ? unitRaw : 'MINUTE';
+        const interval = after > 0 ? ` + INTERVAL '${after} ${unit}'` : '';
+        const col = String(s.column || s.relativeColumn || '').replace(/[^a-zA-Z0-9_]/g, '');
+        if (col) {
+            // Anchor off the row's timestamp column; row_to_json(NEW/OLD) is NULL for the
+            // absent side (OLD on insert, NEW on delete), so COALESCE selects the right one.
+            return `COALESCE((row_to_json(NEW)->>'${col}')::timestamptz, (row_to_json(OLD)->>'${col}')::timestamptz, NOW())${interval}`;
+        }
+        return `NOW()${interval}`;
     }
 
     private static astToSql(ast: any): string {

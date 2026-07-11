@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { ColumnDefinition, TableDefinition, EnumDefinition, SequenceDefinition, ViewDefinition, FunctionDefinition, MetadataManifest, RelationshipDefinition } from './types';
 import { QueryTranspiler } from './query_transpiler';
+import { TriggerService } from '../triggers/trigger.service';
 
 export class Transpiler {
     private static TRIGGER_ENGINE_URL = process.env.TRIGGER_ENGINE_URL || 'http://localhost:4001/api/trig-engine/transpile';
@@ -205,7 +206,7 @@ export class Transpiler {
 
                 if (table.triggers) {
                     for (const trg of table.triggers) {
-                        const trgSql = await this.callTriggerEngine(trg, schemaName, table.name);
+                        const trgSql = await this.callTriggerEngine(trg, schemaName, table.name, tenantId);
                         sql.push(...trgSql);
                     }
                 }
@@ -335,13 +336,16 @@ export class Transpiler {
         return ops;
     }
 
-    private static async callTriggerEngine(trigger: any, schemaName: string, tableName: string): Promise<string[]> {
-        try {
-            const res = await axios.post(this.TRIGGER_ENGINE_URL, { trigger, schemaName, tableName });
-            return res.data.sql || [];
-        } catch (err: any) {
-            console.warn(`[Transpiler] Trigger Engine Offline or Error: ${err.message}. Falling back to baseline.`);
-            return [`-- Trigger ${trigger.name} provisioning skipped (Engine unreachable)`];
-        }
+    private static async callTriggerEngine(trigger: any, schemaName: string, tableName: string, tenantId?: string): Promise<string[]> {
+        // Manifest triggers are compiled natively at apply time by
+        // TriggerActionCompiler, which now handles ALL declarative forms:
+        //   • procedure — EXECUTE an existing trigger function
+        //   • execute   — AUDIT/WEBHOOK/EMAIL/TELEGRAM/FUNCTION/EXCEPTION
+        //   • action    — the mini INSERT/UPDATE/DELETE/RAISE/PERFORM/sql DSL
+        // For WEBHOOK/EMAIL/TELEGRAM the generated function enqueues a durable
+        // job the trigger-engine worker dispatches later; the CREATE itself needs
+        // no running microservice. transpileTriggerSql also registers the trigger
+        // in the control plane (trigger_registry, source=MANIFEST).
+        return TriggerService.transpileTriggerSql(trigger, schemaName, tableName, tenantId);
     }
 }

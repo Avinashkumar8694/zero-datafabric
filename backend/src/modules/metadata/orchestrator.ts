@@ -251,14 +251,18 @@ export class MetadataOrchestrator {
                 SELECT COALESCE(p_tenant, current_setting('app.tenant_id', true)) || '-' || nextval('fabric_system.global_seq')::text $$ LANGUAGE sql VOLATILE`,
             `CREATE SEQUENCE IF NOT EXISTS fabric_system.global_seq`,
             // Generic audit trigger fn manifests can attach (writes to fabric_admin.audit_logs if present).
+            // SECURITY DEFINER so it runs as the owner (fabric_admin) and can write the
+            // control-plane audit table even when a restricted tenant role fired the trigger.
+            // The inner handler swallows missing-table AND permission errors so auditing can
+            // never block the business write it observes.
             `CREATE OR REPLACE FUNCTION public.audit_log_fn() RETURNS trigger AS $$
                 BEGIN
                     BEGIN
                         INSERT INTO fabric_admin.audit_logs (table_name, action, new_data, user_name, changed_at)
                         VALUES (TG_TABLE_NAME, TG_OP, to_jsonb(NEW), current_setting('app.user_name', true), NOW());
-                    EXCEPTION WHEN undefined_table THEN NULL; END;
-                    RETURN NEW;
-                END; $$ LANGUAGE plpgsql`,
+                    EXCEPTION WHEN undefined_table OR insufficient_privilege THEN NULL; END;
+                    RETURN COALESCE(NEW, OLD);
+                END; $$ LANGUAGE plpgsql SECURITY DEFINER`,
         ];
         for (const s of stmts) {
             try { await client.query(s); } catch (e: any) { console.warn(`[Orchestrator] primitive skipped: ${e.message}`); }

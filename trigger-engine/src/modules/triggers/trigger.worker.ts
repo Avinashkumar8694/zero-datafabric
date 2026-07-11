@@ -33,27 +33,38 @@ export class TriggerWorker {
   }
 
   private static async tick() {
+    // Claim a batch under one short-lived connection, release it, THEN process.
+    // The claim and the processing use separate connections and separate error
+    // scopes so a single failing job can never double-release the claim client.
     const client = await pool.connect();
+    let rows: JobRow[] = [];
     try {
       await client.query('BEGIN');
-      const { rows } = await client.query<JobRow>(
+      rows = (await client.query<JobRow>(
         `SELECT id, tenant_id, trigger_id, job_type, payload, attempts, max_attempts
          FROM public.trigger_jobs
          WHERE status = 'PENDING' AND run_at <= NOW()
          ORDER BY created_at ASC
          FOR UPDATE SKIP LOCKED
          LIMIT 5`
-      );
+      )).rows;
       await client.query('COMMIT');
-      client.release();
-
-      for (const job of rows) {
-        await this.processJob(job);
-      }
     } catch (err) {
-      await client.query('ROLLBACK');
-      client.release();
+      try { await client.query('ROLLBACK'); } catch { /* connection already gone */ }
       throw err;
+    } finally {
+      client.release();
+    }
+
+    for (const job of rows) {
+      try {
+        await this.processJob(job);
+      } catch (err: any) {
+        // processJob owns its own client + retry bookkeeping; a throw here is
+        // unexpected (e.g. a connection blip). Log and move on — never let one
+        // job abort the batch or leak the claim client.
+        console.error(`[TriggerWorker] job ${job.id} (${job.job_type}) failed:`, err?.message || err);
+      }
     }
   }
 
@@ -94,10 +105,24 @@ export class TriggerWorker {
         const tableName = payload.tableName;
         const triggerName = payload.triggerName;
         await client.query(`DROP TRIGGER IF EXISTS "${triggerName}" ON "${schemaName}"."${tableName}"`);
+        // Defensive sweep: the native trigger is now dropped, so no new jobs can be
+        // enqueued. Cancel anything still PENDING for this trigger that slipped in
+        // between the API-side cancel and this drop (races on recurring/RELATIVE jobs).
+        const swept = await client.query(
+          `UPDATE public.trigger_jobs
+             SET status = 'CANCELLED', last_error = 'trigger deleted', updated_at = NOW()
+           WHERE status = 'PENDING'
+             AND job_type NOT IN ('DELETE_TRIGGER', 'CLEANUP_TRIGGER')
+             AND (trigger_id = $1 OR payload->>'triggerName' = $2)`,
+          [job.trigger_id, triggerName]
+        );
         if (job.trigger_id) {
           await client.query(`DELETE FROM public.trigger_registry WHERE id = $1`, [job.trigger_id]);
         }
-        await this.log(client, job, 'TRIGGER_DELETE', 'SUCCESS', { schemaName, tableName, triggerName });
+        // The delete-completion log must NOT carry trigger_id: trigger_execution_logs
+        // has an FK to trigger_registry.id, and the row it referenced is now gone
+        // (this also keeps a retry idempotent). Log with a null trigger_id.
+        await this.log(client, { ...job, trigger_id: null }, 'TRIGGER_DELETE', 'SUCCESS', { schemaName, tableName, triggerName, jobsCancelled: swept.rowCount || 0 });
       } else if (job.job_type === 'EXECUTE_TRIGGER_ACTION') {
         const actionType = payload.actionType || payload?.execute?.type;
         let detail: any = { actionType, mode: 'live' };
@@ -262,7 +287,7 @@ export class TriggerWorker {
       );
       await this.log(client, job, 'TRIGGER_JOB', 'FAILED', { message: err.message, attempts });
     } finally {
-      client.release();
+      try { client.release(); } catch { /* already released — never let this mask the job outcome */ }
     }
   }
 

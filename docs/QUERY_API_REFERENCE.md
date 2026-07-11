@@ -206,11 +206,18 @@ POST /api/queries/exec
   "sql": "WITH d AS (SELECT date_trunc('day',order_date)::date dt, sum(total_amount) rev FROM orders GROUP BY 1) SELECT dt, rev, sum(rev) OVER (ORDER BY dt) running FROM d ORDER BY dt"
 }
 ```
-Returns the standard envelope with `plan.strategy = "SINGLE_CONNECTOR_RAW"` and a
-one-leg trace. SQL-native engines (Postgres/MySQL/Snowflake) run the SQL directly;
-**Elasticsearch** also accepts `source` — the SQL is routed to its native `_sql`
-endpoint (read-only subset: `SELECT`/`WHERE`/`GROUP BY`/aggregates, `MATCH()` for
-full-text, `SCORE()` for relevance, no JOINs). MongoDB has no SQL — use AST mode.
+Returns the standard envelope with a one-leg trace. **Every source is reachable by
+SQL**, but in two ways:
+
+- **SQL-native engines** (Postgres/MySQL/Snowflake) run the SQL **directly**
+  (`plan.strategy = SINGLE_CONNECTOR_RAW`) — full power incl. window functions,
+  recursive CTEs.
+- **Elasticsearch** runs it via its native `_sql` endpoint (subset: `SELECT`/
+  `WHERE`/`GROUP BY`/aggregates, `MATCH()`/`SCORE()`; no JOINs).
+- **MongoDB** has no SQL engine, so the fabric **translates the SQL into the AST**
+  and runs it as a native Mongo `find`/`$group` (`plan.translatedFrom = "SQL"`).
+  Single-collection SELECT/WHERE/GROUP BY/ORDER BY/LIMIT; JOINs/subqueries/UNION
+  need AST mode.
 
 `POST /api/queries/native` behaves the same for a single `{ sql, source?, schema? }`.
 

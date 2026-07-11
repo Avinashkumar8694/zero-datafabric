@@ -1,6 +1,59 @@
 import { queryWithContext } from '../../config/database';
+import { TriggerActionCompiler } from './action_compiler';
 
 export class TriggerService {
+  /**
+   * Native, in-fabric transpile of a manifest trigger definition into Postgres
+   * DDL — no external trigger engine required at apply time. Supports all three
+   * declarative forms (procedure / execute / action) via TriggerActionCompiler,
+   * and — when a tenantId is supplied — also registers the trigger in
+   * public.trigger_registry (source=MANIFEST) so it appears in the control plane
+   * alongside API/UI triggers.
+   */
+  static transpileTriggerSql(trigger: any, schemaName: string, tableName: string, tenantId?: string): string[] {
+    const name = TriggerActionCompiler.ident(trigger?.name);
+    if (!name) return ['-- trigger skipped: no name'];
+
+    const compiled = TriggerActionCompiler.toSql(trigger, { schemaName, tableName, triggerName: name });
+    const statements = [...compiled.statements];
+    if (tenantId) statements.push(this.registryUpsertSql(trigger, schemaName, tableName, tenantId));
+    return statements;
+  }
+
+  /**
+   * Upsert a manifest-created trigger into trigger_registry so the control plane
+   * shows every trigger. Runs inside the manifest apply transaction, so
+   * registration is atomic with the CREATE TRIGGER. Marked source=MANIFEST.
+   */
+  private static registryUpsertSql(trigger: any, schemaName: string, tableName: string, tenantId: string): string {
+    const esc = (s: any) => String(s ?? '').replace(/'/g, "''");
+    const name = TriggerActionCompiler.ident(trigger?.name);
+    const timing = String(trigger?.timing || (trigger?.event ? String(trigger.event).split('_')[0] : 'AFTER')).toUpperCase();
+    const events = Array.isArray(trigger?.events)
+      ? trigger.events
+      : [trigger?.event ? String(trigger.event).toUpperCase().split('_').slice(1).join('_') : 'INSERT'];
+    const firstEvent = String(events[0] || 'INSERT').toUpperCase();
+    // A normalized event label ('AFTER_INSERT') so the UI, which reads
+    // definition.event, renders manifest triggers consistently.
+    const definition = {
+      source: 'MANIFEST',
+      kind: trigger?.action ? 'ACTION' : (trigger?.execute?.type ? 'EXECUTE' : 'PROCEDURE'),
+      event: `${timing}_${firstEvent}`,
+      timing,
+      events,
+      procedure: trigger?.procedure || undefined,
+      execute: trigger?.execute || undefined,
+      action: trigger?.action || undefined,
+      schedule: trigger?.schedule || undefined,
+    };
+    const defJson = esc(JSON.stringify(definition));
+    return `INSERT INTO public.trigger_registry
+        (tenant_id, schema_name, table_name, trigger_name, definition, status, created_by, last_deployed_at, updated_at)
+      VALUES ('${esc(tenantId)}', '${esc(schemaName)}', '${esc(tableName)}', '${esc(name)}', '${defJson}'::jsonb, 'ACTIVE', 'manifest', NOW(), NOW())
+      ON CONFLICT (tenant_id, schema_name, table_name, trigger_name)
+      DO UPDATE SET definition = EXCLUDED.definition, status = 'ACTIVE', last_deployed_at = NOW(), updated_at = NOW()`;
+  }
+
   static async listTriggers(tenantId: string) {
     const { rows } = await queryWithContext(
       `SELECT id, schema_name as "schemaName", table_name as "tableName", trigger_name as "triggerName", definition, status, last_deployed_at as "lastDeployedAt", updated_at as "updatedAt"
@@ -62,12 +115,31 @@ export class TriggerService {
       [id],
       { tenantId, username }
     );
+
+    // Cancel the trigger's outstanding work so nothing fires after it is gone:
+    //  - recurring SCHEDULE_TRIGGER / DEPLOY jobs are linked by trigger_id;
+    //  - fired action jobs (EXECUTE_TRIGGER_ACTION), including future RELATIVE
+    //    ones, are enqueued by the DB trigger with trigger_id = NULL and are
+    //    keyed by payload->>'triggerName'.
+    // We never cancel a DELETE_TRIGGER job (that is what performs the drop).
+    const cancelled = await queryWithContext(
+      `UPDATE public.trigger_jobs
+         SET status = 'CANCELLED', last_error = 'trigger deleted', updated_at = NOW()
+       WHERE status = 'PENDING'
+         AND job_type <> 'DELETE_TRIGGER'
+         AND (trigger_id = $1 OR payload->>'triggerName' = $2)
+       RETURNING id`,
+      [id, trg.trigger_name],
+      { tenantId, username }
+    );
+
     await this.enqueueJob(tenantId, username, id, 'DELETE_TRIGGER', {
       schemaName: trg.schema_name,
       tableName: trg.table_name,
       triggerName: trg.trigger_name,
       event: trg.definition?.event
     });
+    await this.writeLog(tenantId, id, trg.trigger_name, trg.schema_name, trg.table_name, trg.definition?.event, 'TRIGGER_JOBS_CANCELLED', 'SUCCESS', { cancelled: cancelled.rows.length }, username);
     await this.writeLog(tenantId, id, trg.trigger_name, trg.schema_name, trg.table_name, trg.definition?.event, 'TRIGGER_DELETE_ENQUEUED', 'SUCCESS', { message: 'Delete job enqueued' }, username);
   }
 

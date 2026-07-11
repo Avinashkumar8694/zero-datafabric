@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { QueryEngineService } from '../modules/query-engine/query-engine.service';
+import { FabricSequenceService } from '../modules/query-engine/sequence.service';
 
 /**
  * Simple CRUD façade over the query engine. Each endpoint accepts an ergonomic
@@ -24,6 +25,15 @@ const handle = (fn: (tenantId: string, body: any) => Promise<any>) =>
       res.status(500).json({ error: msg });
     }
   };
+
+/**
+ * Fabric sequence allocation — Postgres-style nextval() for ANY engine (e.g. to
+ * give MongoDB inserts consistent sequential IDs). Body: { name, start?, increment?, count? }.
+ */
+export const nextSequence = handle(async (t, b) => {
+  if (!b.name) throw new Error('name is required');
+  return FabricSequenceService.nextval(t, b.name, { start: b.start, increment: b.increment, count: b.count });
+});
 
 export const fetchData  = handle((t, b) => QueryEngineService.fetch(t, b));
 export const createData = handle((t, b) => QueryEngineService.mutate(t, 'create', b));

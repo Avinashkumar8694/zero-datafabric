@@ -322,8 +322,9 @@ export class MongoDBConnector implements IConnector {
         const collection = db.collection(table);
         const canonical = toCanonical(config);
 
-        // Aggregate pushdown: run a $group pipeline so Mongo returns groups, not rows.
-        if (canonical.aggregates && canonical.aggregates.length > 0) {
+        // Aggregate / DISTINCT pushdown: a $group pipeline (groups, not rows) is used
+        // when there are aggregates OR grouping columns (GROUP BY-only = DISTINCT).
+        if ((canonical.aggregates && canonical.aggregates.length > 0) || (canonical.groupBy && canonical.groupBy.length > 0)) {
             const pipeline = PushdownCompiler.toMongoAggregate(canonical);
             console.log(`[MongoDBConnector] Pushdown aggregate: ${JSON.stringify(pipeline)}`);
             return await collection.aggregate(pipeline).toArray();
@@ -565,15 +566,17 @@ export class ElasticsearchConnector implements IConnector {
         const index = table;
         const query = ElasticsearchConnector.buildQuery(canonical.filter || {});
 
-        // Aggregate pushdown: (date_histogram | terms) buckets for group cols + metric sub-aggs.
-        if (canonical.aggregates && canonical.aggregates.length > 0) {
+        // Aggregate / DISTINCT pushdown: (date_histogram | terms) buckets for group cols
+        // + metric sub-aggs. Fires on aggregates OR grouping columns (GROUP BY-only = DISTINCT).
+        if ((canonical.aggregates && canonical.aggregates.length > 0) || (canonical.groupBy && canonical.groupBy.length > 0)) {
             const groupBy: any[] = canonical.groupBy || [];
+            const aggregates: any[] = canonical.aggregates || []; // may be empty for GROUP BY-only (DISTINCT)
             const metrics: Record<string, any> = {};
-            for (const a of canonical.aggregates) {
+            for (const a of aggregates) {
                 const m = ElasticsearchConnector.metricAgg(a);
                 if (m) metrics[a.alias] = m;
             }
-            const countAlias = canonical.aggregates.find((a: any) => a.func === 'COUNT')?.alias;
+            const countAlias = aggregates.find((a: any) => a.func === 'COUNT')?.alias;
             // Nest bucket aggs from the group columns (string → terms; {field,dateInterval} → date_histogram).
             let aggs: any = metrics;
             for (let i = groupBy.length - 1; i >= 0; i--) {
@@ -586,7 +589,7 @@ export class ElasticsearchConnector implements IConnector {
             const body = { size: 0, query, aggs: groupBy.length ? aggs : metrics };
             console.log(`[ElasticsearchConnector] Pushdown aggregate on ${index}: ${JSON.stringify(body)}`);
             const data = await this.req('POST', `/${index}/_search`, body);
-            return this.flattenAggs(data.aggregations || {}, groupBy, canonical.aggregates, countAlias, 0, {});
+            return this.flattenAggs(data.aggregations || {}, groupBy, aggregates, countAlias, 0, {});
         }
 
         const body: any = { query };

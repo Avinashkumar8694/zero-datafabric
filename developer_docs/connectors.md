@@ -60,7 +60,7 @@ Schema = database name, resource = collection.
 | aggregates + groupBy | ✓ `$group` pipeline (`COUNT_DISTINCT` via `$addToSet`+`$size`) |
 | bind-join | ✓ (`{ key: { $in: [...] } }`) |
 | writes | ✓ `insertMany` / `updateMany($set)` / `deleteMany` |
-| native SQL | — (not SQL) |
+| SQL via `/queries/exec` | ✓ **fabric-translated** — SQL → AST → native `find`/`$group` (`plan.translatedFrom:"SQL"`); single-collection, no JOINs |
 
 ## Snowflake
 

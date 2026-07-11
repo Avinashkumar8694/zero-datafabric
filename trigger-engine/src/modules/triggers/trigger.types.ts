@@ -36,7 +36,14 @@ export interface TriggerDefinition {
         type: 'FIXED' | 'RELATIVE' | 'CRON';
         cron?: string;
         every?: number;
+        /**
+         * RELATIVE anchor column. When set, the action's run_at is computed from
+         * this column's value on the affected row (NEW on insert/update, OLD on
+         * delete) plus `after`/`unit`. When omitted, the anchor is the trigger
+         * firing time (NOW()). `relativeColumn` is an accepted alias.
+         */
         column?: string;
+        relativeColumn?: string;
         after?: number;
         unit?: 'SECOND' | 'MINUTE' | 'HOUR' | 'DAY' | 'MONTH';
         maxAttempts?: number;

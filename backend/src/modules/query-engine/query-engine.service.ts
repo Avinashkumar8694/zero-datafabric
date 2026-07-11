@@ -6,6 +6,9 @@ import { randomUUID } from 'crypto';
 import { ElasticsearchMutationWorker } from '../metadata/es_mutation_worker';
 import { QueryPlanner, LOCAL_SOURCE } from './planner';
 import { FederationExecutor } from './federation';
+import { sqlToAst } from './sql_translator';
+import { hasWindows, extractWindows, windowBaseColumns, applyWindows, projectWithWindows } from './compensate';
+import { FabricWriteGenerators } from './write_generators';
 
 export interface QueryConfig {
   type: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 
@@ -180,6 +183,38 @@ export class QueryEngineService {
       // Carry the top-level limit into the AST so pushdown / federation can honour it.
       if (hasLimit && typeof ast.limit !== 'number') ast.limit = config.limit;
 
+      // ---- Capability compensation: WINDOW FUNCTIONS ----
+      // No engine's connector expresses window functions, so the fabric computes
+      // them itself: fetch the base rows (with filter pushdown) via the normal path,
+      // then compute the windows in-fabric over that bounded result.
+      if (hasWindows(ast.select)) {
+        const windowSpecs = extractWindows(ast.select);
+        const baseCols = windowBaseColumns(ast.select);
+        const baseQuery: any = { ...ast, select: baseCols.length ? baseCols : ['*'] };
+        delete baseQuery.groupBy; // windows are computed over rows, not pre-aggregated groups
+        delete baseQuery.limit;   // don't cut partitions before the window is computed
+        const cap = Number(process.env.FABRIC_FED_MAX_ROWS_PER_LEG) || 50000;
+        const started = Date.now();
+        const baseRes = await this.executeQuery(tenantId, { type: 'SELECT', schema: config.schema, limit: cap, query: baseQuery } as any);
+        let rows = applyWindows(baseRes.data || [], windowSpecs);
+        rows = projectWithWindows(rows, ast.select);
+        if (Array.isArray(ast.orderBy) && ast.orderBy.length) {
+          rows = [...rows].sort((a, b) => { for (const o of ast.orderBy) { const av = a[o.column], bv = b[o.column]; if (av < bv) return o.direction === 'DESC' ? 1 : -1; if (av > bv) return o.direction === 'DESC' ? -1 : 1; } return 0; });
+        }
+        if (typeof config.limit === 'number' && config.limit > 0) rows = rows.slice(0, config.limit);
+        const basePlan = baseRes.plan || {};
+        return {
+          data: rows, rowCount: rows.length,
+          plan: {
+            ...basePlan,
+            strategy: `${basePlan.strategy || 'SINGLE_CONNECTOR'}+WINDOW`,
+            executionMs: (basePlan.executionMs || 0) + (Date.now() - started),
+            compensations: [`window functions computed in-fabric: ${windowSpecs.map((w) => `${w.fn}${w.column ? '(' + w.column + ')' : ''} AS ${w.alias}`).join(', ')} (over ${baseRes.rowCount} bounded rows)`],
+          },
+          warnings: baseRes.warnings || [],
+        };
+      }
+
       // Plan HOW to execute across sources instead of assuming everything is local Postgres.
       const plan = await QueryPlanner.classify(tenantId, ast);
       console.log(`[QueryEngine] AST strategy=${plan.strategy} :: ${plan.pushed.join('; ')}`);
@@ -190,15 +225,19 @@ export class QueryEngineService {
         const startedAt = Date.now();
         const fed = await FederationExecutor.execute(tenantId, ast, plan, schemaName);
         const executionMs = Date.now() - startedAt;
+        // HAVING is applied in-fabric on the aggregate result (compensation) so it
+        // works uniformly regardless of whether the engine supports HAVING.
+        const data = this.applyHaving(fed.data, ast.having);
+        const pushed = [...plan.pushed, ...fed.pushed];
+        if (ast.having?.length) pushed.push(`HAVING applied in-fabric on ${fed.data.length} group(s) → ${data.length}`);
         return {
-          data: fed.data,
-          rowCount: fed.data.length,
+          data,
+          rowCount: data.length,
           plan: {
             strategy: plan.strategy,
-            pushed: [...plan.pushed, ...fed.pushed],
+            pushed,
             legs: fed.trace,
             executionMs,
-            // headline proof: total rows pulled from all sources vs. rows returned to the caller
             rowsScannedAcrossSources: fed.trace.reduce((n, l) => n + l.rowsReturned, 0),
           },
           warnings: [...plan.warnings, ...fed.warnings],
@@ -369,6 +408,26 @@ export class QueryEngineService {
     if (!rows.length) throw new Error(`Source "${sourceName}" not found for tenant "${tenantId}"`);
     const engine = String(rows[0].type || 'POSTGRES').toUpperCase();
     const config = rows[0].config || {};
+
+    // SQL-native engines run the SQL directly at the source (window functions,
+    // recursive CTEs, ES _sql). Non-SQL engines (MongoDB) have no SQL engine, so
+    // the fabric TRANSLATES the SQL into its query AST and runs it through the
+    // normal planner → the engine's native query language (Mongo find / $group).
+    const SQL_NATIVE = new Set(['POSTGRES', 'POSTGRESQL', 'MYSQL', 'SNOWFLAKE', 'ELASTICSEARCH', 'ELASTIC', 'ES']);
+    if (!SQL_NATIVE.has(engine)) {
+      const query: any = sqlToAst(sql);
+      query.from.source = sourceName;
+      const result = await this.executeQuery(tenantId, {
+        type: 'SELECT', schema: schema || 'public',
+        limit: typeof query.limit === 'number' ? query.limit : 1000, query,
+      } as any);
+      if (result.plan) {
+        result.plan.translatedFrom = 'SQL';
+        result.plan.pushed = [`SQL translated by the fabric into a native ${engine} query`, ...(result.plan.pushed || [])];
+      }
+      return result;
+    }
+
     const connector: any = ConnectorFactory.getConnector(engine, config);
     if (typeof connector.rawQuery !== 'function') {
       await connector.close();
@@ -408,6 +467,23 @@ export class QueryEngineService {
   private static SQL_OPS: Record<string, string> = {
     $eq: '=', $ne: '!=', $gt: '>', $gte: '>=', $lt: '<', $lte: '<=', $like: 'LIKE', $ilike: 'ILIKE', $in: 'IN',
   };
+
+  /** Post-aggregation HAVING filter (compensation) on the grouped result rows. */
+  private static applyHaving(rows: any[], having?: { column: string; operator: string; value: any }[]): any[] {
+    if (!Array.isArray(having) || !having.length) return rows;
+    const num = (v: any) => (typeof v === 'number' ? v : parseFloat(v));
+    return rows.filter((r) => having.every((h) => {
+      const a = r[h.column]; const b = h.value;
+      switch (h.operator) {
+        case 'NE': return a != b;
+        case 'GT': return num(a) > num(b);
+        case 'GTE': return num(a) >= num(b);
+        case 'LT': return num(a) < num(b);
+        case 'LTE': return num(a) <= num(b);
+        default: return a == b;
+      }
+    }));
+  }
 
   /** Safe identifier: quote a column/table name, stripping anything non-identifier. */
   private static qIdent(name: string): string {
@@ -472,9 +548,20 @@ export class QueryEngineService {
 
   /** Simple create/update/delete against the hub or an external source. */
   static async mutate(tenantId: string, op: 'create' | 'update' | 'delete', body: any): Promise<any> {
-    const { source, schema, resource, data, where } = body;
+    const { source, schema, resource, where, generate } = body;
+    let data = body.data;
     if (!resource) throw new Error('resource is required');
     this.assertSafeKeys(where, 'where');
+    // Write-time value generation (compensation): apply declared UUID_V7 / sequence /
+    // custom-function generators so engines without column defaults (Mongo) still get
+    // consistent values — the same generators Postgres columns use.
+    if (op === 'create' && generate && Object.keys(generate).length) {
+      this.assertSafeKeys(generate, 'generate');
+      const rowsIn = Array.isArray(data) ? data : [data];
+      const gen = [];
+      for (const r of rowsIn) gen.push(await FabricWriteGenerators.apply(tenantId, r || {}, generate, schema));
+      data = Array.isArray(data) ? gen : gen[0];
+    }
     const dataRows = Array.isArray(data) ? data : data ? [data] : [];
     for (const row of dataRows) this.assertSafeKeys(row, 'data');
     if ((op === 'update' || op === 'delete') && (!where || Object.keys(where).length === 0)) {

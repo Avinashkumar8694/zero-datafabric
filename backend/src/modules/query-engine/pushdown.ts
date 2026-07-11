@@ -139,10 +139,11 @@ export class PushdownCompiler {
     };
 
     const hasAgg = Array.isArray(aggregates) && aggregates.length > 0;
-    const cols = hasAgg
+    const hasGroup = Array.isArray(groupBy) && groupBy.length > 0;
+    const cols = (hasAgg || hasGroup)
       ? [
           ...(groupBy || []).map((g) => this.groupSelectSql(g, dialect)),
-          ...aggregates!.map((a) => `${this.aggExprSql(a, dialect)} AS ${this.quoteIdent(a.alias, dialect)}`),
+          ...(aggregates || []).map((a) => `${this.aggExprSql(a, dialect)} AS ${this.quoteIdent(a.alias, dialect)}`),
         ].join(', ')
       : select && select.length > 0
         ? select
@@ -181,8 +182,8 @@ export class PushdownCompiler {
       text += ` WHERE ${clauses.join(' AND ')}`;
     }
 
-    if (hasAgg && groupBy && groupBy.length > 0) {
-      text += ` GROUP BY ${groupBy.map((g) => this.groupBySql(g, dialect)).join(', ')}`;
+    if (hasGroup) {
+      text += ` GROUP BY ${groupBy!.map((g) => this.groupBySql(g, dialect)).join(', ')}`;
     }
 
     if (orderBy && orderBy.length > 0) {

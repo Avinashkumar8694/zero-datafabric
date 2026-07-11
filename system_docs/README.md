@@ -18,6 +18,8 @@ System-level design docs. Each feature has its own page with architecture
 | [07-metadata-orchestration.md](07-metadata-orchestration.md) | Manifest diff / apply / SAGA |
 | [08-caching-and-catalog.md](08-caching-and-catalog.md) | Catalog + Redis caching |
 | [09-execution-trace.md](09-execution-trace.md) | The per-leg trace envelope |
+| [10-capability-compensation-engine.md](10-capability-compensation-engine.md) | How the fabric provides capabilities a source lacks (sequences, window fns, HAVING, policy) — push-down / compensate / reject, efficiently |
+| [11-stateful-feature-compensation.md](11-stateful-feature-compensation.md) | Compensating stateful/imperative features (custom sequences, custom functions, strategies, RLS policy, triggers, recursive) across engines, grounded in test_manifest.json |
 
 ## System context
 

@@ -101,11 +101,13 @@ function head(title, r) {
   head('Negative-sentiment via ES SQL full-text MATCH() + SCORE()', esText);
   for (const r of rows(esText)) console.log(`     account ${String(r.account_id).padStart(4)}  score ${Number(r.sc).toFixed(2)}`);
 
-  // 5) Boundary check: MongoDB has no SQL, so it correctly refuses raw SQL.
-  const bad = await sqlOn('Product_Logs', 'SELECT * FROM user_events LIMIT 1');
-  console.log(`\n### Raw SQL against MongoDB (Product_Logs) — expected to be refused`);
-  console.log(`   HTTP ${bad.status}: ${bad.json?.error || '(unexpected success)'}`);
-  console.log(`   → MongoDB is not SQL-native; use AST mode for it. (Postgres + Elasticsearch support SQL mode.)`);
+  // 5) SQL over MongoDB: Mongo has no SQL engine, so the fabric TRANSLATES the SQL
+  //    into Mongo's native query language ($group) and runs it.
+  const mongoSql = await sqlOn('Product_Logs',
+    `SELECT event_name, COUNT(*) AS n FROM user_events WHERE account_id < 500 GROUP BY event_name`);
+  head('SQL over MongoDB — fabric translates SQL → Mongo $group (Product_Logs)', mongoSql);
+  for (const r of rows(mongoSql)) console.log(`     ${String(r.event_name).padEnd(20)} ${r.n}`);
+  console.log('   → every engine is reachable by SQL: SQL-native engines run it directly; Mongo is translated.');
 
   console.log('\nDone. SQL mode covers the Postgres-native analytics; AST mode covers the cross-engine federation.');
 })().catch((e) => { console.error('FAILED:', e.message || e); process.exit(1); });

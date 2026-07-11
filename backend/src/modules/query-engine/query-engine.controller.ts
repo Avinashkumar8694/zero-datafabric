@@ -39,8 +39,12 @@ export class QueryEngineController {
         return res.status(400).json({ error: 'tenantId and queryConfig are required' });
       }
 
-      const data = await QueryEngineService.executeQuery(tenantId, queryConfig as QueryConfig);
-      return res.status(200).json({ data });
+      const result = await QueryEngineService.executeQuery(tenantId, queryConfig as QueryConfig);
+      // The service returns an enveloped object ({ data, rowCount, plan?, warnings? }) for
+      // SELECT-family queries; pass it through so plan/warnings reach the client. Wrap only
+      // bare arrays (defensive — legacy callers) to preserve the { data } contract.
+      const payload = Array.isArray(result) ? { data: result } : result;
+      return res.status(200).json(payload);
     } catch (err: any) {
       if (err.message.toLowerCase().includes('suspended')) return res.status(403).json({ error: err.message });
       console.error(`[Query] Execution failed for tenant ${tenantId}: ${err.message}`);

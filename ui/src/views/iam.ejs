@@ -56,8 +56,8 @@
                 headers: getAuthHeaders()
             });
             const data = await response.json();
-            select.innerHTML = '<option value="">Assign Tenant...</option>' + 
-                data.map(t => `<option value="${t.id}">${t.id}</option>`).join('');
+            select.innerHTML = '<option value="">Assign Tenant...</option>' +
+                data.map(t => `<option value="${escapeHtml(t.id)}">${escapeHtml(t.id)}</option>`).join('');
         } catch (err) {}
     }
 
@@ -68,15 +68,16 @@
                 headers: getAuthHeaders()
             });
             const data = await response.json();
+            if (!Array.isArray(data)) { body.innerHTML = '<tr><td colspan="5">Unable to load identities.</td></tr>'; return; }
             body.innerHTML = data.map(u => `
                 <tr class="fade-in">
-                    <td><strong>${u.username}</strong></td>
-                    <td><span class="badge-sync">${u.tenant_id}</span></td>
-                    <td>${u.role}</td>
-                    <td><span class="dot-online"></span> ${u.status}</td>
+                    <td><strong>${escapeHtml(u.username)}</strong></td>
+                    <td><span class="badge-sync">${escapeHtml(u.tenant_id)}</span></td>
+                    <td>${escapeHtml(u.role)}</td>
+                    <td><span class="dot-online"></span> ${escapeHtml(u.status)}</td>
                     <td style="display: flex; gap: 0.5rem;">
-                        <button onclick="editUser('${u.id}', '${u.username}', '${u.tenant_id}', '${u.role}')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">Edit</button>
-                        <button onclick="deleteUser('${u.id}')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; color: var(--danger);">Revoke</button>
+                        <button onclick="editUser('${escapeJs(u.id)}', '${escapeJs(u.username)}', '${escapeJs(u.tenant_id)}', '${escapeJs(u.role)}')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">Edit</button>
+                        <button onclick="deleteUser('${escapeJs(u.id)}')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; color: var(--danger);">Revoke</button>
                     </td>
                 </tr>
             `).join('');
@@ -104,15 +105,17 @@
         document.getElementById('formTitle').innerText = 'Provision New Identity';
     });
 
-    async function deleteUser(id) {
-        if (!confirm('Are you sure you want to revoke this identity?')) return;
-        try {
-            await fetch(`${API_BASE}/admin/users/${id}`, {
-                method: 'DELETE',
-                headers: getAuthHeaders()
-            });
-            loadUsers();
-        } catch (e) {}
+    function deleteUser(id) {
+        showModal('Revoke Identity', 'Are you sure you want to revoke this identity?', async () => {
+            try {
+                const res = await fetch(`${API_BASE}/admin/users/${encodeURIComponent(id)}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+                if (!res.ok) { const o = await res.json().catch(() => ({})); throw new Error(o.error || `HTTP ${res.status}`); }
+                loadUsers();
+            } catch (e) { showModal('Revoke Failed', e.message); }
+        }, 'Revoke');
     }
 
     document.getElementById('iamForm').addEventListener('submit', async (e) => {
@@ -128,20 +131,27 @@
         const method = id ? 'PUT' : 'POST';
         const url = id ? `${API_BASE}/admin/users/${id}` : `${API_BASE}/admin/users`;
 
+        const btn = document.getElementById('submitBtn');
+        const prev = btn.innerText;
+        btn.disabled = true; btn.innerText = 'Saving…';
         try {
             const res = await fetch(url, {
                 method,
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify(payload)
             });
+            const out = await res.json().catch(() => ({}));
             if (res.ok) {
                 document.getElementById('cancelBtn').click();
                 loadUsers();
+            } else {
+                showModal('Identity Error', out.error || `Request failed (HTTP ${res.status})`);
             }
-        } catch (err) {}
+        } catch (err) {
+            showModal('Identity Error', err.message || 'Network error');
+        } finally {
+            btn.disabled = false; btn.innerText = prev;
+        }
     });
 
     loadTenants();

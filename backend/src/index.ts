@@ -16,6 +16,7 @@ import analyticsRoutes from './routes/analyticsRoutes';
 import triggerRoutes from './routes/triggerRoutes';
 import * as metadataController from './controllers/metadataController';
 import { ElasticsearchMutationWorker } from './modules/metadata/es_mutation_worker';
+import { initCache } from './config/cache';
 
 import morgan from 'morgan';
 
@@ -113,6 +114,7 @@ if (process.env.NODE_ENV !== 'test') {
       server.listen(PORT, '0.0.0.0', () => {
         console.log(`\x1b[32m✔ Industrial Data Fabric Orchestrator running on port ${PORT}\x1b[0m`);
         ElasticsearchMutationWorker.start();
+        initCache();
       });
     } catch (err: any) {
       console.error(`\x1b[31m[FATAL] Database Connectivity Failed: ${err.message}\x1b[0m`);

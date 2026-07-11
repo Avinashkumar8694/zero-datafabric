@@ -93,25 +93,37 @@
     }
 
     async function loadTemplateForAnalysis() {
-        if (!confirm('This will load the definitive industrial blueprint for immediate drift analysis. Proceed?')) return;
-        
+        showModal('Load Blueprint', 'This will load the definitive industrial blueprint for immediate drift analysis. Proceed?', runTemplateAnalysis, 'Proceed');
+    }
+
+    async function runTemplateAnalysis() {
+        const btn = document.querySelector('button[onclick="loadTemplateForAnalysis()"]');
+        const originalText = btn ? btn.innerText : '';
+        if (btn) { btn.innerText = 'Loading...'; btn.disabled = true; }
+
+        // Loading state
+        const card = document.getElementById('resultCard');
+        const body = document.getElementById('planBody');
+        card.style.display = 'block';
+        document.getElementById('resultTitle').innerText = 'Orchestration Plan';
+        document.getElementById('planSummary').innerText = 'Loading blueprint and analyzing drift...';
+        body.innerHTML = '<tr><td colspan="5" class="text-muted" style="text-align:center;">Loading...</td></tr>';
+
         try {
             const res = await fetch(`${API_BASE}/metadata/template`, { headers: getAuthHeaders() });
             const data = await res.json();
-            
+
             const res2 = await fetch(`${API_BASE}/metadata/diff`, {
                 method: 'POST',
-                headers: { 
-                    'Authorization': `Bearer ${getToken()}`, 
-                    'Content-Type': 'application/json',
-                    'x-tenant-id': localStorage.getItem('active_tenant') 
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify(data)
             });
             const diffData = await res2.json();
             displayPlan(diffData.changes || [], 'Orchestration Plan', 'ANALYZED', false);
         } catch (e) {
             showModal('Error', 'Template Analysis Failed: ' + e.message);
+        } finally {
+            if (btn) { btn.innerText = originalText; btn.disabled = false; }
         }
     }
 
@@ -128,10 +140,13 @@
         btn.innerText = 'Analyzing...';
         btn.disabled = true;
 
+        const uploadHeaders = getAuthHeaders();
+        delete uploadHeaders['Content-Type'];
+
         try {
             const res = await fetch(`${API_BASE}/metadata/diff`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${getToken()}`, 'x-tenant-id': localStorage.getItem('active_tenant') },
+                headers: uploadHeaders,
                 body: formData
             });
             const data = await res.json();
@@ -149,7 +164,12 @@
         if (!fileInput.files[0]) return alert('Please select a manifest file first.');
         lastManifestFileName = fileInput.files[0].name;
 
-        if (!confirm('Industrial Warning: This will execute DDL/DML operations on the live fabric. Proceed?')) return;
+        showModal('Industrial Warning', 'This will execute DDL/DML operations on the live fabric. Proceed?', runApplyManifest, 'Proceed');
+    }
+
+    async function runApplyManifest() {
+        const fileInput = document.getElementById('manifestFile');
+        if (!fileInput.files[0]) return alert('Please select a manifest file first.');
 
         const formData = new FormData();
         formData.append('file', fileInput.files[0]);
@@ -159,10 +179,13 @@
         btn.innerText = 'Orchestrating...';
         btn.disabled = true;
 
+        const uploadHeaders = getAuthHeaders();
+        delete uploadHeaders['Content-Type'];
+
         try {
             const res = await fetch(`${API_BASE}/metadata/apply`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${getToken()}`, 'x-tenant-id': localStorage.getItem('active_tenant') },
+                headers: uploadHeaders,
                 body: formData
             });
             const data = await res.json();
@@ -189,23 +212,33 @@
         badgeEl.style.background = badgeText === 'SUCCESS' ? 'var(--success)' : 'var(--primary)';
         statusCol.style.display = showStatus ? 'table-cell' : 'none';
 
-        if (!plan || plan.length === 0) {
+        if (!Array.isArray(plan) || plan.length === 0) {
             summaryEl.innerText = 'No schema drift detected. Live environment matches target state.';
             body.innerHTML = '<tr><td colspan="5" class="text-muted">Empty Plan</td></tr>';
             return;
         }
 
-        summaryEl.innerText = `${plan.length} operations parsed from ${lastManifestFileName || 'manifest payload'} and aligned to target state.`;
+        const MAX_ROWS = 500;
+        const capped = plan.length > MAX_ROWS;
+        const rows = capped ? plan.slice(0, MAX_ROWS) : plan;
 
-        body.innerHTML = plan.map((p, idx) => `
+        summaryEl.innerText = `${plan.length} operations parsed from ${lastManifestFileName || 'manifest payload'} and aligned to target state.`
+            + (capped ? ` (showing ${MAX_ROWS} of ${plan.length})` : '');
+
+        body.innerHTML = rows.map((p, idx) => {
+            const raw = JSON.stringify(p);
+            const detail = raw.substring(0, 180) + (raw.length > 180 ? '...' : '');
+            const ok = results[idx]?.status === 'SUCCESS' || results[idx]?.status?.startsWith('SUCCESS');
+            return `
             <tr>
-                <td><span class="badge-sync" style="background: var(--surface-hover);">${p.action || p.type}</span></td>
-                <td><strong>${p.table || p.name || p.type || 'N/A'}</strong></td>
-                <td>${p.operation || p.action}</td>
-                <td class="text-muted" style="font-size: 0.8rem;"><code>${JSON.stringify(p).substring(0, 180)}${JSON.stringify(p).length > 180 ? '...' : ''}</code></td>
-                ${showStatus ? `<td><span class="badge-sync" style="background: ${results[idx]?.status === 'SUCCESS' || results[idx]?.status?.startsWith('SUCCESS') ? 'var(--success)' : 'var(--danger)'}; color: black;">${results[idx]?.status === 'SUCCESS' || results[idx]?.status?.startsWith('SUCCESS') ? 'DONE' : 'ERROR'}</span></td>` : ''}
+                <td><span class="badge-sync" style="background: var(--surface-hover);">${escapeHtml(p.action || p.type)}</span></td>
+                <td><strong>${escapeHtml(p.table || p.name || p.type || 'N/A')}</strong></td>
+                <td>${escapeHtml(p.operation || p.action)}</td>
+                <td class="text-muted" style="font-size: 0.8rem;"><code>${escapeHtml(detail)}</code></td>
+                ${showStatus ? `<td><span class="badge-sync" style="background: ${ok ? 'var(--success)' : 'var(--danger)'}; color: black;">${ok ? 'DONE' : 'ERROR'}</span></td>` : ''}
             </tr>
-        `).join('');
+        `;
+        }).join('');
     }
 </script>
 

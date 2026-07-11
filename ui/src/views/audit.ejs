@@ -32,21 +32,33 @@
 <script>
     async function loadAudit() {
         const body = document.getElementById('auditBody');
+        body.innerHTML = '<tr><td colspan="5">Streaming logs…</td></tr>';
         try {
             // Fetch from Orchestrator (Unified API)
             const response = await fetch(`${API_BASE}/admin/audit-logs`, {
                 headers: getAuthHeaders()
             });
             const data = await response.json();
-            body.innerHTML = data.map(log => `
+
+            if (!Array.isArray(data)) {
+                body.innerHTML = '<tr><td colspan="5">No audit logs available</td></tr>';
+                return;
+            }
+
+            const capped = data.slice(0, 500);
+            const rows = capped.map(log => `
                 <tr class="fade-in">
-                    <td><code style="font-size: 0.75rem;">${new Date(log.changed_at).toLocaleString()}</code></td>
-                    <td><strong>${log.user_name}</strong></td>
-                    <td><span class="badge-sync" style="background: ${log.action === 'DELETE' ? 'var(--danger)' : 'var(--primary)'}">${log.action}</span></td>
-                    <td><code>${log.table_name}</code></td>
-                    <td><pre style="font-size: 0.7rem; max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${JSON.stringify(log.new_data || log.old_data)}</pre></td>
+                    <td><code style="font-size: 0.75rem;">${escapeHtml(new Date(log.changed_at).toLocaleString())}</code></td>
+                    <td><strong>${escapeHtml(log.user_name)}</strong></td>
+                    <td><span class="badge-sync" style="background: ${log.action === 'DELETE' ? 'var(--danger)' : 'var(--primary)'}">${escapeHtml(log.action)}</span></td>
+                    <td><code>${escapeHtml(log.table_name)}</code></td>
+                    <td><pre style="font-size: 0.7rem; max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(JSON.stringify(log.new_data || log.old_data))}</pre></td>
                 </tr>
             `).join('');
+            const note = data.length > 500
+                ? `<tr><td colspan="5" style="text-align:center; color: var(--text-muted)">Showing 500 of ${escapeHtml(data.length)} logs</td></tr>`
+                : '';
+            body.innerHTML = rows + note;
         } catch (err) {
             body.innerHTML = '<tr><td colspan="5">Failed to fetch governance logs</td></tr>';
         }

@@ -4,6 +4,7 @@ import { IntegrationService } from '../modules/integration/integration.service';
 import { TenantService } from '../modules/tenant/tenant.service';
 import { AuthService } from '../modules/auth/auth.service';
 import { pool, queryWithContext } from '../config/database';
+import { invalidateTenant } from '../config/cache';
 
 // --- Tenant Management ---
 export const getTenants = async (req: Request, res: Response) => {
@@ -89,6 +90,7 @@ export const createConnection = async (req: Request, res: Response) => {
   if (!name || !config) return res.status(400).json({ error: 'name and config are required' });
   try {
     const result = await IntegrationService.registerRemoteSource(user.tenant_id, name, config, { username: user.username });
+    await invalidateTenant(user.tenant_id);
     const statusCode = result.status === 'RE-INTEGRATED' ? 200 : 201;
     res.status(statusCode).json(result);
   } catch (err: any) { 
@@ -99,9 +101,11 @@ export const createConnection = async (req: Request, res: Response) => {
 
 export const updateConnectionStatus = async (req: Request, res: Response) => {
   const { sourceId, status } = req.body;
+  const user = (req as any).user;
   if (!sourceId || !status) return res.status(400).json({ error: 'sourceId and status are required' });
   try {
     const result = await adminService.disconnectSource(sourceId, status);
+    if (user?.tenant_id) await invalidateTenant(user.tenant_id);
     res.json(result);
   } catch (err: any) { 
     console.error(`[Admin] Error in ${req.url}:`, err.message);
@@ -115,6 +119,7 @@ export const removeConnection = async (req: Request, res: Response) => {
   if (!sourceId) return res.status(400).json({ error: 'sourceId is required' });
   try {
     const result = await IntegrationService.removeSource(sourceId as string, user.tenant_id);
+    await invalidateTenant(user.tenant_id);
     res.json(result);
   } catch (err: any) { 
     console.error(`[Admin] Error in ${req.url}:`, err.message);

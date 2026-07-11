@@ -146,7 +146,7 @@
   const LOG_PAGE = 30;
 
   function esc(s) {
-    return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return escapeHtml(s);
   }
 
   function toggleModeFields() {
@@ -167,6 +167,9 @@
   }
 
   function openTriggerModal(row = null) {
+    if (typeof row === 'string') {
+      try { row = JSON.parse(row); } catch (e) { row = null; }
+    }
     editingId = row?.id || null;
     document.getElementById('trgModalTitle').innerText = editingId ? 'Edit Trigger' : 'Create Trigger';
     const tenant = localStorage.getItem('active_tenant') || 'tenant_A';
@@ -249,40 +252,58 @@
   async function loadTriggers() {
     const body = document.getElementById('trgBody');
     body.innerHTML = '<tr><td colspan="5" class="text-muted" style="text-align:center;">Loading...</td></tr>';
-    const res = await fetch(`${API_BASE}/triggers`, { headers: getAuthHeaders() });
-    const rows = await res.json();
-    if (!Array.isArray(rows) || !rows.length) {
-      body.innerHTML = '<tr><td colspan="5" class="text-muted" style="text-align:center;">No triggers</td></tr>';
-      return;
+    try {
+      const res = await fetch(`${API_BASE}/triggers`, { headers: getAuthHeaders() });
+      const rows = await res.json();
+      if (!Array.isArray(rows) || !rows.length) {
+        body.innerHTML = '<tr><td colspan="5" class="text-muted" style="text-align:center;">No triggers</td></tr>';
+        return;
+      }
+      const MAX_ROWS = 500;
+      const capped = rows.length > MAX_ROWS;
+      const shown = capped ? rows.slice(0, MAX_ROWS) : rows;
+      body.innerHTML = shown.map(r => {
+        const scope = (r.schemaName === '__SYSTEM__' || r.tableName === '__SYSTEM__') ? 'Scheduler' : `${r.schemaName}.${r.tableName}`;
+        const typ = r.definition?.execute?.type || 'N/A';
+        return `<tr>
+          <td><b>${esc(r.triggerName)}</b></td>
+          <td><code>${esc(scope)}</code></td>
+          <td>${esc(typ)}</td>
+          <td><span class="badge-sync" style="background:${r.status === 'ACTIVE' ? 'var(--success)' : '#f59e0b'}">${esc(r.status)}</span></td>
+          <td style="display:flex; gap:0.35rem;">
+            <button class="btn-outline" onclick='openTriggerModal(${escapeHtml(JSON.stringify(JSON.stringify(r)))})'>Edit</button>
+            <button class="btn-outline" onclick='deployTrigger("${escapeJs(r.id)}")'>Deploy</button>
+            <button class="btn-danger" onclick='deleteTrigger("${escapeJs(r.id)}","${escapeJs(r.triggerName)}")'>Delete</button>
+          </td>
+        </tr>`;
+      }).join('') + (capped ? `<tr><td colspan="5" class="text-muted" style="text-align:center;">Showing ${MAX_ROWS} of ${rows.length}</td></tr>` : '');
+    } catch (e) {
+      body.innerHTML = `<tr><td colspan="5" class="text-danger" style="text-align:center;">Failed to load triggers: ${esc(e.message)}</td></tr>`;
     }
-    body.innerHTML = rows.map(r => {
-      const scope = (r.schemaName === '__SYSTEM__' || r.tableName === '__SYSTEM__') ? 'Scheduler' : `${r.schemaName}.${r.tableName}`;
-      const typ = r.definition?.execute?.type || 'N/A';
-      return `<tr>
-        <td><b>${esc(r.triggerName)}</b></td>
-        <td><code>${esc(scope)}</code></td>
-        <td>${esc(typ)}</td>
-        <td><span class="badge-sync" style="background:${r.status === 'ACTIVE' ? 'var(--success)' : '#f59e0b'}">${esc(r.status)}</span></td>
-        <td style="display:flex; gap:0.35rem;">
-          <button class="btn-outline" onclick='openTriggerModal(${JSON.stringify(JSON.stringify(r))})'>Edit</button>
-          <button class="btn-outline" onclick='deployTrigger("${r.id}")'>Deploy</button>
-          <button class="btn-danger" onclick='deleteTrigger("${r.id}","${esc(r.triggerName)}")'>Delete</button>
-        </td>
-      </tr>`;
-    }).join('');
   }
 
   async function loadJobs() {
     const body = document.getElementById('jobBody');
     body.innerHTML = '<tr><td colspan="4" class="text-muted" style="text-align:center;">Loading...</td></tr>';
-    const res = await fetch(`${API_BASE}/triggers/jobs/list`, { headers: getAuthHeaders() });
-    const rows = await res.json();
-    body.innerHTML = (rows || []).map(r => `<tr>
-      <td>${esc(r.jobType)}</td>
-      <td><span class="badge-sync" style="background:${r.status === 'COMPLETED' ? 'var(--success)' : (r.status === 'FAILED' ? 'var(--danger)' : 'var(--primary)')}">${esc(r.status)}</span></td>
-      <td>${r.attempts}/${r.maxAttempts}</td>
-      <td>${r.status === 'FAILED' ? `<button class="btn-outline" onclick='retryJob("${r.id}")'>Retry</button>` : ''}</td>
-    </tr>`).join('') || '<tr><td colspan="4" class="text-muted" style="text-align:center;">No jobs</td></tr>';
+    try {
+      const res = await fetch(`${API_BASE}/triggers/jobs/list`, { headers: getAuthHeaders() });
+      const rows = await res.json();
+      if (!Array.isArray(rows) || !rows.length) {
+        body.innerHTML = '<tr><td colspan="4" class="text-muted" style="text-align:center;">No jobs</td></tr>';
+        return;
+      }
+      const MAX_ROWS = 500;
+      const capped = rows.length > MAX_ROWS;
+      const shown = capped ? rows.slice(0, MAX_ROWS) : rows;
+      body.innerHTML = shown.map(r => `<tr>
+        <td>${esc(r.jobType)}</td>
+        <td><span class="badge-sync" style="background:${r.status === 'COMPLETED' ? 'var(--success)' : (r.status === 'FAILED' ? 'var(--danger)' : 'var(--primary)')}">${esc(r.status)}</span></td>
+        <td>${esc(r.attempts)}/${esc(r.maxAttempts)}</td>
+        <td>${r.status === 'FAILED' ? `<button class="btn-outline" onclick='retryJob("${escapeJs(r.id)}")'>Retry</button>` : ''}</td>
+      </tr>`).join('') + (capped ? `<tr><td colspan="4" class="text-muted" style="text-align:center;">Showing ${MAX_ROWS} of ${rows.length}</td></tr>` : '');
+    } catch (e) {
+      body.innerHTML = `<tr><td colspan="4" class="text-danger" style="text-align:center;">Failed to load jobs: ${esc(e.message)}</td></tr>`;
+    }
   }
 
   async function loadLogs(reset = false) {
@@ -293,32 +314,39 @@
     }
     logLoading = true;
     document.getElementById('logMeta').innerText = `Loading...`;
-    const res = await fetch(`${API_BASE}/triggers/logs/list?limit=${LOG_PAGE}&offset=${logOffset}`, { headers: getAuthHeaders() });
-    const rows = await res.json();
     const body = document.getElementById('logBody');
-    if (!Array.isArray(rows) || rows.length === 0) {
-      if (logOffset === 0) body.innerHTML = '<tr><td colspan="5" class="text-muted" style="text-align:center;">No logs</td></tr>';
+    try {
+      const res = await fetch(`${API_BASE}/triggers/logs/list?limit=${LOG_PAGE}&offset=${logOffset}`, { headers: getAuthHeaders() });
+      const rows = await res.json();
+      if (!Array.isArray(rows) || rows.length === 0) {
+        if (logOffset === 0) body.innerHTML = '<tr><td colspan="5" class="text-muted" style="text-align:center;">No logs</td></tr>';
+        logDone = true;
+        document.getElementById('logMeta').innerText = `No more logs`;
+        return;
+      }
+      body.innerHTML += rows.map(r => `<tr>
+        <td>${esc(new Date(r.createdAt).toLocaleString())}</td>
+        <td>${esc(r.triggerName)}</td>
+        <td>${esc(r.action)}</td>
+        <td><span class="badge-sync" style="background:${r.status === 'SUCCESS' ? 'var(--success)' : 'var(--danger)'}">${esc(r.status)}</span></td>
+        <td><code style="font-size:0.75rem;">${esc(JSON.stringify(r.detail || {}))}</code></td>
+      </tr>`).join('');
+      logOffset += rows.length;
+      document.getElementById('logMeta').innerText = `Loaded ${logOffset} logs`;
+    } catch (e) {
+      if (logOffset === 0) body.innerHTML = `<tr><td colspan="5" class="text-danger" style="text-align:center;">Failed to load logs: ${esc(e.message)}</td></tr>`;
+      document.getElementById('logMeta').innerText = `Failed to load logs`;
       logDone = true;
-      document.getElementById('logMeta').innerText = `No more logs`;
+    } finally {
       logLoading = false;
-      return;
     }
-    body.innerHTML += rows.map(r => `<tr>
-      <td>${new Date(r.createdAt).toLocaleString()}</td>
-      <td>${esc(r.triggerName)}</td>
-      <td>${esc(r.action)}</td>
-      <td><span class="badge-sync" style="background:${r.status === 'SUCCESS' ? 'var(--success)' : 'var(--danger)'}">${esc(r.status)}</span></td>
-      <td><code style="font-size:0.75rem;">${esc(JSON.stringify(r.detail || {}))}</code></td>
-    </tr>`).join('');
-    logOffset += rows.length;
-    logLoading = false;
-    document.getElementById('logMeta').innerText = `Loaded ${logOffset} logs`;
   }
 
   async function deployTrigger(id) {
     const res = await fetch(`${API_BASE}/triggers/${id}/deploy`, { method: 'POST', headers: getAuthHeaders() });
     const data = await res.json();
     if (!res.ok) return showModal('Deploy Failed', data.error || 'Deploy failed');
+    showModal('Deploy Succeeded', 'Trigger deployed successfully.');
     await loadAll();
   }
 
@@ -335,6 +363,7 @@
     const res = await fetch(`${API_BASE}/triggers/jobs/${id}/retry`, { method: 'POST', headers: getAuthHeaders() });
     const data = await res.json();
     if (!res.ok) return showModal('Retry Failed', data.error || 'Retry failed');
+    showModal('Retry Queued', 'Job retry has been queued.');
     await loadJobs();
   }
 

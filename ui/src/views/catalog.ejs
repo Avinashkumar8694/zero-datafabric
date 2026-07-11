@@ -84,11 +84,11 @@
 
             <div class="tab-content" id="tab-lineage" style="display:none;">
                 <div class="lineage-flow">
-                    <div class="lineage-node">Source Engine<br><small id="linSource">Postgres</small></div>
+                    <div class="lineage-node">Source<br><small id="linSource">—</small></div>
                     <i class="fas fa-long-arrow-alt-right"></i>
-                    <div class="lineage-node highlight">Logical Mesh<br><small id="linLogical">Table</small></div>
+                    <div class="lineage-node highlight">Fabric Resource<br><small id="linLogical">—</small></div>
                     <i class="fas fa-long-arrow-alt-right"></i>
-                    <div class="lineage-node">Downstream<br><small>Synced</small></div>
+                    <div class="lineage-node">Consumers<br><small id="linDownstream">query / API</small></div>
                 </div>
             </div>
 
@@ -189,6 +189,13 @@
 <script>
     let allData = { sources: [], schemas: [], tables: [], currentTable: null };
 
+    // Escape untrusted datasource / catalog values before inserting into the DOM.
+    function escapeHtml(v) {
+        if (v === null || v === undefined) return '';
+        const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
+        return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
     async function loadTree() {
         const treeEl = document.getElementById('fabricTree');
         try {
@@ -198,8 +205,8 @@
             let html = '';
             for (const source of allData.sources) {
                 html += `
-                    <div class="tree-node"><i class="fas fa-server"></i> ${source.name} <small>(${source.type})</small></div>
-                    <div id="source-${source.id}-schemas">
+                    <div class="tree-node"><i class="fas fa-server"></i> ${escapeHtml(source.name)} <small>(${escapeHtml(source.type)})</small></div>
+                    <div id="source-${escapeHtml(source.id)}-schemas">
                         <div style="padding-left:1.5rem; font-size:0.8rem; color:var(--text-dim);">Loading schemas...</div>
                     </div>
                 `;
@@ -222,10 +229,10 @@
             const schemas = await res.json();
             
             schemaEl.innerHTML = schemas.map(s => `
-                <div class="tree-item tree-sub-item" data-schema-id="${s.schemaId}" onclick="toggleSchema('${s.schemaId}', this)">
-                    <i class="fas fa-folder"></i> ${s.name}
+                <div class="tree-item tree-sub-item" data-schema-id="${escapeHtml(s.schemaId)}" onclick="toggleSchema('${s.schemaId}', this)">
+                    <i class="fas fa-folder"></i> ${escapeHtml(s.name)}
                 </div>
-                <div id="schema-${s.schemaId}-resources" style="display:none;"></div>
+                <div id="schema-${escapeHtml(s.schemaId)}-resources" style="display:none;"></div>
             `).join('') || '<div style="padding-left:1.5rem; font-size:0.8rem; color:var(--text-dim);">No schemas</div>';
         } catch (e) { schemaEl.innerHTML = '<p class="text-danger">Error</p>'; }
     }
@@ -255,10 +262,10 @@
                 let html = '';
                 for (const [cat, items] of Object.entries(groups)) {
                     if (items.length > 0) {
-                        html += `<div style="padding-left:3.5rem; font-size:0.65rem; font-weight:800; color:var(--text-dim); text-transform:uppercase; margin-top:0.5rem;">${cat}</div>`;
+                        html += `<div style="padding-left:3.5rem; font-size:0.65rem; font-weight:800; color:var(--text-dim); text-transform:uppercase; margin-top:0.5rem;">${escapeHtml(cat)}</div>`;
                         html += items.map(t => `
-                            <div class="tree-item" style="padding-left:4rem;" data-table-id="${t.tableId}" data-schema-id="${schemaId}" onclick="selectResource('${t.tableId}', this, event)">
-                                <i class="fas ${getIcon(t.resourceType)}"></i> ${t.name}
+                            <div class="tree-item" style="padding-left:4rem;" data-table-id="${escapeHtml(t.tableId)}" data-schema-id="${escapeHtml(schemaId)}" onclick="selectResource('${t.tableId}', this, event)">
+                                <i class="fas ${getIcon(t.resourceType)}"></i> ${escapeHtml(t.name)}
                             </div>
                         `).join('');
                     }
@@ -306,9 +313,16 @@
             // Update Header
             document.getElementById('resName').innerText = resource.name;
             document.getElementById('resIcon').className = `fas ${getIcon(resource.resourceType)} res-header-icon`;
-            const engine = resource.physicalName.includes('Activity_Logs') || resource.physicalName.includes('mongo') ? 'MONGODB' : 'POSTGRESQL';
+            // Use the real source engine returned by the API, not a name heuristic.
+            const engine = (resource.sourceType || 'POSTGRES').toUpperCase();
             document.getElementById('resEngine').innerText = engine;
-            
+
+            // Populate the lineage flow with real values (was static placeholder text).
+            const linSrc = document.getElementById('linSource');
+            const linLog = document.getElementById('linLogical');
+            if (linSrc) linSrc.innerText = `${resource.sourceName || 'Fabric'} · ${engine}`;
+            if (linLog) linLog.innerText = `${resource.name} (${resource.resourceType})`;
+
             // Dynamic Tab Generation
             const tabs = [
                 { id: 'properties', label: 'Properties', icon: 'fa-info-circle' }
@@ -333,9 +347,9 @@
             let propHtml = `
                 <div class="meta-card">
                     <span class="meta-label">General Information</span>
-                    <div class="property-row"><span>Logical ID</span><code>${resource.tableId}</code></div>
-                    <div class="property-row"><span>Type</span><b>${resource.resourceType}</b></div>
-                    <div class="property-row"><span>Physical Name</span><code>${resource.physicalName}</code></div>
+                    <div class="property-row"><span>Logical ID</span><code>${escapeHtml(resource.tableId)}</code></div>
+                    <div class="property-row"><span>Type</span><b>${escapeHtml(resource.resourceType)}</b></div>
+                    <div class="property-row"><span>Physical Name</span><code>${escapeHtml(resource.physicalName)}</code></div>
                 </div>
             `;
 
@@ -362,7 +376,7 @@
                 propHtml += `
                     <div class="meta-card">
                         <span class="meta-label">Enum Values</span>
-                        <div style="margin-top:0.5rem;">${(ast?.values || []).map(v => `<span class="engine-badge" style="margin:2px;">${v}</span>`).join('')}</div>
+                        <div style="margin-top:0.5rem;">${(ast?.values || []).map(v => `<span class="engine-badge" style="margin:2px;">${escapeHtml(v)}</span>`).join('')}</div>
                     </div>
                 `;
             } else if (resource.resourceType.includes('VIEW')) {
@@ -384,21 +398,35 @@
                 `;
             }
 
+            // Render the Properties cards (previously built but never inserted).
+            document.getElementById('propertyCards').innerHTML = propHtml;
+
             // Columns Inspector logic
             const colSection = document.getElementById('columnsSection');
             const colBody = document.getElementById('columnsBody');
-            
-            if (ast?.columns) {
+
+            const renderColumns = (cols) => {
                 colSection.style.display = 'block';
-                colBody.innerHTML = ast.columns.map(c => `
+                colBody.innerHTML = cols.map(c => `
                     <tr>
-                        <td><b>${c.name}</b></td>
-                        <td><code>${c.type}</code></td>
-                        <td><small>${c.strategy || 'NONE'}</small></td>
+                        <td><b>${escapeHtml(c.name)}</b></td>
+                        <td><code>${escapeHtml(c.type)}</code></td>
+                        <td><small>${escapeHtml(c.strategy || 'NONE')}</small></td>
                         <td>${c.nullable !== false ? '<i class="fas fa-check text-success"></i>' : '<i class="fas fa-times text-danger"></i>'}</td>
                         <td>${c.primaryKey ? '<i class="fas fa-key text-warning"></i>' : ''}</td>
                     </tr>
                 `).join('');
+            };
+            if (ast?.columns) {
+                renderColumns(ast.columns);
+            } else if (['TABLE', 'VIEW', 'MATERIALIZED_VIEW', 'FOREIGN_TABLE'].includes(resource.resourceType)) {
+                // Crawled table with no manifest AST — fetch live columns from the source.
+                colSection.style.display = 'block';
+                colBody.innerHTML = '<tr><td colspan="5">Loading columns…</td></tr>';
+                fetch(`${API_BASE}/metadata/columns?tableId=${encodeURIComponent(resource.tableId)}`, { headers: getAuthHeaders() })
+                    .then(r => r.json())
+                    .then(d => { if (Array.isArray(d?.columns) && d.columns.length) renderColumns(d.columns); else colSection.style.display = 'none'; })
+                    .catch(() => { colSection.style.display = 'none'; });
             } else {
                 colSection.style.display = 'none';
             }
@@ -415,7 +443,12 @@
             if (['TABLE', 'VIEW', 'MATERIALIZED_VIEW'].includes(resource.resourceType)) {
                 refreshData();
             } else {
-                document.getElementById('tab-data').innerHTML = '<div class="empty-state">Data preview not available for this resource type.</div>';
+                // Clear the grid contents WITHOUT destroying #gridHeader/#gridBody, so a
+                // subsequent TABLE selection's refreshData() still has its DOM targets.
+                const gh = document.getElementById('gridHeader');
+                const gb = document.getElementById('gridBody');
+                if (gh) gh.innerHTML = '';
+                if (gb) gb.innerHTML = '<tr><td colspan="100" class="empty-state">Data preview not available for this resource type.</td></tr>';
             }
         } catch (e) {
             console.error('[Discovery] Select Resource Error:', e);
@@ -454,10 +487,10 @@
             }
 
             const columns = Object.keys(rows[0]);
-            head.innerHTML = columns.map(c => `<th>${c}</th>`).join('');
+            head.innerHTML = columns.map(c => `<th>${escapeHtml(c)}</th>`).join('');
             body.innerHTML = rows.map(row => `
                 <tr>
-                    ${columns.map(c => `<td>${typeof row[c] === 'object' ? JSON.stringify(row[c]) : row[c]}</td>`).join('')}
+                    ${columns.map(c => `<td>${escapeHtml(row[c])}</td>`).join('')}
                 </tr>
             `).join('');
         } catch (e) {

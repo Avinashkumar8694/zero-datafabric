@@ -16,10 +16,31 @@ export class HeterogeneousDispatcher {
 
         if (type === 'POSTGRES') {
             await this.executePostgres(config, commands);
+        } else if (type === 'MYSQL') {
+            await this.executeMysql(config, commands);
         } else if (type === 'MONGODB') {
             await this.executeMongo(config, commands);
         } else {
             throw new Error(`Industrial Dispatch Error: Engine '${type}' not supported for direct orchestration yet.`);
+        }
+    }
+
+    private static async executeMysql(config: any, sqls: string[]) {
+        const mysql = require('mysql2/promise');
+        const conn = config.connectionString
+            ? await mysql.createConnection(config.connectionString)
+            : await mysql.createConnection({
+                host: config.host, port: config.port, user: config.user,
+                password: config.password || config.pass,
+                database: config.database || config.dbName,
+            });
+        try {
+            for (const sql of sqls) {
+                console.log(`[Dispatcher:MySQL] Executing: ${sql}`);
+                await conn.query(sql);
+            }
+        } finally {
+            await conn.end();
         }
     }
 

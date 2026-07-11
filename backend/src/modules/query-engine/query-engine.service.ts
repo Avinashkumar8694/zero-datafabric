@@ -4,6 +4,8 @@ import { ConnectorFactory } from '../metadata/connectors/factory';
 import { QueryTranspiler } from '../metadata/query_transpiler';
 import { randomUUID } from 'crypto';
 import { ElasticsearchMutationWorker } from '../metadata/es_mutation_worker';
+import { QueryPlanner } from './planner';
+import { FederationExecutor } from './federation';
 
 export interface QueryConfig {
   type: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 
@@ -74,6 +76,23 @@ export class QueryEngineService {
       return safeSchema;
     }
     return `${fullPrefix}${safeSchema}`;
+  }
+
+  /**
+   * Remove logical `source` labels from an AST so the transpiler resolves every
+   * resource against the tenant Postgres schema. Only valid when the planner has
+   * classified the query as SINGLE_LOCAL (all legs reachable in Postgres).
+   */
+  private static stripSources(ast: any) {
+    if (!ast || typeof ast !== 'object') return;
+    if (ast.from && ast.from.source) delete ast.from.source;
+    if (Array.isArray(ast.joins)) for (const j of ast.joins) { if (j && j.source) delete j.source; }
+    for (const key of ['union', 'intersect', 'except'] as const) {
+      if (Array.isArray(ast[key])) for (const leg of ast[key]) this.stripSources(leg);
+    }
+    if (Array.isArray(ast.with)) {
+      for (const cte of ast.with) { this.stripSources(cte.base); if (cte.unionAll) this.stripSources(cte.unionAll); }
+    }
   }
 
   private static async resolveTarget(
@@ -149,24 +168,8 @@ export class QueryEngineService {
       )
     ) {
       const schemaName = this.toTenantSchemaName(tenantId, config.schema);
-
       const ast = JSON.parse(JSON.stringify((config as any).query || {}));
-      // Runtime analytics query executes inside tenant schema; explicit source labels are metadata-level hints.
-      if (ast.from && ast.from.source) delete ast.from.source;
-      if (Array.isArray(ast.joins)) {
-        for (const j of ast.joins) {
-          if (j && j.source) delete j.source;
-        }
-      }
-      if (Array.isArray(ast.union)) {
-        for (const u of ast.union) if (u?.from?.source) delete u.from.source;
-      }
-      if (Array.isArray(ast.intersect)) {
-        for (const u of ast.intersect) if (u?.from?.source) delete u.from.source;
-      }
-      if (Array.isArray(ast.except)) {
-        for (const u of ast.except) if (u?.from?.source) delete u.from.source;
-      }
+
       const hasWhere = Array.isArray(ast.where) && ast.where.length > 0;
       const hasLimit = typeof config.limit === 'number' && config.limit > 0;
       const hasSetOps = Array.isArray(ast.union) || Array.isArray(ast.intersect) || Array.isArray(ast.except);
@@ -174,12 +177,36 @@ export class QueryEngineService {
         throw new Error('INDUSTRIAL SAFETY: Manifest-style SELECT requires either query.where or limit.');
       }
 
+      // Carry the top-level limit into the AST so pushdown / federation can honour it.
+      if (hasLimit && typeof ast.limit !== 'number') ast.limit = config.limit;
+
+      // Plan HOW to execute across sources instead of assuming everything is local Postgres.
+      const plan = await QueryPlanner.classify(tenantId, ast);
+      console.log(`[QueryEngine] AST strategy=${plan.strategy} :: ${plan.pushed.join('; ')}`);
+      const planMeta = { strategy: plan.strategy, pushed: plan.pushed };
+
+      if (plan.strategy === 'SINGLE_CONNECTOR' || plan.strategy === 'CROSS_ENGINE') {
+        // Each leg is fetched from its own engine WITH pushdown (predicate + bind-join),
+        // then combined in-memory.
+        const fed = await FederationExecutor.execute(tenantId, ast, plan, schemaName);
+        return {
+          data: fed.data,
+          rowCount: fed.data.length,
+          plan: { strategy: plan.strategy, pushed: [...plan.pushed, ...fed.pushed] },
+          warnings: [...plan.warnings, ...fed.warnings],
+        };
+      }
+
+      // SINGLE_LOCAL: everything resolves inside the tenant Postgres schema (local /
+      // FDW / synced). Source labels are logical hints — strip them so the transpiler
+      // resolves against the tenant schema, then let Postgres/Citus/FDW optimize.
+      this.stripSources(ast);
       let sql = QueryTranspiler.toSql(ast, schemaName);
       if (hasLimit && !/\sLIMIT\s+\d+/i.test(sql)) {
         sql = `${sql} LIMIT ${config.limit}`;
       }
       const result = await queryWithContext(sql, [], { tenantId, username: 'system' });
-      return result.rows;
+      return { data: result.rows, rowCount: result.rowCount, plan: planMeta, warnings: plan.warnings };
     }
 
     // SPECIAL CASE: CREATE_SCHEMA uses stored procedure for security
@@ -273,7 +300,8 @@ export class QueryEngineService {
         };
     }
 
-    return result.rows;
+    // SELECT (single local table / generateSql path) — enveloped for a consistent contract.
+    return { data: result.rows, rowCount: result.rowCount };
   }
 
   /**

@@ -46,16 +46,36 @@ export class MetadataService {
         const tables = await connector.discoverTables(schema.physicalName);
         totalTables += tables.length;
         for (const table of tables) {
-          // Upsert Table into Catalog
+          // Upsert Table into Catalog, PRESERVING the discovered object type
+          // (TABLE / VIEW / MATERIALIZED_VIEW / SEQUENCE / FUNCTION / ENUM / ...).
           await client.query(`
-            INSERT INTO public.catalog_tables (schema_id, name, physical_name, row_count, last_crawled_at)
-            VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+            INSERT INTO public.catalog_tables (schema_id, name, physical_name, row_count, resource_type, last_crawled_at)
+            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
             ON CONFLICT (schema_id, physical_name)
-            DO UPDATE SET 
+            DO UPDATE SET
               name = EXCLUDED.name,
               row_count = EXCLUDED.row_count,
+              resource_type = EXCLUDED.resource_type,
               last_crawled_at = CURRENT_TIMESTAMP
-          `, [schemaUuid, table.name, table.physicalName, table.rowCount || 0]);
+          `, [schemaUuid, table.name, table.physicalName, table.rowCount || 0, table.resourceType || 'TABLE']);
+        }
+
+        // Discover foreign-key relationships (for ER diagrams), if the connector supports it.
+        const anyConn = connector as any;
+        if (typeof anyConn.discoverRelationships === 'function') {
+          try {
+            const rels = await anyConn.discoverRelationships(schema.physicalName);
+            for (const rel of rels) {
+              const card = '1:M';
+              await client.query(`
+                INSERT INTO fabric_catalog.relationships
+                    (tenant_id, name, schema_name, source_schema, source_table, source_column, target_schema, target_table, target_column, cardinality)
+                VALUES ($1,$2,$3,$3,$4,$5,$3,$6,$7,$8)
+                ON CONFLICT ON CONSTRAINT relationships_full_identity_key DO NOTHING
+              `, [source.tenant_id, rel.name, schema.physicalName, rel.sourceTable, rel.sourceColumn, rel.targetTable, rel.targetColumn, card])
+                .catch(() => { /* relationship optional; ignore constraint/name mismatches */ });
+            }
+          } catch { /* FK discovery is best-effort */ }
         }
       }
 
@@ -133,26 +153,46 @@ export class MetadataService {
                 schemaUuid = schemaRes.rows[0].id;
             }
 
-            // Discover Local Tables
-            const { rows: tables } = await client.query(`
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_schema = $1
+            // Discover Local Objects (tables, views, matviews, foreign, sequences)
+            // with their real object type — plus functions/procedures and enums.
+            const { rows: rels } = await client.query(`
+                SELECT c.relname AS name,
+                       CASE c.relkind
+                            WHEN 'r' THEN 'TABLE' WHEN 'p' THEN 'TABLE'
+                            WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED_VIEW'
+                            WHEN 'f' THEN 'FOREIGN_TABLE' WHEN 'S' THEN 'SEQUENCE'
+                       END AS resource_type
+                FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = $1 AND c.relkind IN ('r','p','v','m','f','S')
             `, [schema.schema_name]);
+            const { rows: funcs } = await client.query(`
+                SELECT p.proname AS name, CASE p.prokind WHEN 'p' THEN 'PROCEDURE' ELSE 'FUNCTION' END AS resource_type
+                FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                WHERE n.nspname = $1 AND p.prokind IN ('f','p')
+            `, [schema.schema_name]).catch(() => ({ rows: [] as any[] }));
+            const { rows: enums } = await client.query(`
+                SELECT t.typname AS name, 'ENUM' AS resource_type FROM pg_type t
+                JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = $1 AND t.typtype = 'e'
+            `, [schema.schema_name]).catch(() => ({ rows: [] as any[] }));
 
-            for (const table of tables) {
-                // Get real row count for local table
-                const countRes = await client.query(`SELECT count(*) FROM "${schema.schema_name}"."${table.table_name}"`);
-                const rowCount = parseInt(countRes.rows[0].count);
-
+            for (const obj of [...rels, ...funcs, ...enums]) {
+                // Row count only makes sense (and is safe) for relations you can count.
+                let rowCount = 0;
+                if (['TABLE', 'VIEW', 'MATERIALIZED_VIEW', 'FOREIGN_TABLE'].includes(obj.resource_type)) {
+                    try {
+                        const countRes = await client.query(`SELECT count(*) FROM "${schema.schema_name}"."${obj.name}"`);
+                        rowCount = parseInt(countRes.rows[0].count);
+                    } catch { rowCount = 0; }
+                }
                 await client.query(`
-                    INSERT INTO public.catalog_tables (schema_id, name, physical_name, row_count, last_crawled_at)
-                    VALUES ($1, $2, $2, $3, CURRENT_TIMESTAMP)
+                    INSERT INTO public.catalog_tables (schema_id, name, physical_name, row_count, resource_type, last_crawled_at)
+                    VALUES ($1, $2, $2, $3, $4, CURRENT_TIMESTAMP)
                     ON CONFLICT (schema_id, physical_name)
-                    DO UPDATE SET 
+                    DO UPDATE SET
                         row_count = EXCLUDED.row_count,
+                        resource_type = EXCLUDED.resource_type,
                         last_crawled_at = CURRENT_TIMESTAMP
-                `, [schemaUuid, table.table_name, rowCount]);
+                `, [schemaUuid, obj.name, rowCount, obj.resource_type || 'TABLE']);
                 localTableCount++;
             }
         }

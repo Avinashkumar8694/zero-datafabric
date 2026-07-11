@@ -123,8 +123,8 @@
             const res = await fetch(`${API_BASE}/metadata/downstream`, { headers: getAuthHeaders() });
             const data = await res.json();
             const container = document.getElementById('downstreamList');
-            
-            if (!data || data.length === 0) {
+
+            if (!Array.isArray(data) || data.length === 0) {
                 container.innerHTML = '<div class="text-muted" style="text-align: center; padding: 2rem;">No downstream targets configured. Apply a manifest to see targets.</div>';
                 return;
             }
@@ -132,18 +132,18 @@
             container.innerHTML = data.map(target => `
                 <div class="nav-item" style="display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); background: var(--bg); padding: 1rem;">
                     <div>
-                        <strong style="color: var(--primary);">${target.target_type}</strong>
+                        <strong style="color: var(--primary);">${escapeHtml(target.target_type)}</strong>
                         <div style="font-size: 0.7rem; color: var(--text-muted);">${target.target_type === 'ELASTICSEARCH' ? 'Elasticsearch Search Sync' : 'Snowflake CDC Analytics'}</div>
                         <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">
-                            ${(target.config && target.config.detail && target.config.detail.message) ? target.config.detail.message : 'Connector ready'}
+                            ${(target.config && target.config.detail && target.config.detail.message) ? escapeHtml(target.config.detail.message) : 'Connector ready'}
                         </div>
                     </div>
                     <div style="display: flex; align-items: center; gap: 0.8rem;">
                         <span style="font-size: 0.7rem; font-weight: bold; color: ${target.status === 'ACTIVE' ? 'var(--success)' : (target.status === 'ERROR' || target.status === 'NOT_CONFIGURED' ? 'var(--danger)' : 'var(--text-muted)')};">
-                            ${target.status}
+                            ${escapeHtml(target.status)}
                         </span>
                         <label class="switch">
-                            <input type="checkbox" ${target.status === 'ACTIVE' ? 'checked' : ''} onchange="toggleTarget('${target.target_type}', this.checked)">
+                            <input type="checkbox" ${target.status === 'ACTIVE' ? 'checked' : ''} onchange="toggleTarget('${escapeJs(target.target_type)}', this.checked)">
                             <span class="slider"></span>
                         </label>
                     </div>
@@ -151,6 +151,8 @@
             `).join('');
         } catch (e) {
             console.error('Failed to load downstream status', e);
+            const container = document.getElementById('downstreamList');
+            if (container) container.innerHTML = `<div class="text-danger" style="text-align: center; padding: 2rem;">Failed to load downstream status: ${escapeHtml(e.message)}</div>`;
         }
     }
 
@@ -176,8 +178,19 @@
     }
 
     function showToast(msg) {
-        // Simple toast implementation or just console log for now
-        console.log('[Fabric Notification]', msg);
+        let toast = document.getElementById('fabricToast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'fabricToast';
+            toast.style.cssText = 'position:fixed; bottom:1.5rem; right:1.5rem; z-index:11000; background:var(--primary,#2563eb); color:#fff; padding:0.7rem 1.1rem; border-radius:10px; font-size:0.85rem; box-shadow:0 10px 28px rgba(2,6,23,0.25); opacity:0; transition:opacity 0.3s ease; pointer-events:none;';
+            document.body.appendChild(toast);
+        }
+        toast.innerText = msg;
+        if (toast._hideTimer) clearTimeout(toast._hideTimer);
+        requestAnimationFrame(() => { toast.style.opacity = '1'; });
+        toast._hideTimer = setTimeout(() => {
+            toast.style.opacity = '0';
+        }, 2500);
     }
 
     async function loadChannels() {
@@ -193,13 +206,13 @@
             list.innerHTML = rows.map(r => `
                 <div class="nav-item" style="display:flex; justify-content:space-between; align-items:center; border:1px solid var(--border); gap:0.7rem;">
                     <div>
-                        <strong>${r.channelType}</strong> · ${r.name} ${r.isDefault ? '<span class="badge-sync">DEFAULT</span>' : ''}
-                        <div style="font-size:0.7rem; color:var(--text-muted);">${r.status}</div>
-                        <div style="font-size:0.68rem; color:var(--text-muted); margin-top:0.2rem;">${escJson(r.config)}</div>
+                        <strong>${escapeHtml(r.channelType)}</strong> · ${escapeHtml(r.name)} ${r.isDefault ? '<span class="badge-sync">DEFAULT</span>' : ''}
+                        <div style="font-size:0.7rem; color:var(--text-muted);">${escapeHtml(r.status)}</div>
+                        <div style="font-size:0.68rem; color:var(--text-muted); margin-top:0.2rem;">${escapeHtml(escJson(r.config))}</div>
                     </div>
                     <div style="display:flex; gap:0.4rem;">
-                        <button class="btn-outline" onclick="testChannel('${r.channelType}','${r.name}')">Test</button>
-                        <button class="btn-danger" onclick="deleteChannel('${r.id}')">Delete</button>
+                        <button class="btn-outline" onclick="testChannel('${escapeJs(r.channelType)}','${escapeJs(r.name)}')">Test</button>
+                        <button class="btn-danger" onclick="deleteChannel('${escapeJs(r.id)}')">Delete</button>
                     </div>
                 </div>
             `).join('');

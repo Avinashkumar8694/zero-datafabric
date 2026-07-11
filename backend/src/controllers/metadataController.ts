@@ -4,8 +4,99 @@ import { QueryEngineService } from '../modules/query-engine/query-engine.service
 import { MetadataOrchestrator } from '../modules/metadata/orchestrator';
 import { ManifestParser } from '../modules/metadata/manifest_parser';
 import { pool, queryWithContext } from '../config/database';
+import { cached, invalidateTenant } from '../config/cache';
+import { ConnectorFactory } from '../modules/metadata/connectors/factory';
 
 const orchestrator = new MetadataOrchestrator();
+// Catalog reads change ONLY on sync (crawl/apply/register/remove), and every such
+// path invalidates the cache — so serve from Redis for a long window between syncs.
+const META_TTL = 3600; // 1h; correctness comes from invalidation, not expiry
+
+function normalizeAstColumn(c: any) {
+    return {
+        name: c.name,
+        type: c.length ? `${c.type}(${c.length})` : c.type,
+        nullable: c.nullable !== false && !c.primaryKey,
+        default: c.default ?? null,
+        primaryKey: !!c.primaryKey,
+        strategy: c.strategy || null,
+    };
+}
+
+/**
+ * Column-level metadata for a catalog resource. Prefers the manifest's
+ * definition_ast (rich: PK/strategy/constraints); falls back to LIVE discovery
+ * from the real source (works for crawled tables that have no manifest AST).
+ */
+export const getColumns = async (req: Request, res: Response) => {
+    try {
+        const tableId = req.query.tableId as string;
+        if (!tableId) return res.status(400).json({ error: 'tableId is required' });
+        const user = (req as any).user;
+        const key = `meta:${user.tenant_id}:columns:${tableId}`;
+        const payload = await cached(key, META_TTL, async () => {
+            const { rows } = await queryWithContext(`
+                SELECT ct.physical_name AS t, cs.physical_name AS s, ct.definition_ast AS ast,
+                       ds.type AS engine, ds.config AS cfg, ds.name AS src
+                FROM public.catalog_tables ct
+                JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+                LEFT JOIN public.data_sources ds ON cs.source_id = ds.id
+                WHERE ct.id = $1
+            `, [tableId], { tenantId: user.tenant_id, username: user.username });
+            if (rows.length === 0) return null;
+            const row = rows[0];
+
+            // 1. Manifest AST columns (richest).
+            const ast = row.ast && typeof row.ast === 'object' ? row.ast : null;
+            if (ast && Array.isArray(ast.columns) && ast.columns.length) {
+                return { source: 'manifest', columns: ast.columns.map(normalizeAstColumn), constraints: ast.constraints || [] };
+            }
+
+            // 2. Live discovery from the source.
+            const engine = String(row.engine || 'POSTGRES').toUpperCase();
+            const cfg = row.cfg || {};
+            const isLocalHub = cfg.local === true || row.src === 'Fabric_Hub_Postgres' || !row.engine;
+            if (isLocalHub || (engine === 'POSTGRES' && !cfg.host && !cfg.connectionString)) {
+                const cols = await queryWithContext(`
+                    SELECT column_name AS name, data_type AS type, (is_nullable = 'YES') AS nullable, column_default AS "default"
+                    FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position
+                `, [row.s, row.t], { tenantId: user.tenant_id, username: user.username });
+                return { source: 'live', columns: cols.rows, constraints: [] };
+            }
+            const connector = ConnectorFactory.getConnector(engine, cfg);
+            try {
+                const cols = connector.discoverColumns ? await connector.discoverColumns(row.s, row.t) : [];
+                return { source: 'live', columns: cols, constraints: [] };
+            } finally {
+                await connector.close();
+            }
+        });
+        if (payload === null) return res.status(404).json({ error: 'Resource not found' });
+        res.json(payload);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+/** Relationships (FKs / manifest relationships) for the tenant, for ER diagrams. */
+export const getRelationships = async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user;
+        const schema = req.query.schema as string | undefined;
+        const key = `meta:${user.tenant_id}:relationships:${schema || 'all'}`;
+        const rows = await cached(key, META_TTL, async () => {
+            const params: any[] = [user.tenant_id];
+            let sql = `SELECT name, source_schema AS "sourceSchema", source_table AS "sourceTable", source_column AS "sourceColumn",
+                              target_schema AS "targetSchema", target_table AS "targetTable", target_column AS "targetColumn", cardinality
+                       FROM fabric_catalog.relationships WHERE tenant_id = $1`;
+            if (schema) { params.push(schema); sql += ` AND (source_schema = $2 OR target_schema = $2)`; }
+            return (await queryWithContext(sql, params, { tenantId: user.tenant_id, username: user.username })).rows;
+        });
+        res.json(rows);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+};
 
 export const getTableDetails = async (req: Request, res: Response) => {
     try {
@@ -28,6 +119,7 @@ export const crawlTenant = async (req: Request, res: Response) => {
         const tenantId = user?.internal_role === 'ADMIN' ? req.body.tenantId : user?.tenant_id;
         if (!tenantId) return res.status(400).json({ error: 'tenantId is required' });
         const result = await MetadataService.crawlTenant(tenantId);
+        await invalidateTenant(tenantId); // fresh catalog → bust cached reads
         res.json(result);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -37,7 +129,8 @@ export const crawlTenant = async (req: Request, res: Response) => {
 export const getSources = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
-        const { rows } = await queryWithContext('SELECT id, name, type, status FROM public.data_sources', [], { tenantId: user.tenant_id, username: user.username });
+        const rows = await cached(`meta:${user.tenant_id}:sources`, META_TTL, async () =>
+            (await queryWithContext('SELECT id, name, type, status FROM public.data_sources', [], { tenantId: user.tenant_id, username: user.username })).rows);
         res.json(rows);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -49,7 +142,8 @@ export const getSchemas = async (req: Request, res: Response) => {
         const sourceId = req.query.sourceId as string;
         if (!sourceId) return res.status(400).json({ error: 'sourceId is required' });
         const user = (req as any).user;
-        const { rows } = await queryWithContext('SELECT id as "schemaId", name, physical_name as "physicalName" FROM public.catalog_schemas WHERE source_id = $1', [sourceId], { tenantId: user.tenant_id, username: user.username });
+        const rows = await cached(`meta:${user.tenant_id}:schemas:${sourceId}`, META_TTL, async () =>
+            (await queryWithContext('SELECT id as "schemaId", name, physical_name as "physicalName" FROM public.catalog_schemas WHERE source_id = $1', [sourceId], { tenantId: user.tenant_id, username: user.username })).rows);
         res.json(rows);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -61,7 +155,8 @@ export const getTables = async (req: Request, res: Response) => {
         const schemaId = req.query.schemaId as string;
         if (!schemaId) return res.status(400).json({ error: 'schemaId is required' });
         const user = (req as any).user;
-        const { rows } = await queryWithContext('SELECT id as "tableId", name, physical_name as "physicalName", row_count as "rowCount", resource_type as "resourceType" FROM public.catalog_tables WHERE schema_id = $1', [schemaId], { tenantId: user.tenant_id, username: user.username });
+        const rows = await cached(`meta:${user.tenant_id}:tables:${schemaId}`, META_TTL, async () =>
+            (await queryWithContext('SELECT id as "tableId", name, physical_name as "physicalName", row_count as "rowCount", resource_type as "resourceType" FROM public.catalog_tables WHERE schema_id = $1', [schemaId], { tenantId: user.tenant_id, username: user.username })).rows);
         res.json(rows);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -164,6 +259,7 @@ export const applyMetadata = async (req: Request, res: Response) => {
         const force = req.query.force === 'true';
         
         const result = await orchestrator.apply(user.tenant_id, manifest, { force });
+        await invalidateTenant(user.tenant_id);
         res.json(result);
     } catch (err: any) {
         console.error(`[MetadataController] Apply Error: ${err.message}`);

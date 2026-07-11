@@ -147,4 +147,29 @@ describe('Data Fabric: Multi-Source Federation & Routing', () => {
         expect(res.status).toBe(200);
         expect(res.body.data).toBeDefined();
     });
+
+    it('Success: AST federation across engines routes CROSS_ENGINE and merges', async () => {
+        // UNION across Remote_PG (Postgres) and Mongo_Source (MongoDB) via the AST path,
+        // exercising the planner + FederationExecutor over HTTP (previously uncovered).
+        const res = await request(app)
+            .post('/api/analytics/query')
+            .set('Authorization', `Bearer ${token}`)
+            .send({
+                queryConfig: {
+                    type: 'SELECT',
+                    schema: 'public',
+                    limit: 10,
+                    query: {
+                        union: [
+                            { from: { resource: 'remote_table', source: 'Remote_PG' }, select: ['name'] },
+                            { from: { resource: 'system.version', source: 'Mongo_Source' }, select: ['version'] },
+                        ],
+                    },
+                },
+            });
+
+        expect(res.status).toBe(200);
+        expect(Array.isArray(res.body.data)).toBe(true);
+        expect(res.body.plan?.strategy).toBe('CROSS_ENGINE');
+    });
 });

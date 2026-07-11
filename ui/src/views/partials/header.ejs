@@ -32,6 +32,18 @@
             };
         }
 
+        // Global HTML-escape for safe interpolation of API/datasource values into innerHTML
+        // and into onclick/attribute contexts. Available to every screen (defined before view scripts).
+        function escapeHtml(v) {
+            if (v === null || v === undefined) return '';
+            const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
+            return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        // Escape for use inside a single-quoted JS string in an inline onclick handler.
+        function escapeJs(v) {
+            return String(v ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/</g, '\\x3C');
+        }
+
         const nativeFetch = window.fetch.bind(window);
         window.fetch = async (...args) => {
             const response = await nativeFetch(...args);

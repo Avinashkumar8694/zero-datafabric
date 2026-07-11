@@ -1,10 +1,29 @@
 import { Pool } from 'pg';
 import * as mysql from 'mysql2/promise';
 import { MongoClient } from 'mongodb';
+import { PushdownCompiler, CanonicalQuery } from '../../query-engine/pushdown';
+
+/**
+ * Extract the canonical query shape (select / filter / orderBy / limit / offset)
+ * from a QueryConfig so it can be pushed down to a source engine.
+ */
+function toCanonical(config: any): CanonicalQuery {
+    return {
+        select: config?.select,
+        filter: config?.filter,
+        orderBy: config?.orderBy,
+        limit: config?.limit,
+        offset: config?.offset,
+        groupBy: config?.groupBy,
+        aggregates: config?.aggregates,
+    };
+}
 
 export interface IConnector {
     discoverSchemas(): Promise<any[]>;
     discoverTables(schema: string): Promise<any[]>;
+    /** Column-level metadata: { name, type, nullable, default, primaryKey } */
+    discoverColumns?(schema: string, table: string): Promise<any[]>;
     query(schema: string, table: string, config: any): Promise<any[]>;
     close(): Promise<void>;
 }
@@ -48,31 +67,91 @@ export class PostgresConnector implements IConnector {
     }
 
     async discoverTables(schema: string): Promise<any[]> {
+        // Relations: tables, partitioned tables, views, materialized views,
+        // foreign tables, and sequences — each with its object type.
+        const rels = await this.pool.query(`
+            SELECT c.relname AS name, c.relname AS "physicalName", GREATEST(c.reltuples, 0)::bigint AS "rowCount",
+                   CASE c.relkind
+                        WHEN 'r' THEN 'TABLE'
+                        WHEN 'p' THEN 'TABLE'
+                        WHEN 'v' THEN 'VIEW'
+                        WHEN 'm' THEN 'MATERIALIZED_VIEW'
+                        WHEN 'f' THEN 'FOREIGN_TABLE'
+                        WHEN 'S' THEN 'SEQUENCE'
+                   END AS "resourceType"
+            FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = $1 AND c.relkind IN ('r','p','v','m','f','S')
+        `, [schema]);
+        // Functions & procedures.
+        const funcs = await this.pool.query(`
+            SELECT p.proname AS name, p.proname AS "physicalName", 0::bigint AS "rowCount",
+                   CASE p.prokind WHEN 'p' THEN 'PROCEDURE' ELSE 'FUNCTION' END AS "resourceType"
+            FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+            WHERE n.nspname = $1 AND p.prokind IN ('f','p')
+        `, [schema]).catch(() => ({ rows: [] })); // prokind exists on PG11+; ignore otherwise
+        // Enum types.
+        const enums = await this.pool.query(`
+            SELECT t.typname AS name, t.typname AS "physicalName", 0::bigint AS "rowCount", 'ENUM' AS "resourceType"
+            FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+            WHERE n.nspname = $1 AND t.typtype = 'e'
+        `, [schema]).catch(() => ({ rows: [] }));
+        return [...rels.rows, ...funcs.rows, ...enums.rows];
+    }
+
+    // Foreign-key relationships within a schema (for ER diagrams).
+    async discoverRelationships(schema: string): Promise<any[]> {
         const { rows } = await this.pool.query(`
-            SELECT 
-                c.relname as name, 
-                c.reltuples::bigint as "rowCount",
-                c.relname as "physicalName"
-            FROM pg_class c
-            JOIN pg_namespace n ON n.oid = c.relnamespace
-            WHERE n.nspname = $1 AND c.relkind = 'r'
+            SELECT tc.constraint_name AS name,
+                   kcu.table_name AS "sourceTable", kcu.column_name AS "sourceColumn",
+                   ccu.table_name AS "targetTable", ccu.column_name AS "targetColumn"
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+              ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
+            JOIN information_schema.constraint_column_usage ccu
+              ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
+            WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = $1
         `, [schema]);
         return rows;
     }
 
+    async discoverColumns(schema: string, table: string): Promise<any[]> {
+        // pg_attribute covers tables, views, materialized views and foreign tables
+        // (information_schema.columns omits materialized views).
+        const { rows } = await this.pool.query(`
+            SELECT a.attname AS name,
+                   format_type(a.atttypid, a.atttypmod) AS type,
+                   (NOT a.attnotnull) AS nullable,
+                   pg_get_expr(ad.adbin, ad.adrelid) AS "default",
+                   COALESCE((pk.conkey IS NOT NULL), false) AS "primaryKey"
+            FROM pg_attribute a
+            JOIN pg_class c ON c.oid = a.attrelid
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            LEFT JOIN pg_attrdef ad ON ad.adrelid = a.attrelid AND ad.adnum = a.attnum
+            LEFT JOIN LATERAL (
+                SELECT ct.conkey FROM pg_constraint ct
+                WHERE ct.conrelid = a.attrelid AND ct.contype = 'p' AND a.attnum = ANY(ct.conkey) LIMIT 1
+            ) pk ON true
+            WHERE n.nspname = $1 AND c.relname = $2 AND a.attnum > 0 AND NOT a.attisdropped
+            ORDER BY a.attnum
+        `, [schema, table]);
+        return rows;
+    }
+
     async query(schema: string, table: string, config: any): Promise<any[]> {
+        const canonical = toCanonical(config);
+        // Push filter / projection / sort / limit / offset down to the remote engine
+        // (parameterized) instead of fetching the whole table and filtering in JS.
+        const compiled = PushdownCompiler.toSql({ ...canonical, schema, table, dialect: 'postgres' });
         // INDUSTRIAL RESILIENCE: Try specified schema, fallback to public if needed
         try {
-            let sql = `SELECT * FROM "${schema}"."${table}"`;
-            if (config.limit) sql += ` LIMIT ${config.limit}`;
-            const { rows } = await this.pool.query(sql);
+            console.log(`[PostgresConnector] Pushdown SQL: ${compiled.text}`);
+            const { rows } = await this.pool.query(compiled.text, compiled.params);
             return rows;
         } catch (err: any) {
             console.warn(`[PostgresConnector] Schema "${schema}" failed, falling back to public for table "${table}"`);
             try {
-                let sql = `SELECT * FROM "public"."${table}"`;
-                if (config.limit) sql += ` LIMIT ${config.limit}`;
-                const { rows } = await this.pool.query(sql);
+                const fallback = PushdownCompiler.toSql({ ...canonical, schema: 'public', table, dialect: 'postgres' });
+                const { rows } = await this.pool.query(fallback.text, fallback.params);
                 return rows;
             } catch (innerErr: any) {
                 console.error(`[PostgresConnector] Query failed on both "${schema}" and "public":`, innerErr.message);
@@ -119,21 +198,42 @@ export class MySQLConnector implements IConnector {
 
     async discoverTables(schema: string): Promise<any[]> {
         const conn = await this.connect();
-        await conn.query(`USE \`${schema}\``);
-        const [rows]: any = await conn.query('SHOW TABLES');
-        return rows.map((r: any) => ({ 
-            name: Object.values(r)[0], 
-            physicalName: Object.values(r)[0],
-            rowCount: 0 
-        }));
+        const safeSchema = schema.replace(/[^a-zA-Z0-9_]/g, '');
+        await conn.query(`USE \`${safeSchema}\``);
+        // SHOW FULL TABLES distinguishes BASE TABLE from VIEW.
+        const [tables]: any = await conn.query('SHOW FULL TABLES');
+        const out = tables.map((r: any) => {
+            const vals = Object.values(r);
+            const name = vals[0];
+            const tableType = String(vals[1] || 'BASE TABLE').toUpperCase();
+            return { name, physicalName: name, rowCount: 0, resourceType: tableType.includes('VIEW') ? 'VIEW' : 'TABLE' };
+        });
+        // Stored functions & procedures.
+        try {
+            const [routines]: any = await conn.query(
+                'SELECT ROUTINE_NAME AS name, ROUTINE_TYPE AS type FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA = ?', [safeSchema]);
+            for (const r of routines) out.push({ name: r.name, physicalName: r.name, rowCount: 0, resourceType: String(r.type).toUpperCase() === 'PROCEDURE' ? 'PROCEDURE' : 'FUNCTION' });
+        } catch { /* routines optional */ }
+        return out;
+    }
+
+    async discoverColumns(schema: string, table: string): Promise<any[]> {
+        const conn = await this.connect();
+        const [rows]: any = await conn.query(
+            `SELECT COLUMN_NAME AS name, DATA_TYPE AS type, (IS_NULLABLE='YES') AS nullable,
+                    COLUMN_DEFAULT AS \`default\`, (COLUMN_KEY='PRI') AS \`primaryKey\`
+             FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION`,
+            [schema, table]);
+        return rows;
     }
 
     async query(schema: string, table: string, config: any): Promise<any[]> {
         const conn = await this.connect();
-        await conn.query(`USE \`${schema}\``);
-        let sql = `SELECT * FROM \`${table}\``;
-        if (config.limit) sql += ` LIMIT ${config.limit}`;
-        const [rows]: any = await conn.query(sql);
+        await conn.query(`USE \`${schema.replace(/[^a-zA-Z0-9_]/g, '')}\``);
+        // Push filter / projection / sort / limit / offset down to MySQL (parameterized).
+        const compiled = PushdownCompiler.toSql({ ...toCanonical(config), table, dialect: 'mysql' });
+        console.log(`[MySQLConnector] Pushdown SQL: ${compiled.text}`);
+        const [rows]: any = await conn.execute(compiled.text, compiled.params);
         return rows;
     }
 
@@ -163,47 +263,251 @@ export class MongoDBConnector implements IConnector {
     async discoverTables(schema: string): Promise<any[]> {
         const db = this.client.db(schema);
         const collections = await db.listCollections().toArray();
-        return collections.map(c => ({ 
-            name: c.name, 
+        // Mongo listCollections reports type 'collection' vs 'view'.
+        return collections.map(c => ({
+            name: c.name,
             physicalName: c.name,
-            rowCount: 0 
+            rowCount: 0,
+            resourceType: (c as any).type === 'view' ? 'VIEW' : 'TABLE',
         }));
+    }
+
+    async discoverColumns(schema: string, table: string): Promise<any[]> {
+        // Mongo is schemaless — infer fields by sampling a few documents.
+        await this.client.connect();
+        const docs = await this.client.db(schema).collection(table).find({}).limit(20).toArray();
+        const fields = new Map<string, string>();
+        for (const doc of docs) {
+            for (const k of Object.keys(doc)) {
+                if (!fields.has(k)) { const v = (doc as any)[k]; fields.set(k, v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v); }
+            }
+        }
+        return Array.from(fields.entries()).map(([name, type]) => ({ name, type, nullable: true, default: null, primaryKey: name === '_id' }));
     }
 
     async query(schema: string, table: string, config: any): Promise<any[]> {
         await this.client.connect();
         const db = this.client.db(schema);
         const collection = db.collection(table);
-        
-        // Map QueryConfig (SQL-like) to Mongo Find
-        const filter = this.mapFilterToMongo(config.filter || {});
-        let cursor = collection.find(filter);
-        
-        if (config.limit) cursor = cursor.limit(config.limit);
-        if (config.offset) cursor = cursor.skip(config.offset);
-        
-        return await cursor.toArray();
-    }
+        const canonical = toCanonical(config);
 
-    private mapFilterToMongo(filter: any): any {
-        const mongoFilter: any = {};
-        for (const key of Object.keys(filter)) {
-            const val = filter[key];
-            if (typeof val === 'object' && val !== null) {
-                // Handle operators $eq, $gt, $lt etc.
-                const opStr = Object.keys(val)[0] || '$eq';
-                const mOp = opStr.replace('$', '$'); 
-                mongoFilter[key] = { [mOp]: (val as any)[opStr] };
-            } else {
-                mongoFilter[key] = val;
-            }
+        // Aggregate pushdown: run a $group pipeline so Mongo returns groups, not rows.
+        if (canonical.aggregates && canonical.aggregates.length > 0) {
+            const pipeline = PushdownCompiler.toMongoAggregate(canonical);
+            console.log(`[MongoDBConnector] Pushdown aggregate: ${JSON.stringify(pipeline)}`);
+            return await collection.aggregate(pipeline).toArray();
         }
-        return mongoFilter;
+
+        // Push filter / projection / sort / limit / skip down to MongoDB.
+        const spec = PushdownCompiler.toMongo(canonical);
+        console.log(`[MongoDBConnector] Pushdown find: ${JSON.stringify(spec.filter)} proj=${JSON.stringify(spec.projection || {})}`);
+
+        let cursor = collection.find(spec.filter, spec.projection ? { projection: spec.projection } : {});
+        if (spec.sort) cursor = cursor.sort(spec.sort);
+        if (typeof spec.skip === 'number') cursor = cursor.skip(spec.skip);
+        if (typeof spec.limit === 'number') cursor = cursor.limit(spec.limit);
+
+        return await cursor.toArray();
     }
 
     async close() {
         await this.client.close();
     }
+}
+
+/**
+ * SnowflakeConnector — queries Snowflake as a federated source with full pushdown
+ * (filter/projection/sort/limit + GROUP BY aggregates via the shared SQL compiler).
+ * The `snowflake-sdk` driver is lazy-required so the build never depends on it;
+ * a clear error is thrown only if a Snowflake source is actually used without it.
+ */
+export class SnowflakeConnector implements IConnector {
+    private config: any;
+    private conn: any = null;
+    constructor(config: any) { this.config = config; }
+
+    private sdk(): any {
+        try { return require('snowflake-sdk'); }
+        catch { throw new Error("Snowflake support requires the 'snowflake-sdk' package. Run: npm i snowflake-sdk"); }
+    }
+
+    private async connect(): Promise<any> {
+        if (this.conn) return this.conn;
+        const snowflake = this.sdk();
+        const c = this.config;
+        const connection = snowflake.createConnection({
+            account: c.account,
+            username: c.user || c.username,
+            password: c.pass || c.password,
+            warehouse: c.warehouse,
+            role: c.role,
+            database: c.dbName || c.database,
+            schema: c.schema,
+        });
+        await new Promise<void>((resolve, reject) => connection.connect((err: any) => (err ? reject(err) : resolve())));
+        this.conn = connection;
+        return connection;
+    }
+
+    private async exec(sqlText: string, binds: any[] = []): Promise<any[]> {
+        const conn = await this.connect();
+        return new Promise<any[]>((resolve, reject) => {
+            conn.execute({ sqlText, binds, complete: (err: any, _stmt: any, rows: any[]) => (err ? reject(err) : resolve(rows || [])) });
+        });
+    }
+
+    async discoverSchemas(): Promise<any[]> {
+        const rows = await this.exec(`SELECT SCHEMA_NAME AS name FROM INFORMATION_SCHEMA.SCHEMATA`);
+        return rows.map((r) => ({ name: r.NAME || r.name, physicalName: r.NAME || r.name }));
+    }
+    async discoverTables(schema: string): Promise<any[]> {
+        const tables = await this.exec(
+            `SELECT TABLE_NAME AS name, TABLE_TYPE AS type FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ?`, [schema]);
+        const out = tables.map((r) => {
+            const name = r.NAME || r.name;
+            const type = String(r.TYPE || r.type || 'BASE TABLE').toUpperCase();
+            return { name, physicalName: name, rowCount: 0, resourceType: type.includes('VIEW') ? 'VIEW' : 'TABLE' };
+        });
+        const push = (rows: any[], rt: string) => rows.forEach((r) => { const n = r.NAME || r.name; out.push({ name: n, physicalName: n, rowCount: 0, resourceType: rt }); });
+        try { push(await this.exec(`SELECT SEQUENCE_NAME AS name FROM INFORMATION_SCHEMA.SEQUENCES WHERE SEQUENCE_SCHEMA = ?`, [schema]), 'SEQUENCE'); } catch { /* optional */ }
+        try { push(await this.exec(`SELECT FUNCTION_NAME AS name FROM INFORMATION_SCHEMA.FUNCTIONS WHERE FUNCTION_SCHEMA = ?`, [schema]), 'FUNCTION'); } catch { /* optional */ }
+        return out;
+    }
+
+    async query(schema: string, table: string, config: any): Promise<any[]> {
+        const compiled = PushdownCompiler.toSql({ ...toCanonical(config), schema, table, dialect: 'snowflake' });
+        console.log(`[SnowflakeConnector] Pushdown SQL: ${compiled.text}`);
+        return await this.exec(compiled.text, compiled.params);
+    }
+
+    async close(): Promise<void> {
+        if (this.conn) await new Promise<void>((resolve) => this.conn.destroy(() => resolve()));
+        this.conn = null;
+    }
+}
+
+/**
+ * ElasticsearchConnector — makes ES a READABLE federated source via _search:
+ * predicate/sort/projection/size pushdown as query-DSL, and GROUP BY aggregates
+ * as terms + metric sub-aggregations. (The write/sink worker is separate.)
+ */
+export class ElasticsearchConnector implements IConnector {
+    private base: string;
+    private auth?: { username: string; password: string };
+    constructor(config: any) {
+        const host = config.host || 'localhost';
+        const port = config.port || 9200;
+        this.base = (config.url || config.connectionString || `http://${host}:${port}`).replace(/\/$/, '');
+        const user = config.user || config.username;
+        const pass = config.pass || config.password;
+        if (user) this.auth = { username: String(user), password: String(pass || '') };
+    }
+
+    private async req(method: string, path: string, body?: any): Promise<any> {
+        const axios = require('axios');
+        const res = await axios({ method, url: `${this.base}${path}`, data: body, auth: this.auth, headers: { 'Content-Type': 'application/json' }, timeout: 15000 });
+        return res.data;
+    }
+
+    async discoverSchemas(): Promise<any[]> {
+        // ES has no schemas; expose a single logical namespace.
+        return [{ name: 'default', physicalName: 'default' }];
+    }
+    async discoverTables(_schema: string): Promise<any[]> {
+        const data = await this.req('GET', `/_cat/indices?format=json`);
+        return (data || [])
+            .filter((i: any) => !String(i.index).startsWith('.'))
+            .map((i: any) => ({ name: i.index, physicalName: i.index, rowCount: Number(i['docs.count']) || 0, resourceType: 'TABLE' }));
+    }
+
+    private buildFilter(filter: Record<string, any> = {}): any[] {
+        const clauses: any[] = [];
+        for (const key of Object.keys(filter)) {
+            const raw = filter[key];
+            const rawKeys = raw && typeof raw === 'object' && !Array.isArray(raw) ? Object.keys(raw) : [];
+            const firstKey = rawKeys[0];
+            const isOp = typeof firstKey === 'string' && firstKey.startsWith('$');
+            const op: string = isOp ? (firstKey as string) : '$eq';
+            const val = isOp ? raw[op] : raw;
+            switch (op) {
+                case '$eq': clauses.push({ term: { [key]: val } }); break;
+                case '$ne': clauses.push({ bool: { must_not: { term: { [key]: val } } } }); break;
+                case '$gt': clauses.push({ range: { [key]: { gt: val } } }); break;
+                case '$gte': clauses.push({ range: { [key]: { gte: val } } }); break;
+                case '$lt': clauses.push({ range: { [key]: { lt: val } } }); break;
+                case '$lte': clauses.push({ range: { [key]: { lte: val } } }); break;
+                case '$in': clauses.push({ terms: { [key]: val } }); break;
+                case '$like': case '$ilike':
+                    clauses.push({ wildcard: { [key]: { value: String(val).replace(/%/g, '*').replace(/_/g, '?'), case_insensitive: op === '$ilike' } } });
+                    break;
+                default: clauses.push({ term: { [key]: val } });
+            }
+        }
+        return clauses;
+    }
+
+    async query(schema: string, table: string, config: any): Promise<any[]> {
+        const canonical = toCanonical(config);
+        const index = table;
+        const filterClauses = this.buildFilter(canonical.filter || {});
+        const query = filterClauses.length ? { bool: { filter: filterClauses } } : { match_all: {} };
+
+        // Aggregate pushdown: terms buckets for group cols + metric sub-aggs.
+        if (canonical.aggregates && canonical.aggregates.length > 0) {
+            const groupBy = canonical.groupBy || [];
+            const metrics: Record<string, any> = {};
+            for (const a of canonical.aggregates) {
+                if (a.func === 'COUNT') continue; // use bucket doc_count
+                const field = a.column;
+                if (a.func === 'SUM') metrics[a.alias] = { sum: { field } };
+                else if (a.func === 'MIN') metrics[a.alias] = { min: { field } };
+                else if (a.func === 'MAX') metrics[a.alias] = { max: { field } };
+                else if (a.func === 'AVG') metrics[a.alias] = { avg: { field } };
+                else if (a.func === 'COUNT_DISTINCT') metrics[a.alias] = { cardinality: { field } };
+            }
+            const countAlias = canonical.aggregates.find((a) => a.func === 'COUNT')?.alias;
+            // Build nested terms aggs from the group columns.
+            let aggs: any = metrics;
+            for (let i = groupBy.length - 1; i >= 0; i--) {
+                aggs = { [`g_${i}`]: { terms: { field: groupBy[i], size: 10000 }, aggs } };
+            }
+            const body = { size: 0, query, aggs: groupBy.length ? aggs : metrics };
+            console.log(`[ElasticsearchConnector] Pushdown aggregate on ${index}: ${JSON.stringify(body)}`);
+            const data = await this.req('POST', `/${index}/_search`, body);
+            return this.flattenAggs(data.aggregations || {}, groupBy, canonical.aggregates, countAlias, 0, {});
+        }
+
+        const body: any = { query };
+        if (canonical.select && canonical.select.length && !canonical.select.includes('*')) body._source = canonical.select;
+        if (canonical.orderBy && canonical.orderBy.length) body.sort = canonical.orderBy.map((o) => ({ [o.field]: (o.dir === 'DESC' ? 'desc' : 'asc') }));
+        body.size = typeof canonical.limit === 'number' ? canonical.limit : 1000;
+        if (typeof canonical.offset === 'number') body.from = canonical.offset;
+        console.log(`[ElasticsearchConnector] Pushdown search on ${index}: ${JSON.stringify(body)}`);
+        const data = await this.req('POST', `/${index}/_search`, body);
+        return (data.hits?.hits || []).map((h: any) => ({ _id: h._id, ...h._source }));
+    }
+
+    /** Recursively flatten nested terms buckets into flat rows. */
+    private flattenAggs(node: any, groupBy: string[], aggregates: any[], countAlias: string | undefined, depth: number, carry: Record<string, any>): any[] {
+        if (depth < groupBy.length) {
+            const bucketAgg = node[`g_${depth}`];
+            const out: any[] = [];
+            const gcol = groupBy[depth] as string;
+            for (const b of bucketAgg?.buckets || []) {
+                out.push(...this.flattenAggs(b, groupBy, aggregates, countAlias, depth + 1, { ...carry, [gcol]: b.key }));
+            }
+            return out;
+        }
+        // Leaf: emit one row with group carry + metric values.
+        const row: any = { ...carry };
+        for (const a of aggregates) {
+            if (a.func === 'COUNT') row[a.alias] = node.doc_count;
+            else row[a.alias] = node[a.alias]?.value;
+        }
+        return [row];
+    }
+
+    async close(): Promise<void> { /* stateless HTTP */ }
 }
 
 export class ConnectorFactory {
@@ -217,6 +521,12 @@ export class ConnectorFactory {
             case 'MONGODB':
             case 'MONGO':
                 return new MongoDBConnector(config);
+            case 'SNOWFLAKE':
+                return new SnowflakeConnector(config);
+            case 'ELASTICSEARCH':
+            case 'ELASTIC':
+            case 'ES':
+                return new ElasticsearchConnector(config);
             default:
                 throw new Error(`Unsupported connector type: ${type}`);
         }

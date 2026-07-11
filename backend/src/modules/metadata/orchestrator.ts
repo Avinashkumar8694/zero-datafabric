@@ -30,7 +30,10 @@ export class MetadataOrchestrator {
 
         try {
             await client.query('BEGIN');
-            
+            // DDL provisioning (distributed tables, EXCLUDE/GIST, matviews) can exceed the
+            // pool's 10s query-safety statement_timeout — raise it for this apply transaction.
+            await client.query(`SET LOCAL statement_timeout = '180s'`);
+
             await this.ensureBaseInfrastructure(client);
 
             // Provision Manifest Extensions
@@ -67,30 +70,43 @@ export class MetadataOrchestrator {
                     });
                 }
 
-                // 2. Physical Deployment
+                // 2. Physical Deployment.
+                // Hub (local Postgres) DDL is transactional and MUST succeed (fatal on error).
+                // Remote engines (Mongo / warehouse) are dispatched best-effort (SAGA): a remote
+                // outage must NOT roll back the core Postgres provisioning — it degrades instead.
+                let deployStatus = 'SUCCESS';
                 if (isMongo) {
-                    const ops = await Transpiler.toMongo(diff, tenantId, manifest);
-                    await HeterogeneousDispatcher.execute(tenantId, targetSource, ops);
+                    // The local Postgres namespace (catalog/metadata home) is created transactionally.
+                    if (diff.action === 'CREATE_SCHEMA') {
+                        await client.query(`CREATE SCHEMA IF NOT EXISTS "tenant_${tenantId}_${diff.name}"`);
+                    }
+                    try {
+                        const ops = await Transpiler.toMongo(diff, tenantId, manifest);
+                        await HeterogeneousDispatcher.execute(tenantId, targetSource, ops);
+                    } catch (e: any) {
+                        deployStatus = 'DEGRADED';
+                        console.warn(`[Orchestrator] Remote(Mongo) dispatch degraded for ${resourceName}@${targetSource}: ${e.message}`);
+                    }
+                } else if (targetSource === 'Fabric_Hub_Postgres') {
+                    for (const sql of sqls) {
+                        console.log(`[Orchestrator:Hub] Executing: ${sql}`);
+                        await client.query(sql);
+                    }
                 } else {
-                    if (targetSource === 'Fabric_Hub_Postgres') {
-                        for (const sql of sqls) {
-                            console.log(`[Orchestrator:Hub] Executing: ${sql}`);
-                            await client.query(sql);
-                        }
-                    } else {
+                    // Remote non-Mongo (e.g. warehouse Postgres): local namespace transactional, dispatch best-effort.
+                    if (diff.action === 'CREATE_SCHEMA') {
+                        const schemaName = `tenant_${tenantId}_${diff.name}`;
+                        await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+                    }
+                    try {
                         await HeterogeneousDispatcher.execute(tenantId, targetSource, sqls);
-                        
-                        // INDUSTRIAL SAFETY: If it's a schema creation, ensure local Hub also knows about it for metadata/caching
-                        if (diff.action === 'CREATE_SCHEMA') {
-                             const schemaName = `tenant_${tenantId}_${diff.name}`;
-                             await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
-                             await client.query(`GRANT USAGE ON SCHEMA "${schemaName}" TO fabric_user`);
-                             await client.query(`GRANT SELECT ON ALL TABLES IN SCHEMA "${schemaName}" TO fabric_user`);
-                        }
+                    } catch (e: any) {
+                        deployStatus = 'DEGRADED';
+                        console.warn(`[Orchestrator] Remote dispatch degraded for ${resourceName}@${targetSource}: ${e.message}`);
                     }
                 }
-                
-                results.push({ action: diff.action, name: resourceName, targetSource, status: 'SUCCESS' });
+
+                results.push({ action: diff.action, name: resourceName, targetSource, status: deployStatus });
             }
 
             // 3. Catalog Synchronization (Universal Refresh)
@@ -123,6 +139,10 @@ export class MetadataOrchestrator {
     private async ensureTenantSchemaPrivileges(client: PoolClient, tenantId: string, manifest: MetadataManifest) {
         for (const schema of manifest.schemas) {
             const schemaName = `tenant_${tenantId}_${schema.name}`;
+            // Skip schemas that have no local Postgres namespace (defensive — avoids a
+            // whole-apply rollback if provisioning of one schema was skipped).
+            const exists = await client.query(`SELECT 1 FROM information_schema.schemata WHERE schema_name = $1`, [schemaName]);
+            if (exists.rows.length === 0) continue;
             await client.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fabric_user') THEN EXECUTE 'GRANT USAGE ON SCHEMA "${schemaName}" TO fabric_user'; END IF; END $$;`);
             await client.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fabric_user') THEN EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "${schemaName}" TO fabric_user'; END IF; END $$;`);
             await client.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fabric_user') THEN EXECUTE 'GRANT SELECT, USAGE ON ALL SEQUENCES IN SCHEMA "${schemaName}" TO fabric_user'; END IF; END $$;`);
@@ -202,6 +222,47 @@ export class MetadataOrchestrator {
             await client.query(`CREATE EXTENSION IF NOT EXISTS "${ext}"`);
         }
         await client.query(`CREATE SCHEMA IF NOT EXISTS fabric_system`);
+        await this.ensureFabricPrimitives(client);
+    }
+
+    /**
+     * Platform primitives that manifests are allowed to reference in column defaults,
+     * generators and triggers (uuid_generate_v7, current_user_id, current_tenant,
+     * generate_tenant_id, audit_log_fn). Created in `public` so they resolve from any
+     * tenant schema's search_path. Idempotent (CREATE OR REPLACE).
+     */
+    private async ensureFabricPrimitives(client: any) {
+        const stmts = [
+            // RFC-9562 UUIDv7 (time-ordered) — uuid-ossp only ships v1/v4.
+            `CREATE OR REPLACE FUNCTION public.uuid_generate_v7() RETURNS uuid AS $$
+                SELECT encode(
+                    set_bit(set_bit(
+                        overlay(uuid_send(gen_random_uuid())
+                            placing substring(int8send((extract(epoch FROM clock_timestamp()) * 1000)::bigint) FROM 3)
+                            FROM 1 FOR 6),
+                        52, 1), 53, 1), 'hex')::uuid;
+            $$ LANGUAGE sql VOLATILE`,
+            // Identity helpers backed by the session GUCs set by queryWithContext.
+            `CREATE OR REPLACE FUNCTION public.current_tenant() RETURNS text AS $$
+                SELECT current_setting('app.tenant_id', true) $$ LANGUAGE sql STABLE`,
+            `CREATE OR REPLACE FUNCTION public.current_user_id() RETURNS text AS $$
+                SELECT current_setting('app.user_name', true) $$ LANGUAGE sql STABLE`,
+            `CREATE OR REPLACE FUNCTION public.generate_tenant_id(p_tenant text DEFAULT NULL) RETURNS text AS $$
+                SELECT COALESCE(p_tenant, current_setting('app.tenant_id', true)) || '-' || nextval('fabric_system.global_seq')::text $$ LANGUAGE sql VOLATILE`,
+            `CREATE SEQUENCE IF NOT EXISTS fabric_system.global_seq`,
+            // Generic audit trigger fn manifests can attach (writes to fabric_admin.audit_logs if present).
+            `CREATE OR REPLACE FUNCTION public.audit_log_fn() RETURNS trigger AS $$
+                BEGIN
+                    BEGIN
+                        INSERT INTO fabric_admin.audit_logs (table_name, action, new_data, user_name, changed_at)
+                        VALUES (TG_TABLE_NAME, TG_OP, to_jsonb(NEW), current_setting('app.user_name', true), NOW());
+                    EXCEPTION WHEN undefined_table THEN NULL; END;
+                    RETURN NEW;
+                END; $$ LANGUAGE plpgsql`,
+        ];
+        for (const s of stmts) {
+            try { await client.query(s); } catch (e: any) { console.warn(`[Orchestrator] primitive skipped: ${e.message}`); }
+        }
     }
 
     async plan(tenantId: string, manifest: MetadataManifest) {
@@ -307,6 +368,26 @@ export class MetadataOrchestrator {
                             ON CONFLICT (schema_id, physical_name) DO UPDATE SET last_crawled_at = NOW(), definition_ast = EXCLUDED.definition_ast
                         `, [schemaId, `${resource.name}.${pol.name}`, `${physicalName}.${pol.name}`, JSON.stringify(pol)]);
                     }
+                }
+            }
+        }
+
+        // Persist declared relationships so ER diagrams / lineage have real data.
+        if (Array.isArray(manifest.relationships)) {
+            for (const rel of manifest.relationships) {
+                const card = rel.cardinality === 'M:N' ? 'M:M' : rel.cardinality; // table CHECK uses M:M
+                const fromSchema = (rel.from as any).source || manifest.namespace || 'default';
+                const toSchema = (rel.to as any).source || manifest.namespace || 'default';
+                try {
+                    await client.query(`
+                        INSERT INTO fabric_catalog.relationships
+                            (tenant_id, name, schema_name, source_schema, source_table, source_column, target_schema, target_table, target_column, cardinality)
+                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                        ON CONFLICT ON CONSTRAINT relationships_full_identity_key DO UPDATE SET cardinality = EXCLUDED.cardinality
+                    `, [tenantId, rel.name, fromSchema, fromSchema, rel.from.resource, rel.from.field, toSchema, rel.to.resource, rel.to.field, card]);
+                } catch (e: any) {
+                    // Fall back to the base unique key if the hardened constraint name differs.
+                    console.warn(`[Orchestrator] relationship persist skipped for ${rel.name}: ${e.message}`);
                 }
             }
         }

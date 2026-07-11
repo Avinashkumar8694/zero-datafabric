@@ -5,7 +5,8 @@ import axios from 'axios';
 
 export enum SyncType {
   VIRTUAL = 'VIRTUAL',
-  SYNC = 'SYNC'
+  SYNC = 'SYNC',
+  CDC = 'CDC'
 }
 
 export interface RemoteSourceConfig {
@@ -123,6 +124,23 @@ export class IntegrationService {
         return true;
       } catch (err: any) {
         throw new Error(`Elasticsearch Connection Failed: ${err.message}`);
+      }
+    } else if (config.type === 'mysql') {
+      const mysql = require('mysql2/promise');
+      try {
+        const conn = config.connectionString
+          ? await mysql.createConnection(config.connectionString)
+          : await mysql.createConnection({
+              host: config.host, port: config.port, user: config.user,
+              password: config.pass || (config as any).password,
+              database: config.dbName || (config as any).database,
+              connectTimeout: 5000,
+            });
+        await conn.query('SELECT 1');
+        await conn.end();
+        return true;
+      } catch (err: any) {
+        throw new Error(`MySQL Connection Failed: ${err.message}`);
       }
     } else if (config.type === 'snowflake') {
       // Snowflake runs as an external service (not local Docker). Keep permissive validation:
@@ -247,7 +265,7 @@ export class IntegrationService {
         }
 
         // 3. Auto-Crawl for Metadata Hierarchy
-        const supportsCatalogCrawl = ['postgres', 'mysql', 'mongodb'].includes(config.type);
+        const supportsCatalogCrawl = ['postgres', 'mysql', 'mongodb', 'snowflake', 'elasticsearch'].includes(config.type);
         if (supportsCatalogCrawl) {
             try {
                 await MetadataService.crawlSource(sourceId);

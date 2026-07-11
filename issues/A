@@ -1,0 +1,22 @@
+Federated query engine (pushdown, bind-join, transitive predicates, multi-source aggregates, cross-engine UNION/INTERSECT/EXCEPT + JOIN) · all-engine connectors with object-type discovery · unified source-agnostic catalog/Explorer · Redis caching with invalidate-on-sync · context-aware workbench with one-click cross-source queries, detail panel, ER diagram · manifest-apply fixes (cross-source schema provisioning + platform helper primitives just added).
+
+Still required for "full" capability (prioritized)
+P1 — make the whole manifest apply & show (in progress now)
+
+Finish validating the v4.0 apply end-to-end and close any remaining transpiler gaps (EXCLUDE/GIST, generated columns, RLS policies).
+Real column masking — today it's emitted as a -- comment only; implement it via security-barrier views or masking policies so it actually redacts.
+Trigger provisioning — the transpiler calls an external trigger engine on :4001 that's offline, so triggers are silently skipped. Wire the in-process trigger control plane (the trigger_registry/trigger_jobs tables already exist) to actually create them.
+P2 — live data movement (docs flag these as partial/mock)
+
+Continuous ES sync — currently snapshot-on-apply only; complete the es_mutation_worker mutation→index path.
+CDC/Debezium+Kafka — kafkaService.startConsumer is defined but never wired; SYNC/CDC sync types are mock. Real CDC replication is needed for the SYNC/CDC source modes.
+P3 — federation depth
+
+Aggregate through a cross-engine join, and real RIGHT/FULL cross-engine joins (today they degrade to INNER with a warning).
+Optional: mongo_fdw/snowflake live paths; a distributed/columnar executor at the merge seam for scale (Citus already covers the hub).
+P4 — governance & ops
+
+Lineage & quality — quality.service.ts and the lineage/quality tables exist but are unwired (dead code); wire them and surface real upstream/downstream lineage in the catalog.
+Durable async jobs — currently an in-process Map; move to Redis/DB for multi-instance.
+Deletion policy — two-stage quarantine-rename, cardinality pre-flight scans, and ?dry-run=true are documented but not implemented in the diff engine.
+Cleanup/consistency — duplicate SyncService, legacy services/metadataService.ts (dead), and doc conflicts (Angular vs EJS, two "Module 11" docs).

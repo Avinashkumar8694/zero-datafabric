@@ -28,11 +28,39 @@ function normalizeAstColumn(c: any) {
  * definition_ast (rich: PK/strategy/constraints); falls back to LIVE discovery
  * from the real source (works for crawled tables that have no manifest AST).
  */
+/** Export the current catalog as a datafabric manifest (reverse of apply). */
+export const exportMetadata = async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user;
+        const source = req.query.source as string | undefined;
+        const manifest = await MetadataService.exportManifest(user.tenant_id, source);
+        const fname = `fabric-manifest-${source || 'all'}-${user.tenant_id}.json`;
+        res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
+        res.json(manifest);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 export const getColumns = async (req: Request, res: Response) => {
     try {
-        const tableId = req.query.tableId as string;
-        if (!tableId) return res.status(400).json({ error: 'tableId is required' });
         const user = (req as any).user;
+        let tableId = req.query.tableId as string;
+        // Convenience: resolve tableId from a (source, resource) pair when not given directly.
+        if (!tableId) {
+            const source = req.query.source as string | undefined;
+            const resource = req.query.resource as string | undefined;
+            if (source && resource) {
+                const { rows } = await queryWithContext(`
+                    SELECT ct.id FROM public.catalog_tables ct
+                    JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+                    JOIN public.data_sources ds ON cs.source_id = ds.id
+                    WHERE ds.tenant_id = $1 AND ds.name = $2 AND ct.name = $3 LIMIT 1
+                `, [user.tenant_id, source, resource], { tenantId: user.tenant_id, username: user.username });
+                if (rows.length) tableId = rows[0].id;
+            }
+        }
+        if (!tableId) return res.status(400).json({ error: 'tableId (or source+resource) is required' });
         const key = `meta:${user.tenant_id}:columns:${tableId}`;
         const payload = await cached(key, META_TTL, async () => {
             const { rows } = await queryWithContext(`

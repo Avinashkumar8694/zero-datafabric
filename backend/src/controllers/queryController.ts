@@ -18,7 +18,12 @@ export const executeEngineQuery = async (req: Request, res: Response) => {
 export const executeNativeSql = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
-        const { sql } = req.body;
+        const { sql, source, schema } = req.body;
+        // Route native SQL to a named remote source's connector when requested; else the hub.
+        if (source && source !== 'Fabric_Hub_Postgres') {
+            const result = await QueryEngineService.executeSqlOnSource(user.tenant_id, source, sql, [], schema);
+            return res.json(result);
+        }
         const result = await queryWithContext(sql, [], { tenantId: user.tenant_id, username: user.username });
         res.json({ results: result.rows, rowCount: result.rowCount });
     } catch (err: any) {
@@ -32,7 +37,12 @@ export const executeRawSql = async (req: Request, res: Response) => {
     const user = (req as any).user;
     if (!user) return res.status(401).json({ error: 'Authentication required' });
     try {
-        const { sql, params = [], async: isAsync } = req.body;
+        const { sql, params = [], async: isAsync, source, schema } = req.body;
+        // Route to a named remote source's connector when requested (complex SQL AT the source).
+        if (source && source !== 'Fabric_Hub_Postgres') {
+            const result = await QueryEngineService.executeSqlOnSource(user.tenant_id, source, sql, params, schema);
+            return res.json(result);
+        }
         if (isAsync) {
             const jobId = QueryEngineService.executeAsyncRawSql(user.tenant_id, user.username || 'unknown', sql, params);
             return res.status(202).json({ queryId: jobId, status: 'ACCEPTED' });

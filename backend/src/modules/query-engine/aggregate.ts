@@ -16,10 +16,10 @@
  *   COUNT(DISTINCT c) -> partial GROUP BY (g,c) distinct keys -> merge distinct set, count
  */
 
-import { AggregateSpec, AggFunc } from './pushdown';
+import { AggregateSpec, AggFunc, GroupBy } from './pushdown';
 
 export interface AggregatePlan {
-  groupCols: string[];
+  groupCols: GroupBy[];
   aggregates: AggregateSpec[]; // as requested by the user
 }
 
@@ -31,17 +31,22 @@ function base(path: string): string {
   return s.includes('.') ? s.split('.').pop()! : s;
 }
 
+/** Output column name for a group entry (date-bucket entries key by their field). */
+function gName(g: GroupBy): string {
+  return typeof g === 'object' && g ? g.field : (g as string);
+}
+
 /**
  * Parse an AST/QueryConfig `select` into grouping columns + aggregate specs.
  * Handles object specs `{aggregate, column, alias}` and string specs like
  * `count(*)`, `SUM(amount)`, `avg(price) as p`.
  */
-export function parseAggregates(select: any[] | undefined, groupBy: string[] | undefined): AggregatePlan | null {
+export function parseAggregates(select: any[] | undefined, groupBy: GroupBy[] | undefined): AggregatePlan | null {
   if (!Array.isArray(select) || select.length === 0) {
     return groupBy && groupBy.length ? { groupCols: [...groupBy], aggregates: [] } : null;
   }
 
-  const groupCols: string[] = [...(groupBy || [])];
+  const groupCols: GroupBy[] = [...(groupBy || [])];
   const aggregates: AggregateSpec[] = [];
   let sawAggregate = false;
 
@@ -55,6 +60,7 @@ export function parseAggregates(select: any[] | undefined, groupBy: string[] | u
         func: (isDistinct ? 'COUNT_DISTINCT' : func) as AggFunc,
         column: col,
         alias: c.alias || `${func.toLowerCase()}_${col || 'all'}`,
+        ...(c.percent !== undefined ? { percent: Number(c.percent) } : {}),
       });
       continue;
     }
@@ -79,9 +85,12 @@ export function parseAggregates(select: any[] | undefined, groupBy: string[] | u
   }
 
   if (!sawAggregate && (!groupBy || groupBy.length === 0)) return null;
-  // de-dup group columns preserving order
+  // de-dup group columns preserving order (date-bucket entries keyed by JSON)
   const seen = new Set<string>();
-  const dedupGroup = groupCols.filter((g) => (seen.has(g) ? false : (seen.add(g), true)));
+  const dedupGroup = groupCols.filter((g) => {
+    const k = typeof g === 'object' ? JSON.stringify(g) : g;
+    return seen.has(k) ? false : (seen.add(k), true);
+  });
   return { groupCols: dedupGroup, aggregates };
 }
 
@@ -89,7 +98,7 @@ export function parseAggregates(select: any[] | undefined, groupBy: string[] | u
  * The partial aggregates each source must compute so the fabric can merge them.
  * AVG is expanded to a hidden SUM + COUNT pair.
  */
-export function partialSpec(plan: AggregatePlan): { groupBy: string[]; aggregates: AggregateSpec[] } {
+export function partialSpec(plan: AggregatePlan): { groupBy: GroupBy[]; aggregates: AggregateSpec[] } {
   const aggregates: AggregateSpec[] = [];
   for (const a of plan.aggregates) {
     if (a.func === 'AVG') {
@@ -120,14 +129,14 @@ export function mergePartials(rows: any[], plan: AggregatePlan): any[] {
   const distinctAliases = new Set(plan.aggregates.filter((a) => a.func === 'COUNT_DISTINCT').map((a) => a.alias));
   const distinctSets = new Map<string, Set<any>>();
 
-  const keyOf = (row: any) => JSON.stringify(plan.groupCols.map((g) => row[g] ?? row[base(g)] ?? null));
+  const keyOf = (row: any) => JSON.stringify(plan.groupCols.map((g) => row[gName(g)] ?? row[base(gName(g))] ?? null));
 
   for (const row of rows) {
     const k = keyOf(row);
     let acc = groups.get(k);
     if (!acc) {
       acc = {};
-      for (const g of plan.groupCols) acc[g] = row[g] ?? row[base(g)] ?? null;
+      for (const g of plan.groupCols) { const n = gName(g); acc[n] = row[n] ?? row[base(n)] ?? null; }
       groups.set(k, acc);
     }
     for (const a of plan.aggregates) {
@@ -187,7 +196,7 @@ export function aggregateRaw(rows: any[], plan: AggregatePlan): any[] {
   const groups = new Map<string, any>();
   const state = new Map<string, any>(); // per-group running state (sums, counts, distinct sets)
 
-  const keyOf = (row: any) => JSON.stringify(plan.groupCols.map((g) => readCol(row, g) ?? null));
+  const keyOf = (row: any) => JSON.stringify(plan.groupCols.map((g) => readCol(row, gName(g)) ?? null));
 
   for (const row of rows) {
     const k = keyOf(row);
@@ -195,7 +204,7 @@ export function aggregateRaw(rows: any[], plan: AggregatePlan): any[] {
     let st = state.get(k);
     if (!acc) {
       acc = {};
-      for (const g of plan.groupCols) acc[g] = readCol(row, g) ?? null;
+      for (const g of plan.groupCols) { const n = gName(g); acc[n] = readCol(row, n) ?? null; }
       groups.set(k, acc);
       st = {};
       state.set(k, st);

@@ -1,0 +1,46 @@
+{
+  "version": "4.0",
+  "namespace": "HR_Example",
+  "targetSource": "Fabric_Hub_Postgres",
+  "schemas": [
+    {
+      "name": "HR_Example",
+      "targetSource": "Fabric_Hub_Postgres",
+      "resources": [
+        { "type": "ENUM", "name": "emp_status", "values": ["ACTIVE", "ON_LEAVE", "TERMINATED"] },
+        { "type": "SEQUENCE", "name": "emp_seq", "start": 1000, "increment": 1 },
+        {
+          "type": "TABLE",
+          "name": "departments",
+          "columns": [
+            { "name": "id", "type": "UUID", "strategy": "UUID_V7", "primaryKey": true },
+            { "name": "name", "type": "STRING", "length": 80 },
+            { "name": "budget", "type": "NUMERIC" }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "employees",
+          "comment": "Staff records for the HR example",
+          "columns": [
+            { "name": "id", "type": "UUID", "strategy": "UUID_V7", "primaryKey": true },
+            { "name": "dept_id", "type": "UUID" },
+            { "name": "full_name", "type": "STRING", "length": 120 },
+            { "name": "email", "type": "STRING", "length": 160, "unique": true },
+            { "name": "status", "type": "ENUM", "ref": "emp_status", "default": "ACTIVE" },
+            { "name": "salary", "type": "NUMERIC" },
+            { "name": "hired_at", "type": "TIMESTAMP", "default": "NOW()", "index": { "type": "BRIN" } }
+          ],
+          "constraints": [
+            { "name": "chk_salary_positive", "type": "CHECK", "expression": "salary >= 0" }
+          ]
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    { "name": "rel_dept_employees", "cardinality": "1:M",
+      "from": { "resource": "departments", "field": "id" },
+      "to":   { "resource": "employees",   "field": "dept_id" } }
+  ]
+}

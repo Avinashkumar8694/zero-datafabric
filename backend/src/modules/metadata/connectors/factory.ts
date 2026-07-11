@@ -25,6 +25,12 @@ export interface IConnector {
     /** Column-level metadata: { name, type, nullable, default, primaryKey } */
     discoverColumns?(schema: string, table: string): Promise<any[]>;
     query(schema: string, table: string, config: any): Promise<any[]>;
+    /** Execute arbitrary native SQL at the source (SQL-native engines only). */
+    rawQuery?(sql: string, params?: any[]): Promise<any[]>;
+    /** Document-store write ops (Mongo); relational engines use rawQuery instead. */
+    insertDocs?(schema: string, table: string, docs: any[]): Promise<any>;
+    updateDocs?(schema: string, table: string, filter: Record<string, any>, set: Record<string, any>): Promise<any>;
+    deleteDocs?(schema: string, table: string, filter: Record<string, any>): Promise<any>;
     close(): Promise<void>;
 }
 
@@ -60,8 +66,9 @@ export class PostgresConnector implements IConnector {
             SELECT 
                 schema_name as name,
                 schema_name as "physicalName"
-            FROM information_schema.schemata 
+            FROM information_schema.schemata
             WHERE schema_name NOT IN ('information_schema', 'pg_catalog')
+              AND schema_name NOT LIKE 'pg_%'
         `);
         return rows;
     }
@@ -160,6 +167,24 @@ export class PostgresConnector implements IConnector {
         }
     }
 
+    /**
+     * Execute native SQL directly at the remote Postgres source. This is how the
+     * fabric runs complex single-source analytics (window functions, recursive CTEs,
+     * materialized-view reads) AT the source engine that owns the data, instead of
+     * only against the hub. Sets a search_path so unqualified names resolve to the
+     * caller-provided schema when supplied.
+     */
+    async rawQuery(sql: string, params: any[] = []): Promise<any[]> {
+        console.log(`[PostgresConnector] Raw SQL: ${String(sql).slice(0, 200)}`);
+        const { rows } = await this.pool.query(sql, params);
+        return rows;
+    }
+
+    async setSearchPath(schema: string): Promise<void> {
+        const safe = String(schema).replace(/[^a-zA-Z0-9_]/g, '');
+        if (safe) await this.pool.query(`SET search_path TO "${safe}", public`);
+    }
+
     async close() {
         await this.pool.end();
     }
@@ -250,14 +275,20 @@ export class MongoDBConnector implements IConnector {
         if (config.advanced?.dynamicOptions) {
             console.log(`[Connector] Applying dynamic options to Mongo:`, JSON.stringify(config.advanced.dynamicOptions));
         }
-        const url = config.connectionString || config.url || `mongodb://${config.user}:${config.pass}@${config.host}:${config.port}`;
+        // Accept every config shape used across the platform (dispatcher uses `uri`,
+        // examples use host/port, others use connectionString/url).
+        const url = config.uri || config.connectionString || config.url
+            || `mongodb://${config.user}:${config.pass}@${config.host}:${config.port}`;
         this.client = new MongoClient(url);
     }
 
     async discoverSchemas(): Promise<any[]> {
         await this.client.connect();
         const dbs = await this.client.db().admin().listDatabases();
-        return dbs.databases.map(db => ({ name: db.name, physicalName: db.name }));
+        const SYSTEM_DBS = new Set(['admin', 'config', 'local']);
+        return dbs.databases
+            .filter((db: any) => !SYSTEM_DBS.has(db.name))
+            .map((db: any) => ({ name: db.name, physicalName: db.name }));
     }
 
     async discoverTables(schema: string): Promise<any[]> {
@@ -308,6 +339,25 @@ export class MongoDBConnector implements IConnector {
         if (typeof spec.limit === 'number') cursor = cursor.limit(spec.limit);
 
         return await cursor.toArray();
+    }
+
+    // --- write support (used by the /api/data CRUD endpoints) ---
+    async insertDocs(schema: string, table: string, docs: any[]): Promise<any> {
+        await this.client.connect();
+        const r = await this.client.db(schema).collection(table).insertMany(docs);
+        return { insertedCount: r.insertedCount };
+    }
+    async updateDocs(schema: string, table: string, filter: Record<string, any>, set: Record<string, any>): Promise<any> {
+        await this.client.connect();
+        const match = PushdownCompiler.toMongo({ filter }).filter;
+        const r = await this.client.db(schema).collection(table).updateMany(match, { $set: set });
+        return { matchedCount: r.matchedCount, modifiedCount: r.modifiedCount };
+    }
+    async deleteDocs(schema: string, table: string, filter: Record<string, any>): Promise<any> {
+        await this.client.connect();
+        const match = PushdownCompiler.toMongo({ filter }).filter;
+        const r = await this.client.db(schema).collection(table).deleteMany(match);
+        return { deletedCount: r.deletedCount };
     }
 
     async close() {
@@ -397,15 +447,15 @@ export class ElasticsearchConnector implements IConnector {
     constructor(config: any) {
         const host = config.host || 'localhost';
         const port = config.port || 9200;
-        this.base = (config.url || config.connectionString || `http://${host}:${port}`).replace(/\/$/, '');
+        this.base = (config.uri || config.url || config.connectionString || `http://${host}:${port}`).replace(/\/$/, '');
         const user = config.user || config.username;
         const pass = config.pass || config.password;
         if (user) this.auth = { username: String(user), password: String(pass || '') };
     }
 
-    private async req(method: string, path: string, body?: any): Promise<any> {
+    private async req(method: string, path: string, body?: any, contentType = 'application/json'): Promise<any> {
         const axios = require('axios');
-        const res = await axios({ method, url: `${this.base}${path}`, data: body, auth: this.auth, headers: { 'Content-Type': 'application/json' }, timeout: 15000 });
+        const res = await axios({ method, url: `${this.base}${path}`, data: body, auth: this.auth, headers: { 'Content-Type': contentType }, timeout: 30000 });
         return res.data;
     }
 
@@ -420,56 +470,118 @@ export class ElasticsearchConnector implements IConnector {
             .map((i: any) => ({ name: i.index, physicalName: i.index, rowCount: Number(i['docs.count']) || 0, resourceType: 'TABLE' }));
     }
 
+    /** Column metadata from the index mapping (field name + ES type). */
+    async discoverColumns(_schema: string, table: string): Promise<any[]> {
+        const data = await this.req('GET', `/${table}/_mapping`);
+        // { <index>: { mappings: { properties: { field: { type, ... } } } } }
+        const idx = Object.keys(data || {})[0];
+        const props = (idx && data[idx]?.mappings?.properties) || {};
+        return Object.keys(props).map((name) => ({
+            name, type: props[name].type || (props[name].properties ? 'object' : 'unknown'),
+            nullable: true, default: null, primaryKey: false,
+        }));
+    }
+
     private buildFilter(filter: Record<string, any> = {}): any[] {
+        return ElasticsearchConnector.filterClauses(filter);
+    }
+
+    /** Faithful preview of the _search body the connector would send (for the execution trace). */
+    static previewBody(canonical: any, index: string): string {
+        const clauses = this.filterClauses(canonical.filter || {});
+        const query = clauses.length ? { bool: { filter: clauses } } : { match_all: {} };
+        if (canonical.aggregates && canonical.aggregates.length > 0) {
+            const groupBy = canonical.groupBy || [];
+            const buckets = groupBy.map((g: any) => (g && typeof g === 'object' && g.dateInterval)
+                ? `date_histogram(${g.field}/${g.dateInterval})` : `terms(${g})`).join(' → ') || '(none)';
+            return `POST /${index}/_search ${JSON.stringify({ size: 0, query, aggs: `${buckets} + [${canonical.aggregates.map((a: any) => a.func).join(',')}]` })}`;
+        }
+        const body: any = { query };
+        if (canonical.select?.length && !canonical.select.includes('*')) body._source = canonical.select;
+        if (typeof canonical.limit === 'number') body.size = canonical.limit;
+        return `POST /${index}/_search ${JSON.stringify(body)}`;
+    }
+
+    static filterClauses(filter: Record<string, any> = {}): any[] {
         const clauses: any[] = [];
         for (const key of Object.keys(filter)) {
             const raw = filter[key];
+            // A column may carry multiple operators (e.g. a range { $gte, $lte }).
             const rawKeys = raw && typeof raw === 'object' && !Array.isArray(raw) ? Object.keys(raw) : [];
-            const firstKey = rawKeys[0];
-            const isOp = typeof firstKey === 'string' && firstKey.startsWith('$');
-            const op: string = isOp ? (firstKey as string) : '$eq';
-            const val = isOp ? raw[op] : raw;
-            switch (op) {
-                case '$eq': clauses.push({ term: { [key]: val } }); break;
-                case '$ne': clauses.push({ bool: { must_not: { term: { [key]: val } } } }); break;
-                case '$gt': clauses.push({ range: { [key]: { gt: val } } }); break;
-                case '$gte': clauses.push({ range: { [key]: { gte: val } } }); break;
-                case '$lt': clauses.push({ range: { [key]: { lt: val } } }); break;
-                case '$lte': clauses.push({ range: { [key]: { lte: val } } }); break;
-                case '$in': clauses.push({ terms: { [key]: val } }); break;
-                case '$like': case '$ilike':
-                    clauses.push({ wildcard: { [key]: { value: String(val).replace(/%/g, '*').replace(/_/g, '?'), case_insensitive: op === '$ilike' } } });
-                    break;
-                default: clauses.push({ term: { [key]: val } });
+            const ops = (rawKeys.length && rawKeys.every((k) => k.startsWith('$')))
+                ? rawKeys.map((op) => ({ op, val: raw[op] }))
+                : [{ op: '$eq', val: raw }];
+            for (const { op, val } of ops) {
+                switch (op) {
+                    case '$eq': clauses.push({ term: { [key]: val } }); break;
+                    case '$ne': clauses.push({ bool: { must_not: { term: { [key]: val } } } }); break;
+                    case '$gt': clauses.push({ range: { [key]: { gt: val } } }); break;
+                    case '$gte': clauses.push({ range: { [key]: { gte: val } } }); break;
+                    case '$lt': clauses.push({ range: { [key]: { lt: val } } }); break;
+                    case '$lte': clauses.push({ range: { [key]: { lte: val } } }); break;
+                    case '$in': clauses.push({ terms: { [key]: val } }); break;
+                    case '$like': case '$ilike':
+                        clauses.push({ wildcard: { [key]: { value: String(val).replace(/%/g, '*').replace(/_/g, '?'), case_insensitive: op === '$ilike' } } });
+                        break;
+                    case '$match': // native full-text relevance search on an analyzed field
+                        clauses.push({ match: { [key]: val } });
+                        break;
+                    case '$fuzzy': // fuzzy / entity-resolution match (Levenshtein, fuzziness=AUTO)
+                        clauses.push({ match: { [key]: { query: val, fuzziness: 'AUTO' } } });
+                        break;
+                    default: clauses.push({ term: { [key]: val } });
+                }
             }
         }
         return clauses;
     }
 
+    /** Split canonical filter clauses into scoring (match/fuzzy → `must`) and non-scoring (`filter`). */
+    static buildQuery(filter: Record<string, any> = {}): any {
+        const all = ElasticsearchConnector.filterClauses(filter);
+        const must = all.filter((c) => c.match || c.fuzzy);   // full-text / fuzzy → scored
+        const filt = all.filter((c) => !(c.match || c.fuzzy)); // exact / range → non-scored
+        if (!must.length && !filt.length) return { match_all: {} };
+        return { bool: { ...(filt.length ? { filter: filt } : {}), ...(must.length ? { must } : {}) } };
+    }
+
+    /** One ES metric sub-agg for an aggregate spec (null for COUNT → use bucket doc_count). */
+    private static metricAgg(a: any): any | null {
+        const field = a.column;
+        switch (a.func) {
+            case 'COUNT': return null;
+            case 'SUM': return { sum: { field } };
+            case 'MIN': return { min: { field } };
+            case 'MAX': return { max: { field } };
+            case 'AVG': return { avg: { field } };
+            case 'COUNT_DISTINCT': return { cardinality: { field } };
+            case 'PERCENTILE': return { percentiles: { field, percents: [a.percent || 95] } };
+            default: return null;
+        }
+    }
+
     async query(schema: string, table: string, config: any): Promise<any[]> {
         const canonical = toCanonical(config);
         const index = table;
-        const filterClauses = this.buildFilter(canonical.filter || {});
-        const query = filterClauses.length ? { bool: { filter: filterClauses } } : { match_all: {} };
+        const query = ElasticsearchConnector.buildQuery(canonical.filter || {});
 
-        // Aggregate pushdown: terms buckets for group cols + metric sub-aggs.
+        // Aggregate pushdown: (date_histogram | terms) buckets for group cols + metric sub-aggs.
         if (canonical.aggregates && canonical.aggregates.length > 0) {
-            const groupBy = canonical.groupBy || [];
+            const groupBy: any[] = canonical.groupBy || [];
             const metrics: Record<string, any> = {};
             for (const a of canonical.aggregates) {
-                if (a.func === 'COUNT') continue; // use bucket doc_count
-                const field = a.column;
-                if (a.func === 'SUM') metrics[a.alias] = { sum: { field } };
-                else if (a.func === 'MIN') metrics[a.alias] = { min: { field } };
-                else if (a.func === 'MAX') metrics[a.alias] = { max: { field } };
-                else if (a.func === 'AVG') metrics[a.alias] = { avg: { field } };
-                else if (a.func === 'COUNT_DISTINCT') metrics[a.alias] = { cardinality: { field } };
+                const m = ElasticsearchConnector.metricAgg(a);
+                if (m) metrics[a.alias] = m;
             }
-            const countAlias = canonical.aggregates.find((a) => a.func === 'COUNT')?.alias;
-            // Build nested terms aggs from the group columns.
+            const countAlias = canonical.aggregates.find((a: any) => a.func === 'COUNT')?.alias;
+            // Nest bucket aggs from the group columns (string → terms; {field,dateInterval} → date_histogram).
             let aggs: any = metrics;
             for (let i = groupBy.length - 1; i >= 0; i--) {
-                aggs = { [`g_${i}`]: { terms: { field: groupBy[i], size: 10000 }, aggs } };
+                const g = groupBy[i];
+                const bucket = (g && typeof g === 'object' && g.dateInterval)
+                    ? { date_histogram: { field: g.field, calendar_interval: g.dateInterval } }
+                    : { terms: { field: typeof g === 'object' ? g.field : g, size: 10000 } };
+                aggs = { [`g_${i}`]: { ...bucket, aggs } };
             }
             const body = { size: 0, query, aggs: groupBy.length ? aggs : metrics };
             console.log(`[ElasticsearchConnector] Pushdown aggregate on ${index}: ${JSON.stringify(body)}`);
@@ -480,21 +592,64 @@ export class ElasticsearchConnector implements IConnector {
         const body: any = { query };
         if (canonical.select && canonical.select.length && !canonical.select.includes('*')) body._source = canonical.select;
         if (canonical.orderBy && canonical.orderBy.length) body.sort = canonical.orderBy.map((o) => ({ [o.field]: (o.dir === 'DESC' ? 'desc' : 'asc') }));
-        body.size = typeof canonical.limit === 'number' ? canonical.limit : 1000;
-        if (typeof canonical.offset === 'number') body.from = canonical.offset;
+        // Elasticsearch rejects from+size beyond index.max_result_window (default 10000).
+        const MAX_ES_WINDOW = 10000;
+        const from = typeof canonical.offset === 'number' ? Math.max(0, canonical.offset) : 0;
+        const want = typeof canonical.limit === 'number' ? canonical.limit : 1000;
+        body.size = Math.max(0, Math.min(want, MAX_ES_WINDOW - from));
+        if (from) body.from = from;
         console.log(`[ElasticsearchConnector] Pushdown search on ${index}: ${JSON.stringify(body)}`);
         const data = await this.req('POST', `/${index}/_search`, body);
-        return (data.hits?.hits || []).map((h: any) => ({ _id: h._id, ...h._source }));
+        // Surface the relevance _score alongside the document source (0 when unscored).
+        return (data.hits?.hits || []).map((h: any) => ({ _id: h._id, _score: h._score, ...h._source }));
     }
 
-    /** Recursively flatten nested terms buckets into flat rows. */
-    private flattenAggs(node: any, groupBy: string[], aggregates: any[], countAlias: string | undefined, depth: number, carry: Record<string, any>): any[] {
+    /**
+     * Native SQL against Elasticsearch's `_sql` endpoint (SQL mode). Lets
+     * /api/queries/exec run SELECT/WHERE/GROUP BY/aggregate SQL directly on ES.
+     * ES SQL is a read-only subset: no JOINs; full-text via MATCH()/QUERY().
+     */
+    async rawQuery(sql: string): Promise<any[]> {
+        console.log(`[ElasticsearchConnector] _sql: ${String(sql).slice(0, 200)}`);
+        const data = await this.req('POST', `/_sql?format=json`, { query: sql });
+        const cols: string[] = (data.columns || []).map((c: any) => c.name);
+        return (data.rows || []).map((r: any[]) => Object.fromEntries(cols.map((c, i) => [c, r[i]])));
+    }
+
+    // --- write support (used by the /api/data CRUD endpoints) ---
+    async insertDocs(_schema: string, index: string, docs: any[]): Promise<any> {
+        const lines: string[] = [];
+        for (const d of docs) {
+            const { _id, ...src } = d;
+            lines.push(JSON.stringify(_id != null ? { index: { _index: index, _id: String(_id) } } : { index: { _index: index } }));
+            lines.push(JSON.stringify(src));
+        }
+        const res = await this.req('POST', `/_bulk?refresh=true`, lines.join('\n') + '\n', 'application/x-ndjson');
+        const items = res.items || [];
+        return { insertedCount: items.filter((i: any) => i.index && i.index.status < 300).length };
+    }
+    async updateDocs(_schema: string, index: string, filter: Record<string, any>, set: Record<string, any>): Promise<any> {
+        const src = Object.keys(set).map((k) => `ctx._source["${k}"] = params["${k}"]`).join('; ');
+        const body = { query: ElasticsearchConnector.buildQuery(filter), script: { source: src, params: set } };
+        const res = await this.req('POST', `/${index}/_update_by_query?refresh=true`, body);
+        return { modifiedCount: res.updated || 0 };
+    }
+    async deleteDocs(_schema: string, index: string, filter: Record<string, any>): Promise<any> {
+        const res = await this.req('POST', `/${index}/_delete_by_query?refresh=true`, { query: ElasticsearchConnector.buildQuery(filter) });
+        return { deletedCount: res.deleted || 0 };
+    }
+
+    /** Recursively flatten nested (terms | date_histogram) buckets into flat rows. */
+    private flattenAggs(node: any, groupBy: any[], aggregates: any[], countAlias: string | undefined, depth: number, carry: Record<string, any>): any[] {
         if (depth < groupBy.length) {
             const bucketAgg = node[`g_${depth}`];
             const out: any[] = [];
-            const gcol = groupBy[depth] as string;
+            const g = groupBy[depth];
+            // For a date_histogram, key the output column by the field name and use the readable key.
+            const gcol = (g && typeof g === 'object') ? g.field : g;
             for (const b of bucketAgg?.buckets || []) {
-                out.push(...this.flattenAggs(b, groupBy, aggregates, countAlias, depth + 1, { ...carry, [gcol]: b.key }));
+                const key = b.key_as_string !== undefined ? b.key_as_string : b.key;
+                out.push(...this.flattenAggs(b, groupBy, aggregates, countAlias, depth + 1, { ...carry, [gcol]: key }));
             }
             return out;
         }
@@ -502,6 +657,7 @@ export class ElasticsearchConnector implements IConnector {
         const row: any = { ...carry };
         for (const a of aggregates) {
             if (a.func === 'COUNT') row[a.alias] = node.doc_count;
+            else if (a.func === 'PERCENTILE') { const v = node[a.alias]?.values || {}; row[a.alias] = v[Object.keys(v)[0] as string]; }
             else row[a.alias] = node[a.alias]?.value;
         }
         return [row];

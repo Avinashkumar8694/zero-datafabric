@@ -1,0 +1,84 @@
+{
+  "version": "4.0",
+  "namespace": "Combined_Example",
+  "targetSource": "Fabric_Hub_Postgres",
+  "schemas": [
+    {
+      "name": "Combined_Example",
+      "targetSource": "Fabric_Hub_Postgres",
+      "resources": [
+        { "type": "ENUM", "name": "order_state", "values": ["NEW", "PAID", "SHIPPED"] },
+        { "type": "SEQUENCE", "name": "inv_seq", "start": 1, "increment": 1 },
+        {
+          "type": "TABLE",
+          "name": "clients",
+          "columns": [
+            { "name": "id", "type": "UUID", "strategy": "UUID_V7", "primaryKey": true },
+            { "name": "name", "type": "STRING", "length": 120 },
+            { "name": "region", "type": "STRING", "length": 10 }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "invoices",
+          "columns": [
+            { "name": "id", "type": "UUID", "strategy": "UUID_V7", "primaryKey": true },
+            { "name": "client_id", "type": "UUID" },
+            { "name": "state", "type": "ENUM", "ref": "order_state", "default": "NEW" },
+            { "name": "amount", "type": "NUMERIC" },
+            { "name": "created_at", "type": "TIMESTAMP", "default": "NOW()" }
+          ],
+          "triggers": [
+            { "name": "trg_invoice_audit", "timing": "AFTER", "events": ["INSERT", "UPDATE"],
+              "execution": "row", "procedure": "audit_log_fn" }
+          ]
+        },
+        {
+          "type": "FUNCTION",
+          "name": "invoice_total",
+          "arguments": [ { "name": "p_client", "type": "UUID" } ],
+          "returnType": "NUMERIC",
+          "body": "DECLARE t NUMERIC; BEGIN SELECT COALESCE(sum(amount),0) INTO t FROM invoices WHERE client_id = p_client; RETURN t; END;"
+        },
+        {
+          "type": "PROCEDURE",
+          "name": "mark_paid",
+          "parameters": [ { "name": "p_id", "type": "UUID", "mode": "IN" } ],
+          "body": "UPDATE invoices SET state = 'PAID' WHERE id = p_id;"
+        },
+        {
+          "type": "VIEW",
+          "name": "client_invoice_summary",
+          "query": {
+            "select": [
+              { "column": "c.region" },
+              { "aggregate": "SUM", "column": "i.amount", "alias": "revenue" }
+            ],
+            "from": { "resource": "clients", "alias": "c" },
+            "joins": [
+              { "type": "LEFT", "resource": "invoices", "alias": "i",
+                "on": { "left": "c.id", "operator": "EQ", "right": "i.client_id" } }
+            ],
+            "groupBy": ["c.region"]
+          }
+        },
+        {
+          "type": "MATERIALIZED_VIEW",
+          "name": "clients_by_region",
+          "refreshStrategy": "CONCURRENTLY",
+          "query": {
+            "select": [ { "column": "region" }, { "aggregate": "COUNT", "alias": "n" } ],
+            "from": { "resource": "clients" },
+            "groupBy": ["region"]
+          },
+          "indexes": [ { "columns": ["region"], "unique": true } ]
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    { "name": "rel_client_invoices", "cardinality": "1:M",
+      "from": { "resource": "clients", "field": "id" },
+      "to":   { "resource": "invoices", "field": "client_id" } }
+  ]
+}

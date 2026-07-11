@@ -194,9 +194,24 @@
         return Number.isFinite(n) && n > 0 ? n : 100;
     }
 
-    // Ensure a SELECT is bounded: append LIMIT when the user hasn't written one.
+    // Strip SQL comments (-- line and /* block */) and whitespace to find the real statement.
+    function stripSqlComments(sql) {
+        return String(sql || '')
+            .replace(/\/\*[\s\S]*?\*\//g, ' ')
+            .replace(/--[^\n]*/g, ' ')
+            .trim();
+    }
+    // Is there an actual executable SQL statement (not just comments)?
+    function hasExecutableSql(sql) {
+        return stripSqlComments(sql).length > 0;
+    }
+
+    // Ensure a SELECT is bounded: append LIMIT only to a real SELECT/WITH with no LIMIT.
     function applyLimitToSql(sql, limit) {
-        if (/\blimit\s+\d+/i.test(sql)) return sql;
+        const body = stripSqlComments(sql);
+        if (/\blimit\s+\d+/i.test(body)) return sql;
+        // Only SELECT/WITH (read) statements get an auto-LIMIT; never comments, DDL, or calls.
+        if (!/^\s*(select|with)\b/i.test(body)) return sql;
         const trimmed = sql.replace(/;\s*$/, '');
         return `${trimmed}\nLIMIT ${limit};`;
     }
@@ -395,6 +410,11 @@
             if (mode === 'SQL') {
                 let sql = document.getElementById('sqlEditor').value.trim();
                 if (!sql) throw new Error('SQL editor is empty.');
+                // Guard: a comment-only editor (e.g. a "not executable via the fabric" note for a
+                // remote sequence/function) must NOT be sent — it produced a "syntax error at LIMIT".
+                if (!hasExecutableSql(sql)) {
+                    throw new Error('Nothing to run — this object is not executable via SQL here. For remote sequences/functions, use the source engine; for remote tables/views switch to AST mode.');
+                }
                 sql = applyLimitToSql(sql, limit);
 
                 if (execMode === 'async') {
@@ -621,8 +641,67 @@
         document.getElementById('astEditor').value = ast;
         setMode(mode);
 
-        // Additional step: show a column-level detail panel for relational objects.
-        renderTableDetail(item);
+        // Detail panel: columns for relational objects; usage/signature for function/procedure/sequence/enum.
+        if (selectable) renderTableDetail(item);
+        else if (['FUNCTION', 'PROCEDURE', 'SEQUENCE', 'ENUM'].includes(rt)) renderObjectUsage(item, isLocal);
+        else document.getElementById('wbDetail').style.display = 'none';
+    }
+
+    // Usage/signature panel for non-relational objects — shows HOW to use them and
+    // pre-fills a runnable call (for hub objects) with the object's real arguments.
+    async function renderObjectUsage(item, isLocal) {
+        const panel = document.getElementById('wbDetail');
+        const titleEl = document.getElementById('wbDetailTitle');
+        const bodyEl = document.getElementById('wbDetailBody');
+        const btn = document.querySelector('.wb-detail-toggle');
+        bodyEl.classList.remove('collapsed'); if (btn) btn.textContent = '–';
+        panel.style.display = 'block';
+        titleEl.innerHTML = `${escapeHtml(item.name)}<span class="wb-cap">${escapeHtml(item.resourceType)}</span>`;
+        bodyEl.innerHTML = '<div class="wb-muted" style="padding:0.75rem;">Loading usage…</div>';
+        const gen = ++detailGeneration;
+        const q = `"${item.schemaPhysical}"."${item.name}"`;
+        try {
+            const res = await fetch(`${API_BASE}/metadata/resource/${encodeURIComponent(item.tableId)}`, { headers: getAuthHeaders() });
+            const r = await res.json();
+            if (gen !== detailGeneration) return;
+            const ast = r && r.definitionAst && typeof r.definitionAst === 'object' ? r.definitionAst : {};
+            const rt = item.resourceType;
+
+            if (rt === 'FUNCTION' || rt === 'PROCEDURE') {
+                const params = ast.arguments || ast.parameters || [];
+                const inParams = params.filter((p) => String(p.mode || 'IN').toUpperCase() !== 'OUT');
+                const rows = params.map((p) => `<tr><td>${escapeHtml(p.name)}</td><td class="wb-col-type">${escapeHtml(p.type)}</td><td>${escapeHtml(p.mode || 'IN')}</td></tr>`).join('')
+                    || '<tr><td colspan="3" class="wb-muted">no parameters</td></tr>';
+                bodyEl.innerHTML = `<div class="wb-usage">
+                    <div class="wb-usage-sig">${escapeHtml(item.name)}(${escapeHtml(inParams.map((p) => p.name + ' ' + p.type).join(', '))})${ast.returnType ? ' → ' + escapeHtml(ast.returnType) : ''}</div>
+                    <table class="wb-col-table"><thead><tr><th>Parameter</th><th>Type</th><th>Mode</th></tr></thead><tbody>${rows}</tbody></table>
+                    <div class="wb-muted" style="margin-top:0.4rem;">${isLocal ? 'Fill in the argument values below and press Run.' : 'Engine-local — run on the source engine.'}</div>
+                </div>`;
+                if (isLocal) {
+                    const argList = inParams.map((p) => `<${p.name}:${p.type}>`).join(', ');
+                    document.getElementById('sqlEditor').value = rt === 'PROCEDURE'
+                        ? `CALL ${q}(${argList});`
+                        : `SELECT ${q}(${argList});`;
+                }
+            } else if (rt === 'SEQUENCE') {
+                bodyEl.innerHTML = `<div class="wb-usage">
+                    <div class="wb-usage-sig">${escapeHtml(item.name)} — start ${escapeHtml(ast.start ?? 1)}, increment ${escapeHtml(ast.increment ?? 1)}</div>
+                    <div class="wb-muted">Usage: <code>SELECT nextval('${escapeHtml(item.schemaPhysical)}.${escapeHtml(item.name)}')</code> · currval() · setval()</div>
+                    <div class="wb-muted" style="margin-top:0.4rem;">${isLocal ? 'Press Run to get the next value.' : 'Engine-local — run on the source engine.'}</div>
+                </div>`;
+                if (isLocal) document.getElementById('sqlEditor').value = `SELECT nextval('${item.schemaPhysical}.${item.name}');`;
+            } else if (rt === 'ENUM') {
+                const vals = Array.isArray(ast.values) ? ast.values : [];
+                bodyEl.innerHTML = `<div class="wb-usage">
+                    <div class="wb-usage-sig">${escapeHtml(item.name)} — enum type</div>
+                    <div>${vals.map((v) => `<span class="wb-plan-note">${escapeHtml(v)}</span>`).join(' ') || '<span class="wb-muted">values loaded on run</span>'}</div>
+                </div>`;
+                if (isLocal) document.getElementById('sqlEditor').value = `SELECT unnest(enum_range(NULL::"${item.schemaPhysical}"."${item.name}")) AS value;`;
+            }
+        } catch (err) {
+            if (gen !== detailGeneration) return;
+            bodyEl.innerHTML = `<div class="wb-error" style="display:block;">Usage load failed: ${escapeHtml(err.message)}</div>`;
+        }
     }
 
     // Feature 1: table/view detail panel (columns + keys). Hidden for non-relational objects.

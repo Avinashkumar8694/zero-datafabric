@@ -28,7 +28,7 @@
  */
 
 import { queryWithContext } from '../../config/database';
-import { ConnectorFactory } from '../metadata/connectors/factory';
+import { ConnectorFactory, ElasticsearchConnector } from '../metadata/connectors/factory';
 import { PushdownCompiler, CanonicalQuery } from './pushdown';
 import { QueryPlan, QueryPlanner, LOCAL_SOURCE, ResolvedLeg } from './planner';
 import { parseAggregates, partialSpec, mergePartials, aggregateRaw, AggregatePlan } from './aggregate';
@@ -51,6 +51,8 @@ const AST_OP_TO_CANONICAL: Record<string, string> = {
   LT: '$lt', '<': '$lt',
   LTE: '$lte', '<=': '$lte',
   LIKE: '$like', ILIKE: '$ilike', IN: '$in',
+  MATCH: '$match', SEARCH: '$match', CONTAINS: '$match',
+  FUZZY: '$fuzzy',
 };
 
 function baseColumn(path: string): string {
@@ -67,10 +69,37 @@ function readColumn(row: any, path: string): any {
   return row[baseColumn(path)];
 }
 
+/**
+ * Structured, per-leg record of what actually executed at each source. This is
+ * the evidence that the fabric pushed work to the right engine (with the real
+ * pushed-down query + how many rows came back + how long it took) rather than
+ * fetching whole tables and filtering in memory.
+ */
+export interface LegTrace {
+  source: string;
+  engine: string;
+  /** 'local' = executed inside the tenant Postgres hub; 'connector' = pushed to the remote engine */
+  mode: 'local' | 'connector';
+  /** what role this leg played: scan / set-op-leg / join-driving / bind-join / partial-aggregate / aggregate */
+  operation: string;
+  /** physical location the query hit (schema.table or db.collection) */
+  target: string;
+  /** the ACTUAL request pushed to the source (SQL text or Mongo find/aggregate spec) */
+  query: string;
+  /** bound parameters for the pushed SQL, when applicable */
+  params?: any[];
+  /** number of rows the source returned for this leg */
+  rowsReturned: number;
+  /** wall-clock milliseconds spent fetching this leg */
+  ms: number;
+}
+
 export interface FederationResult {
   data: any[];
   warnings: string[];
   pushed: string[];
+  /** per-leg execution trace (proof of where each query ran and what it pushed) */
+  trace: LegTrace[];
 }
 
 interface LegMeta {
@@ -103,7 +132,9 @@ export class FederationExecutor {
       for (const w of legAst.where) {
         if (!w || !w.column || w.expression || w.search) { pushable = false; break; }
         const op = AST_OP_TO_CANONICAL[String(w.operator || 'EQ').toUpperCase()] || '$eq';
-        filter[w.column] = { [op]: w.value };
+        // Merge — a column may carry multiple predicates (e.g. a range col>=x AND col<=y);
+        // keying by column and overwriting would silently drop one bound.
+        filter[w.column] = { ...(filter[w.column] || {}), [op]: w.value };
       }
       if (pushable) canonical.filter = filter;
     }
@@ -126,7 +157,9 @@ export class FederationExecutor {
     ref: { source: string; resource: string; canonical: CanonicalQuery },
     plan: QueryPlan,
     tenantSchema: string,
-    warnings: string[]
+    warnings: string[],
+    trace: LegTrace[],
+    operation = 'scan'
   ): Promise<any[]> {
     const key = `${ref.source}::${ref.resource}`;
     const leg: ResolvedLeg = plan.resolveMap[key] || (await QueryPlanner.resolveLeg(tenantId, ref.source, ref.resource));
@@ -139,27 +172,78 @@ export class FederationExecutor {
 
     const useLocal = leg.source === LOCAL_SOURCE || leg.syncType === 'SYNC' || leg.syncType === 'CDC';
 
+    const started = Date.now();
     let rows: any[];
+    let queryText: string;
+    let queryParams: any[] | undefined;
+    let target: string;
+
     if (useLocal) {
       const schema = leg.source === LOCAL_SOURCE ? tenantSchema : (leg.physicalSchema || tenantSchema);
-      const compiled = PushdownCompiler.toSql({ ...bounded, schema, table: leg.physicalTable || ref.resource, dialect: 'postgres' });
+      const table = leg.physicalTable || ref.resource;
+      target = `${schema}.${table}`;
+      const compiled = PushdownCompiler.toSql({ ...bounded, schema, table, dialect: 'postgres' });
+      queryText = compiled.text;
+      queryParams = compiled.params;
       console.log(`[Federation] local leg ${ref.source}.${ref.resource}: ${compiled.text} :: ${JSON.stringify(compiled.params)}`);
       const res = await queryWithContext(compiled.text, compiled.params, { tenantId, username: 'system' });
       rows = res.rows;
     } else {
-      console.log(`[Federation] connector leg ${ref.source}.${ref.resource} (${leg.engine}) filter=${JSON.stringify(bounded.filter || {})}`);
+      const schema = leg.physicalSchema || tenantSchema;
+      const table = leg.physicalTable || ref.resource;
+      target = `${schema}.${table}`;
+      // Compile a faithful preview of what the connector pushes to the remote engine.
+      const preview = this.previewConnectorQuery(leg.engine, { ...bounded, schema, table });
+      queryText = preview.text;
+      queryParams = preview.params;
+      console.log(`[Federation] connector leg ${ref.source}.${ref.resource} (${leg.engine}): ${queryText}`);
       const connector = ConnectorFactory.getConnector(leg.engine, leg.config);
       try {
-        rows = await connector.query(leg.physicalSchema || tenantSchema, leg.physicalTable || ref.resource, bounded);
+        rows = await connector.query(schema, table, bounded);
       } finally {
         await connector.close();
       }
     }
 
+    const ms = Date.now() - started;
+    const entry: LegTrace = {
+      source: ref.source, engine: leg.engine, mode: useLocal ? 'local' : 'connector',
+      operation, target, query: queryText, rowsReturned: rows.length, ms,
+    };
+    if (queryParams && queryParams.length) entry.params = queryParams;
+    trace.push(entry);
+
     if (rows.length >= cap && !hadExplicitSmallerLimit) {
       warnings.push(`Leg "${ref.source}.${ref.resource}" reached the ${cap}-row federation cap and was truncated; add filters or a smaller limit for complete results.`);
     }
     return rows;
+  }
+
+  /** Faithful string preview of the request a connector pushes to its remote engine. */
+  private static previewConnectorQuery(
+    engine: string, input: CanonicalQuery & { schema: string; table: string }
+  ): { text: string; params?: any[] } {
+    const eng = String(engine || '').toUpperCase();
+    const hasAgg = Array.isArray(input.aggregates) && input.aggregates.length > 0;
+    try {
+      if (eng === 'MONGODB') {
+        if (hasAgg) return { text: `db.${input.table}.aggregate(${JSON.stringify(PushdownCompiler.toMongoAggregate(input))})` };
+        const m = PushdownCompiler.toMongo(input);
+        const parts = [`filter: ${JSON.stringify(m.filter)}`];
+        if (m.projection) parts.push(`project: ${JSON.stringify(m.projection)}`);
+        if (m.sort) parts.push(`sort: ${JSON.stringify(m.sort)}`);
+        if (typeof m.limit === 'number') parts.push(`limit: ${m.limit}`);
+        return { text: `db.${input.table}.find({ ${parts.join(', ')} })` };
+      }
+      if (eng === 'ELASTICSEARCH' || eng === 'ELASTIC' || eng === 'ES') {
+        return { text: ElasticsearchConnector.previewBody(input, input.table) };
+      }
+      const dialect = eng === 'MYSQL' ? 'mysql' : eng === 'SNOWFLAKE' ? 'snowflake' : 'postgres';
+      const compiled = PushdownCompiler.toSql({ ...input, dialect });
+      return { text: compiled.text, params: compiled.params };
+    } catch {
+      return { text: `${input.schema}.${input.table} [${JSON.stringify(input.filter || {})}]` };
+    }
   }
 
   // ---------- set operations ----------
@@ -186,7 +270,7 @@ export class FederationExecutor {
   }
 
   private static async executeSetOp(
-    tenantId: string, ast: any, plan: QueryPlan, tenantSchema: string, warnings: string[], pushed: string[]
+    tenantId: string, ast: any, plan: QueryPlan, tenantSchema: string, warnings: string[], pushed: string[], trace: LegTrace[]
   ): Promise<any[]> {
     const op = ast.union ? 'UNION' : ast.intersect ? 'INTERSECT' : 'EXCEPT';
     const legs: any[] = ast.union || ast.intersect || ast.except;
@@ -196,7 +280,7 @@ export class FederationExecutor {
       if (Array.isArray(leg.joins) && leg.joins.length) throw new Error('FederationExecutor: nested JOIN inside a set-op leg is not supported');
       const canonical = this.astLegToCanonical(leg);
       pushed.push(`${op} leg ${leg.from?.source || LOCAL_SOURCE}.${leg.from?.resource}: pushed ${Object.keys(canonical.filter || {}).length} predicate(s)`);
-      legResults.push(await this.fetchLegDirect(tenantId, { source: leg.from?.source || LOCAL_SOURCE, resource: leg.from?.resource, canonical }, plan, tenantSchema, warnings));
+      legResults.push(await this.fetchLegDirect(tenantId, { source: leg.from?.source || LOCAL_SOURCE, resource: leg.from?.resource, canonical }, plan, tenantSchema, warnings, trace, `${op.toLowerCase()}-leg`));
     }
 
     const first: any[] = legResults[0] || [];
@@ -229,7 +313,9 @@ export class FederationExecutor {
     const aliasSet = new Set(legMetas.map((l) => l.alias));
     const perAlias: Record<string, Record<string, any>> = {};
     const addFilter = (alias: string, col: string, op: string, value: any) => {
-      (perAlias[alias] ||= {})[col] = { [op]: value };
+      const f = (perAlias[alias] ||= {});
+      // Merge multiple predicates on the same column (e.g. a range) instead of overwriting.
+      f[col] = { ...(f[col] && typeof f[col] === 'object' ? f[col] : {}), [op]: value };
     };
 
     // 1. Attribute qualified WHERE conjuncts to their leg.
@@ -289,7 +375,7 @@ export class FederationExecutor {
   }
 
   private static async executeJoin(
-    tenantId: string, ast: any, plan: QueryPlan, tenantSchema: string, warnings: string[], pushed: string[]
+    tenantId: string, ast: any, plan: QueryPlan, tenantSchema: string, warnings: string[], pushed: string[], trace: LegTrace[]
   ): Promise<any[]> {
     const fromAlias = ast.from.alias || ast.from.resource;
     const legMetas: LegMeta[] = [
@@ -305,7 +391,7 @@ export class FederationExecutor {
     const drivingFilter = legFilters[driving.alias];
     if (drivingFilter && Object.keys(drivingFilter).length) pushed.push(`pushed ${Object.keys(drivingFilter).length} predicate(s) to ${driving.source}.${driving.resource}`);
     let acc = this.qualify(
-      await this.fetchLegDirect(tenantId, { source: driving.source, resource: driving.resource, canonical: { filter: drivingFilter } }, plan, tenantSchema, warnings),
+      await this.fetchLegDirect(tenantId, { source: driving.source, resource: driving.resource, canonical: { filter: drivingFilter } }, plan, tenantSchema, warnings, trace, 'join-driving'),
       driving.alias
     );
 
@@ -340,8 +426,9 @@ export class FederationExecutor {
         pushed.push(`non-equi join to ${lm.source}.${lm.resource}: bind-join not applicable, bounded fetch`);
       }
 
+      const didBind = !!(filter[rightBaseCol] && typeof filter[rightBaseCol] === 'object' && '$in' in filter[rightBaseCol]);
       const right = skipFetch ? [] : this.qualify(
-        await this.fetchLegDirect(tenantId, { source: lm.source, resource: lm.resource, canonical: { filter } }, plan, tenantSchema, warnings),
+        await this.fetchLegDirect(tenantId, { source: lm.source, resource: lm.resource, canonical: { filter } }, plan, tenantSchema, warnings, trace, didBind ? 'bind-join' : 'join-probe'),
         lm.alias
       );
 
@@ -382,7 +469,7 @@ export class FederationExecutor {
    */
   private static async fanAggregate(
     tenantId: string, ast: any, legs: any[], plan: AggregatePlan, qplan: QueryPlan, tenantSchema: string,
-    warnings: string[], pushed: string[]
+    warnings: string[], pushed: string[], trace: LegTrace[]
   ): Promise<any[]> {
     const partial = partialSpec(plan);
     const allPartials: any[] = [];
@@ -390,7 +477,7 @@ export class FederationExecutor {
       const legCanon = this.astLegToCanonical(leg);
       const canonical: CanonicalQuery = { filter: legCanon.filter, groupBy: partial.groupBy, aggregates: partial.aggregates };
       pushed.push(`partial aggregate [${partial.aggregates.map((a) => a.func).join(',')}] GROUP BY [${partial.groupBy.join(',')}] pushed to ${leg.from?.source || LOCAL_SOURCE}.${leg.from?.resource}`);
-      const rows = await this.fetchLegDirect(tenantId, { source: leg.from?.source || LOCAL_SOURCE, resource: leg.from?.resource, canonical }, qplan, tenantSchema, warnings);
+      const rows = await this.fetchLegDirect(tenantId, { source: leg.from?.source || LOCAL_SOURCE, resource: leg.from?.resource, canonical }, qplan, tenantSchema, warnings, trace, 'partial-aggregate');
       allPartials.push(...rows);
     }
     pushed.push(`merged ${allPartials.length} partial-group rows across ${legs.length} sources`);
@@ -451,6 +538,7 @@ export class FederationExecutor {
   static async execute(tenantId: string, ast: any, plan: QueryPlan, tenantSchema: string): Promise<FederationResult> {
     const warnings: string[] = [];
     const pushed: string[] = [];
+    const trace: LegTrace[] = [];
     let data: any[];
 
     const outerPlan = parseAggregates(ast.select, ast.groupBy);
@@ -461,12 +549,12 @@ export class FederationExecutor {
       const legPlans = legs.map((l) => parseAggregates(l.select, l.groupBy));
       if (isUnion && legs.length > 0 && legPlans.every((p) => p && p.aggregates.length > 0)) {
         // Multi-source aggregate: push partial aggregates per source, merge in-fabric.
-        data = await this.fanAggregate(tenantId, ast, legs, legPlans[0]!, plan, tenantSchema, warnings, pushed);
+        data = await this.fanAggregate(tenantId, ast, legs, legPlans[0]!, plan, tenantSchema, warnings, pushed, trace);
       } else {
-        data = await this.executeSetOp(tenantId, ast, plan, tenantSchema, warnings, pushed);
+        data = await this.executeSetOp(tenantId, ast, plan, tenantSchema, warnings, pushed, trace);
       }
     } else if (Array.isArray(ast.joins) && ast.joins.length > 0) {
-      const joined = await this.executeJoin(tenantId, ast, plan, tenantSchema, warnings, pushed);
+      const joined = await this.executeJoin(tenantId, ast, plan, tenantSchema, warnings, pushed, trace);
       if (outerPlan) {
         pushed.push(`post-join aggregate: grouped ${joined.length} joined rows by [${outerPlan.groupCols.join(',')}]`);
         data = this.applyOrderLimit(aggregateRaw(joined, outerPlan), ast);
@@ -476,18 +564,20 @@ export class FederationExecutor {
     } else {
       // Single connector leg. Push the FULL aggregate to the one source when present.
       const canonical = this.astLegToCanonical(ast);
+      let op = 'scan';
       if (outerPlan && (outerPlan.aggregates.length > 0 || outerPlan.groupCols.length > 0)) {
         canonical.groupBy = outerPlan.groupCols;
         canonical.aggregates = outerPlan.aggregates;
         delete canonical.select;
+        op = 'aggregate';
         pushed.push(`pushed aggregate [${outerPlan.aggregates.map((a) => a.func).join(',')}] GROUP BY [${outerPlan.groupCols.join(',')}] to ${ast.from?.source || LOCAL_SOURCE}.${ast.from?.resource}`);
       } else {
         pushed.push(`pushed ${Object.keys(canonical.filter || {}).length} predicate(s) to ${ast.from?.source || LOCAL_SOURCE}.${ast.from?.resource}`);
       }
-      data = await this.fetchLegDirect(tenantId, { source: ast.from?.source || LOCAL_SOURCE, resource: ast.from?.resource, canonical }, plan, tenantSchema, warnings);
+      data = await this.fetchLegDirect(tenantId, { source: ast.from?.source || LOCAL_SOURCE, resource: ast.from?.resource, canonical }, plan, tenantSchema, warnings, trace, op);
       data = this.applyOrderLimit(data, ast);
     }
 
-    return { data, warnings, pushed };
+    return { data, warnings, pushed, trace };
   }
 }

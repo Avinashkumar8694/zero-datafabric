@@ -4,7 +4,7 @@ import { ConnectorFactory } from '../metadata/connectors/factory';
 import { QueryTranspiler } from '../metadata/query_transpiler';
 import { randomUUID } from 'crypto';
 import { ElasticsearchMutationWorker } from '../metadata/es_mutation_worker';
-import { QueryPlanner } from './planner';
+import { QueryPlanner, LOCAL_SOURCE } from './planner';
 import { FederationExecutor } from './federation';
 
 export interface QueryConfig {
@@ -183,16 +183,24 @@ export class QueryEngineService {
       // Plan HOW to execute across sources instead of assuming everything is local Postgres.
       const plan = await QueryPlanner.classify(tenantId, ast);
       console.log(`[QueryEngine] AST strategy=${plan.strategy} :: ${plan.pushed.join('; ')}`);
-      const planMeta = { strategy: plan.strategy, pushed: plan.pushed };
 
       if (plan.strategy === 'SINGLE_CONNECTOR' || plan.strategy === 'CROSS_ENGINE') {
         // Each leg is fetched from its own engine WITH pushdown (predicate + bind-join),
         // then combined in-memory.
+        const startedAt = Date.now();
         const fed = await FederationExecutor.execute(tenantId, ast, plan, schemaName);
+        const executionMs = Date.now() - startedAt;
         return {
           data: fed.data,
           rowCount: fed.data.length,
-          plan: { strategy: plan.strategy, pushed: [...plan.pushed, ...fed.pushed] },
+          plan: {
+            strategy: plan.strategy,
+            pushed: [...plan.pushed, ...fed.pushed],
+            legs: fed.trace,
+            executionMs,
+            // headline proof: total rows pulled from all sources vs. rows returned to the caller
+            rowsScannedAcrossSources: fed.trace.reduce((n, l) => n + l.rowsReturned, 0),
+          },
           warnings: [...plan.warnings, ...fed.warnings],
         };
       }
@@ -205,8 +213,23 @@ export class QueryEngineService {
       if (hasLimit && !/\sLIMIT\s+\d+/i.test(sql)) {
         sql = `${sql} LIMIT ${config.limit}`;
       }
+      const startedAt = Date.now();
       const result = await queryWithContext(sql, [], { tenantId, username: 'system' });
-      return { data: result.rows, rowCount: result.rowCount, plan: planMeta, warnings: plan.warnings };
+      const executionMs = Date.now() - startedAt;
+      return {
+        data: result.rows,
+        rowCount: result.rowCount,
+        plan: {
+          strategy: plan.strategy,
+          pushed: plan.pushed,
+          executionMs,
+          legs: [{
+            source: LOCAL_SOURCE, engine: 'POSTGRES', mode: 'local', operation: 'single-sql',
+            target: schemaName, query: sql, rowsReturned: result.rowCount ?? (result.rows?.length || 0), ms: executionMs,
+          }],
+        },
+        warnings: plan.warnings,
+      };
     }
 
     // SPECIAL CASE: CREATE_SCHEMA uses stored procedure for security
@@ -327,6 +350,215 @@ export class QueryEngineService {
       results: result.rows,
       safetyApplied
     };
+  }
+
+  /**
+   * Execute native SQL directly against a NAMED remote source's connector (not the hub).
+   * This lets the fabric run complex single-source analytics — window functions,
+   * recursive CTEs, materialized-view reads — AT the engine that physically owns the
+   * data (e.g. the external warehouse Postgres), returning the same trace/timing envelope
+   * as the federated path so callers can see where and how long the work ran.
+   */
+  static async executeSqlOnSource(
+    tenantId: string, sourceName: string, sql: string, params: any[] = [], schema?: string
+  ): Promise<any> {
+    const { rows } = await pool.query(
+      `SELECT type, config FROM public.data_sources WHERE tenant_id = $1 AND name = $2 LIMIT 1`,
+      [tenantId, sourceName]
+    );
+    if (!rows.length) throw new Error(`Source "${sourceName}" not found for tenant "${tenantId}"`);
+    const engine = String(rows[0].type || 'POSTGRES').toUpperCase();
+    const config = rows[0].config || {};
+    const connector: any = ConnectorFactory.getConnector(engine, config);
+    if (typeof connector.rawQuery !== 'function') {
+      await connector.close();
+      throw new Error(`Source "${sourceName}" (${engine}) does not support native SQL execution`);
+    }
+    const started = Date.now();
+    try {
+      if (schema && typeof connector.setSearchPath === 'function') await connector.setSearchPath(schema);
+      const data = await connector.rawQuery(sql, params);
+      const ms = Date.now() - started;
+      return {
+        results: data,
+        data,
+        rowCount: data.length,
+        plan: {
+          strategy: 'SINGLE_CONNECTOR_RAW',
+          executionMs: ms,
+          pushed: [`native SQL executed at ${engine} source "${sourceName}"${schema ? ` (search_path=${schema})` : ''}`],
+          legs: [{
+            source: sourceName, engine, mode: 'connector', operation: 'raw-sql',
+            target: schema || engine, query: String(sql).replace(/\s+/g, ' ').trim().slice(0, 600),
+            rowsReturned: data.length, ms,
+          }],
+        },
+      };
+    } finally {
+      await connector.close();
+    }
+  }
+
+  // ==================== Simple CRUD façade ====================
+  // Ergonomic {source, resource, where, data} wrappers over the engine, used by
+  // the /api/data endpoints. fetch reuses the full AST planner/federation path
+  // (cross-source + pushdown + trace). Writes run at the hub (with events + ES
+  // sync) or at the owning external source (remote Postgres SQL / Mongo ops).
+
+  private static SQL_OPS: Record<string, string> = {
+    $eq: '=', $ne: '!=', $gt: '>', $gte: '>=', $lt: '<', $lte: '<=', $like: 'LIKE', $ilike: 'ILIKE', $in: 'IN',
+  };
+
+  /** Safe identifier: quote a column/table name, stripping anything non-identifier. */
+  private static qIdent(name: string): string {
+    return '"' + String(name).replace(/[^a-zA-Z0-9_]/g, '') + '"';
+  }
+
+  /**
+   * Reject unsafe keys in a where/data map: column names must be plain identifiers
+   * (optionally dotted). Blocks SQL identifier break-out and MongoDB operator
+   * injection (e.g. a "$where" key enabling server-side JS).
+   */
+  private static assertSafeKeys(obj: Record<string, any> | undefined, what: string): void {
+    for (const k of Object.keys(obj || {})) {
+      if (!/^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$/.test(k)) {
+        throw new Error(`SAFETY: invalid ${what} field name "${k}".`);
+      }
+    }
+  }
+
+  /** Build a parameterized WHERE clause from a {col: val | {$op: val}} map. */
+  private static buildWhere(where: Record<string, any>, params: any[]): string {
+    const clauses = Object.keys(where || {}).map((key) => {
+      const col = key.split('.').map((p) => `"${p.replace(/[^a-zA-Z0-9_]/g, '')}"`).join('.');
+      const raw = where[key];
+      const firstKey = (raw !== null && typeof raw === 'object' && !Array.isArray(raw)) ? Object.keys(raw)[0] : undefined;
+      const isOp = !!firstKey && firstKey.startsWith('$');
+      const op = isOp ? firstKey! : '$eq';
+      const val = isOp ? raw[firstKey!] : raw;
+      const sqlOp = this.SQL_OPS[op] || '=';
+      if (op === '$in' && Array.isArray(val)) {
+        if (!val.length) return '1=0';
+        return `${col} IN (${val.map((v) => { params.push(v); return `$${params.length}`; }).join(', ')})`;
+      }
+      if (op === '$match') { params.push('%' + String(val) + '%'); return `${col} ILIKE $${params.length}`; }
+      params.push(val);
+      return `${col} ${sqlOp} $${params.length}`;
+    });
+    return clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
+  }
+
+  /** Simple fetch: builds an AST SELECT and runs it through the full engine. */
+  static async fetch(tenantId: string, body: any): Promise<any> {
+    const { source, schema, resource, columns, where, orderBy, limit, offset } = body;
+    if (!resource) throw new Error('resource is required');
+    this.assertSafeKeys(where, 'where');
+    const query: any = { from: { resource, ...(source ? { source } : {}) } };
+    if (Array.isArray(columns) && columns.length) query.select = columns;
+    if (where && Object.keys(where).length) {
+      query.where = Object.keys(where).map((k) => {
+        const raw = where[k];
+        const firstKey = (raw !== null && typeof raw === 'object' && !Array.isArray(raw)) ? Object.keys(raw)[0] : undefined;
+        const isOp = !!firstKey && firstKey.startsWith('$');
+        const op = isOp ? firstKey!.replace('$', '').toUpperCase() : 'EQ';
+        return { column: k, operator: op, value: isOp ? raw[firstKey!] : raw };
+      });
+    }
+    if (Array.isArray(orderBy)) query.orderBy = orderBy;
+    if (typeof offset === 'number') query.offset = offset;
+    const config: any = { type: 'SELECT', schema: schema || 'public', query, limit: typeof limit === 'number' ? limit : 100 };
+    return this.executeQuery(tenantId, config);
+  }
+
+  /** Simple create/update/delete against the hub or an external source. */
+  static async mutate(tenantId: string, op: 'create' | 'update' | 'delete', body: any): Promise<any> {
+    const { source, schema, resource, data, where } = body;
+    if (!resource) throw new Error('resource is required');
+    this.assertSafeKeys(where, 'where');
+    const dataRows = Array.isArray(data) ? data : data ? [data] : [];
+    for (const row of dataRows) this.assertSafeKeys(row, 'data');
+    if ((op === 'update' || op === 'delete') && (!where || Object.keys(where).length === 0)) {
+      throw new Error('SAFETY: update/delete require a "where" filter to avoid unrestricted mutations.');
+    }
+    if ((op === 'create' || op === 'update') && (!data || (Array.isArray(data) && !data.length))) {
+      throw new Error(`${op} requires "data".`);
+    }
+
+    const isHub = !source || source === LOCAL_SOURCE;
+    if (isHub) {
+      const typeMap = { create: 'INSERT', update: 'UPDATE', delete: 'DELETE' } as const;
+      const cfg: any = { type: typeMap[op], table: resource, schema, data, filter: where };
+      return this.executeQuery(tenantId, cfg); // hub path keeps events + ES sync + RLS
+    }
+
+    // External source.
+    const { rows } = await pool.query(
+      'SELECT type, config FROM public.data_sources WHERE tenant_id=$1 AND name=$2 LIMIT 1', [tenantId, source]);
+    if (!rows.length) throw new Error(`Source "${source}" not found for tenant "${tenantId}"`);
+    const engine = String(rows[0].type || 'POSTGRES').toUpperCase();
+    const config = rows[0].config || {};
+    // Resolve the physical schema/db from the catalog (e.g. Mongo db "retail",
+    // remote PG schema "public") instead of blindly defaulting.
+    let phys = schema;
+    if (!phys) {
+      const cat = await pool.query(
+        `SELECT cs.physical_name FROM public.catalog_tables ct
+         JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+         JOIN public.data_sources ds ON cs.source_id = ds.id
+         WHERE ds.tenant_id=$1 AND ds.name=$2 AND ct.name=$3 LIMIT 1`, [tenantId, source, resource]);
+      phys = cat.rows[0]?.physical_name || 'public';
+    }
+    const connector: any = ConnectorFactory.getConnector(engine, config);
+    const started = Date.now();
+    try {
+      if (engine === 'POSTGRES') {
+        const { sql, params } = this.buildMutationSql(op, phys, resource, data, where);
+        const out = await connector.rawQuery(sql, params);
+        const ms = Date.now() - started;
+        return {
+          rowCount: out.length, returning: out, status: 'SUCCESS',
+          plan: { strategy: 'SINGLE_CONNECTOR_WRITE', executionMs: ms,
+            legs: [{ source, engine, mode: 'connector', operation: op, target: `${phys}.${resource}`, query: sql.replace(/\s+/g, ' ').trim(), rowsReturned: out.length, ms }] },
+        };
+      }
+      // Document-store / search engines share the insertDocs/updateDocs/deleteDocs interface.
+      if (engine === 'MONGODB' || engine === 'ELASTICSEARCH') {
+        let res: any;
+        if (op === 'create') res = await connector.insertDocs(phys, resource, Array.isArray(data) ? data : [data]);
+        else if (op === 'update') res = await connector.updateDocs(phys, resource, where, data);
+        else res = await connector.deleteDocs(phys, resource, where);
+        const ms = Date.now() - started;
+        const affected = res.insertedCount ?? res.modifiedCount ?? res.deletedCount ?? 0;
+        const label = engine === 'ELASTICSEARCH'
+          ? `${resource}._${op === 'create' ? 'bulk' : op + '_by_query'}(${JSON.stringify(where || data)})`
+          : `db.${resource}.${op}(${JSON.stringify(where || data)})`;
+        return {
+          status: 'SUCCESS', result: res, rowCount: affected, ...res,
+          plan: { strategy: 'SINGLE_CONNECTOR_WRITE', executionMs: ms,
+            legs: [{ source, engine, mode: 'connector', operation: op, target: `${phys}.${resource}`, query: label, rowsReturned: affected, ms }] },
+        };
+      }
+      throw new Error(`CRUD not supported for engine "${engine}"`);
+    } finally {
+      await connector.close();
+    }
+  }
+
+  /** Generate parameterized INSERT / UPDATE / DELETE ... RETURNING * for a remote SQL source. */
+  private static buildMutationSql(op: string, schema: string, table: string, data: any, where: any): { sql: string; params: any[] } {
+    const t = `${this.qIdent(schema)}.${this.qIdent(table)}`;
+    const params: any[] = [];
+    if (op === 'create') {
+      const rowsArr = Array.isArray(data) ? data : [data];
+      const cols = Object.keys(rowsArr[0]);
+      const tuples = rowsArr.map((row) => `(${cols.map((c) => { params.push(row[c]); return `$${params.length}`; }).join(', ')})`);
+      return { sql: `INSERT INTO ${t} (${cols.map((c) => this.qIdent(c)).join(', ')}) VALUES ${tuples.join(', ')} RETURNING *`, params };
+    }
+    if (op === 'update') {
+      const sets = Object.keys(data).map((c) => { params.push(data[c]); return `${this.qIdent(c)} = $${params.length}`; }).join(', ');
+      return { sql: `UPDATE ${t} SET ${sets}${this.buildWhere(where, params)} RETURNING *`, params };
+    }
+    return { sql: `DELETE FROM ${t}${this.buildWhere(where, params)} RETURNING *`, params };
   }
 
   /**

@@ -41,8 +41,8 @@ describe('Module 2: Query Engine', () => {
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.data).toHaveProperty('status', 'SUCCESS');
-    expect(res.body.data.target).toBe(`tenant_${tenantId}`);
+    expect(res.body).toHaveProperty('status', 'SUCCESS');
+    expect(res.body.target).toBe(`tenant_${tenantId}`);
   });
 
   it('should create a table and auto-provision schema (Non-SQL AST flow)', async () => {
@@ -63,7 +63,7 @@ describe('Module 2: Query Engine', () => {
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.data).toHaveProperty('status', 'SUCCESS');
+    expect(res.body).toHaveProperty('status', 'SUCCESS');
   });
 
   it('should insert data via DML', async () => {
@@ -79,8 +79,8 @@ describe('Module 2: Query Engine', () => {
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.data).toHaveProperty('returning');
-    expect(res.body.data.returning[0]).toHaveProperty('data', 'hello jest');
+    expect(res.body).toHaveProperty('returning');
+    expect(res.body.returning[0]).toHaveProperty('data', 'hello jest');
   });
 
   it('should select data via DQL', async () => {
@@ -115,7 +115,7 @@ describe('Module 2: Query Engine', () => {
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.data.returning[0]).toHaveProperty('data', 'updated jest');
+    expect(res.body.returning[0]).toHaveProperty('data', 'updated jest');
   });
 
   it('should alter table via DDL', async () => {
@@ -135,7 +135,7 @@ describe('Module 2: Query Engine', () => {
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.data).toHaveProperty('status', 'SUCCESS');
+    expect(res.body).toHaveProperty('status', 'SUCCESS');
   });
 
   it('should execute async query', async () => {
@@ -184,7 +184,7 @@ describe('Module 2: Query Engine', () => {
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.data).toHaveProperty('status', 'SUCCESS');
+    expect(res.body).toHaveProperty('status', 'SUCCESS');
   });
 
   it('should distribute a table (Citus Specific)', async () => {
@@ -212,7 +212,7 @@ describe('Module 2: Query Engine', () => {
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.data.rowCount).toBe(1);
+    expect(res.body.rowCount).toBe(1);
   });
 
 
@@ -228,6 +228,6 @@ describe('Module 2: Query Engine', () => {
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.data).toHaveProperty('status', 'SUCCESS');
+    expect(res.body).toHaveProperty('status', 'SUCCESS');
   });
 });

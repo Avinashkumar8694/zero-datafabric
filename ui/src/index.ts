@@ -67,6 +67,10 @@ app.get('/metadata', (req, res) => {
   res.render('metadata', { title: 'Zero Data Fabric - Metadata Orchestration' });
 });
 
+app.get('/analytics', (req, res) => {
+  res.render('analytics', { title: 'Zero Data Fabric - Analytics Dashboard' });
+});
+
 app.get('/settings', (req, res) => {
   res.render('settings', { title: 'Zero Data Fabric - Settings' });
 });

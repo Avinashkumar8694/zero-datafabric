@@ -14,6 +14,7 @@ import queryRoutes from './routes/queryRoutes';
 import metadataRoutes from './routes/metadataRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
 import triggerRoutes from './routes/triggerRoutes';
+import dataRoutes from './routes/dataRoutes';
 import * as metadataController from './controllers/metadataController';
 import { ElasticsearchMutationWorker } from './modules/metadata/es_mutation_worker';
 import { initCache } from './config/cache';
@@ -69,7 +70,12 @@ const requireAdmin = (req: express.Request, res: express.Response, next: express
 };
 
 // --- BASE ROUTES ---
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customSiteTitle: 'Zero Data Fabric API',
+  swaggerOptions: { docExpansion: 'none', filter: true, tryItOutEnabled: true },
+}));
+// Raw OpenAPI spec for tooling / client generation.
+app.get('/api-docs.json', (_req, res) => { res.json(swaggerSpec); });
 
 app.get('/api/health', async (req, res) => {
   const uptime = process.uptime();
@@ -100,6 +106,7 @@ app.use('/api/admin', requireAdmin, adminRoutes);
 app.use('/api/queries', requireAuth, queryRoutes);
 app.use('/api/metadata', requireAuth, metadataRoutes);
 app.use('/api/analytics', requireAuth, analyticsRoutes);
+app.use('/api/data', requireAuth, dataRoutes);
 app.use('/api/triggers', requireAuth, triggerRoutes);
 
 // Shared Global Events API

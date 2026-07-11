@@ -1,0 +1,56 @@
+{
+  "version": "4.0",
+  "namespace": "Commerce_Example",
+  "targetSource": "Fabric_Hub_Postgres",
+  "consistencyMode": "SAGA",
+  "schemas": [
+    {
+      "name": "Commerce_Core",
+      "targetSource": "Fabric_Hub_Postgres",
+      "resources": [
+        {
+          "type": "TABLE",
+          "name": "buyers",
+          "columns": [
+            { "name": "id", "type": "UUID", "strategy": "UUID_V7", "primaryKey": true },
+            { "name": "name", "type": "STRING", "length": 120 },
+            { "name": "tier", "type": "STRING", "length": 20 }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "purchases",
+          "columns": [
+            { "name": "id", "type": "UUID", "strategy": "UUID_V7", "primaryKey": true },
+            { "name": "buyer_id", "type": "UUID" },
+            { "name": "amount", "type": "NUMERIC" },
+            { "name": "created_at", "type": "TIMESTAMP", "default": "NOW()" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Commerce_Events",
+      "targetSource": "Activity_Mongo",
+      "resources": [
+        {
+          "type": "TABLE",
+          "name": "buyer_events",
+          "columns": [
+            { "name": "buyer_id", "type": "UUID", "index": true },
+            { "name": "event", "type": "STRING" },
+            { "name": "ts", "type": "TIMESTAMP" }
+          ]
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    { "name": "rel_buyer_purchases", "cardinality": "1:M",
+      "from": { "resource": "buyers", "field": "id" },
+      "to":   { "resource": "purchases", "field": "buyer_id" } },
+    { "name": "rel_buyer_events_cross", "cardinality": "1:M",
+      "from": { "resource": "buyers", "field": "id" },
+      "to":   { "source": "Activity_Mongo", "resource": "buyer_events", "field": "buyer_id" } }
+  ]
+}

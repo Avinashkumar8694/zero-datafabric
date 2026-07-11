@@ -28,6 +28,18 @@
                     </div>
                 </div>
             </section>
+
+            <!-- Export Live Catalog -->
+            <section class="glass-card" style="background: var(--bg);">
+                <h4>Export Live Catalog</h4>
+                <p class="text-muted" style="font-size: 0.8rem; margin-bottom: 1.5rem;">Export the fabric's current schemas, tables &amp; relationships (including already-existing crawled objects) as a re-applicable manifest.</p>
+                <div style="display: flex; gap: 0.5rem; flex-direction: column;">
+                    <select id="exportSource" class="context-select" style="width: 100%; height: auto; padding: 0.5rem;">
+                        <option value="">All datasources (multi-source manifest)</option>
+                    </select>
+                    <button onclick="exportCatalog()" id="exportBtn" class="btn-primary" style="margin-top: 0.5rem;">Export Manifest</button>
+                </div>
+            </section>
         </div>
     </div>
 
@@ -59,6 +71,63 @@
 
 <script>
     let lastManifestFileName = '';
+
+    // Populate the export source picker from the live catalog.
+    async function loadExportSources() {
+        try {
+            const res = await fetch(`${API_BASE}/metadata/sources`, { headers: getAuthHeaders() });
+            if (!res.ok) return;
+            const data = await res.json();
+            const sources = Array.isArray(data) ? data : (data.sources || data.data || []);
+            const sel = document.getElementById('exportSource');
+            sources.forEach(s => {
+                const name = s.name || s;
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = `${name}${s.type ? ' (' + s.type + ')' : ''} — single source`;
+                sel.appendChild(opt);
+            });
+        } catch (e) { console.error('[Metadata] loadExportSources failed', e); }
+    }
+
+    async function exportCatalog() {
+        const btn = document.getElementById('exportBtn');
+        const source = document.getElementById('exportSource').value;
+        const originalText = btn.innerText;
+        btn.innerText = 'Exporting...';
+        btn.disabled = true;
+        try {
+            const qs = source ? `?source=${encodeURIComponent(source)}` : '';
+            const res = await fetch(`${API_BASE}/metadata/export${qs}`, { headers: getAuthHeaders() });
+            if (!res.ok) throw new Error(`Server returned ${res.status}`);
+            const data = await res.json();
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const tag = source ? source.replace(/[^a-zA-Z0-9_]/g, '') : 'all-sources';
+            a.download = `fabric-export-${tag}-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+
+            const nRes = (data.schemas || []).reduce((n, s) => n + (s.resources || []).length, 0);
+            let msg = `Exported ${data.schemas ? data.schemas.length : 0} schema(s), ${nRes} resource(s)` +
+                      `${data.relationships ? ', ' + data.relationships.length + ' relationship(s)' : ''}.`;
+            if (data.warnings && data.warnings.length) {
+                msg += `\n\nDependency notes:\n` + data.warnings.map(w => '• ' + w).join('\n');
+            }
+            showModal('Export Complete', msg);
+        } catch (e) {
+            console.error('[Metadata] Export failed:', e);
+            showModal('Error', 'Catalog export failed: ' + e.message);
+        } finally {
+            btn.innerText = originalText;
+            btn.disabled = false;
+        }
+    }
 
     async function downloadTemplate() {
         const btn = document.querySelector('button[onclick="downloadTemplate()"]');
@@ -240,6 +309,9 @@
         `;
         }).join('');
     }
+
+    // Populate export source picker on load.
+    document.addEventListener('DOMContentLoaded', loadExportSources);
 </script>
 
 <%- include('partials/footer') %>

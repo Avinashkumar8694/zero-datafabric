@@ -123,10 +123,18 @@ export class MetadataService {
     const client = await pool.connect();
     try {
         // 1. Crawl External Data Sources
-        const { rows: sources } = await client.query('SELECT id FROM public.data_sources WHERE tenant_id = $1', [tenantId]);
+        const { rows: sources } = await client.query('SELECT id, name FROM public.data_sources WHERE tenant_id = $1', [tenantId]);
         const results = [];
+        // Resilient per-source crawl: an unreachable / misconfigured source (e.g. a
+        // missing password) is recorded as FAILED and skipped — it must not abort the
+        // crawl of every other source.
         for (const source of sources) {
-            results.push(await this.crawlSource(source.id));
+            try {
+                results.push(await this.crawlSource(source.id));
+            } catch (e: any) {
+                console.warn(`[Crawl] source ${source.name} (${source.id}) failed: ${e.message}`);
+                results.push({ sourceId: source.id, source: source.name, status: 'FAILED', error: e.message });
+            }
         }
 
         // 2. Crawl Local Tenant Schemas (tenant_{id}_*)
@@ -197,7 +205,7 @@ export class MetadataService {
             }
         }
 
-        const tableCount = results.reduce((acc, s) => acc + (s?.tableCount || 0), 0) + localTableCount;
+        const tableCount = results.reduce((acc, s: any) => acc + (s?.tableCount || 0), 0) + localTableCount;
         return { tenantId, tableCount, sourceResults: results, localTableCount };
     } catch (err: any) {
         console.error(`[Metadata] Local Crawl FAILED for ${tenantId}:`, err.message);
@@ -410,6 +418,136 @@ export class MetadataService {
     }
   }
   
+  /**
+   * Export the current catalog as a datafabric manifest (the reverse of apply).
+   * Prefers each resource's stored definition_ast (perfect round-trip for
+   * manifest-applied objects); for crawled objects it reconstructs columns via
+   * live introspection. Pass sourceName to export a single, self-contained source.
+   */
+  static async exportManifest(tenantId: string, sourceName?: string): Promise<any> {
+    const cleanTenant = tenantId.replace(/[^a-zA-Z0-9_]/g, '');
+    const srcParams: any[] = [tenantId];
+    let srcSql = `SELECT id, name, type, config FROM public.data_sources WHERE tenant_id = $1`;
+    if (sourceName) { srcParams.push(sourceName); srcSql += ` AND name = $2`; }
+    const { rows: sources } = await pool.query(srcSql, srcParams);
+
+    const schemas: any[] = [];
+    const exportedTables = new Set<string>(); // schemaName.tableName present in this export
+
+    const SYSTEM_SCHEMAS = new Set(['pg_toast', 'pg_catalog', 'information_schema']);
+    const isSystemSchema = (n: string) => SYSTEM_SCHEMAS.has(n) || /^pg_(toast_)?temp/.test(n) || n.startsWith('pg_');
+    for (const source of sources) {
+      const { rows: cats } = await pool.query(
+        `SELECT id, name, physical_name FROM public.catalog_schemas WHERE source_id = $1`, [source.id]);
+      for (const cat of cats) {
+        if (isSystemSchema(cat.name)) continue; // omit Postgres system schemas from a portable manifest
+        const { rows: objs } = await pool.query(
+          `SELECT name, physical_name, resource_type, definition_ast, definition_sql
+           FROM public.catalog_tables WHERE schema_id = $1`, [cat.id]);
+        const resources: any[] = [];
+        for (const o of objs) {
+          // Child metadata rows (a table's policies/triggers) are folded into their table's AST.
+          if (o.resource_type === 'POLICY' || o.resource_type === 'TRIGGER' || String(o.name).includes('.')) continue;
+
+          if (o.definition_ast && typeof o.definition_ast === 'object') {
+            resources.push(o.definition_ast); // round-trip manifest-applied resource verbatim
+          } else if (['TABLE', 'VIEW', 'MATERIALIZED_VIEW', 'FOREIGN_TABLE'].includes(o.resource_type)) {
+            const columns = await this.introspectColumns(source, cat.physical_name, o.physical_name);
+            const type = o.resource_type === 'FOREIGN_TABLE' ? 'TABLE' : o.resource_type;
+            const res: any = { type, name: o.name };
+            if (columns.length) res.columns = columns;
+            if (o.definition_sql && type !== 'TABLE') res.definitionSql = o.definition_sql;
+            resources.push(res);
+          } else {
+            // SEQUENCE / FUNCTION / PROCEDURE / ENUM without an AST — name-level export.
+            resources.push({ type: o.resource_type, name: o.name });
+          }
+          exportedTables.add(`${cat.name}.${o.name}`);
+        }
+        schemas.push({ name: cat.name, targetSource: source.name, resources });
+      }
+    }
+
+    // Relationships. For a single-source export keep only those whose BOTH endpoints
+    // are present in this export (self-contained); cross-source relationships are dropped.
+    const { rows: rels } = await pool.query(
+      `SELECT name, cardinality, source_schema, source_table, source_column, target_schema, target_table, target_column
+       FROM fabric_catalog.relationships WHERE tenant_id = $1`, [tenantId]);
+    const contained = (schema: string, table: string) => !sourceName || exportedTables.has(`${schema}.${table}`);
+    const relationships = rels
+      .filter((r) => contained(r.source_schema, r.source_table) && contained(r.target_schema, r.target_table))
+      .map((r) => ({
+        name: r.name,
+        cardinality: r.cardinality === 'M:M' ? 'M:N' : r.cardinality,
+        ...(r.cardinality === 'M:M' ? { bridge: `${r.source_table}_${r.target_table}_link` } : {}),
+        from: { resource: r.source_table, field: r.source_column },
+        to: { resource: r.target_table, field: r.target_column },
+      }));
+
+    // For a single-source export, flag any resource whose definition references another
+    // datasource (e.g. a federated view) — such a source is not self-contained.
+    const warnings: string[] = [];
+    if (sourceName) {
+      const ownSources = new Set(sources.map((s) => s.name));
+      for (const sch of schemas) {
+        for (const r of sch.resources) {
+          const ext = this.collectExternalSources(r, ownSources);
+          if (ext.length) warnings.push(
+            `Resource "${sch.name}.${r.name}" depends on other datasource(s): ${ext.join(', ')}. ` +
+            `Re-applying this single-source manifest requires those sources.`);
+        }
+      }
+    }
+
+    return {
+      version: '1.0-export',
+      namespace: sourceName ? (schemas[0]?.name || sourceName) : 'Exported_Fabric',
+      targetSource: sourceName || 'Fabric_Hub_Postgres',
+      exportedAt: new Date().toISOString(),
+      schemas,
+      ...(relationships.length ? { relationships } : {}),
+      ...(warnings.length ? { warnings } : {}),
+    };
+  }
+
+  /** Walk a resource definition and collect any `source` values that aren't in ownSources. */
+  private static collectExternalSources(obj: any, ownSources: Set<string>, acc = new Set<string>()): string[] {
+    if (obj && typeof obj === 'object') {
+      if (Array.isArray(obj)) { obj.forEach((x) => this.collectExternalSources(x, ownSources, acc)); }
+      else {
+        for (const [k, v] of Object.entries(obj)) {
+          if (k === 'source' && typeof v === 'string' && !ownSources.has(v)) acc.add(v);
+          else this.collectExternalSources(v, ownSources, acc);
+        }
+      }
+    }
+    return [...acc];
+  }
+
+  /** Reconstruct column metadata for a crawled resource (no manifest AST). */
+  private static async introspectColumns(source: any, physicalSchema: string, physicalTable: string): Promise<any[]> {
+    const engine = String(source.type || 'POSTGRES').toUpperCase();
+    const cfg = source.config || {};
+    const isLocalHub = cfg.local === true || source.name === 'Fabric_Hub_Postgres' || (engine === 'POSTGRES' && !cfg.host && !cfg.connectionString);
+    const toManifestCol = (c: any) => ({
+      name: c.name, type: c.type, ...(c.nullable === false ? { nullable: false } : {}), ...(c.primaryKey ? { primaryKey: true } : {}),
+    });
+    try {
+      if (isLocalHub) {
+        const { rows } = await pool.query(`
+          SELECT column_name AS name, data_type AS type, (is_nullable='YES') AS nullable, false AS "primaryKey"
+          FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position
+        `, [physicalSchema, physicalTable]);
+        return rows.map(toManifestCol);
+      }
+      const connector = ConnectorFactory.getConnector(engine, cfg);
+      try {
+        const cols = connector.discoverColumns ? await connector.discoverColumns(physicalSchema, physicalTable) : [];
+        return cols.map(toManifestCol);
+      } finally { await connector.close(); }
+    } catch { return []; }
+  }
+
   static getTemplate(): any {
     return {
       version: "4.0",

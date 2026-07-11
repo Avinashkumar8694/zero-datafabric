@@ -16,14 +16,19 @@
 
 export type SqlDialect = 'postgres' | 'mysql' | 'snowflake';
 
-export type AggFunc = 'COUNT' | 'SUM' | 'MIN' | 'MAX' | 'AVG' | 'COUNT_DISTINCT';
+export type AggFunc = 'COUNT' | 'SUM' | 'MIN' | 'MAX' | 'AVG' | 'COUNT_DISTINCT' | 'PERCENTILE';
 
 export interface AggregateSpec {
   func: AggFunc;
   /** null means COUNT(*) */
   column: string | null;
   alias: string;
+  /** for PERCENTILE: which percentile (e.g. 95 for p95); defaults to 95 */
+  percent?: number;
 }
+
+/** A grouping column: a plain field, or a date bucket for time-series aggregation. */
+export type GroupBy = string | { field: string; dateInterval: 'minute' | 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year' };
 
 export interface CanonicalQuery {
   select?: string[] | undefined;
@@ -31,8 +36,8 @@ export interface CanonicalQuery {
   orderBy?: { field: string; dir: 'ASC' | 'DESC' }[] | undefined;
   limit?: number | undefined;
   offset?: number | undefined;
-  /** grouping columns for aggregate pushdown */
-  groupBy?: string[] | undefined;
+  /** grouping columns for aggregate pushdown (plain fields or date buckets) */
+  groupBy?: GroupBy[] | undefined;
   /** aggregate expressions to push down (GROUP BY / $group / aggs) */
   aggregates?: AggregateSpec[] | undefined;
 }
@@ -61,6 +66,11 @@ const SQL_OPERATORS: Record<string, string> = {
   $like: 'LIKE',
   $ilike: 'ILIKE',
   $in: 'IN',
+  // $match = full-text / contains; $fuzzy = fuzzy/entity-resolution match. Both are
+  // native on Elasticsearch (match / match+fuzziness); SQL falls back to a
+  // case-insensitive substring (ILIKE/LIKE), Mongo to a case-insensitive regex.
+  $match: 'MATCH',
+  $fuzzy: 'MATCH',
 };
 
 // Mongo comparison operators we understand (canonical == native here).
@@ -98,6 +108,21 @@ export class PushdownCompiler {
   }
 
   /**
+   * Extract ALL operators for a filter entry, so a column can carry multiple
+   * conditions (e.g. { $gte: x, $lte: y } for a range). Falls back to $eq for a
+   * bare scalar value.
+   */
+  private static splitOps(rawValue: any): { op: string; value: any }[] {
+    if (rawValue !== null && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
+      const keys = Object.keys(rawValue);
+      if (keys.length > 0 && keys.every((k) => k.startsWith('$'))) {
+        return keys.map((op) => ({ op, value: rawValue[op] }));
+      }
+    }
+    return [{ op: '$eq', value: rawValue }];
+  }
+
+  /**
    * Compile a canonical SELECT into a parameterized SQL statement for the given dialect.
    * Postgres uses `$1..$n` placeholders and "ident" quoting; MySQL uses `?` and `ident`.
    */
@@ -116,7 +141,7 @@ export class PushdownCompiler {
     const hasAgg = Array.isArray(aggregates) && aggregates.length > 0;
     const cols = hasAgg
       ? [
-          ...(groupBy || []).map((g) => this.quoteColumn(g, dialect)),
+          ...(groupBy || []).map((g) => this.groupSelectSql(g, dialect)),
           ...aggregates!.map((a) => `${this.aggExprSql(a, dialect)} AS ${this.quoteIdent(a.alias, dialect)}`),
         ].join(', ')
       : select && select.length > 0
@@ -136,23 +161,28 @@ export class PushdownCompiler {
     let text = `SELECT ${cols} FROM ${qualifiedTable}`;
 
     if (filter && Object.keys(filter).length > 0) {
-      const clauses = Object.keys(filter).map((key) => {
+      const clauses: string[] = [];
+      for (const key of Object.keys(filter)) {
         const col = this.quoteColumn(key, dialect);
-        const { op, value } = this.splitOp(filter[key]);
-        const sqlOp = SQL_OPERATORS[op] || '=';
-
-        if (op === '$in' && Array.isArray(value)) {
-          if (value.length === 0) return '1 = 0'; // empty IN () -> match nothing
-          const list = value.map((v) => placeholder(v)).join(', ');
-          return `${col} IN (${list})`;
+        // A column may carry several conditions (range); emit one clause per operator.
+        for (const { op, value } of this.splitOps(filter[key])) {
+          const sqlOp = SQL_OPERATORS[op] || '=';
+          if (op === '$in' && Array.isArray(value)) {
+            if (value.length === 0) { clauses.push('1 = 0'); continue; } // empty IN () -> match nothing
+            clauses.push(`${col} IN (${value.map((v) => placeholder(v)).join(', ')})`);
+          } else if (op === '$match' || op === '$fuzzy') {
+            const like = dialect === 'postgres' ? 'ILIKE' : 'LIKE';
+            clauses.push(`${col} ${like} ${placeholder('%' + String(value) + '%')}`);
+          } else {
+            clauses.push(`${col} ${sqlOp} ${placeholder(value)}`);
+          }
         }
-        return `${col} ${sqlOp} ${placeholder(value)}`;
-      });
+      }
       text += ` WHERE ${clauses.join(' AND ')}`;
     }
 
     if (hasAgg && groupBy && groupBy.length > 0) {
-      text += ` GROUP BY ${groupBy.map((g) => this.quoteColumn(g, dialect)).join(', ')}`;
+      text += ` GROUP BY ${groupBy.map((g) => this.groupBySql(g, dialect)).join(', ')}`;
     }
 
     if (orderBy && orderBy.length > 0) {
@@ -180,6 +210,9 @@ export class PushdownCompiler {
       for (const c of select) {
         if (!c.includes('(') && !c.includes(' ')) out.projection[this.ident(c)] = 1;
       }
+      // SQL-like projection: exclude Mongo's implicit _id unless it was explicitly
+      // requested, so projected rows match relational rows (set-ops, UNION dedup, joins).
+      if (Object.keys(out.projection).length > 0 && !('_id' in out.projection)) out.projection._id = 0;
     }
 
     if (orderBy && orderBy.length > 0) {
@@ -198,15 +231,41 @@ export class PushdownCompiler {
     const match: Record<string, any> = {};
     if (!filter) return match;
     for (const key of Object.keys(filter)) {
-      const { op, value } = this.splitOp(filter[key]);
-      if (op === '$eq') match[key] = value;
-      else if (MONGO_OPERATORS.has(op)) match[key] = { [op]: value };
-      else if (op === '$like' || op === '$ilike') {
-        const pattern = String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.');
-        match[key] = { $regex: `^${pattern}$`, $options: op === '$ilike' ? 'i' : '' };
-      } else match[key] = value;
+      const ops = this.splitOps(filter[key]);
+      // Single equality → shorthand { key: value }.
+      if (ops.length === 1 && ops[0]!.op === '$eq') { match[key] = ops[0]!.value; continue; }
+      // Otherwise merge every operator into one field sub-document (e.g. range).
+      const sub: Record<string, any> = {};
+      for (const { op, value } of ops) {
+        if (op === '$eq') sub.$eq = value;
+        else if (MONGO_OPERATORS.has(op)) sub[op] = value;
+        else if (op === '$like' || op === '$ilike') {
+          const pattern = String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.');
+          sub.$regex = `^${pattern}$`; sub.$options = op === '$ilike' ? 'i' : '';
+        } else if (op === '$match' || op === '$fuzzy') {
+          sub.$regex = String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); sub.$options = 'i';
+        } else sub[op] = value;
+      }
+      match[key] = sub;
     }
     return match;
+  }
+
+  /** SQL for a group entry in the GROUP BY clause (plain col or date bucket). */
+  private static groupBySql(g: GroupBy, dialect: SqlDialect): string {
+    if (g && typeof g === 'object' && g.dateInterval) {
+      const col = this.quoteColumn(g.field, dialect);
+      return dialect === 'mysql' ? `DATE(${col})` : `date_trunc('${g.dateInterval}', ${col})`;
+    }
+    return this.quoteColumn(g as string, dialect);
+  }
+
+  /** SQL for a group entry in the SELECT list (date buckets aliased to the field name). */
+  private static groupSelectSql(g: GroupBy, dialect: SqlDialect): string {
+    if (g && typeof g === 'object' && g.dateInterval) {
+      return `${this.groupBySql(g, dialect)} AS ${this.quoteIdent(g.field, dialect)}`;
+    }
+    return this.quoteColumn(g as string, dialect);
   }
 
   private static aggExprSql(a: AggregateSpec, dialect: SqlDialect): string {
@@ -218,6 +277,12 @@ export class PushdownCompiler {
       case 'MIN': return `MIN(${col})`;
       case 'MAX': return `MAX(${col})`;
       case 'AVG': return `AVG(${col})`;
+      case 'PERCENTILE': {
+        const p = (a.percent ?? 95) / 100;
+        // percentile_cont is supported by Postgres & Snowflake; MySQL has no direct
+        // equivalent, so fall back to AVG there.
+        return dialect === 'mysql' ? `AVG(${col})` : `percentile_cont(${p}) WITHIN GROUP (ORDER BY ${col})`;
+      }
       default: return `COUNT(*)`;
     }
   }
@@ -233,8 +298,11 @@ export class PushdownCompiler {
     const match = this.mongoMatch(filter);
     if (Object.keys(match).length > 0) pipeline.push({ $match: match });
 
+    // Mongo groups by plain fields; a date-bucket group entry degrades to its field
+    // (date_histogram is an ES/SQL feature — documented).
+    const groupFields = groupBy.map((g) => (g && typeof g === 'object' ? g.field : g));
     const id: Record<string, string> = {};
-    for (const g of groupBy) id[this.ident(g)] = `$${g}`;
+    for (const g of groupFields) id[this.ident(g)] = `$${g}`;
 
     const group: Record<string, any> = { _id: groupBy.length ? id : null };
     const distinctAliases: string[] = [];
@@ -252,7 +320,7 @@ export class PushdownCompiler {
 
     // Flatten _id.<g> back to top-level columns and turn distinct sets into counts.
     const project: Record<string, any> = { _id: 0 };
-    for (const g of groupBy) project[g] = `$_id.${this.ident(g)}`;
+    for (const g of groupFields) project[g] = `$_id.${this.ident(g)}`;
     for (const a of aggregates) project[a.alias] = distinctAliases.includes(a.alias) ? { $size: `$${a.alias}` } : `$${a.alias}`;
     pipeline.push({ $project: project });
 

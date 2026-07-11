@@ -14,6 +14,7 @@ router.get('/relationships', metadataController.getRelationships);
 router.get('/preview', metadataController.getPreviewData);
 router.get('/tables/:name', metadataController.getTableDetails);
 router.get('/template', metadataController.getTemplate);
+router.get('/export', metadataController.exportMetadata);
 
 router.post('/crawl', metadataController.crawlTenant);
 router.post('/diff', upload.single('file'), metadataController.diffMetadata);

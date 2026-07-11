@@ -138,10 +138,13 @@ export class Transpiler {
                     if (c.strategy === 'FUNCTIONAL' && c.default) {
                         const trgName = `trg_func_${table.name}_${c.name}`;
                         const fnName = `fn_func_${table.name}_${c.name}`;
+                        // Inside a trigger, bare column refs in the default expression must be
+                        // qualified as NEW.<col> (e.g. generate_custom_id(region) -> generate_custom_id(NEW."region")).
+                        const qualifiedDefault = this.qualifyColumnsForTrigger(c.default, table.columns);
                         sql.push(`CREATE OR REPLACE FUNCTION "${schemaName}"."${fnName}"() RETURNS TRIGGER AS $$
                         BEGIN
                             IF NEW."${c.name}" IS NULL THEN
-                                NEW."${c.name}" := ${c.default};
+                                NEW."${c.name}" := ${qualifiedDefault};
                             END IF;
                             RETURN NEW;
                         END; $$ LANGUAGE plpgsql;`);
@@ -258,12 +261,15 @@ export class Transpiler {
                         )`);
                     }
                 } else if (rel.cardinality === '1:M' || rel.cardinality === '1:1') {
-                    if (rel.to.source) {
-                        sql.push(`-- FEDERATED RELATIONSHIP: ${rel.name} (Cross-Source to ${rel.to.source})`);
+                    if (rel.from.source || rel.to.source) {
+                        // Either side remote — can't enforce a DB-level FK across engines.
+                        sql.push(`-- FEDERATED RELATIONSHIP: ${rel.name} (Cross-Source ${rel.from.source || 'local'} -> ${rel.to.source || 'local'})`);
                     } else {
+                        // FK belongs on the CHILD ("to") side referencing the PARENT ("from") key,
+                        // so the parent stays independently insertable (was inverted).
                         sql.push(`DO $$ BEGIN
                             IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_${rel.name}') THEN
-                                ALTER TABLE "${schemaName}"."${rel.from.resource}" ADD CONSTRAINT "fk_${rel.name}" FOREIGN KEY ("${rel.from.field}") REFERENCES "${schemaName}"."${rel.to.resource}"("${rel.to.field}");
+                                ALTER TABLE "${schemaName}"."${rel.to.resource}" ADD CONSTRAINT "fk_${rel.name}" FOREIGN KEY ("${rel.to.field}") REFERENCES "${schemaName}"."${rel.from.resource}"("${rel.from.field}");
                             END IF;
                         END $$;`);
                     }
@@ -278,6 +284,19 @@ export class Transpiler {
         }
 
         return sql;
+    }
+
+    /** Qualify bare column references in a default expression as NEW."col" for trigger bodies. */
+    private static qualifyColumnsForTrigger(expr: string, columns: ColumnDefinition[]): string {
+        let out = expr;
+        // Longer names first so a substring column (e.g. "id") doesn't clobber "custom_id".
+        const names = columns.map(c => c.name).sort((a, b) => b.length - a.length);
+        for (const name of names) {
+            // Replace whole-word occurrences not already preceded by NEW./OLD./a dot or quote.
+            const re = new RegExp(`(?<![\\w."])\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b(?![\\w"])`, 'g');
+            out = out.replace(re, `NEW."${name}"`);
+        }
+        return out;
     }
 
     private static findColumnType(manifest: MetadataManifest, resourceName: string, columnName: string): string {

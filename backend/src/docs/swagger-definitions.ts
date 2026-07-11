@@ -366,8 +366,16 @@
  *
  * /api/queries/exec:
  *   post:
- *     summary: Execute raw SQL orchestration
+ *     summary: Execute native SQL (optionally at a named source)
  *     tags: [Analytics]
+ *     description: >
+ *       Runs raw SQL. Without `source` it executes on the fabric hub. With `source`
+ *       set to a datasource name, the SQL is executed **at that external engine**
+ *       — this is how you run complex single-source analytics the AST layer does not
+ *       model: **window functions, recursive CTEs, and materialized-view reads**.
+ *       `schema` sets the search_path at the source. Set `async:true` to run as a
+ *       background job (returns a job id). The response includes the same
+ *       `plan.legs` execution trace as federated queries.
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       required: true
@@ -378,10 +386,40 @@
  *             required: [sql]
  *             properties:
  *               sql: { type: string }
+ *               source: { type: string, description: 'Datasource to run at; omit for the hub.' }
+ *               schema: { type: string, description: 'search_path at the source.' }
+ *               params: { type: array, items: {} }
  *               async: { type: boolean, default: false }
+ *           examples:
+ *             windowFunction:
+ *               summary: Window function at an external Postgres source
+ *               value:
+ *                 source: Retail_Core
+ *                 schema: public
+ *                 sql: "SELECT region, total_amount, RANK() OVER (PARTITION BY region ORDER BY total_amount DESC) rnk FROM orders LIMIT 10"
+ *             recursiveCte:
+ *               summary: Recursive CTE (referral / hierarchy traversal)
+ *               value:
+ *                 source: Retail_Core
+ *                 schema: public
+ *                 sql: "WITH RECURSIVE tree AS (SELECT id, referred_by, 1 depth FROM customers WHERE referred_by IS NULL UNION ALL SELECT c.id, c.referred_by, t.depth+1 FROM customers c JOIN tree t ON c.referred_by=t.id) SELECT depth, count(*) FROM tree GROUP BY depth ORDER BY depth"
+ *             materializedView:
+ *               summary: Materialized-view read
+ *               value:
+ *                 source: Retail_Core
+ *                 sql: "SELECT sales_day, region, revenue FROM mv_daily_region_sales ORDER BY revenue DESC LIMIT 10"
  *     responses:
  *       200:
- *         description: Success (Sync)
+ *         description: Result rows + execution plan/trace
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 results: { type: array, items: { type: object } }
+ *                 data: { type: array, items: { type: object } }
+ *                 rowCount: { type: integer }
+ *                 plan: { $ref: '#/components/schemas/QueryPlan' }
  *       202:
  *         description: Job Accepted (Async)
  *
@@ -400,8 +438,16 @@
  *
  * /api/analytics/query:
  *   post:
- *     summary: Execute AST orchestrated query with filters
+ *     summary: Execute a structured AST query (the primary query interface)
  *     tags: [Analytics]
+ *     description: >
+ *       Runs an engine-agnostic query described by an AST. The planner decides how
+ *       to execute it: a single source is pushed down (filter / projection / sort /
+ *       limit / GROUP-BY aggregate); a query spanning multiple sources is federated
+ *       (per-source pushdown + bind-join for joins, partial-aggregate merge for
+ *       aggregates, in-fabric merge for UNION/INTERSECT/EXCEPT). The response
+ *       includes `plan.legs` showing exactly which engine ran what and how many rows
+ *       it returned. A SELECT must carry a `where`, a `limit`, or be a set-op.
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       required: true
@@ -411,10 +457,56 @@
  *             type: object
  *             required: [queryConfig]
  *             properties:
- *               queryConfig: { type: object }
+ *               queryConfig: { $ref: '#/components/schemas/QueryConfig' }
+ *           examples:
+ *             filterProjection:
+ *               summary: Filter + projection pushdown (single source)
+ *               value:
+ *                 queryConfig:
+ *                   type: SELECT
+ *                   schema: public
+ *                   limit: 25
+ *                   query:
+ *                     from: { resource: customers, source: Retail_Core }
+ *                     select: [id, name, region]
+ *                     where: [{ column: region, operator: EQ, value: EU }]
+ *             aggregate:
+ *               summary: GROUP BY aggregate pushed to the source
+ *               value:
+ *                 queryConfig:
+ *                   type: SELECT
+ *                   schema: public
+ *                   query:
+ *                     from: { resource: orders, source: Retail_Core }
+ *                     groupBy: [status]
+ *                     select: [status, { aggregate: SUM, column: total_amount, alias: revenue }]
+ *             crossSourceJoin:
+ *               summary: Cross-engine join (Postgres ⋈ Mongo) with bind-join
+ *               value:
+ *                 queryConfig:
+ *                   type: SELECT
+ *                   schema: public
+ *                   limit: 20
+ *                   query:
+ *                     from: { resource: orders, source: Retail_Core, alias: o }
+ *                     joins: [{ type: INNER, resource: web_events, source: Web_Analytics, alias: w, on: { left: o.customer_id, operator: EQ, right: w.customer_id } }]
+ *                     where: [{ column: o.customer_id, operator: EQ, value: 42 }]
+ *             setOperation:
+ *               summary: Cross-engine INTERSECT (customers who ordered AND browsed)
+ *               value:
+ *                 queryConfig:
+ *                   type: SELECT
+ *                   schema: public
+ *                   query:
+ *                     intersect:
+ *                       - { select: [customer_id], from: { resource: orders, source: Retail_Core } }
+ *                       - { select: [customer_id], from: { resource: web_events, source: Web_Analytics } }
  *     responses:
  *       200:
- *         description: Success
+ *         description: Result rows + execution plan/trace
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/QueryEnvelope' }
  *
  * /api/analytics/query-async:
  *   post:

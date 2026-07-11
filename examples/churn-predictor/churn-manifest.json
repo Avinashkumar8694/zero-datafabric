@@ -1,0 +1,96 @@
+{
+  "version": "4.0",
+  "namespace": "Churn_Analytics",
+  "targetSource": "CRM_Salesforce",
+  "consistencyMode": "SAGA",
+  "downstream": [
+    { "type": "ELASTICSEARCH", "enabled": true, "fallback": "PRIMARY_SQL" }
+  ],
+  "schemas": [
+    {
+      "name": "CRM",
+      "targetSource": "CRM_Salesforce",
+      "resources": [
+        {
+          "type": "TABLE",
+          "name": "accounts",
+          "comment": "CRM accounts (Salesforce): tier, ARR, renewal date",
+          "columns": [
+            { "name": "account_id",   "type": "INTEGER", "primaryKey": true },
+            { "name": "company_name", "type": "STRING", "length": 160 },
+            { "name": "account_tier", "type": "STRING", "length": 20 },
+            { "name": "arr",          "type": "NUMERIC" },
+            { "name": "renewal_date", "type": "TIMESTAMP" },
+            { "name": "region",       "type": "STRING", "length": 10 }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Production",
+      "targetSource": "Prod_Postgres",
+      "resources": [
+        {
+          "type": "TABLE",
+          "name": "orders",
+          "comment": "Transactional purchase history",
+          "columns": [
+            { "name": "order_id",   "type": "INTEGER", "primaryKey": true },
+            { "name": "account_id", "type": "INTEGER" },
+            { "name": "order_date", "type": "TIMESTAMP" },
+            { "name": "amount",     "type": "NUMERIC" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ProductLogs",
+      "targetSource": "Product_Logs",
+      "resources": [
+        {
+          "type": "TABLE",
+          "name": "user_events",
+          "comment": "Clickstream / product usage (MongoDB). event_time is epoch-ms.",
+          "columns": [
+            { "name": "account_id", "type": "INTEGER", "index": true },
+            { "name": "event_name", "type": "STRING", "index": true },
+            { "name": "event_time", "type": "BIGINT" },
+            { "name": "user_email", "type": "STRING" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Support",
+      "targetSource": "Support_ES",
+      "resources": [
+        {
+          "type": "TABLE",
+          "name": "support_tickets",
+          "comment": "Support tickets (Elasticsearch): keyword facets + analyzed text for full-text sentiment search",
+          "columns": [
+            { "name": "ticket_id",  "type": "INTEGER" },
+            { "name": "account_id", "type": "INTEGER" },
+            { "name": "status",     "type": "STRING" },
+            { "name": "priority",   "type": "STRING" },
+            { "name": "csat",       "type": "NUMERIC" },
+            { "name": "subject",    "type": "STRING" },
+            { "name": "body",       "type": "STRING" },
+            { "name": "created_at", "type": "TIMESTAMP" }
+          ]
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    { "name": "rel_account_orders", "cardinality": "1:M",
+      "from": { "resource": "accounts", "field": "account_id" },
+      "to":   { "source": "Prod_Postgres", "resource": "orders", "field": "account_id" } },
+    { "name": "rel_account_events", "cardinality": "1:M",
+      "from": { "resource": "accounts", "field": "account_id" },
+      "to":   { "source": "Product_Logs", "resource": "user_events", "field": "account_id" } },
+    { "name": "rel_account_tickets", "cardinality": "1:M",
+      "from": { "resource": "accounts", "field": "account_id" },
+      "to":   { "source": "Support_ES", "resource": "support_tickets", "field": "account_id" } }
+  ]
+}

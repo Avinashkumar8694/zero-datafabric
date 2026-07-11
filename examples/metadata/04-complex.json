@@ -1,0 +1,144 @@
+{
+  "version": "4.0",
+  "namespace": "Complex_Example",
+  "targetSource": "Fabric_Hub_Postgres",
+  "consistencyMode": "SAGA",
+  "downstream": [
+    { "type": "ELASTICSEARCH", "enabled": true, "fallback": "PRIMARY_SQL" },
+    { "type": "SNOWFLAKE", "enabled": true, "strategy": "CDC" }
+  ],
+  "extensions": ["uuid-ossp", "pg_stat_statements"],
+  "schemas": [
+    {
+      "name": "Complex_Example",
+      "targetSource": "Fabric_Hub_Postgres",
+      "resources": [
+        { "type": "ENUM", "name": "asset_status", "values": ["DRAFT", "ACTIVE", "ARCHIVED"] },
+        {
+          "type": "SEQUENCE", "name": "asset_seq", "start": 500000, "increment": 1,
+          "minValue": 500000, "maxValue": 999999999, "cache": 20,
+          "ownedBy": { "table": "assets", "column": "id" }
+        },
+        {
+          "type": "TABLE",
+          "name": "owners",
+          "columns": [
+            { "name": "id", "type": "UUID", "strategy": "UUID_V7", "primaryKey": true },
+            { "name": "name", "type": "STRING", "length": 120 }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "asset_meta",
+          "columns": [
+            { "name": "id", "type": "UUID", "strategy": "UUID_V7", "primaryKey": true },
+            { "name": "asset_id", "type": "UUID", "unique": true },
+            { "name": "notes", "type": "STRING" }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "assets",
+          "comment": "Showcase table exercising every column strategy + constraint + index + RLS",
+          "columns": [
+            { "name": "id", "type": "UUID", "default": "uuid_generate_v7()", "strategy": "UUID_V7" },
+            { "name": "serial_no", "type": "BIGINT", "strategy": "IDENTITY_ALWAYS" },
+            { "name": "legacy_id", "type": "SERIAL", "strategy": "LEGACY_SERIAL" },
+            { "name": "custom_code", "type": "STRING", "default": "generate_custom_id(region)", "strategy": "FUNCTIONAL" },
+            { "name": "region", "type": "STRING", "length": 10, "collation": "en_US.utf8" },
+            { "name": "label", "type": "STRING", "generated": "id || ' [' || region || ']'", "stored": true },
+            { "name": "status", "type": "ENUM", "ref": "asset_status", "default": "DRAFT" },
+            { "name": "attributes", "type": "JSONB", "index": { "type": "GIN" } },
+            { "name": "created_at", "type": "TIMESTAMP", "default": "NOW()", "index": { "type": "BRIN" } },
+            { "name": "value", "type": "NUMERIC" },
+            { "name": "created_by", "type": "UUID", "default": "current_user_id()", "readonly": true },
+            { "name": "deleted_at", "type": "TIMESTAMP", "nullable": true, "strategy": "SOFT_DELETE" }
+          ],
+          "constraints": [
+            { "name": "chk_region_format", "type": "CHECK", "expression": "region ~ '^[A-Z]{2,3}$'" },
+            { "name": "excl_region_time", "type": "EXCLUDE", "using": "GIST",
+              "columns": [ { "name": "region", "operator": "=" }, { "name": "created_at", "operator": "=" } ] }
+          ],
+          "triggers": [
+            { "name": "trg_audit_asset", "timing": "AFTER", "events": ["INSERT", "UPDATE"],
+              "execution": "row", "procedure": "audit_log_fn" }
+          ],
+          "security": {
+            "enable_rls": true,
+            "masking": [
+              { "column": "attributes", "roles": ["asset_viewer"], "expression": "'REDACTED'" }
+            ],
+            "policies": [
+              { "name": "region_isolation", "roles": ["fabric_user"], "using": "region = current_setting('app.current_region')" },
+              { "name": "hide_deleted", "using": "deleted_at IS NULL" }
+            ],
+            "grants": [ { "role": "asset_viewer", "privileges": ["SELECT"] } ]
+          }
+        },
+        {
+          "type": "FUNCTION",
+          "name": "generate_custom_id",
+          "arguments": [ { "name": "p_region", "type": "STRING" } ],
+          "returnType": "STRING",
+          "body": "DECLARE v_seq BIGINT; BEGIN v_seq := nextval('asset_seq'); RETURN p_region || '-' || lpad(v_seq::text, 8, '0'); END;"
+        },
+        {
+          "type": "PROCEDURE",
+          "name": "archive_asset",
+          "parameters": [ { "name": "p_id", "type": "UUID", "mode": "IN" } ],
+          "body": "UPDATE assets SET status = 'ARCHIVED', deleted_at = NOW() WHERE id = p_id;"
+        },
+        {
+          "type": "VIEW",
+          "name": "region_value_rank",
+          "query": {
+            "select": [
+              { "column": "region" },
+              { "aggregate": "SUM", "column": "value", "alias": "total_value" },
+              { "window": "RANK", "partitionBy": ["region"], "orderBy": [ { "column": "value", "direction": "DESC" } ], "alias": "rank" }
+            ],
+            "from": { "resource": "assets" },
+            "groupBy": ["region", "value"]
+          }
+        },
+        {
+          "type": "MATERIALIZED_VIEW",
+          "name": "asset_volume_by_region",
+          "refreshStrategy": "CONCURRENTLY",
+          "refreshInterval": "1 hour",
+          "query": {
+            "select": [ { "column": "region" }, { "aggregate": "COUNT", "alias": "volume" } ],
+            "from": { "resource": "assets" },
+            "groupBy": ["region"]
+          },
+          "indexes": [ { "columns": ["region"], "unique": true } ]
+        },
+        {
+          "type": "VIEW",
+          "name": "federated_asset_view",
+          "federationStrategy": "VIRTUAL",
+          "query": {
+            "union": [
+              { "select": ["id"], "from": { "resource": "assets", "source": "Fabric_Hub_Postgres" } },
+              { "select": ["buyer_id"], "from": { "resource": "buyer_events", "source": "Activity_Mongo" } }
+            ],
+            "except": [
+              { "select": ["id"], "from": { "resource": "quarantined_items", "source": "External_Warehouse" } }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    { "name": "rel_1_1_asset_meta", "cardinality": "1:1",
+      "from": { "resource": "assets", "field": "id" },
+      "to":   { "resource": "asset_meta", "field": "asset_id" } },
+    { "name": "rel_1_M_owner_assets", "cardinality": "1:M",
+      "from": { "resource": "owners", "field": "id" },
+      "to":   { "resource": "assets", "field": "created_by" } },
+    { "name": "rel_M_N_asset_tags", "cardinality": "M:N", "bridge": "asset_tags_link",
+      "from": { "resource": "assets", "field": "id" },
+      "to":   { "source": "External_Warehouse", "resource": "global_tags", "field": "id" } }
+  ]
+}

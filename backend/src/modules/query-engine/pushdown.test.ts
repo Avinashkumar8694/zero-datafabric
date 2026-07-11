@@ -83,7 +83,8 @@ describe('PushdownCompiler', () => {
         limit: 10,
         offset: 2,
       });
-      expect(spec.projection).toEqual({ a: 1, b: 1 });
+      // _id:0 is added so projected Mongo rows match relational rows (set-ops/joins).
+      expect(spec.projection).toEqual({ a: 1, b: 1, _id: 0 });
       expect(spec.sort).toEqual({ a: -1 });
       expect(spec.limit).toBe(10);
       expect(spec.skip).toBe(2);

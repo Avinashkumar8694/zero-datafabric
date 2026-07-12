@@ -146,36 +146,36 @@ export async function tryStream(tenantId: string, config: any, session?: any): P
   const limit = typeof config.limit === 'number' ? config.limit : (typeof q.limit === 'number' ? q.limit : undefined);
   const canonical = astToCanonical(q, limit);
 
-  // Connector-only Mongo scan → native cursor stream.
-  if (!leg.reachableInPg && leg.engine === 'MONGODB') {
-    const schema = leg.physicalSchema || config.schema || 'test';
+  if (!leg.reachableInPg) {
+    const schema = leg.physicalSchema || config.schema || (leg.engine === 'POSTGRES' ? 'public' : leg.engine === 'MONGODB' ? 'test' : '');
     const table = leg.physicalTable || resource;
-    return {
-      strategy: 'SINGLE_CONNECTOR+STREAM', engine: 'MONGODB', source: leg.source,
-      queryText: `db.${table}.find(${JSON.stringify(canonical.filter || {})}).stream()`,
-      iterate: async function* () {
-        const connector: any = ConnectorFactory.getConnector('MONGODB', leg.config);
-        try { yield* connector.queryStream(schema, table, canonical, cfg.batch); }
-        finally { await connector.close().catch(() => {}); }
-      },
-    };
+
+    // Remote Postgres → compile to SQL and stream via pg-query-stream on its pool.
+    if (leg.engine === 'POSTGRES') {
+      const compiled = PushdownCompiler.toSql({ ...canonical, schema, table, dialect: 'postgres' } as any);
+      return { strategy: 'SINGLE_CONNECTOR+STREAM', engine: 'POSTGRES', source: leg.source, queryText: compiled.text,
+        iterate: async function* () {
+          const c: any = ConnectorFactory.getConnector('POSTGRES', leg.config);
+          try { yield* c.queryStream(compiled.text, compiled.params, cfg.batch); } finally { await c.close().catch(() => {}); }
+        } };
+    }
+
+    // Document/search/other SQL engines expose queryStream(schema, table, canonical, batch).
+    if (['MONGODB', 'ELASTICSEARCH', 'MYSQL', 'SNOWFLAKE'].includes(leg.engine)) {
+      const label: Record<string, string> = {
+        MONGODB: `db.${table}.find(${JSON.stringify(canonical.filter || {})}).stream()`,
+        ELASTICSEARCH: `POST /${table}/_search?scroll (cursor)`,
+        MYSQL: `SELECT … FROM \`${table}\` (streamed)`,
+        SNOWFLAKE: `SELECT … FROM ${schema}.${table} (streamResult)`,
+      };
+      return { strategy: 'SINGLE_CONNECTOR+STREAM', engine: leg.engine, source: leg.source, queryText: label[leg.engine] || `${leg.engine} scan (streamed)`,
+        iterate: async function* () {
+          const c: any = ConnectorFactory.getConnector(leg.engine, leg.config);
+          try { yield* c.queryStream(schema, table, canonical, cfg.batch); } finally { await c.close().catch(() => {}); }
+        } };
+    }
   }
 
-  // Connector-only remote Postgres scan → pg-query-stream on its pool.
-  if (!leg.reachableInPg && leg.engine === 'POSTGRES') {
-    const schema = leg.physicalSchema || config.schema || 'public';
-    const table = leg.physicalTable || resource;
-    const compiled = PushdownCompiler.toSql({ ...canonical, schema, table, dialect: 'postgres' } as any);
-    return {
-      strategy: 'SINGLE_CONNECTOR+STREAM', engine: 'POSTGRES', source: leg.source, queryText: compiled.text,
-      iterate: async function* () {
-        const connector: any = ConnectorFactory.getConnector('POSTGRES', leg.config);
-        try { yield* connector.queryStream(compiled.text, compiled.params, cfg.batch); }
-        finally { await connector.close().catch(() => {}); }
-      },
-    };
-  }
-
-  // reachable-in-PG (local/synced) and other engines → fall back to compute-then-stream.
+  // reachable-in-PG (local/synced) → fall back to compute-then-stream (hub SQL transpile is future work).
   return null;
 }

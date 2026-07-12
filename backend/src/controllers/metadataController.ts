@@ -150,7 +150,7 @@ async function resolveDefinition(tableId: string, tenantId: string, username: st
     const row = rows[0];
     const rtype = String(row.rtype || '').toUpperCase();
     const engine = String(row.engine || 'POSTGRES').toUpperCase();
-    if (engine !== 'POSTGRES') return {}; // only Postgres has these catalog objects
+    if (!['POSTGRES', 'MYSQL', 'SNOWFLAKE'].includes(engine)) return {}; // engines with SQL catalogs
     const cfg = row.cfg || {};
     const isLocalHub = cfg.local === true || row.src === 'Fabric_Hub_Postgres' || !row.engine
         || (engine === 'POSTGRES' && !cfg.host && !cfg.connectionString);
@@ -164,6 +164,19 @@ async function resolveDefinition(tableId: string, tenantId: string, username: st
     };
 
     try {
+        // MySQL / Snowflake use ANSI information_schema (with `?` placeholders).
+        if (engine === 'MYSQL' || engine === 'SNOWFLAKE') {
+            if (rtype === 'VIEW' || rtype === 'MATERIALIZED_VIEW') {
+                const r = await run(`SELECT VIEW_DEFINITION AS def FROM information_schema.views WHERE table_schema = ? AND table_name = ?`, [row.s, row.t]);
+                const def = (r[0]?.def || r[0]?.DEF || '').trim?.() || r[0]?.def;
+                if (def) return { definitionAst: { query: def } };
+            } else if (rtype === 'FUNCTION' || rtype === 'PROCEDURE') {
+                const r = await run(`SELECT ROUTINE_DEFINITION AS def, DATA_TYPE AS ret FROM information_schema.routines WHERE routine_schema = ? AND routine_name = ?`, [row.s, row.t]);
+                const f = r[0];
+                if (f) return { definitionAst: { type: rtype, body: (f.def || f.DEF || '').toString().trim(), returnType: f.ret || f.RET } };
+            }
+            return {};
+        }
         if (rtype === 'VIEW' || rtype === 'MATERIALIZED_VIEW') {
             // Portable catalog lookup (avoids a ::regclass cast that can fail across search_paths).
             const cat = rtype.includes('MATERIALIZED')

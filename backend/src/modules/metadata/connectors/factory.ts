@@ -343,7 +343,12 @@ export class MySQLConnector implements IConnector {
     async discoverSchemas(): Promise<any[]> {
         const conn = await this.connect();
         const [rows]: any = await conn.query('SHOW DATABASES');
-        return rows.map((r: any) => ({ name: r.Database, physicalName: r.Database }));
+        // Exclude MySQL's built-in system databases (mirrors the Mongo connector).
+        const SYSTEM_DBS = new Set(['information_schema', 'performance_schema', 'mysql', 'sys']);
+        return rows
+            .map((r: any) => r.Database)
+            .filter((db: string) => !SYSTEM_DBS.has(String(db).toLowerCase()))
+            .map((db: string) => ({ name: db, physicalName: db }));
     }
 
     /**
@@ -406,6 +411,42 @@ export class MySQLConnector implements IConnector {
         const compiled = PushdownCompiler.toSql({ ...toCanonical(config), table, dialect: 'mysql' });
         console.log(`[MySQLConnector] Pushdown SQL: ${compiled.text}`);
         const [rows]: any = await conn.execute(compiled.text, compiled.params);
+        return rows;
+    }
+
+    /**
+     * STREAMING variant of `query` — yields rows from a mysql2 result stream
+     * (`.stream()`, which reads rows as they arrive from the wire) instead of
+     * buffering the whole result. The stream is destroyed on early termination.
+     * Only valid for a pass-through query (no aggregate/GROUP BY).
+     * @param schema Database name to `USE`.
+     * @param table Table name.
+     * @param config Canonical query config (filter/projection/sort/limit/offset).
+     * @param batchSize Stream high-water mark (rows buffered before backpressure).
+     * @returns An async iterable of result rows.
+     */
+    async *queryStream(schema: string, table: string, config: any, batchSize = 500): AsyncGenerator<any> {
+        const conn: any = await this.connect();
+        await conn.query(`USE \`${String(schema).replace(/[^a-zA-Z0-9_]/g, '')}\``);
+        const compiled = PushdownCompiler.toSql({ ...toCanonical(config), table, dialect: 'mysql' });
+        // mysql2/promise wraps a core Connection whose query() returns a streamable Query.
+        const core = conn.connection || conn;
+        const stream = core.query(compiled.text, compiled.params).stream({ highWaterMark: Math.max(1, batchSize) });
+        try {
+            for await (const row of stream) yield row;
+        } finally {
+            if (typeof stream.destroy === 'function') stream.destroy();
+        }
+    }
+
+    /**
+     * Execute arbitrary SQL (used by catalog introspection). Returns the rows.
+     * @param sql SQL text with `?` placeholders.
+     * @param params Positional bind values.
+     */
+    async rawQuery(sql: string, params: any[] = []): Promise<any[]> {
+        const conn: any = await this.connect();
+        const [rows]: any = await conn.query(sql, params);
         return rows;
     }
 
@@ -714,6 +755,58 @@ export class SnowflakeConnector implements IConnector {
         return await this.exec(compiled.text, compiled.params);
     }
 
+    /**
+     * Column metadata via `INFORMATION_SCHEMA.COLUMNS`.
+     * @param schema Schema name.
+     * @param table Table/view name.
+     * @returns Rows of `(name, type, nullable, default, primaryKey: false)`.
+     */
+    async discoverColumns(schema: string, table: string): Promise<any[]> {
+        const rows = await this.exec(
+            `SELECT COLUMN_NAME AS name, DATA_TYPE AS type, IS_NULLABLE AS nullable, COLUMN_DEFAULT AS "default"
+             FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION`, [schema, table]);
+        return rows.map((r: any) => ({
+            name: r.NAME || r.name, type: r.TYPE || r.type,
+            nullable: String(r.NULLABLE ?? r.nullable ?? 'YES').toUpperCase() !== 'NO',
+            default: r.DEFAULT ?? r.default ?? null, primaryKey: false,
+        }));
+    }
+
+    /**
+     * STREAMING variant of `query` — uses the Snowflake driver's `streamResult`
+     * option + `statement.streamRows()` to read rows without buffering the whole
+     * result. Only valid for a pass-through query (no aggregate/GROUP BY).
+     * @param schema Schema name.
+     * @param table Table name.
+     * @param config Canonical query config (filter/projection/sort/limit).
+     * @param _batchSize Advisory; the driver manages its own fetch window.
+     * @returns An async iterable of result rows.
+     */
+    async *queryStream(schema: string, table: string, config: any, _batchSize = 500): AsyncGenerator<any> {
+        const compiled = PushdownCompiler.toSql({ ...toCanonical(config), schema, table, dialect: 'snowflake' });
+        const conn = await this.connect();
+        const stream: any = await new Promise((resolve, reject) => {
+            conn.execute({
+                sqlText: compiled.text, binds: compiled.params, streamResult: true,
+                complete: (err: any, stmt: any) => (err ? reject(err) : resolve(stmt.streamRows())),
+            });
+        });
+        try {
+            for await (const row of stream) yield row;
+        } finally {
+            if (stream && typeof stream.destroy === 'function') stream.destroy();
+        }
+    }
+
+    /**
+     * Execute arbitrary SQL (used by catalog introspection). Returns the rows.
+     * @param sql SQL text with `?` placeholders.
+     * @param params Positional bind values.
+     */
+    async rawQuery(sql: string, params: any[] = []): Promise<any[]> {
+        return this.exec(sql, params);
+    }
+
     /** Destroys the underlying Snowflake connection, if one was ever opened. */
     async close(): Promise<void> {
         if (this.conn) await new Promise<void>((resolve) => this.conn.destroy(() => resolve()));
@@ -956,6 +1049,46 @@ export class ElasticsearchConnector implements IConnector {
         const data = await this.req('POST', `/${index}/_search`, body);
         // Surface the relevance _score alongside the document source (0 when unscored).
         return (data.hits?.hits || []).map((h: any) => ({ _id: h._id, _score: h._score, ...h._source }));
+    }
+
+    /**
+     * STREAMING variant of a plain `_search` — uses the ES scroll API to page
+     * through the index in `batchSize`-document windows and yields each hit
+     * without buffering the whole result. Honors an overall `limit` (stops early)
+     * and clears the scroll context on completion / early termination. Only valid
+     * for a pass-through search (no aggregate/GROUP BY).
+     * @param _schema Unused (ES has no schema concept).
+     * @param table Index name.
+     * @param config Canonical query config (filter/projection/sort/limit).
+     * @param batchSize Documents per scroll window.
+     * @returns An async iterable of hit documents (with `_id`/`_score`).
+     */
+    async *queryStream(_schema: string, table: string, config: any, batchSize = 500): AsyncGenerator<any> {
+        const canonical = toCanonical(config);
+        const query = ElasticsearchConnector.buildQuery(canonical.filter || {});
+        const body: any = { query, size: Math.max(1, batchSize) };
+        if (canonical.select && canonical.select.length && !canonical.select.includes('*')) body._source = canonical.select;
+        if (canonical.orderBy && canonical.orderBy.length) body.sort = canonical.orderBy.map((o: any) => ({ [o.field]: (o.dir === 'DESC' ? 'desc' : 'asc') }));
+        const hardLimit = typeof canonical.limit === 'number' ? canonical.limit : Infinity;
+        let scrollId: string | undefined;
+        let yielded = 0;
+        try {
+            let data = await this.req('POST', `/${table}/_search?scroll=1m`, body);
+            for (;;) {
+                scrollId = data._scroll_id;
+                const hits = data.hits?.hits || [];
+                if (!hits.length) break;
+                for (const h of hits) {
+                    if (yielded >= hardLimit) return;
+                    yield { _id: h._id, _score: h._score, ...h._source };
+                    yielded++;
+                }
+                if (yielded >= hardLimit) return;
+                data = await this.req('POST', `/_search/scroll`, { scroll: '1m', scroll_id: scrollId });
+            }
+        } finally {
+            if (scrollId) { try { await this.req('DELETE', `/_search/scroll`, { scroll_id: [scrollId] }); } catch { /* context may already be gone */ } }
+        }
     }
 
     /**

@@ -141,7 +141,7 @@ There are **two kinds** of streaming, and `stream: true` engages both when it ca
 | What | how results reach the **client** (NDJSON) | how the engine **pulls rows** from the source (cursor, bounded batches) |
 | Server memory | still holds the result | **bounded to one batch** — not materialized |
 | Applies to | every `stream: true` request | **pass-through scans only** (single source; filter/projection/sort/limit; no join/aggregate/set-op/window/DISTINCT/CALL) |
-| Sources | any | hub Postgres (`pg-query-stream`), remote Postgres connector, MongoDB cursor |
+| Sources | any | **all engines**: hub/remote Postgres (`pg-query-stream`), MongoDB (native cursor), Elasticsearch (scroll cursor), MySQL (`.stream()`), Snowflake (`streamResult`) |
 | Header | `X-Fabric-Stream: ndjson` | `X-Fabric-Stream: ndjson-internal` |
 | Strategy in trailer/audit | `…` | `RAW_SQL+STREAM` / `SINGLE_CONNECTOR+STREAM` |
 

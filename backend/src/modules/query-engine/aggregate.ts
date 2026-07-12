@@ -25,13 +25,21 @@ export interface AggregatePlan {
 
 const AGG_FUNCS = new Set(['COUNT', 'SUM', 'MIN', 'MAX', 'AVG']);
 
-/** last segment of a possibly-qualified column path (alias.col -> col) */
+/**
+ * Last segment of a possibly-qualified column path (alias.col -> col).
+ * @param path a plain or `alias.column` qualified path.
+ * @returns the unqualified column name.
+ */
 function base(path: string): string {
   const s = String(path || '');
   return s.includes('.') ? s.split('.').pop()! : s;
 }
 
-/** Output column name for a group entry (date-bucket entries key by their field). */
+/**
+ * Output column name for a group entry (date-bucket entries key by their field).
+ * @param g a plain grouping column, or a `{ field, dateInterval }` date bucket.
+ * @returns the field name the group value is keyed under in a result row.
+ */
 function gName(g: GroupBy): string {
   return typeof g === 'object' && g ? g.field : (g as string);
 }
@@ -39,7 +47,13 @@ function gName(g: GroupBy): string {
 /**
  * Parse an AST/QueryConfig `select` into grouping columns + aggregate specs.
  * Handles object specs `{aggregate, column, alias}` and string specs like
- * `count(*)`, `SUM(amount)`, `avg(price) as p`.
+ * `count(*)`, `SUM(amount)`, `avg(price) as p`. Plain (non-aggregate) columns
+ * found in an aggregate query are treated as implicit GROUP BY columns.
+ * @param select the query's select list (object aggregate specs and/or plain/aggregate strings), if any.
+ * @param groupBy explicit GROUP BY columns (plain fields or date buckets), if any.
+ * @returns `null` when the select carries no aggregate AND no groupBy was given
+ *   (i.e. this isn't an aggregate query); otherwise the parsed
+ *   `{ groupCols, aggregates }` plan with de-duplicated group columns.
  */
 export function parseAggregates(select: any[] | undefined, groupBy: GroupBy[] | undefined): AggregatePlan | null {
   if (!Array.isArray(select) || select.length === 0) {
@@ -96,7 +110,12 @@ export function parseAggregates(select: any[] | undefined, groupBy: GroupBy[] | 
 
 /**
  * The partial aggregates each source must compute so the fabric can merge them.
- * AVG is expanded to a hidden SUM + COUNT pair.
+ * AVG is expanded to a hidden SUM + COUNT pair (the mean can't be summed
+ * across sources directly — the running sum and count can, and are divided
+ * back into a mean by {@link mergePartials}). Every other function's partial
+ * form matches its final form (COUNT/SUM/MIN/MAX/COUNT_DISTINCT).
+ * @param plan the user-requested aggregate plan (grouping columns + aggregates).
+ * @returns the `{ groupBy, aggregates }` spec to push down to each source.
  */
 export function partialSpec(plan: AggregatePlan): { groupBy: GroupBy[]; aggregates: AggregateSpec[] } {
   const aggregates: AggregateSpec[] = [];
@@ -111,6 +130,11 @@ export function partialSpec(plan: AggregatePlan): { groupBy: GroupBy[]; aggregat
   return { groupBy: plan.groupCols, aggregates };
 }
 
+/**
+ * Coerce a value to a finite number, defaulting to 0.
+ * @param v the value to coerce (already a number, or something `parseFloat` can read).
+ * @returns the numeric value, or `0` if it isn't finite/parseable.
+ */
 function numeric(v: any): number {
   const n = typeof v === 'number' ? v : parseFloat(v);
   return Number.isFinite(n) ? n : 0;
@@ -118,7 +142,19 @@ function numeric(v: any): number {
 
 /**
  * Merge partial-group rows (already grouped per source) into the final result.
- * `distinctSets` accumulates COUNT(DISTINCT) values as sets keyed by group+alias.
+ * Re-groups the combined partials by their group-column values (a source's
+ * groups may overlap another's, e.g. the same customer split across two
+ * shards) and folds each source's partial values into a running accumulator:
+ * COUNT/SUM sum, MIN/MAX min/max, AVG accumulates the hidden `__sum__`/`__cnt__`
+ * pair and divides at the end. `distinctSets` accumulates COUNT(DISTINCT)
+ * values as sets keyed by group+alias when a source returned the raw distinct
+ * values (`__set__<alias>`); otherwise per-source distinct counts are summed
+ * as an upper-bound approximation (exact cross-source distinct counting needs
+ * the raw values).
+ * @param rows partial-aggregate rows collected from every source (see {@link partialSpec}).
+ * @param plan the user-requested aggregate plan (grouping columns + aggregates)
+ *   used to determine merge semantics per aggregate function.
+ * @returns one row per distinct group, with final aggregate values under their aliases.
  */
 export function mergePartials(rows: any[], plan: AggregatePlan): any[] {
   const groups = new Map<string, any>();
@@ -178,7 +214,13 @@ export function mergePartials(rows: any[], plan: AggregatePlan): any[] {
   return out;
 }
 
-/** Read a column from a row tolerating alias-qualified keys (o.amount ~ amount). */
+/**
+ * Read a column from a row tolerating alias-qualified keys (o.amount ~ amount).
+ * @param row the source row (may be `null`/`undefined`).
+ * @param name the column name to read, plain or `alias.column` qualified.
+ * @returns the value found under `name`, its base (unqualified) name, or the
+ *   first key whose base matches; `undefined` if none match or `row` is nullish.
+ */
 function readCol(row: any, name: string): any {
   if (row == null) return undefined;
   if (name in row) return row[name];
@@ -190,7 +232,15 @@ function readCol(row: any, name: string): any {
 
 /**
  * Aggregate RAW rows directly (used after a cross-engine join, where rows are not
- * pre-aggregated). Computes final COUNT/SUM/MIN/MAX/AVG/COUNT(DISTINCT) per group.
+ * pre-aggregated, and after in-fabric recursive traversal). Computes final
+ * COUNT/SUM/MIN/MAX/AVG/COUNT(DISTINCT) per group in a single pass, keeping a
+ * running per-group state (sums/counts/min/max/distinct sets) rather than the
+ * two-phase partial+merge approach {@link mergePartials} uses — appropriate
+ * here because the rows are already local (post-join or post-traversal), so
+ * there's no per-source partial to push down.
+ * @param rows raw (unaggregated) rows to group and aggregate.
+ * @param plan the user-requested aggregate plan (grouping columns + aggregates).
+ * @returns one row per distinct group, with final aggregate values under their aliases.
  */
 export function aggregateRaw(rows: any[], plan: AggregatePlan): any[] {
   const groups = new Map<string, any>();
@@ -234,9 +284,15 @@ export function aggregateRaw(rows: any[], plan: AggregatePlan): any[] {
   return out;
 }
 
-/** True when a query requests grouping/aggregation. */
+/**
+ * True when a query requests grouping/aggregation.
+ * @param select the query's select list.
+ * @param groupBy explicit GROUP BY columns, if any.
+ * @returns whether {@link parseAggregates} would produce a non-null plan.
+ */
 export function isAggregateQuery(select: any[] | undefined, groupBy: string[] | undefined): boolean {
   return parseAggregates(select, groupBy) !== null;
 }
 
+/** The aggregate function names recognized when parsing a select list. */
 export { AGG_FUNCS };

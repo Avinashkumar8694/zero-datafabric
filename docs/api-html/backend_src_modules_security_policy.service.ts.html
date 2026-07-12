@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>backend/src/modules/security/policy.service.ts - Zero Data Fabric — API Reference</title>
+    
+    
+    
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="ConstraintService.html">ConstraintService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ConstraintService.html#.evalCheck">evalCheck</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.parseCheckExpression">parseCheckExpression</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.specFromManifestTable">specFromManifestTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.validate">validate</a></li></ul></li><li><a href="FabricSequenceService.html">FabricSequenceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.currval">currval</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.nextval">nextval</a></li></ul></li><li><a href="FederationExecutor.html">FederationExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyProjection">applyProjection</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.astLegToCanonical">astLegToCanonical</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.buildLegFilters">buildLegFilters</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fanAggregate">fanAggregate</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fetchLegDirect">fetchLegDirect</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.previewConnectorQuery">previewConnectorQuery</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.qualify">qualify</a></li></ul></li><li><a href="GrantService.html">GrantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GrantService.html#.decide">decide</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.enforce">enforce</a></li></ul></li><li><a href="PolicyService.html">PolicyService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PolicyService.html#.applyMasks">applyMasks</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.compileFilter">compileFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.mergeIntoFilter">mergeIntoFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.physicalSchema">physicalSchema</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolveValue">resolveValue</a></li></ul></li><li><a href="QueryLogService.html">QueryLogService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryLogService.html#.capture">capture</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.record">record</a></li></ul></li><li><a href="RecursiveExecutor.html">RecursiveExecutor</a></li><li><a href="SavedAnalyticsService.html">SavedAnalyticsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindAst">bindAst</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindSql">bindSql</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.resolveValues">resolveValues</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.run">run</a></li></ul></li><li><a href="TriggerActionCompiler.html">TriggerActionCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileActionBody">compileActionBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileEnqueueBody">compileEnqueueBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileExecute">compileExecute</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.condition">condition</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.expr">expr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.msg">msg</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.runAtExpr">runAtExpr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerService.html">TriggerService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerService.html#.registryUpsertSql">registryUpsertSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.transpileTriggerSql">transpileTriggerSql</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#AGG_FUNCS">AGG_FUNCS</a></li><li><a href="global.html#CANON_OP">CANON_OP</a></li><li><a href="global.html#EVENT_TIMINGS">EVENT_TIMINGS</a></li><li><a href="global.html#LOCAL_SOURCE">LOCAL_SOURCE</a></li><li><a href="global.html#MongoDBConnector">MongoDBConnector</a></li><li><a href="global.html#OP_MAP">OP_MAP</a></li><li><a href="global.html#RANKING">RANKING</a></li><li><a href="global.html#SQL_OPERATORS">SQL_OPERATORS</a></li><li><a href="global.html#SnowflakeConnector">SnowflakeConnector</a></li><li><a href="global.html#VAR_TOKEN">VAR_TOKEN</a></li><li><a href="global.html#aggregateRaw">aggregateRaw</a></li><li><a href="global.html#applyWindows">applyWindows</a></li><li><a href="global.html#base">base</a></li><li><a href="global.html#cacheInvalidate">cacheInvalidate</a></li><li><a href="global.html#cached">cached</a></li><li><a href="global.html#callFunction">callFunction</a></li><li><a href="global.html#client">client</a></li><li><a href="global.html#deleteAnalytic">deleteAnalytic</a></li><li><a href="global.html#exportMetadata">exportMetadata</a></li><li><a href="global.html#extractWindows">extractWindows</a></li><li><a href="global.html#gName">gName</a></li><li><a href="global.html#getColumns">getColumns</a></li><li><a href="global.html#getTemplate">getTemplate</a></li><li><a href="global.html#handle">handle</a></li><li><a href="global.html#hasWindows">hasWindows</a></li><li><a href="global.html#ident">ident</a></li><li><a href="global.html#invalidateTenant">invalidateTenant</a></li><li><a href="global.html#isAggregateQuery">isAggregateQuery</a></li><li><a href="global.html#listConstraints">listConstraints</a></li><li><a href="global.html#listGrants">listGrants</a></li><li><a href="global.html#listPolicies">listPolicies</a></li><li><a href="global.html#listQueryLogs">listQueryLogs</a></li><li><a href="global.html#maxRowsPerLeg">maxRowsPerLeg</a></li><li><a href="global.html#mergePartials">mergePartials</a></li><li><a href="global.html#nextSequence">nextSequence</a></li><li><a href="global.html#parseAggregates">parseAggregates</a></li><li><a href="global.html#parseHaving">parseHaving</a></li><li><a href="global.html#parseLiteral">parseLiteral</a></li><li><a href="global.html#parseSelect">parseSelect</a></li><li><a href="global.html#parseWhere">parseWhere</a></li><li><a href="global.html#partialSpec">partialSpec</a></li><li><a href="global.html#projectWithWindows">projectWithWindows</a></li><li><a href="global.html#queryWithContext">queryWithContext</a></li><li><a href="global.html#readCol">readCol</a></li><li><a href="global.html#sessionOf">sessionOf</a></li><li><a href="global.html#splitTopLevel">splitTopLevel</a></li><li><a href="global.html#sqlToAst">sqlToAst</a></li><li><a href="global.html#toCanonical">toCanonical</a></li><li><a href="global.html#windowBaseColumns">windowBaseColumns</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">backend/src/modules/security/policy.service.ts</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import { pool } from '../../config/database';
+
+/**
+ * PolicyService — the fabric's engine-agnostic access-policy layer.
+ *
+ * Postgres enforces row-level security and column masking natively. Non-RLS
+ * engines (MongoDB, Elasticsearch, remote warehouses reached as connectors) have
+ * no such enforcement, so the fabric compensates:
+ *
+ *   • ROW policies  → compiled into a CanonicalQuery filter and INJECTED into the
+ *                     leg's pushdown, so the predicate runs AT THE SOURCE (Mongo
+ *                     `$match`, ES query, remote SQL WHERE) — the tenant only ever
+ *                     receives rows they are allowed to see.
+ *   • COLUMN masking → applied to result rows POST-fetch (REDACT / NULL / HASH /
+ *                     PARTIAL) for the roles the rule targets.
+ *
+ * Policies are stored engine-agnostically in fabric_system.access_policies so the
+ * SAME definition drives every engine. A policy predicate clause is
+ * `{ column, operator, value }`, where `value` is a literal or a session
+ * reference `{ session: 'tenant_id' | 'region' | 'role' | 'username' }` resolved
+ * per request — the analogue of a Postgres policy's `current_setting('app.*')`.
+ */
+
+export type PolicyOperator =
+  | 'EQ' | 'NEQ' | 'GT' | 'GTE' | 'LT' | 'LTE' | 'IN' | 'LIKE' | 'IS_NULL' | 'IS_NOT_NULL';
+
+export interface PolicyClause {
+  column: string;
+  operator: PolicyOperator;
+  /** Literal, array (for IN), or a session reference: { session: 'tenant_id' | 'region' | 'role' | 'username' }. */
+  value?: any;
+}
+
+export type MaskStrategy = 'REDACT' | 'NULL' | 'HASH' | 'PARTIAL';
+
+export interface MaskRule {
+  column: string;
+  /** Roles the mask applies to; omit = mask for everyone. */
+  roles?: string[];
+  strategy: MaskStrategy;
+}
+
+export interface AccessPolicy {
+  name: string;
+  schema: string;   // logical (Global_Supply_Chain) or physical (tenant_x_Global_Supply_Chain)
+  table: string;
+  /** Roles this row policy restricts; omit = applies to all roles. */
+  roles?: string[];
+  rowFilter?: PolicyClause[];
+  masking?: MaskRule[];
+}
+
+export interface SessionCtx {
+  tenantId: string;
+  role?: string;
+  region?: string;
+  username?: string;
+}
+
+const CANON_OP: Record&lt;string, string> = {
+  EQ: '$eq', NEQ: '$ne', GT: '$gt', GTE: '$gte', LT: '$lt', LTE: '$lte', IN: '$in', LIKE: '$like',
+};
+
+/**
+ * Engine-agnostic access-policy service: stores row policies + column masking and
+ * enforces them on non-RLS engines (row-predicate injection + post-fetch masking).
+ * @class
+ * @hideconstructor
+ */
+export class PolicyService {
+  private static ready = false;
+
+  /** Create the engine-agnostic policy catalog (idempotent). */
+  static async ensureTable(): Promise&lt;void> {
+    if (this.ready) return;
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS fabric_system.access_policies (
+        id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id     text NOT NULL,
+        schema_name   text NOT NULL,
+        table_name    text NOT NULL,
+        policy_name   text NOT NULL,
+        roles         jsonb NOT NULL DEFAULT '[]'::jsonb,
+        row_filter    jsonb NOT NULL DEFAULT '[]'::jsonb,
+        masking       jsonb NOT NULL DEFAULT '[]'::jsonb,
+        source        text NOT NULL DEFAULT 'API',
+        created_at    timestamptz NOT NULL DEFAULT NOW(),
+        updated_at    timestamptz NOT NULL DEFAULT NOW(),
+        UNIQUE (tenant_id, schema_name, table_name, policy_name)
+      )`);
+    this.ready = true;
+  }
+
+  /** Normalize a logical or physical schema to the tenant's physical schema. */
+  static physicalSchema(tenantId: string, schema: string): string {
+    const prefix = `tenant_${tenantId}_`;
+    if (schema.startsWith(prefix) || schema.startsWith('tenant_')) return schema;
+    return `${prefix}${schema}`;
+  }
+
+  static async upsertPolicy(tenantId: string, p: AccessPolicy, source = 'API'): Promise&lt;any> {
+    await this.ensureTable();
+    // Store the schema EXACTLY as the query leg will present it — for tenant-managed
+    // Postgres that is `tenant_&lt;id>_&lt;logical>` (the orchestrator passes it already
+    // physical); for external connectors it is the remote db/schema (e.g. Mongo's
+    // db name, a remote PG schema). No auto-prefixing, so resolve() matches exactly.
+    const schema = p.schema;
+    const { rows } = await pool.query(
+      `INSERT INTO fabric_system.access_policies
+        (tenant_id, schema_name, table_name, policy_name, roles, row_filter, masking, source, updated_at)
+       VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb,$8,NOW())
+       ON CONFLICT (tenant_id, schema_name, table_name, policy_name)
+       DO UPDATE SET roles = EXCLUDED.roles, row_filter = EXCLUDED.row_filter,
+                     masking = EXCLUDED.masking, source = EXCLUDED.source, updated_at = NOW()
+       RETURNING id, policy_name AS name, schema_name AS schema, table_name AS "table", roles, row_filter AS "rowFilter", masking, source`,
+      [tenantId, schema, p.table, p.name, JSON.stringify(p.roles || []),
+       JSON.stringify(p.rowFilter || []), JSON.stringify(p.masking || []), source]
+    );
+    return rows[0];
+  }
+
+  static async listPolicies(tenantId: string): Promise&lt;any[]> {
+    await this.ensureTable();
+    const { rows } = await pool.query(
+      `SELECT id, policy_name AS name, schema_name AS schema, table_name AS "table",
+              roles, row_filter AS "rowFilter", masking, source, updated_at AS "updatedAt"
+       FROM fabric_system.access_policies WHERE tenant_id = $1 ORDER BY updated_at DESC`,
+      [tenantId]
+    );
+    return rows;
+  }
+
+  static async deletePolicy(tenantId: string, id: string): Promise&lt;boolean> {
+    await this.ensureTable();
+    const { rowCount } = await pool.query(
+      `DELETE FROM fabric_system.access_policies WHERE tenant_id = $1 AND id = $2`, [tenantId, id]
+    );
+    return (rowCount || 0) > 0;
+  }
+
+  /** Resolve a session reference or return the literal value unchanged. */
+  private static resolveValue(value: any, session: SessionCtx): any {
+    if (value &amp;&amp; typeof value === 'object' &amp;&amp; !Array.isArray(value) &amp;&amp; 'session' in value) {
+      switch (String(value.session)) {
+        case 'tenant_id': return session.tenantId;
+        case 'region': return session.region ?? null;
+        case 'role': return session.role ?? null;
+        case 'username': return session.username ?? null;
+        default: return null;
+      }
+    }
+    return value;
+  }
+
+  private static roleMatches(roles: any, session: SessionCtx): boolean {
+    if (!Array.isArray(roles) || roles.length === 0) return true; // applies to all
+    const r = String(session.role || '').toUpperCase();
+    return roles.map((x) => String(x).toUpperCase()).includes(r);
+  }
+
+  /**
+   * Compile a list of policy clauses into a CanonicalQuery filter fragment.
+   * Multiple clauses on the same column are merged (all conditions apply).
+   */
+  static compileFilter(clauses: PolicyClause[], session: SessionCtx): Record&lt;string, any> {
+    const filter: Record&lt;string, any> = {};
+    for (const c of clauses || []) {
+      if (!c || !c.column) continue;
+      const op = String(c.operator || 'EQ').toUpperCase();
+      const col = c.column;
+      const merge = (frag: any) => { filter[col] = { ...(typeof filter[col] === 'object' ? filter[col] : {}), ...frag }; };
+      if (op === 'IS_NULL') { merge({ $eq: null }); continue; }
+      if (op === 'IS_NOT_NULL') { merge({ $ne: null }); continue; }
+      const canonOp = CANON_OP[op];
+      if (!canonOp) continue;
+      merge({ [canonOp]: this.resolveValue(c.value, session) });
+    }
+    return filter;
+  }
+
+  /**
+   * Resolve the effective row-filter + masking for a physical (schema, table)
+   * under a session. Only policies whose roles match the session are applied.
+   */
+  static async resolve(
+    tenantId: string, physicalSchema: string, table: string, session: SessionCtx
+  ): Promise&lt;{ filter: Record&lt;string, any>; masks: MaskRule[]; applied: string[] }> {
+    await this.ensureTable();
+    const result = await pool.query(
+      `SELECT policy_name, roles, row_filter, masking
+       FROM fabric_system.access_policies
+       WHERE tenant_id = $1 AND schema_name = $2 AND table_name = $3`,
+      [tenantId, physicalSchema, table]
+    );
+    const rows = result?.rows || [];
+    let filter: Record&lt;string, any> = {};
+    const masks: MaskRule[] = [];
+    const applied: string[] = [];
+    for (const row of rows) {
+      if (!this.roleMatches(row.roles, session)) continue;
+      const clauses: PolicyClause[] = Array.isArray(row.row_filter) ? row.row_filter : [];
+      if (clauses.length) {
+        const frag = this.compileFilter(clauses, session);
+        for (const [col, cond] of Object.entries(frag)) {
+          filter[col] = { ...(typeof filter[col] === 'object' ? filter[col] : {}), ...(cond as object) };
+        }
+      }
+      for (const m of (Array.isArray(row.masking) ? row.masking : [])) {
+        if (this.roleMatches(m.roles, session)) masks.push(m);
+      }
+      applied.push(row.policy_name);
+    }
+    return { filter, masks, applied };
+  }
+
+  /** Merge a policy filter fragment into an existing CanonicalQuery filter. */
+  static mergeIntoFilter(existing: Record&lt;string, any> | undefined, policyFilter: Record&lt;string, any>): Record&lt;string, any> {
+    const out: Record&lt;string, any> = { ...(existing || {}) };
+    for (const [col, cond] of Object.entries(policyFilter)) {
+      const prev = out[col];
+      if (prev &amp;&amp; typeof prev === 'object' &amp;&amp; !Array.isArray(prev) &amp;&amp; typeof cond === 'object') {
+        out[col] = { ...prev, ...cond };
+      } else if (prev !== undefined &amp;&amp; (typeof prev !== 'object' || Array.isArray(prev))) {
+        // Existing bare-equality plus a policy condition → combine as operators.
+        out[col] = { $eq: prev, ...(cond as object) };
+      } else {
+        out[col] = cond;
+      }
+    }
+    return out;
+  }
+
+  /** Apply masking to result rows for the given session. */
+  static applyMasks(rows: any[], masks: MaskRule[], _session: SessionCtx): any[] {
+    if (!masks.length || !Array.isArray(rows)) return rows;
+    return rows.map((r) => {
+      if (!r || typeof r !== 'object') return r;
+      const copy = { ...r };
+      for (const m of masks) {
+        if (!(m.column in copy)) continue;
+        copy[m.column] = this.maskValue(copy[m.column], m.strategy);
+      }
+      return copy;
+    });
+  }
+
+  private static maskValue(v: any, strategy: MaskStrategy): any {
+    if (v === null || v === undefined) return v;
+    switch (strategy) {
+      case 'NULL': return null;
+      case 'REDACT': return '***REDACTED***';
+      case 'HASH': return `sha256:${this.cheapHash(String(v))}`;
+      case 'PARTIAL': {
+        const s = String(v);
+        if (s.length &lt;= 4) return '****';
+        return `${'*'.repeat(Math.max(0, s.length - 4))}${s.slice(-4)}`;
+      }
+      default: return v;
+    }
+  }
+
+  // Small non-crypto digest — masking only needs stable, non-reversible output here.
+  private static cheapHash(s: string): string {
+    let h = 5381;
+    for (let i = 0; i &lt; s.length; i++) h = ((h &lt;&lt; 5) + h + s.charCodeAt(i)) >>> 0;
+    return h.toString(16).padStart(8, '0');
+  }
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Jul 12 2026 08:28:49 GMT+0530 (India Standard Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+<script src="scripts/collapse.js" defer></script>
+
+
+</body>
+</html>

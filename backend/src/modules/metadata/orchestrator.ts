@@ -1,3 +1,20 @@
+/**
+ * Metadata manifest orchestrator.
+ * --------------------------------
+ * The top-level entry point for the manifest apply/diff/rollback lifecycle:
+ * validates a manifest structurally and against the tenant's registered data
+ * sources, computes the required changes via `DiffEngine`, compiles them to
+ * engine-native statements via `Transpiler`, and executes them — Hub Postgres
+ * DDL transactionally, remote/heterogeneous engines best-effort (SAGA-style)
+ * via `HeterogeneousDispatcher` so a remote outage degrades rather than
+ * rolling back the whole apply. After provisioning it synchronizes the fabric
+ * catalog (schemas/tables/triggers/policies/constraints/relationships) so the
+ * UI Explorer, Policy Engine and Constraint Engine stay consistent with what
+ * was just applied, then reconciles downstream sync targets via
+ * `DownstreamService`. Every successful apply is recorded to
+ * `fabric_system.metadata_history`, which also backs `rollback` (re-apply of
+ * a prior manifest snapshot with `force: true`).
+ */
 import { PoolClient } from 'pg';
 import { pool } from '../../config/database';
 import { DiffEngine } from './diff_engine';
@@ -5,8 +22,32 @@ import { Transpiler } from './transpiler';
 import { MetadataManifest } from './types';
 import { DownstreamService } from './downstream_service';
 import { HeterogeneousDispatcher } from './dispatcher';
+import { PolicyService } from '../security/policy.service';
+import { ConstraintService } from '../query-engine/constraint.service';
+import { GrantService } from '../security/grant.service';
 
+/**
+ * Orchestrates the full lifecycle of applying, planning and rolling back a
+ * tenant's metadata manifest across the Fabric Hub and any registered
+ * heterogeneous/remote data sources.
+ */
 export class MetadataOrchestrator {
+    /**
+     * Applies a manifest to a tenant's fabric: validates it, computes a plan
+     * of required changes, and executes that plan. Hub Postgres provisioning
+     * runs inside a single transaction (raised to a 180s statement timeout
+     * for heavier DDL); provisioning against remote/heterogeneous sources is
+     * dispatched best-effort per resource and marked `DEGRADED` on failure
+     * rather than aborting the transaction. After provisioning, synchronizes
+     * the fabric catalog, tenant schema privileges and downstream targets,
+     * then commits. Any error during Hub provisioning or catalog sync rolls
+     * back the entire transaction.
+     * @param tenantId Tenant scope the manifest is applied for.
+     * @param manifest The declarative manifest to apply.
+     * @param options.force When true, skips the high-risk-change guard and ensures every declared schema has a `CREATE_SCHEMA` diff even if the plan didn't already include one.
+     * @returns `{ status: 'APPLIED', manifestVersion, appliedCount, plan, results, downstream }` describing what was executed.
+     * @throws {Error} If manifest validation fails, a referenced data source is missing/inactive, the plan contains high-risk changes without `force`, or Hub Postgres provisioning/catalog sync fails (transaction is rolled back first).
+     */
     async apply(tenantId: string, manifest: MetadataManifest, options: { force?: boolean } = {}) {
         this.validateManifest(manifest); // Stage 1: Structural Validation
         await this.validateDataSources(tenantId, manifest); // Stage 2: Connectivity Validation
@@ -136,6 +177,18 @@ export class MetadataOrchestrator {
         }
     }
 
+    /**
+     * Grants the `fabric_user` role standard privileges (USAGE on schema,
+     * SELECT/INSERT/UPDATE/DELETE on tables, SELECT/USAGE on sequences, plus
+     * matching default privileges for future objects) on every one of the
+     * manifest's physical schemas that actually exists. Skips schemas that
+     * were never created (defensive: avoids failing the whole apply if one
+     * schema's provisioning was itself skipped) and no-ops entirely if the
+     * `fabric_user` role doesn't exist.
+     * @param client Open transactional pool client (part of the apply transaction).
+     * @param tenantId Tenant scope; physical schema names are derived as `tenant_{tenantId}_{schema.name}`.
+     * @param manifest The manifest whose schemas' privileges are ensured.
+     */
     private async ensureTenantSchemaPrivileges(client: PoolClient, tenantId: string, manifest: MetadataManifest) {
         for (const schema of manifest.schemas) {
             const schemaName = `tenant_${tenantId}_${schema.name}`;
@@ -151,6 +204,16 @@ export class MetadataOrchestrator {
         }
     }
 
+    /**
+     * Validates that every non-Hub data source the manifest references
+     * (`manifest.targetSource`, federated view queries, and relationship
+     * `source` fields) is registered in the tenant's catalog and currently
+     * `ACTIVE`. `'Fabric_Hub_Postgres'` is treated as always available and
+     * skipped.
+     * @param tenantId Tenant scope.
+     * @param manifest The manifest whose referenced data sources are validated.
+     * @throws {Error} If a referenced data source isn't found in the catalog, or exists but isn't `ACTIVE`.
+     */
     private async validateDataSources(tenantId: string, manifest: MetadataManifest) {
         const referencedSources = new Set<string>();
         
@@ -196,6 +259,14 @@ export class MetadataOrchestrator {
         }
     }
 
+    /**
+     * Recursively walks a `QueryAST` (a view's query definition) collecting
+     * every `source` name referenced by its FROM target, joins, CTE bases,
+     * and set-operation branches (UNION/INTERSECT/EXCEPT), so federated views
+     * can be validated against the tenant's registered data sources.
+     * @param query The query AST fragment to scan (may be `null`/`undefined`, in which case this is a no-op).
+     * @param sources Accumulator set that discovered source names are added to.
+     */
     private findSourcesInQuery(query: any, sources: Set<string>) {
         if (!query) return;
         if (query.from && query.from.source) sources.add(query.from.source);
@@ -217,6 +288,13 @@ export class MetadataOrchestrator {
 
     private static CORE_EXTENSIONS = ['uuid-ossp', 'pg_stat_statements', 'pgcrypto', 'btree_gist'];
 
+    /**
+     * Ensures the platform-level infrastructure every manifest apply depends
+     * on exists before any tenant DDL runs: the core extensions
+     * (`CORE_EXTENSIONS`), the `fabric_system` schema, and the fabric
+     * primitive functions/sequence (`ensureFabricPrimitives`). Idempotent.
+     * @param client Open Postgres client/pool to run the setup statements on.
+     */
     private async ensureBaseInfrastructure(client: any) {
         for (const ext of MetadataOrchestrator.CORE_EXTENSIONS) {
             await client.query(`CREATE EXTENSION IF NOT EXISTS "${ext}"`);
@@ -230,6 +308,7 @@ export class MetadataOrchestrator {
      * generators and triggers (uuid_generate_v7, current_user_id, current_tenant,
      * generate_tenant_id, audit_log_fn). Created in `public` so they resolve from any
      * tenant schema's search_path. Idempotent (CREATE OR REPLACE).
+     * @param client Open Postgres client/pool to create the primitives on. Each statement's failure is caught and logged individually so one unsupported primitive doesn't block the rest.
      */
     private async ensureFabricPrimitives(client: any) {
         const stmts = [
@@ -269,6 +348,15 @@ export class MetadataOrchestrator {
         }
     }
 
+    /**
+     * Computes a dry-run plan of the changes a manifest apply would make,
+     * without executing any of them. Ensures base infrastructure exists (so
+     * the diff queries against `fabric_system`/extensions are valid), then
+     * delegates to `DiffEngine.compare`.
+     * @param tenantId Tenant scope.
+     * @param manifest The manifest to plan against current catalog state.
+     * @returns `{ status: 'PLAN_READY', summary: { total, highRisk, quarantine }, changes }` where `changes` is the ordered diff list.
+     */
     async plan(tenantId: string, manifest: MetadataManifest) {
         const client = await pool.connect();
         try {
@@ -288,11 +376,36 @@ export class MetadataOrchestrator {
         }
     }
 
+    /**
+     * Synchronizes the fabric catalog and downstream engine registries with
+     * the manifest that was just applied, so every consumer of catalog state
+     * stays consistent with the physical result of this apply:
+     *  - Logs the manifest + plan summary to `fabric_system.metadata_history` (backs `rollback`).
+     *  - Upserts `public.data_sources` / `catalog_schemas` / `catalog_tables` per resource,
+     *    preserving each resource's compiled SQL and definition AST for round-tripping
+     *    (`MetadataService.exportManifest`) and UI Explorer display.
+     *  - Syncs table-scoped triggers and RLS policies as child catalog rows.
+     *  - Syncs engine-agnostic access policies/masking/grants to the Policy/Grant Engines
+     *    (`PolicyService`, `GrantService`) so non-RLS engines (Mongo/ES/remote) enforce
+     *    row filters and column masking too.
+     *  - Syncs engine-agnostic column/table constraints to the Constraint Engine
+     *    (`ConstraintService`) so non-SQL engines get NOT NULL/UNIQUE/ENUM/CHECK/FK
+     *    compensation at write time.
+     *  - Persists declared relationships to `fabric_catalog.relationships` for ER
+     *    diagrams/lineage (best-effort per relationship; a persist failure for one
+     *    relationship is logged and skipped rather than aborting the whole sync).
+     * @param client Open transactional pool client (part of the apply transaction).
+     * @param tenantId Tenant scope.
+     * @param manifest The manifest that was applied.
+     * @param summary The plan summary (`{ total, highRisk, quarantine }`) recorded alongside the manifest in history.
+     * @param definitions Map of `schema.resource` → `{ sql, ast }` compiled during apply, used to persist each resource's definition.
+     * @param manifestResources Map of `schema.resource` → the manifest's resource object, used as the definitive AST when available.
+     */
     private async persistMetadataState(
-        client: PoolClient, 
-        tenantId: string, 
-        manifest: MetadataManifest, 
-        summary: any, 
+        client: PoolClient,
+        tenantId: string,
+        manifest: MetadataManifest,
+        summary: any,
         definitions: Map<string, { sql: string, ast: any }>,
         manifestResources: Map<string, any>
     ) {
@@ -373,6 +486,51 @@ export class MetadataOrchestrator {
                         `, [schemaId, `${resource.name}.${pol.name}`, `${physicalName}.${pol.name}`, JSON.stringify(pol)]);
                     }
                 }
+
+                // Sync ENGINE-AGNOSTIC access policies for the Policy Engine, so row
+                // predicates + column masking are enforced on non-RLS engines (Mongo/ES/
+                // remote), not just Postgres. Two sources:
+                //   (a) security.accessPolicies — structured, engine-agnostic policies.
+                //   (b) security.masking        — the legacy masking field (previously a
+                //       no-op comment) is mapped to a masking-only fabric policy.
+                if (resource.type === 'TABLE' && resource.security) {
+                    const sec: any = resource.security;
+                    for (const ap of (sec.accessPolicies || [])) {
+                        await PolicyService.upsertPolicy(tenantId, {
+                            name: ap.name, schema: physicalSchema, table: resource.name,
+                            roles: ap.roles, rowFilter: ap.rowFilter, masking: ap.masking,
+                        }, 'MANIFEST');
+                    }
+                    // Engine-agnostic grants → fabric access gate for non-SQL engines.
+                    if (Array.isArray(sec.grants) && sec.grants.length) {
+                        await GrantService.upsert(tenantId, physicalSchema, resource.name,
+                            sec.grants.map((g: any) => ({ role: g.role, privileges: g.privileges || [] })), 'MANIFEST');
+                    }
+                    if (Array.isArray(sec.masking) && sec.masking.length) {
+                        await PolicyService.upsertPolicy(tenantId, {
+                            name: `${resource.name}_masking`, schema: physicalSchema, table: resource.name,
+                            masking: sec.masking.map((m: any) => ({
+                                column: m.column,
+                                roles: m.roles,
+                                strategy: /null/i.test(m.expression || '') ? 'NULL'
+                                    : /hash/i.test(m.expression || '') ? 'HASH'
+                                    : /partial|last4/i.test(m.expression || '') ? 'PARTIAL' : 'REDACT',
+                            })),
+                        }, 'MANIFEST');
+                    }
+                }
+
+                // Sync ENGINE-AGNOSTIC constraints so the fabric can enforce
+                // NOT NULL / UNIQUE / ENUM / CHECK / FK on non-SQL engines at write
+                // time (Postgres enforces natively; this compensates elsewhere).
+                if (resource.type === 'TABLE') {
+                    const enums: Record<string, string[]> = {};
+                    for (const r of (schema.resources || [])) if (r.type === 'ENUM') enums[r.name] = r.values || [];
+                    const spec = ConstraintService.specFromManifestTable(resource, enums, []);
+                    if (spec.columns.length || spec.checks.length) {
+                        await ConstraintService.upsert(tenantId, physicalSchema, resource.name, spec, 'MANIFEST');
+                    }
+                }
             }
         }
 
@@ -397,17 +555,37 @@ export class MetadataOrchestrator {
         }
     }
 
+    /**
+     * Lists a tenant's manifest apply history, most recent first.
+     * @param tenantId Tenant scope.
+     * @returns Rows of `{ id, version_tag, summary, applied_at }` from `fabric_system.metadata_history`.
+     */
     async getHistory(tenantId: string) {
         const { rows } = await pool.query(`SELECT id, version_tag, summary, applied_at FROM fabric_system.metadata_history WHERE tenant_id = $1 ORDER BY applied_at DESC`, [tenantId]);
         return rows;
     }
 
+    /**
+     * Rolls back a tenant's fabric to a prior manifest snapshot by re-running
+     * `apply` against the historical manifest content, forced (bypassing the
+     * high-risk-change guard) since rollback is an intentional operator action.
+     * @param tenantId Tenant scope.
+     * @param versionId `fabric_system.metadata_history` row id identifying the snapshot to restore.
+     * @returns The same result shape as `apply`.
+     * @throws {Error} If no history row matches `versionId` for this tenant.
+     */
     async rollback(tenantId: string, versionId: string) {
         const { rows } = await pool.query(`SELECT ast_content FROM fabric_system.metadata_history WHERE id = $1 AND tenant_id = $2`, [versionId, tenantId]);
         if (rows.length === 0) throw new Error('Version not found');
         return await this.apply(tenantId, rows[0].ast_content, { force: true });
     }
 
+    /**
+     * Structural validation performed before any diffing/provisioning: a
+     * manifest must declare a `version` and at least one schema.
+     * @param manifest The manifest to validate.
+     * @throws {Error} If `version` is missing, or `schemas` is missing/empty.
+     */
     private validateManifest(manifest: MetadataManifest) {
         if (!manifest.version) throw new Error('Industrial Integrity Violation: Manifest version required');
         if (!manifest.schemas || manifest.schemas.length === 0) throw new Error('Industrial Integrity Violation: At least one schema required');

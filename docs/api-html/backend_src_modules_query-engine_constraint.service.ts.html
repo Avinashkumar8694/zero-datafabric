@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>backend/src/modules/query-engine/constraint.service.ts - Zero Data Fabric — API Reference</title>
+    
+    
+    
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="ConstraintService.html">ConstraintService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ConstraintService.html#.evalCheck">evalCheck</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.parseCheckExpression">parseCheckExpression</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.specFromManifestTable">specFromManifestTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.validate">validate</a></li></ul></li><li><a href="FabricSequenceService.html">FabricSequenceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.currval">currval</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.nextval">nextval</a></li></ul></li><li><a href="FederationExecutor.html">FederationExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyProjection">applyProjection</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.astLegToCanonical">astLegToCanonical</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.buildLegFilters">buildLegFilters</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fanAggregate">fanAggregate</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fetchLegDirect">fetchLegDirect</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.previewConnectorQuery">previewConnectorQuery</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.qualify">qualify</a></li></ul></li><li><a href="GrantService.html">GrantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GrantService.html#.decide">decide</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.enforce">enforce</a></li></ul></li><li><a href="PolicyService.html">PolicyService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PolicyService.html#.applyMasks">applyMasks</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.compileFilter">compileFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.mergeIntoFilter">mergeIntoFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.physicalSchema">physicalSchema</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolveValue">resolveValue</a></li></ul></li><li><a href="QueryLogService.html">QueryLogService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryLogService.html#.capture">capture</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.record">record</a></li></ul></li><li><a href="RecursiveExecutor.html">RecursiveExecutor</a></li><li><a href="SavedAnalyticsService.html">SavedAnalyticsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindAst">bindAst</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindSql">bindSql</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.resolveValues">resolveValues</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.run">run</a></li></ul></li><li><a href="TriggerActionCompiler.html">TriggerActionCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileActionBody">compileActionBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileEnqueueBody">compileEnqueueBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileExecute">compileExecute</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.condition">condition</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.expr">expr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.msg">msg</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.runAtExpr">runAtExpr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerService.html">TriggerService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerService.html#.registryUpsertSql">registryUpsertSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.transpileTriggerSql">transpileTriggerSql</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#AGG_FUNCS">AGG_FUNCS</a></li><li><a href="global.html#CANON_OP">CANON_OP</a></li><li><a href="global.html#EVENT_TIMINGS">EVENT_TIMINGS</a></li><li><a href="global.html#LOCAL_SOURCE">LOCAL_SOURCE</a></li><li><a href="global.html#MongoDBConnector">MongoDBConnector</a></li><li><a href="global.html#OP_MAP">OP_MAP</a></li><li><a href="global.html#RANKING">RANKING</a></li><li><a href="global.html#SQL_OPERATORS">SQL_OPERATORS</a></li><li><a href="global.html#SnowflakeConnector">SnowflakeConnector</a></li><li><a href="global.html#VAR_TOKEN">VAR_TOKEN</a></li><li><a href="global.html#aggregateRaw">aggregateRaw</a></li><li><a href="global.html#applyWindows">applyWindows</a></li><li><a href="global.html#base">base</a></li><li><a href="global.html#cacheInvalidate">cacheInvalidate</a></li><li><a href="global.html#cached">cached</a></li><li><a href="global.html#callFunction">callFunction</a></li><li><a href="global.html#client">client</a></li><li><a href="global.html#deleteAnalytic">deleteAnalytic</a></li><li><a href="global.html#exportMetadata">exportMetadata</a></li><li><a href="global.html#extractWindows">extractWindows</a></li><li><a href="global.html#gName">gName</a></li><li><a href="global.html#getColumns">getColumns</a></li><li><a href="global.html#getTemplate">getTemplate</a></li><li><a href="global.html#handle">handle</a></li><li><a href="global.html#hasWindows">hasWindows</a></li><li><a href="global.html#ident">ident</a></li><li><a href="global.html#invalidateTenant">invalidateTenant</a></li><li><a href="global.html#isAggregateQuery">isAggregateQuery</a></li><li><a href="global.html#listConstraints">listConstraints</a></li><li><a href="global.html#listGrants">listGrants</a></li><li><a href="global.html#listPolicies">listPolicies</a></li><li><a href="global.html#listQueryLogs">listQueryLogs</a></li><li><a href="global.html#maxRowsPerLeg">maxRowsPerLeg</a></li><li><a href="global.html#mergePartials">mergePartials</a></li><li><a href="global.html#nextSequence">nextSequence</a></li><li><a href="global.html#parseAggregates">parseAggregates</a></li><li><a href="global.html#parseHaving">parseHaving</a></li><li><a href="global.html#parseLiteral">parseLiteral</a></li><li><a href="global.html#parseSelect">parseSelect</a></li><li><a href="global.html#parseWhere">parseWhere</a></li><li><a href="global.html#partialSpec">partialSpec</a></li><li><a href="global.html#projectWithWindows">projectWithWindows</a></li><li><a href="global.html#queryWithContext">queryWithContext</a></li><li><a href="global.html#readCol">readCol</a></li><li><a href="global.html#sessionOf">sessionOf</a></li><li><a href="global.html#splitTopLevel">splitTopLevel</a></li><li><a href="global.html#sqlToAst">sqlToAst</a></li><li><a href="global.html#toCanonical">toCanonical</a></li><li><a href="global.html#windowBaseColumns">windowBaseColumns</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">backend/src/modules/query-engine/constraint.service.ts</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import { pool } from '../../config/database';
+
+/**
+ * ConstraintService — the fabric's engine-agnostic CONSTRAINT enforcement.
+ *
+ * Postgres enforces NOT NULL / UNIQUE / CHECK / ENUM / FOREIGN KEY natively at
+ * write time. Document/search engines (MongoDB, Elasticsearch) do not (Mongo can
+ * back UNIQUE with an index, but has no CHECK / enum / FK / NOT-NULL semantics).
+ * Following the fabric's compensation model, constraints are stored
+ * engine-agnostically and VALIDATED IN-FABRIC before a write is dispatched to a
+ * non-SQL engine:
+ *
+ *   • push-down          — Postgres writes skip fabric validation (native enforces)
+ *   • compensate-in-fabric — Mongo/ES writes are validated here first
+ *   • reject-if-impossible — a constraint the fabric can't model (e.g. EXCLUDE …
+ *                            USING GIST) is surfaced as an explicit, non-silent skip
+ *
+ * A constraint spec is deliberately simple + declarative so it maps to any engine
+ * and is easy to author from a manifest or the API:
+ *   columns : [{ name, notNull?, unique?, enum?: string[], fk?: {...} }]
+ *   checks  : [{ name, column, op: 'REGEX'|'GT'|'GTE'|'LT'|'LTE'|'EQ'|'NEQ'|'IN'|'LEN_LTE'|'NOT_NULL', value? }]
+ * Existing Postgres-style `constraints[]` (CHECK expressions) are best-effort
+ * parsed into this structured form (regex `~`, simple comparisons) so current
+ * manifests keep working; anything unparseable is kept for Postgres only.
+ */
+
+export interface ConstraintColumn {
+  name: string;
+  notNull?: boolean;
+  unique?: boolean;
+  enum?: string[];
+  fk?: { source?: string; schema?: string; table: string; column: string };
+}
+export type CheckOp = 'REGEX' | 'GT' | 'GTE' | 'LT' | 'LTE' | 'EQ' | 'NEQ' | 'IN' | 'LEN_LTE' | 'NOT_NULL';
+export interface CheckRule { name: string; column: string; op: CheckOp; value?: any }
+export interface ConstraintSpec { columns: ConstraintColumn[]; checks: CheckRule[] }
+
+export interface Violation { constraint: string; column?: string; rule: string; detail: string }
+
+/** Async lookups the caller supplies so the fabric can verify UNIQUE / FK at the source. */
+export interface ConstraintLookups {
+  /** count existing docs where column === value (excluding the row being updated). */
+  countWhere?: (column: string, value: any) => Promise&lt;number>;
+  /** does a row exist in the FK target where refColumn === value? */
+  fkExists?: (fk: NonNullable&lt;ConstraintColumn['fk']>, value: any) => Promise&lt;boolean>;
+}
+
+export class ConstraintService {
+  private static ready = false;
+
+  static async ensureTable(): Promise&lt;void> {
+    if (this.ready) return;
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS fabric_system.fabric_constraints (
+        id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id   text NOT NULL,
+        schema_name text NOT NULL,
+        table_name  text NOT NULL,
+        spec        jsonb NOT NULL DEFAULT '{}'::jsonb,
+        source      text NOT NULL DEFAULT 'API',
+        updated_at  timestamptz NOT NULL DEFAULT NOW(),
+        UNIQUE (tenant_id, schema_name, table_name)
+      )`);
+    this.ready = true;
+  }
+
+  static async upsert(tenantId: string, schema: string, table: string, spec: ConstraintSpec, source = 'API'): Promise&lt;any> {
+    await this.ensureTable();
+    const { rows } = await pool.query(
+      `INSERT INTO fabric_system.fabric_constraints (tenant_id, schema_name, table_name, spec, source, updated_at)
+       VALUES ($1,$2,$3,$4::jsonb,$5,NOW())
+       ON CONFLICT (tenant_id, schema_name, table_name)
+       DO UPDATE SET spec = EXCLUDED.spec, source = EXCLUDED.source, updated_at = NOW()
+       RETURNING id, schema_name AS schema, table_name AS "table", spec, source`,
+      [tenantId, schema, table, JSON.stringify(spec), source]
+    );
+    return rows[0];
+  }
+
+  static async list(tenantId: string): Promise&lt;any[]> {
+    await this.ensureTable();
+    const { rows } = await pool.query(
+      `SELECT id, schema_name AS schema, table_name AS "table", spec, source, updated_at AS "updatedAt"
+       FROM fabric_system.fabric_constraints WHERE tenant_id = $1 ORDER BY updated_at DESC`, [tenantId]);
+    return rows;
+  }
+
+  static async resolve(tenantId: string, physicalSchema: string, table: string): Promise&lt;ConstraintSpec | null> {
+    await this.ensureTable();
+    const result = await pool.query(
+      `SELECT spec FROM fabric_system.fabric_constraints WHERE tenant_id=$1 AND schema_name=$2 AND table_name=$3`,
+      [tenantId, physicalSchema, table]);
+    const spec = result?.rows?.[0]?.spec;
+    return spec &amp;&amp; (spec.columns?.length || spec.checks?.length) ? spec : null;
+  }
+
+  /**
+   * Build an engine-agnostic constraint spec from a manifest TABLE resource
+   * (column flags + enum refs + `constraints[]` CHECK expressions + relationship FKs).
+   */
+  static specFromManifestTable(resource: any, enums: Record&lt;string, string[]>, fks: any[] = []): ConstraintSpec {
+    const columns: ConstraintColumn[] = [];
+    for (const c of resource.columns || []) {
+      const col: ConstraintColumn = { name: c.name };
+      if (c.nullable === false || c.primaryKey) col.notNull = true;
+      if (c.unique || c.primaryKey) col.unique = true;
+      if ((c.type === 'ENUM' || String(c.type).toUpperCase() === 'ENUM') &amp;&amp; c.ref &amp;&amp; enums[c.ref]) col.enum = enums[c.ref]!;
+      const fk = fks.find((f) => f.column === c.name);
+      if (fk) col.fk = fk;
+      if (col.notNull || col.unique || col.enum || col.fk) columns.push(col);
+    }
+    const checks: CheckRule[] = [];
+    for (const con of resource.constraints || []) {
+      if (con.type === 'CHECK' &amp;&amp; con.expression) {
+        const parsed = this.parseCheckExpression(con.name, con.expression);
+        if (parsed) checks.push(parsed);
+      }
+      // EXCLUDE / GIST etc. are Postgres-only → reject-if-impossible (not modelled in-fabric).
+    }
+    // Structured checks authored directly on the resource (engine-agnostic, preferred).
+    for (const c of resource.checks || []) checks.push(c);
+    return { columns, checks };
+  }
+
+  /** Best-effort parse of a simple Postgres CHECK into a structured rule. */
+  static parseCheckExpression(name: string, expr: string): CheckRule | null {
+    const s = String(expr).trim();
+    let m: RegExpMatchArray | null;
+    // col ~ 'regex'  /  col ~* 'regex'
+    if ((m = s.match(/^([a-zA-Z_][\w]*)\s*~\*?\s*'(.+)'$/))) return { name, column: m[1]!, op: 'REGEX', value: m[2] };
+    // col >= n / > / &lt;= / &lt; / = / &lt;>
+    if ((m = s.match(/^([a-zA-Z_][\w]*)\s*(>=|&lt;=|&lt;>|!=|>|&lt;|=)\s*(-?\d+(?:\.\d+)?)$/))) {
+      const opMap: Record&lt;string, CheckOp> = { '>': 'GT', '>=': 'GTE', '&lt;': 'LT', '&lt;=': 'LTE', '=': 'EQ', '&lt;>': 'NEQ', '!=': 'NEQ' };
+      return { name, column: m[1]!, op: opMap[m[2]!]!, value: Number(m[3]) };
+    }
+    return null; // Postgres-only expression; leave to native enforcement.
+  }
+
+  /** Evaluate a single check rule against a value. Returns true when SATISFIED. */
+  private static evalCheck(rule: CheckRule, value: any): boolean {
+    if (value === null || value === undefined) return rule.op !== 'NOT_NULL'; // null passes value-checks (SQL semantics); NOT_NULL fails
+    switch (rule.op) {
+      case 'REGEX': try { return new RegExp(rule.value).test(String(value)); } catch { return true; }
+      case 'GT': return Number(value) > Number(rule.value);
+      case 'GTE': return Number(value) >= Number(rule.value);
+      case 'LT': return Number(value) &lt; Number(rule.value);
+      case 'LTE': return Number(value) &lt;= Number(rule.value);
+      case 'EQ': return value === rule.value;
+      case 'NEQ': return value !== rule.value;
+      case 'IN': return Array.isArray(rule.value) &amp;&amp; rule.value.includes(value);
+      case 'LEN_LTE': return String(value).length &lt;= Number(rule.value);
+      case 'NOT_NULL': return true;
+      default: return true;
+    }
+  }
+
+  /**
+   * Validate rows against a spec for a non-SQL-engine write. Returns all
+   * violations found (empty = OK). NOT NULL / ENUM / CHECK are synchronous;
+   * UNIQUE / FK use the supplied lookups (skipped if not provided).
+   */
+  static async validate(rows: any[], spec: ConstraintSpec, op: 'create' | 'update', lookups: ConstraintLookups = {}): Promise&lt;Violation[]> {
+    const violations: Violation[] = [];
+    for (const row of rows) {
+      for (const col of spec.columns || []) {
+        const present = row &amp;&amp; Object.prototype.hasOwnProperty.call(row, col.name);
+        const val = row?.[col.name];
+        // NOT NULL — enforced on create always; on update only when the column is being set.
+        if (col.notNull &amp;&amp; (op === 'create' ? (val === null || val === undefined) : (present &amp;&amp; (val === null || val === undefined)))) {
+          violations.push({ constraint: `${col.name}_not_null`, column: col.name, rule: 'NOT_NULL', detail: `column "${col.name}" must not be null` });
+        }
+        // ENUM
+        if (col.enum &amp;&amp; present &amp;&amp; val !== null &amp;&amp; val !== undefined &amp;&amp; !col.enum.includes(val)) {
+          violations.push({ constraint: `${col.name}_enum`, column: col.name, rule: 'ENUM', detail: `"${val}" not in {${col.enum.join(', ')}}` });
+        }
+        // UNIQUE (needs a source lookup)
+        if (col.unique &amp;&amp; present &amp;&amp; val !== null &amp;&amp; val !== undefined &amp;&amp; lookups.countWhere) {
+          const n = await lookups.countWhere(col.name, val);
+          if (n > 0) violations.push({ constraint: `${col.name}_unique`, column: col.name, rule: 'UNIQUE', detail: `duplicate value "${val}" for unique column "${col.name}"` });
+        }
+        // FOREIGN KEY (needs a source lookup)
+        if (col.fk &amp;&amp; present &amp;&amp; val !== null &amp;&amp; val !== undefined &amp;&amp; lookups.fkExists) {
+          const ok = await lookups.fkExists(col.fk, val);
+          if (!ok) violations.push({ constraint: `${col.name}_fk`, column: col.name, rule: 'FOREIGN_KEY', detail: `"${val}" not present in ${col.fk.table}.${col.fk.column}` });
+        }
+      }
+      for (const chk of spec.checks || []) {
+        const present = row &amp;&amp; Object.prototype.hasOwnProperty.call(row, chk.column);
+        if (op === 'update' &amp;&amp; !present) continue; // only validate columns being written on update
+        if (!this.evalCheck(chk, row?.[chk.column])) {
+          violations.push({ constraint: chk.name, column: chk.column, rule: `CHECK(${chk.op})`, detail: `value "${row?.[chk.column]}" fails check "${chk.name}"` });
+        }
+      }
+    }
+    return violations;
+  }
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Jul 12 2026 08:28:49 GMT+0530 (India Standard Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+<script src="scripts/collapse.js" defer></script>
+
+
+</body>
+</html>

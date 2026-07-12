@@ -23,15 +23,31 @@
     "examples:complex": "node examples/aggregation-and-complex.js",
     "examples:triggers": "node examples/trigger-engine-examples.js",
     "examples:triggers:suite": "node examples/triggers/run-all.js",
+    "examples:policy": "NODE_PATH=backend/node_modules node examples/policy/run-all.js",
+    "examples:recursive": "NODE_PATH=backend/node_modules node examples/recursive/run-all.js",
+    "examples:governance": "NODE_PATH=backend/node_modules node examples/governance/run-all.js",
+    "examples:analytics": "NODE_PATH=backend/node_modules node examples/analytics/run.js",
+    "examples:analytics:all": "NODE_PATH=backend/node_modules node examples/analytics/all-types.js",
+    "seed:downstreams": "NODE_PATH=backend/node_modules node examples/connect-downstreams.js",
     "examples:sources": "node examples/register-3-datasources.js",
     "examples:fed-aggregate": "node examples/federated-aggregate.js",
     "examples:fed-join": "node examples/federated-join-pushdown.js",
     "stop": "lsof -ti:4000,3001 | xargs kill -9",
     "setup": "npm run install:all && npm run infra:up && npm run db:migrate",
-    "test": "cd backend && npm test -- --runInBand"
+    "test": "cd backend && npm run test:unit",
+    "test:unit": "cd backend && npm run test:unit",
+    "test:integration": "cd backend && npm run test:integration",
+    "test:all": "cd backend && npm test -- --runInBand",
+    "docs:generate": "jsdoc -c jsdoc.json"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@babel/core": "^7.29.7",
+    "@babel/preset-env": "^7.29.7",
+    "@babel/preset-typescript": "^7.29.7",
+    "concurrently": "^8.2.2",
+    "docdash": "^2.0.2",
+    "jsdoc": "^4.0.5",
+    "jsdoc-babel": "^0.5.0"
   },
   "dependencies": {
     "axios": "^1.16.0"

@@ -40,7 +40,11 @@ const OP_MAP: Record<string, string> = {
 const unquoteIdent = (s: string) => s.trim().replace(/^[`"[]+|[`"\]]+$/g, '');
 const lastSegment = (s: string) => { const p = unquoteIdent(s); return p.includes('.') ? p.split('.').pop()! : p; };
 
-/** Parse a SQL literal into a JS value (number, quoted string, boolean, null). */
+/**
+ * Parse a SQL literal into a JS value (number, quoted string, boolean, null).
+ * @param raw the raw literal text (e.g. `'abc'`, `42`, `3.14`, `true`, `null`).
+ * @returns the typed JS value; unrecognized text is returned as a trimmed string.
+ */
 function parseLiteral(raw: string): any {
   const s = raw.trim();
   if (/^'(.*)'$/.test(s)) return s.slice(1, -1).replace(/''/g, "'");
@@ -52,7 +56,16 @@ function parseLiteral(raw: string): any {
   return s;
 }
 
-/** Split on a top-level delimiter (comma / AND), ignoring anything inside parentheses. */
+/**
+ * Split on a top-level delimiter (comma / AND), ignoring anything inside parentheses.
+ * Used to split a SELECT list on commas, or a WHERE/HAVING clause on `AND`,
+ * without breaking apart a function call's argument list (e.g.
+ * `COUNT(a, b)` or `col IN (1, 2, 3)`) since the delimiter is only matched
+ * when the parenthesis nesting depth is 0.
+ * @param input the text to split.
+ * @param delim a regex matching the delimiter at the START of the remaining text (anchored via `m.index === 0`).
+ * @returns the trimmed, non-empty segments between top-level delimiter matches.
+ */
 function splitTopLevel(input: string, delim: RegExp): string[] {
   const parts: string[] = []; let depth = 0; let buf = '';
   const tokens = input.split(/(\(|\))/);
@@ -74,7 +87,17 @@ function splitTopLevel(input: string, delim: RegExp): string[] {
   void tokens;
 }
 
-/** Parse the SELECT list into columns + aggregate specs. */
+/**
+ * Parse the SELECT list into columns + aggregate specs.
+ * Recognizes `*`, plain (optionally aliased) columns, and
+ * `COUNT/SUM/AVG/MIN/MAX(col|*) [AS alias]`. Anything else (scalar/stored
+ * function calls, window functions, CASE, arithmetic) has no universal
+ * cross-engine mapping and is rejected rather than silently mistranslated.
+ * @param list the raw SELECT list text (between `SELECT [DISTINCT]` and `FROM`).
+ * @returns `['*']`, or a mixed array of plain column name strings and
+ *   `{ aggregate, column, alias }` aggregate specs.
+ * @throws if an entry isn't a recognized plain column or aggregate expression.
+ */
 function parseSelect(list: string): any[] {
   if (list.trim() === '*') return ['*'];
   const out: any[] = [];
@@ -100,7 +123,14 @@ function parseSelect(list: string): any[] {
   return out;
 }
 
-/** Parse a WHERE clause (AND-combined simple predicates). */
+/**
+ * Parse a WHERE clause (AND-combined simple predicates).
+ * Supports `col IN (v1, v2, ...)` and `col <op> value` where op is one of
+ * `= == != <> > >= < <= LIKE ILIKE MATCH`.
+ * @param clause the raw WHERE clause text (everything between `WHERE` and the next keyword).
+ * @returns one predicate per AND-combined condition.
+ * @throws if a condition doesn't match a supported shape.
+ */
 function parseWhere(clause: string): { column: string; operator: string; value: any }[] {
   const preds: { column: string; operator: string; value: any }[] = [];
   for (const cond of splitTopLevel(clause, /^\s+and\s+/i)) {
@@ -124,6 +154,10 @@ function parseWhere(clause: string): { column: string; operator: string; value: 
  * (e.g. `COUNT(*)`, `SUM(amount)`) — the latter is resolved to its select alias.
  * HAVING is applied by the fabric as a post-aggregation filter (compensation),
  * so it works uniformly across engines.
+ * @param clause the raw HAVING clause text.
+ * @param selectSpecs the already-parsed SELECT list (see {@link parseSelect}), used to resolve aggregate-expression LHS to their alias.
+ * @returns one predicate per AND-combined condition, keyed by the resolved result-column alias.
+ * @throws if a condition doesn't match a supported shape, or references an aggregate not present in the SELECT list.
  */
 function parseHaving(clause: string, selectSpecs: any[]): { column: string; operator: string; value: any }[] {
   const resolveAlias = (lhs: string): string => {
@@ -146,10 +180,23 @@ function parseHaving(clause: string, selectSpecs: any[]): { column: string; oper
 
 /**
  * Translate a single-table SELECT into the fabric AST `query` object.
- * @throws on unsupported constructs (JOIN / UNION / subquery) — use AST mode instead.
+ * Explicitly rejects (with a directive error message) constructs that have no
+ * translation to a non-SQL engine: `WITH [RECURSIVE]`/CTEs, `JOIN`, set
+ * operations, and subqueries — callers needing those should use AST mode
+ * directly instead of SQL. `SELECT DISTINCT` over plain columns is rewritten
+ * to a GROUP BY on those columns (DISTINCT with aggregates, or `DISTINCT *`,
+ * is rejected).
+ * @param sqlRaw the raw SQL string (whitespace-normalized and trailing `;` stripped internally).
+ * @returns the parsed {@link TranslatedQuery} AST fragment (`from`/`select`/`where`/`groupBy`/`having`/`orderBy`/`limit`/`offset`).
+ * @throws on unsupported constructs (JOIN / UNION / subquery / CTE) or a
+ *   statement shape that doesn't match `SELECT [DISTINCT] ... FROM t [WHERE][GROUP BY][HAVING][ORDER BY][LIMIT][OFFSET]`.
  */
 export function sqlToAst(sqlRaw: string): TranslatedQuery {
   const sql = String(sqlRaw).replace(/\s+/g, ' ').replace(/;\s*$/, '').trim();
+  // WITH / recursive CTEs can't be expressed against a document store; direct the
+  // caller to the fabric's engine-agnostic equivalents (which DO run on Mongo/ES).
+  if (/^with\s+recursive\b/i.test(sql)) throw new Error('SQL translate: WITH RECURSIVE is not supported on non-SQL engines — use AST mode with query.recursive (in-fabric hierarchy traversal).');
+  if (/^with\b/i.test(sql)) throw new Error('SQL translate: WITH/CTE is not supported on non-SQL engines — use AST mode (query.with for Postgres, query.recursive for cross-engine).');
   if (/\bjoin\b/i.test(sql)) throw new Error('SQL translate: JOINs are not supported for non-SQL engines — use AST mode.');
   if (/\bunion\b|\bintersect\b|\bexcept\b/i.test(sql)) throw new Error('SQL translate: set operations are not supported here — use AST mode.');
   if (/\bselect\b[\s\S]*\bfrom\b\s*\(/i.test(sql)) throw new Error('SQL translate: subqueries are not supported — use AST mode.');

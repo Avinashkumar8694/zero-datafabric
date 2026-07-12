@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>backend/src/modules/query-engine/sql_translator.ts - Zero Data Fabric — API Reference</title>
+    
+    
+    
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="ConstraintService.html">ConstraintService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ConstraintService.html#.evalCheck">evalCheck</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.parseCheckExpression">parseCheckExpression</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.specFromManifestTable">specFromManifestTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.validate">validate</a></li></ul></li><li><a href="FabricSequenceService.html">FabricSequenceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.currval">currval</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.nextval">nextval</a></li></ul></li><li><a href="FederationExecutor.html">FederationExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyProjection">applyProjection</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.astLegToCanonical">astLegToCanonical</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.buildLegFilters">buildLegFilters</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fanAggregate">fanAggregate</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fetchLegDirect">fetchLegDirect</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.previewConnectorQuery">previewConnectorQuery</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.qualify">qualify</a></li></ul></li><li><a href="GrantService.html">GrantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GrantService.html#.decide">decide</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.enforce">enforce</a></li></ul></li><li><a href="PolicyService.html">PolicyService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PolicyService.html#.applyMasks">applyMasks</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.compileFilter">compileFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.mergeIntoFilter">mergeIntoFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.physicalSchema">physicalSchema</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolveValue">resolveValue</a></li></ul></li><li><a href="QueryLogService.html">QueryLogService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryLogService.html#.capture">capture</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.record">record</a></li></ul></li><li><a href="RecursiveExecutor.html">RecursiveExecutor</a></li><li><a href="SavedAnalyticsService.html">SavedAnalyticsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindAst">bindAst</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindSql">bindSql</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.resolveValues">resolveValues</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.run">run</a></li></ul></li><li><a href="TriggerActionCompiler.html">TriggerActionCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileActionBody">compileActionBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileEnqueueBody">compileEnqueueBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileExecute">compileExecute</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.condition">condition</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.expr">expr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.msg">msg</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.runAtExpr">runAtExpr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerService.html">TriggerService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerService.html#.registryUpsertSql">registryUpsertSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.transpileTriggerSql">transpileTriggerSql</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#AGG_FUNCS">AGG_FUNCS</a></li><li><a href="global.html#CANON_OP">CANON_OP</a></li><li><a href="global.html#EVENT_TIMINGS">EVENT_TIMINGS</a></li><li><a href="global.html#LOCAL_SOURCE">LOCAL_SOURCE</a></li><li><a href="global.html#MongoDBConnector">MongoDBConnector</a></li><li><a href="global.html#OP_MAP">OP_MAP</a></li><li><a href="global.html#RANKING">RANKING</a></li><li><a href="global.html#SQL_OPERATORS">SQL_OPERATORS</a></li><li><a href="global.html#SnowflakeConnector">SnowflakeConnector</a></li><li><a href="global.html#VAR_TOKEN">VAR_TOKEN</a></li><li><a href="global.html#aggregateRaw">aggregateRaw</a></li><li><a href="global.html#applyWindows">applyWindows</a></li><li><a href="global.html#base">base</a></li><li><a href="global.html#cacheInvalidate">cacheInvalidate</a></li><li><a href="global.html#cached">cached</a></li><li><a href="global.html#callFunction">callFunction</a></li><li><a href="global.html#client">client</a></li><li><a href="global.html#deleteAnalytic">deleteAnalytic</a></li><li><a href="global.html#exportMetadata">exportMetadata</a></li><li><a href="global.html#extractWindows">extractWindows</a></li><li><a href="global.html#gName">gName</a></li><li><a href="global.html#getColumns">getColumns</a></li><li><a href="global.html#getTemplate">getTemplate</a></li><li><a href="global.html#handle">handle</a></li><li><a href="global.html#hasWindows">hasWindows</a></li><li><a href="global.html#ident">ident</a></li><li><a href="global.html#invalidateTenant">invalidateTenant</a></li><li><a href="global.html#isAggregateQuery">isAggregateQuery</a></li><li><a href="global.html#listConstraints">listConstraints</a></li><li><a href="global.html#listGrants">listGrants</a></li><li><a href="global.html#listPolicies">listPolicies</a></li><li><a href="global.html#listQueryLogs">listQueryLogs</a></li><li><a href="global.html#maxRowsPerLeg">maxRowsPerLeg</a></li><li><a href="global.html#mergePartials">mergePartials</a></li><li><a href="global.html#nextSequence">nextSequence</a></li><li><a href="global.html#parseAggregates">parseAggregates</a></li><li><a href="global.html#parseHaving">parseHaving</a></li><li><a href="global.html#parseLiteral">parseLiteral</a></li><li><a href="global.html#parseSelect">parseSelect</a></li><li><a href="global.html#parseWhere">parseWhere</a></li><li><a href="global.html#partialSpec">partialSpec</a></li><li><a href="global.html#projectWithWindows">projectWithWindows</a></li><li><a href="global.html#queryWithContext">queryWithContext</a></li><li><a href="global.html#readCol">readCol</a></li><li><a href="global.html#sessionOf">sessionOf</a></li><li><a href="global.html#splitTopLevel">splitTopLevel</a></li><li><a href="global.html#sqlToAst">sqlToAst</a></li><li><a href="global.html#toCanonical">toCanonical</a></li><li><a href="global.html#windowBaseColumns">windowBaseColumns</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">backend/src/modules/query-engine/sql_translator.ts</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * SQL → AST translator.
+ * ----------------------
+ * Lets a caller write plain SQL against a NON-SQL engine (e.g. MongoDB) and have
+ * the fabric translate it into the engine-agnostic query AST, which the planner
+ * then compiles to that engine's native query (Mongo find / $group, etc.).
+ *
+ * This is how "SQL over MongoDB" works: MongoDB has no SQL engine, so instead of
+ * executing SQL *at* the source, the fabric parses the SQL here and drives its
+ * normal pushdown path. SQL-native engines (Postgres/MySQL/Snowflake/ES) keep
+ * running SQL natively — they don't use this.
+ *
+ * Supported subset (single-collection analytics — the Mongo-translatable core):
+ *   SELECT &lt;cols | * | aggregates>              (COUNT(*), COUNT/SUM/AVG/MIN/MAX(col), AS alias)
+ *   FROM &lt;table>
+ *   [WHERE &lt;col op value> [AND ...]]            (= != &lt;> &lt; > &lt;= >= LIKE ILIKE IN(...))
+ *   [GROUP BY &lt;cols>]
+ *   [ORDER BY &lt;col [ASC|DESC]> [, ...]]
+ *   [LIMIT n] [OFFSET n]
+ * JOINs / subqueries / UNION are NOT supported here — use AST mode for those.
+ */
+
+export interface TranslatedQuery {
+  from: { resource: string };
+  select?: any[];
+  where?: { column: string; operator: string; value: any }[];
+  groupBy?: string[];
+  having?: { column: string; operator: string; value: any }[];
+  orderBy?: { column: string; direction: 'ASC' | 'DESC' }[];
+  limit?: number;
+  offset?: number;
+}
+
+const OP_MAP: Record&lt;string, string> = {
+  '=': 'EQ', '==': 'EQ', '!=': 'NE', '&lt;>': 'NE',
+  '>': 'GT', '>=': 'GTE', '&lt;': 'LT', '&lt;=': 'LTE',
+  'LIKE': 'LIKE', 'ILIKE': 'ILIKE', 'IN': 'IN', 'MATCH': 'MATCH',
+};
+
+const unquoteIdent = (s: string) => s.trim().replace(/^[`"[]+|[`"\]]+$/g, '');
+const lastSegment = (s: string) => { const p = unquoteIdent(s); return p.includes('.') ? p.split('.').pop()! : p; };
+
+/** Parse a SQL literal into a JS value (number, quoted string, boolean, null). */
+function parseLiteral(raw: string): any {
+  const s = raw.trim();
+  if (/^'(.*)'$/.test(s)) return s.slice(1, -1).replace(/''/g, "'");
+  if (/^"(.*)"$/.test(s)) return s.slice(1, -1);
+  if (/^-?\d+$/.test(s)) return parseInt(s, 10);
+  if (/^-?\d*\.\d+$/.test(s)) return parseFloat(s);
+  if (/^(true|false)$/i.test(s)) return s.toLowerCase() === 'true';
+  if (/^null$/i.test(s)) return null;
+  return s;
+}
+
+/** Split on a top-level delimiter (comma / AND), ignoring anything inside parentheses. */
+function splitTopLevel(input: string, delim: RegExp): string[] {
+  const parts: string[] = []; let depth = 0; let buf = '';
+  const tokens = input.split(/(\(|\))/);
+  // Simpler char scan with a delimiter test on the remaining string.
+  parts.length = 0; buf = ''; depth = 0;
+  for (let i = 0; i &lt; input.length; i++) {
+    const ch = input[i]!;
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    if (depth === 0) {
+      const rest = input.slice(i);
+      const m = rest.match(delim);
+      if (m &amp;&amp; m.index === 0) { parts.push(buf); buf = ''; i += m[0].length - 1; continue; }
+    }
+    buf += ch;
+  }
+  parts.push(buf);
+  return parts.map((p) => p.trim()).filter((p) => p.length > 0);
+  void tokens;
+}
+
+/** Parse the SELECT list into columns + aggregate specs. */
+function parseSelect(list: string): any[] {
+  if (list.trim() === '*') return ['*'];
+  const out: any[] = [];
+  for (const item of splitTopLevel(list, /^\s*,\s*/)) {
+    const agg = item.match(/^(count|sum|avg|min|max)\s*\(\s*(\*|[\w."`]+)\s*\)(?:\s+as\s+([\w]+))?$/i);
+    if (agg) {
+      const func = agg[1]!.toUpperCase();
+      const col = agg[2] === '*' ? '*' : lastSegment(agg[2]!);
+      out.push({ aggregate: func, column: col, alias: agg[3] || `${func.toLowerCase()}_${col === '*' ? 'all' : col}` });
+      continue;
+    }
+    // A plain column, optionally aliased. Anything else — scalar/stored functions
+    // (nextval, generate_custom_id, lower...), window functions (RANK() OVER),
+    // CASE, or arithmetic — has no universal cross-engine mapping, so we REJECT it
+    // rather than silently mistranslate. Run those on a SQL-native source or via AST.
+    const plain = item.match(/^([\w."`]+)(?:\s+as\s+([\w]+))?$/i);
+    if (plain) { out.push(lastSegment(plain[1]!)); continue; }
+    throw new Error(
+      `SQL translate: unsupported SELECT expression "${item}". Functions (e.g. nextval, ` +
+      `stored functions), window functions, CASE and arithmetic aren't translatable to a ` +
+      `non-SQL engine — run on a SQL-native source (Postgres/ES) or use AST mode.`);
+  }
+  return out;
+}
+
+/** Parse a WHERE clause (AND-combined simple predicates). */
+function parseWhere(clause: string): { column: string; operator: string; value: any }[] {
+  const preds: { column: string; operator: string; value: any }[] = [];
+  for (const cond of splitTopLevel(clause, /^\s+and\s+/i)) {
+    const inM = cond.match(/^([\w."`]+)\s+in\s*\((.+)\)$/i);
+    if (inM) {
+      const vals = splitTopLevel(inM[2]!, /^\s*,\s*/).map(parseLiteral);
+      preds.push({ column: lastSegment(inM[1]!), operator: 'IN', value: vals });
+      continue;
+    }
+    const m = cond.match(/^([\w."`]+)\s*(=|==|!=|&lt;>|>=|&lt;=|>|&lt;|like|ilike|match)\s*(.+)$/i);
+    if (!m) throw new Error(`SQL translate: unsupported WHERE predicate "${cond}"`);
+    const op = OP_MAP[m[2]!.toUpperCase()] || OP_MAP[m[2]!] || 'EQ';
+    preds.push({ column: lastSegment(m[1]!), operator: op, value: parseLiteral(m[3]!) });
+  }
+  return preds;
+}
+
+/**
+ * Parse a HAVING clause into predicates on the aggregate RESULT columns. The
+ * left-hand side may be a SELECT alias (e.g. `cnt`) or an aggregate expression
+ * (e.g. `COUNT(*)`, `SUM(amount)`) — the latter is resolved to its select alias.
+ * HAVING is applied by the fabric as a post-aggregation filter (compensation),
+ * so it works uniformly across engines.
+ */
+function parseHaving(clause: string, selectSpecs: any[]): { column: string; operator: string; value: any }[] {
+  const resolveAlias = (lhs: string): string => {
+    const agg = lhs.match(/^(count|sum|avg|min|max)\s*\(\s*(\*|[\w.]+)\s*\)$/i);
+    if (agg) {
+      const func = agg[1]!.toUpperCase();
+      const col = agg[2] === '*' ? null : lastSegment(agg[2]!);
+      const hit = selectSpecs.find((s) => s &amp;&amp; typeof s === 'object' &amp;&amp; s.aggregate === func &amp;&amp; (s.column === (col ?? '*') || s.column === col));
+      if (hit) return hit.alias;
+      throw new Error(`SQL translate: HAVING references ${lhs} which is not in the SELECT list — add it with an alias.`);
+    }
+    return unquoteIdent(lhs); // a select alias
+  };
+  return splitTopLevel(clause, /^\s+and\s+/i).map((cond) => {
+    const mm = cond.match(/^(.+?)\s*(=|==|!=|&lt;>|>=|&lt;=|>|&lt;)\s*(.+)$/);
+    if (!mm) throw new Error(`SQL translate: unsupported HAVING predicate "${cond}"`);
+    return { column: resolveAlias(mm[1]!.trim()), operator: OP_MAP[mm[2]!] || 'EQ', value: parseLiteral(mm[3]!) };
+  });
+}
+
+/**
+ * Translate a single-table SELECT into the fabric AST `query` object.
+ * @throws on unsupported constructs (JOIN / UNION / subquery) — use AST mode instead.
+ */
+export function sqlToAst(sqlRaw: string): TranslatedQuery {
+  const sql = String(sqlRaw).replace(/\s+/g, ' ').replace(/;\s*$/, '').trim();
+  // WITH / recursive CTEs can't be expressed against a document store; direct the
+  // caller to the fabric's engine-agnostic equivalents (which DO run on Mongo/ES).
+  if (/^with\s+recursive\b/i.test(sql)) throw new Error('SQL translate: WITH RECURSIVE is not supported on non-SQL engines — use AST mode with query.recursive (in-fabric hierarchy traversal).');
+  if (/^with\b/i.test(sql)) throw new Error('SQL translate: WITH/CTE is not supported on non-SQL engines — use AST mode (query.with for Postgres, query.recursive for cross-engine).');
+  if (/\bjoin\b/i.test(sql)) throw new Error('SQL translate: JOINs are not supported for non-SQL engines — use AST mode.');
+  if (/\bunion\b|\bintersect\b|\bexcept\b/i.test(sql)) throw new Error('SQL translate: set operations are not supported here — use AST mode.');
+  if (/\bselect\b[\s\S]*\bfrom\b\s*\(/i.test(sql)) throw new Error('SQL translate: subqueries are not supported — use AST mode.');
+
+  const re = /^select\s+(distinct\s+)?(.+?)\s+from\s+([\w."`]+)\s*(?:\bwhere\s+(.+?))?\s*(?:\bgroup\s+by\s+(.+?))?\s*(?:\bhaving\s+(.+?))?\s*(?:\border\s+by\s+(.+?))?\s*(?:\blimit\s+(\d+))?\s*(?:\boffset\s+(\d+))?\s*$/is;
+  const m = sql.match(re);
+  if (!m) throw new Error('SQL translate: could not parse statement (supported: SELECT [DISTINCT] ... FROM t [WHERE][GROUP BY][HAVING][ORDER BY][LIMIT][OFFSET]).');
+
+  const [, distinct, selectList, table, whereC, groupByC, havingC, orderByC, limitС, offsetC] = m;
+  const q: TranslatedQuery = { from: { resource: lastSegment(table!) }, select: parseSelect(selectList!) };
+  if (whereC) q.where = parseWhere(whereC);
+  if (groupByC) q.groupBy = splitTopLevel(groupByC, /^\s*,\s*/).map(lastSegment);
+  // DISTINCT: group by the selected (plain) columns.
+  if (distinct) {
+    if (q.select!.some((c) => c &amp;&amp; typeof c === 'object')) throw new Error('SQL translate: SELECT DISTINCT with aggregates is not supported — use GROUP BY.');
+    q.groupBy = (q.select as string[]).filter((c) => c !== '*');
+    if (!q.groupBy.length) throw new Error('SQL translate: SELECT DISTINCT * is not supported — list columns.');
+  }
+  if (havingC) q.having = parseHaving(havingC, q.select || []);
+  if (orderByC) {
+    q.orderBy = splitTopLevel(orderByC, /^\s*,\s*/).map((o) => {
+      const parts = o.trim().split(/\s+/);
+      return { column: lastSegment(parts[0]!), direction: (parts[1] || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC' };
+    });
+  }
+  if (limitС) q.limit = parseInt(limitС, 10);
+  if (offsetC) q.offset = parseInt(offsetC, 10);
+  return q;
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Jul 12 2026 08:28:49 GMT+0530 (India Standard Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+<script src="scripts/collapse.js" defer></script>
+
+
+</body>
+</html>

@@ -1,6 +1,19 @@
+/**
+ * Elasticsearch mutation worker.
+ * -------------------------------
+ * Keeps Elasticsearch indices eventually consistent with writes made against
+ * Hub Postgres tables (INSERT/UPDATE/DELETE from the `/api/data` CRUD
+ * endpoints), without making the caller's write wait on ES availability.
+ * Callers enqueue a durable job row via `enqueueMutation`; a background
+ * poller (`tick`) claims pending jobs with `FOR UPDATE SKIP LOCKED` (safe
+ * under multiple worker instances) and syncs each to Elasticsearch via
+ * `_bulk`/`_doc` requests, retrying with backoff up to `max_attempts` before
+ * marking a job `FAILED`.
+ */
 import axios from 'axios';
 import { pool } from '../../config/database';
 
+/** Row shape of a queued ES sync job in `public.es_mutation_jobs`. */
 type MutationJob = {
   id: string;
   tenant_id: string;
@@ -12,9 +25,21 @@ type MutationJob = {
   max_attempts: number;
 };
 
+/**
+ * Polls `public.es_mutation_jobs` and replays pending row mutations into
+ * Elasticsearch to keep search indices in sync with Hub table writes.
+ * @class
+ * @hideconstructor
+ */
 export class ElasticsearchMutationWorker {
   private static started = false;
 
+  /**
+   * Starts the background polling loop (idempotent — calling more than once
+   * is a no-op). Each tick's errors are logged rather than thrown, so a
+   * transient failure never kills the interval.
+   * @param intervalMs Poll interval in milliseconds; defaults to `ES_MUTATION_POLL_MS` env var or 1500ms.
+   */
   static start(intervalMs = Number(process.env.ES_MUTATION_POLL_MS || 1500)) {
     if (this.started) return;
     this.started = true;
@@ -24,6 +49,16 @@ export class ElasticsearchMutationWorker {
     console.log(`[ES-MutationWorker] started (${intervalMs}ms)`);
   }
 
+  /**
+   * Enqueues a durable ES sync job for a Hub table mutation. A no-op for
+   * non-DELETE actions with no rows (nothing to sync).
+   * @param params.tenantId Tenant scope.
+   * @param params.schemaName Physical Hub schema name the table lives in.
+   * @param params.tableName Physical table name that was mutated.
+   * @param params.action The mutation kind driving how `process` replays it to ES.
+   * @param params.rows Affected rows (for INSERT/UPDATE, the new row values; ignored/optional for DELETE which uses `filter` or row ids).
+   * @param params.filter Optional filter payload carried alongside the job (reserved for filter-based deletes).
+   */
   static async enqueueMutation(params: {
     tenantId: string;
     schemaName: string;
@@ -40,6 +75,13 @@ export class ElasticsearchMutationWorker {
     );
   }
 
+  /**
+   * Claims a batch of up to 20 pending, due jobs (`FOR UPDATE SKIP LOCKED`,
+   * safe for concurrent worker instances) and processes each in turn. The
+   * claiming transaction only reads/locks-and-releases; each job's actual
+   * sync work happens afterward in `process`, outside this transaction.
+   * @throws Rethrows and rolls back if the claiming query itself fails; per-job sync errors are handled inside `process`, not here.
+   */
   private static async tick() {
     const client = await pool.connect();
     try {
@@ -62,6 +104,14 @@ export class ElasticsearchMutationWorker {
     }
   }
 
+  /**
+   * Syncs a single claimed job to Elasticsearch: DELETE jobs remove documents
+   * by id (best-effort, ignoring per-document failures); INSERT/UPDATE jobs
+   * bulk-upsert the payload rows. Marks the job `COMPLETED` on success, or
+   * defers/fails it (via `defer`) on any error — including a missing ES
+   * connector, which is treated as a retryable failure rather than thrown.
+   * @param job The claimed mutation job row.
+   */
   private static async process(job: MutationJob) {
     const client = await pool.connect();
     try {
@@ -110,6 +160,14 @@ export class ElasticsearchMutationWorker {
     }
   }
 
+  /**
+   * Records a sync failure against a job: increments its attempt count, and
+   * either resets it to `PENDING` with a 20-second backoff (if under
+   * `max_attempts`) or marks it terminally `FAILED`.
+   * @param client Open pool client to run the update on.
+   * @param job The job that failed to sync.
+   * @param error Error message to persist to `last_error`.
+   */
   private static async defer(client: any, job: MutationJob, error: string) {
     const attempts = job.attempts + 1;
     const terminal = attempts >= job.max_attempts;
@@ -125,6 +183,11 @@ export class ElasticsearchMutationWorker {
     );
   }
 
+  /**
+   * Looks up the tenant's active/connected Elasticsearch data source.
+   * @param tenantId Tenant scope.
+   * @returns The data source's `{ config }`, or `null` if none is ACTIVE/CONNECTED.
+   */
   private static async getElasticConnector(tenantId: string) {
     const { rows } = await pool.query(
       `SELECT config FROM public.data_sources

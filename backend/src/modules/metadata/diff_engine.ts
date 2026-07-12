@@ -1,10 +1,44 @@
+/**
+ * Manifest diff engine.
+ * ---------------------
+ * Compares a `MetadataManifest` against the live Postgres catalog (and, for
+ * heterogeneous targets, assumes provisioning is required since no live
+ * introspection connector is consulted here) to compute the ordered list of
+ * changes (`diffs`) needed to reconcile reality with the declared manifest:
+ * schema/enum/sequence/table/column/view/function creation, relationship and
+ * extension provisioning, downstream target sync, and quarantine of tables
+ * that exist physically but are no longer declared in the manifest.
+ *
+ * Each diff entry is a plain object carrying at minimum `{ action, risk }`
+ * plus action-specific fields; `Transpiler.toSql`/`toMongo` later compiles
+ * these diffs into engine-native DDL/operations, and `MetadataOrchestrator`
+ * decides whether high-risk diffs require an explicit `force` to apply.
+ */
 import { pool } from '../../config/database';
 import { MetadataManifest, SchemaDefinition, ResourceDefinition, EnumDefinition, SequenceDefinition, TableDefinition, ViewDefinition, FunctionDefinition } from './types';
 
+/**
+ * Computes the set of provisioning changes required to reconcile a tenant's
+ * live catalog with a declared manifest.
+ * @class
+ * @hideconstructor
+ */
 export class DiffEngine {
+    /**
+     * Compares a manifest against live catalog state and returns the ordered
+     * list of diffs required to reconcile them. Diffs are emitted per schema
+     * (schema existence, then resources in dependency order, then retired
+     * tables), followed by manifest-wide relationship, extension and
+     * downstream-target checks.
+     * @param tenantId Tenant scope; physical schema names are derived as `tenant_{tenantId}_{schema.name}`.
+     * @param manifest The declarative manifest to diff against the live catalog.
+     * @param client An open Postgres client/pool connection used for catalog introspection queries.
+     * @returns A flat array of diff objects (each with at least `action` and `risk`) in the order they should be applied.
+     * @throws Rethrows any error encountered while querying the catalog.
+     */
     static async compare(tenantId: string, manifest: MetadataManifest, client: any) {
         const diffs: any[] = [];
-        
+
         try {
             for (const schema of manifest.schemas) {
                 const targetSource = schema.targetSource || manifest.targetSource || 'Fabric_Hub_Postgres';
@@ -67,11 +101,28 @@ export class DiffEngine {
         }
     }
 
+    /**
+     * Orders resources so dependencies are diffed (and later applied) before
+     * their dependents: ENUM, SEQUENCE, then FUNCTION/PROCEDURE, then TABLE,
+     * then VIEW/MATERIALIZED_VIEW.
+     * @param resources Resources declared in a schema, in manifest order.
+     * @returns A new array of the same resources sorted into dependency order.
+     */
     private static sortResources(resources: ResourceDefinition[]): ResourceDefinition[] {
         const order = { 'ENUM': 1, 'SEQUENCE': 2, 'FUNCTION': 3, 'PROCEDURE': 3, 'TABLE': 4, 'VIEW': 5, 'MATERIALIZED_VIEW': 6 };
         return [...resources].sort((a, b) => (order[a.type] || 99) - (order[b.type] || 99));
     }
 
+    /**
+     * Dispatches a single resource to its type-specific diff routine, pushing
+     * any resulting diff onto the shared `diffs` accumulator.
+     * @param client Open Postgres client/pool used for catalog introspection.
+     * @param schemaName Physical (tenant-qualified) schema name.
+     * @param shortSchemaName Logical (manifest) schema name, used in diff entries for readability.
+     * @param resource The resource definition to diff.
+     * @param diffs Shared accumulator array that diffs are pushed onto.
+     * @param targetSource Data source this resource is provisioned against.
+     */
     private static async processResourceDiff(client: any, schemaName: string, shortSchemaName: string, resource: ResourceDefinition, diffs: any[], targetSource: string) {
         switch (resource.type) {
             case 'ENUM':
@@ -94,6 +145,16 @@ export class DiffEngine {
         }
     }
 
+    /**
+     * Diffs a declared ENUM against `pg_type`; emits `CREATE_ENUM` if missing.
+     * No-ops for non-Postgres targets, since enum types are Postgres-specific.
+     * @param client Open Postgres client/pool used for catalog introspection.
+     * @param schemaName Physical (tenant-qualified) schema name.
+     * @param shortSchemaName Logical (manifest) schema name included in the diff entry.
+     * @param res The enum definition to check for.
+     * @param diffs Shared accumulator array that a `CREATE_ENUM` diff is pushed onto when needed.
+     * @param targetSource Data source this enum is provisioned against.
+     */
     private static async diffEnum(client: any, schemaName: string, shortSchemaName: string, res: EnumDefinition, diffs: any[], targetSource: string) {
         if (targetSource !== 'Fabric_Hub_Postgres') return; // Enums are Postgres-specific in this spec
         const exists = await client.query(`SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = $1 AND t.typname = $2`, [schemaName, res.name]);
@@ -102,6 +163,16 @@ export class DiffEngine {
         }
     }
 
+    /**
+     * Diffs a declared SEQUENCE against `information_schema.sequences`; emits
+     * `CREATE_SEQUENCE` if missing. No-ops for non-Postgres targets.
+     * @param client Open Postgres client/pool used for catalog introspection.
+     * @param schemaName Physical (tenant-qualified) schema name.
+     * @param shortSchemaName Logical (manifest) schema name included in the diff entry.
+     * @param res The sequence definition to check for.
+     * @param diffs Shared accumulator array that a `CREATE_SEQUENCE` diff is pushed onto when needed.
+     * @param targetSource Data source this sequence is provisioned against.
+     */
     private static async diffSequence(client: any, schemaName: string, shortSchemaName: string, res: SequenceDefinition, diffs: any[], targetSource: string) {
         if (targetSource !== 'Fabric_Hub_Postgres') return;
         const exists = await client.query(`SELECT 1 FROM information_schema.sequences WHERE sequence_schema = $1 AND sequence_name = $2`, [schemaName, res.name]);
@@ -110,6 +181,19 @@ export class DiffEngine {
         }
     }
 
+    /**
+     * Diffs a declared TABLE against `information_schema.tables`/`columns`.
+     * Emits `CREATE_TABLE` if the table doesn't exist on the Hub; otherwise
+     * checks each declared column and emits `ADD_COLUMN` for any missing one.
+     * For non-Hub (heterogeneous) targets, always emits `CREATE_TABLE` since
+     * no live introspection connector is consulted here.
+     * @param client Open Postgres client/pool used for catalog introspection.
+     * @param schemaName Physical (tenant-qualified) schema name.
+     * @param shortSchemaName Logical (manifest) schema name included in the diff entry.
+     * @param res The table definition to check for.
+     * @param diffs Shared accumulator array that `CREATE_TABLE`/`ADD_COLUMN` diffs are pushed onto.
+     * @param targetSource Data source this table is provisioned against.
+     */
     private static async diffTable(client: any, schemaName: string, shortSchemaName: string, res: TableDefinition, diffs: any[], targetSource: string) {
         if (targetSource === 'Fabric_Hub_Postgres') {
             const exists = await client.query(`SELECT 1 FROM information_schema.tables WHERE table_schema = $1 AND table_name = $2 AND table_type = 'BASE TABLE'`, [schemaName, res.name]);
@@ -130,6 +214,17 @@ export class DiffEngine {
         }
     }
 
+    /**
+     * Diffs a declared VIEW/MATERIALIZED_VIEW against `pg_class`; emits
+     * `CREATE_VIEW` or `CREATE_MATERIALIZED_VIEW` if missing. No-ops for
+     * non-Postgres targets.
+     * @param client Open Postgres client/pool used for catalog introspection.
+     * @param schemaName Physical (tenant-qualified) schema name.
+     * @param shortSchemaName Logical (manifest) schema name included in the diff entry.
+     * @param res The view/materialized-view definition to check for.
+     * @param diffs Shared accumulator array that the create-view diff is pushed onto when needed.
+     * @param targetSource Data source this view is provisioned against.
+     */
     private static async diffView(client: any, schemaName: string, shortSchemaName: string, res: ViewDefinition, diffs: any[], targetSource: string) {
         if (targetSource !== 'Fabric_Hub_Postgres') return;
         const exists = await client.query(`SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = $1 AND c.relname = $2 AND c.relkind IN ('v', 'm')`, [schemaName, res.name]);
@@ -139,6 +234,17 @@ export class DiffEngine {
         }
     }
 
+    /**
+     * Diffs a declared FUNCTION/PROCEDURE against `pg_proc`; emits
+     * `CREATE_FUNCTION` or `CREATE_PROCEDURE` if missing. No-ops for
+     * non-Postgres targets.
+     * @param client Open Postgres client/pool used for catalog introspection.
+     * @param schemaName Physical (tenant-qualified) schema name.
+     * @param shortSchemaName Logical (manifest) schema name included in the diff entry.
+     * @param res The function/procedure definition to check for.
+     * @param diffs Shared accumulator array that the create diff is pushed onto when needed.
+     * @param targetSource Data source this function/procedure is provisioned against.
+     */
     private static async diffFunction(client: any, schemaName: string, shortSchemaName: string, res: FunctionDefinition, diffs: any[], targetSource: string) {
         if (targetSource !== 'Fabric_Hub_Postgres') return;
         const exists = await client.query(`SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = $1 AND p.proname = $2`, [schemaName, res.name]);
@@ -148,6 +254,17 @@ export class DiffEngine {
         }
     }
 
+    /**
+     * Detects tables that physically exist in the schema but are no longer
+     * declared in the manifest, and flags each for quarantine rather than
+     * silent/destructive drop. Skips tables already renamed to the
+     * `__deleted...` quarantine convention. No-ops for non-Postgres targets.
+     * @param client Open Postgres client/pool used for catalog introspection.
+     * @param schemaName Physical (tenant-qualified) schema name to scan.
+     * @param schema The manifest schema definition whose declared table names form the "still wanted" set.
+     * @param diffs Shared accumulator array that `QUARANTINE_TABLE` (risk: HIGH) diffs are pushed onto.
+     * @param targetSource Data source this schema is provisioned against.
+     */
     private static async detectRetiredResources(client: any, schemaName: string, schema: SchemaDefinition, diffs: any[], targetSource: string) {
         if (!schema.resources || targetSource !== 'Fabric_Hub_Postgres') return;
         

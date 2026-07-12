@@ -1,8 +1,13 @@
 import { pool } from '../../config/database';
 
+/**
+ * UiService — read-only aggregation helpers backing the management-console UI.
+ */
 export class UiService {
   /**
-   * Fetches aggregated statistics for the Management Dashboard
+   * Fetch top-line counts for the management dashboard's summary tiles:
+   * total tenants, active data sources, and cataloged metadata entries.
+   * @returns `{ totalTenants, activeSources, metadataEntries, systemStatus: 'ONLINE' }`.
    */
   static async getDashboardStats() {
     const client = await pool.connect();

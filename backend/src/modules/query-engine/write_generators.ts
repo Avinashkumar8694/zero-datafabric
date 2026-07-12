@@ -22,10 +22,28 @@ import { pool } from '../../config/database';
 import { randomUUID } from 'crypto';
 import { FabricSequenceService } from './sequence.service';
 
+/** Strip anything that isn't a safe identifier character. */
 const ident = (s: string) => String(s).replace(/[^a-zA-Z0-9_]/g, '');
 
+/**
+ * Write-time value generation engine (see file-level overview). All methods
+ * are static; the class is never instantiated.
+ */
 export class FabricWriteGenerators {
-  /** Resolve one generator rule to a concrete value. */
+  /**
+   * Resolve one generator rule to a concrete value.
+   * Tries, in order: `{ strategy: 'UUID_V7' }`/`{ uuid: true }` (hub
+   * `uuid_generate_v7()`, with a JS `randomUUID()` fallback if the Postgres
+   * primitive isn't installed), `{ sequence }` (delegates to
+   * {@link FabricSequenceService.nextval}), or `{ function }` (invokes a
+   * hub-hosted function as a value service, optionally under a tenant schema's
+   * `search_path`).
+   * @param tenantId tenant scope (for the sequence engine and schema resolution).
+   * @param rule the generator rule (`{ strategy | uuid | sequence | function, ... }`).
+   * @param fallbackSchema logical schema to run a `function` rule under, if the rule doesn't specify its own.
+   * @returns the generated value.
+   * @throws if `rule` is not an object, or specifies none of `strategy`/`sequence`/`function`.
+   */
   static async resolve(tenantId: string, rule: any, fallbackSchema?: string): Promise<any> {
     if (!rule || typeof rule !== 'object') throw new Error('generator rule must be an object');
 
@@ -59,7 +77,14 @@ export class FabricWriteGenerators {
     throw new Error('generator rule must specify one of: strategy | sequence | function');
   }
 
-  /** Apply a { field: rule } map to a document, returning a new doc with generated fields set. */
+  /**
+   * Apply a { field: rule } map to a document, returning a new doc with generated fields set.
+   * @param tenantId tenant scope.
+   * @param doc the source document (not mutated).
+   * @param generate a `{ field: rule }` map of fields to generate (see {@link resolve}).
+   * @param fallbackSchema logical schema fallback for `function` rules that don't specify their own.
+   * @returns a shallow copy of `doc` with every field in `generate` set to its resolved value.
+   */
   static async apply(tenantId: string, doc: Record<string, any>, generate: Record<string, any>, fallbackSchema?: string): Promise<Record<string, any>> {
     const out = { ...doc };
     for (const field of Object.keys(generate || {})) {

@@ -1,6 +1,12 @@
 import { queryWithContext } from '../../config/database';
 import { TriggerActionCompiler } from './action_compiler';
 
+/**
+ * Trigger control-plane service: native manifest-trigger transpile + registry
+ * lifecycle (create/deploy/delete, durable job enqueue, control-plane visibility).
+ * @class
+ * @hideconstructor
+ */
 export class TriggerService {
   /**
    * Native, in-fabric transpile of a manifest trigger definition into Postgres
@@ -54,6 +60,12 @@ export class TriggerService {
       DO UPDATE SET definition = EXCLUDED.definition, status = 'ACTIVE', last_deployed_at = NOW(), updated_at = NOW()`;
   }
 
+  /**
+   * List every registered trigger for a tenant (both manifest- and
+   * API/UI-created), most recently updated first.
+   * @param tenantId - Tenant whose trigger registry is being read.
+   * @returns Rows from `public.trigger_registry` with camelCased columns.
+   */
   static async listTriggers(tenantId: string) {
     const { rows } = await queryWithContext(
       `SELECT id, schema_name as "schemaName", table_name as "tableName", trigger_name as "triggerName", definition, status, last_deployed_at as "lastDeployedAt", updated_at as "updatedAt"
@@ -65,6 +77,18 @@ export class TriggerService {
     return rows;
   }
 
+  /**
+   * Register (or re-register) a control-plane trigger definition. Validates
+   * the payload, upserts the registry row (keyed on tenant/schema/table/name)
+   * with status forced back to ACTIVE, and writes an audit log entry. Does
+   * NOT deploy the trigger to Postgres — call {@link TriggerService.deployTrigger}
+   * to enqueue that.
+   * @param tenantId - Owning tenant.
+   * @param username - Actor performing the change (for audit logging).
+   * @param payload - `{ triggerName, definition, schemaName?, tableName? }`; `schemaName`/`tableName` default to `'__SYSTEM__'` for generic (schedule-only) triggers.
+   * @returns The persisted trigger_registry row.
+   * @throws {Error} If the payload fails {@link TriggerService.validate}.
+   */
   static async createTrigger(tenantId: string, username: string, payload: any) {
     this.validate(payload);
     const { triggerName, definition } = payload;
@@ -83,6 +107,18 @@ export class TriggerService {
     return rows[0];
   }
 
+  /**
+   * Update an existing trigger registry row in place by id. Like
+   * {@link TriggerService.createTrigger}, this only updates the registry
+   * record and audit log — it does not redeploy the DDL; call
+   * {@link TriggerService.deployTrigger} afterward to push the change live.
+   * @param tenantId - Owning tenant (also used for the audit log context).
+   * @param username - Actor performing the change (for audit logging).
+   * @param id - The trigger_registry row id to update.
+   * @param payload - `{ triggerName, definition, schemaName?, tableName? }`.
+   * @returns The updated trigger_registry row.
+   * @throws {Error} If the payload fails validation, or if `id` does not exist ('Trigger not found').
+   */
   static async updateTrigger(tenantId: string, username: string, id: string, payload: any) {
     this.validate(payload);
     const { definition, triggerName } = payload;
@@ -101,6 +137,21 @@ export class TriggerService {
     return rows[0];
   }
 
+  /**
+   * Mark a trigger for deletion and enqueue the durable job that drops it.
+   * Sets the registry row to `PENDING_DELETE`, cancels any outstanding
+   * PENDING jobs owned by this trigger (recurring schedule/deploy jobs
+   * matched by `trigger_id`, plus fired `EXECUTE_TRIGGER_ACTION` jobs matched
+   * by `payload->>'triggerName'`, since those are enqueued with
+   * `trigger_id = NULL`) so nothing fires after the trigger is gone, then
+   * enqueues a `DELETE_TRIGGER` job (deliberately never cancelled by the step
+   * above, since it is what performs the actual drop).
+   * @param tenantId - Owning tenant.
+   * @param username - Actor performing the change (for audit logging).
+   * @param id - The trigger_registry row id to delete.
+   * @returns Resolves once the delete job has been enqueued and logged.
+   * @throws {Error} 'Trigger not found' if `id` does not exist.
+   */
   static async deleteTrigger(tenantId: string, username: string, id: string) {
     const { rows } = await queryWithContext(
       `SELECT id, schema_name, table_name, trigger_name, definition FROM public.trigger_registry WHERE id = $1`,
@@ -143,6 +194,18 @@ export class TriggerService {
     await this.writeLog(tenantId, id, trg.trigger_name, trg.schema_name, trg.table_name, trg.definition?.event, 'TRIGGER_DELETE_ENQUEUED', 'SUCCESS', { message: 'Delete job enqueued' }, username);
   }
 
+  /**
+   * Enqueue the durable job that deploys (creates/replaces) a trigger's DDL
+   * in Postgres. Marks the registry row `PENDING_DEPLOY`, then picks the job
+   * type: a schedule-only definition with no bound schema/table becomes a
+   * recurring `SCHEDULE_TRIGGER` job; anything bound to a table becomes a
+   * one-shot `DEPLOY_TRIGGER` job that runs {@link TriggerActionCompiler} DDL.
+   * @param tenantId - Owning tenant.
+   * @param username - Actor performing the change (for audit logging).
+   * @param id - The trigger_registry row id to deploy.
+   * @returns `{ status: 'ENQUEUED', jobId }`.
+   * @throws {Error} 'Trigger not found' if `id` does not exist.
+   */
   static async deployTrigger(tenantId: string, username: string, id: string) {
     const { rows } = await queryWithContext(
       `SELECT id, schema_name, table_name, trigger_name, definition FROM public.trigger_registry WHERE id = $1`,
@@ -171,6 +234,12 @@ export class TriggerService {
     return { status: 'ENQUEUED', jobId };
   }
 
+  /**
+   * List the 200 most recent durable trigger jobs for a tenant (the queue the
+   * worker drains), regardless of status.
+   * @param tenantId - Tenant whose jobs are being listed.
+   * @returns Up to 200 rows from `public.trigger_jobs`, newest first.
+   */
   static async listJobs(tenantId: string) {
     const { rows } = await queryWithContext(
       `SELECT id, trigger_id as "triggerId", job_type as "jobType", status, attempts, max_attempts as "maxAttempts", run_at as "runAt", last_error as "lastError", created_at as "createdAt"
@@ -183,6 +252,14 @@ export class TriggerService {
     return rows;
   }
 
+  /**
+   * Requeue a failed/cancelled job for immediate re-attempt: resets it to
+   * `PENDING`, clears `last_error`, and sets `run_at` to now.
+   * @param tenantId - Owning tenant (audit log context).
+   * @param username - Actor performing the retry (for audit logging).
+   * @param jobId - The trigger_jobs row id to retry.
+   * @returns `{ status: 'ENQUEUED', jobId }`.
+   */
   static async retryJob(tenantId: string, username: string, jobId: string) {
     await queryWithContext(
       `UPDATE public.trigger_jobs
@@ -194,6 +271,15 @@ export class TriggerService {
     return { status: 'ENQUEUED', jobId };
   }
 
+  /**
+   * Page through trigger execution audit logs, optionally scoped to one
+   * trigger, newest first.
+   * @param tenantId - Tenant whose logs are being read.
+   * @param triggerId - When given, restricts to logs for this trigger id only.
+   * @param limit - Max rows to return (default 50).
+   * @param offset - Row offset for pagination (default 0).
+   * @returns Rows from `public.trigger_execution_logs`.
+   */
   static async listLogs(tenantId: string, triggerId?: string, limit = 50, offset = 0) {
     const params: any[] = [];
     let where = '';
@@ -215,6 +301,13 @@ export class TriggerService {
     return rows;
   }
 
+  /**
+   * Validate a create/update trigger payload before it is persisted.
+   * @param payload - The candidate trigger payload (`triggerName`, `definition`, `schemaName`, `tableName`).
+   * @returns Nothing on success.
+   * @throws {Error} If `triggerName`/`definition` are missing, `definition.execute.type`
+   *   is absent, or (for non-scheduler triggers) `definition.event`/`schemaName`/`tableName` are missing.
+   */
   private static validate(payload: any) {
     if (!payload?.triggerName || !payload?.definition) {
       throw new Error('triggerName and definition are required');
@@ -231,6 +324,21 @@ export class TriggerService {
     }
   }
 
+  /**
+   * Append a row to `public.trigger_execution_logs` recording an action taken
+   * against a trigger (upsert, update, deploy-enqueued, delete-enqueued, etc.).
+   * @param tenantId - Owning tenant.
+   * @param triggerId - The trigger_registry row id the log entry is about.
+   * @param triggerName - The trigger's name (denormalized for easy reading).
+   * @param schemaName - The trigger's schema (denormalized).
+   * @param tableName - The trigger's table (denormalized).
+   * @param eventType - The definition's event label (e.g. `AFTER_INSERT`), if any.
+   * @param action - The action being logged (e.g. `TRIGGER_UPSERT`, `TRIGGER_DEPLOY_ENQUEUED`).
+   * @param status - `SUCCESS` or a failure status.
+   * @param detail - Arbitrary JSON detail payload for the log entry.
+   * @param username - Actor that performed the action.
+   * @returns Resolves once the log row is written.
+   */
   private static async writeLog(
     tenantId: string,
     triggerId: string,
@@ -252,6 +360,17 @@ export class TriggerService {
     );
   }
 
+  /**
+   * Insert a durable `public.trigger_jobs` row for the worker to pick up.
+   * Computes `run_at`: immediate (`NOW()`) for all job types except a
+   * `FIXED`-schedule payload, which is delayed by `schedule.every`/`schedule.unit`.
+   * @param tenantId - Owning tenant.
+   * @param username - Actor that triggered the enqueue (`created_by`).
+   * @param triggerId - The owning trigger_registry row id.
+   * @param jobType - One of `DEPLOY_TRIGGER` / `SCHEDULE_TRIGGER` / `DELETE_TRIGGER` / `EXECUTE_TRIGGER_ACTION`.
+   * @param payload - Job-type-specific JSON payload stored on the row.
+   * @returns The new job's id.
+   */
   private static async enqueueJob(
     tenantId: string,
     username: string,

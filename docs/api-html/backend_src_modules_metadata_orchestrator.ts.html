@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>backend/src/modules/metadata/orchestrator.ts - Zero Data Fabric — API Reference</title>
+    
+    
+    
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="ConstraintService.html">ConstraintService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ConstraintService.html#.evalCheck">evalCheck</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.parseCheckExpression">parseCheckExpression</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.specFromManifestTable">specFromManifestTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.validate">validate</a></li></ul></li><li><a href="FabricSequenceService.html">FabricSequenceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.currval">currval</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.nextval">nextval</a></li></ul></li><li><a href="FederationExecutor.html">FederationExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyProjection">applyProjection</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.astLegToCanonical">astLegToCanonical</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.buildLegFilters">buildLegFilters</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fanAggregate">fanAggregate</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fetchLegDirect">fetchLegDirect</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.previewConnectorQuery">previewConnectorQuery</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.qualify">qualify</a></li></ul></li><li><a href="GrantService.html">GrantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GrantService.html#.decide">decide</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.enforce">enforce</a></li></ul></li><li><a href="PolicyService.html">PolicyService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PolicyService.html#.applyMasks">applyMasks</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.compileFilter">compileFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.mergeIntoFilter">mergeIntoFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.physicalSchema">physicalSchema</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolveValue">resolveValue</a></li></ul></li><li><a href="QueryLogService.html">QueryLogService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryLogService.html#.capture">capture</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.record">record</a></li></ul></li><li><a href="RecursiveExecutor.html">RecursiveExecutor</a></li><li><a href="SavedAnalyticsService.html">SavedAnalyticsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindAst">bindAst</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindSql">bindSql</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.resolveValues">resolveValues</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.run">run</a></li></ul></li><li><a href="TriggerActionCompiler.html">TriggerActionCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileActionBody">compileActionBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileEnqueueBody">compileEnqueueBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileExecute">compileExecute</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.condition">condition</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.expr">expr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.msg">msg</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.runAtExpr">runAtExpr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerService.html">TriggerService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerService.html#.registryUpsertSql">registryUpsertSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.transpileTriggerSql">transpileTriggerSql</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#AGG_FUNCS">AGG_FUNCS</a></li><li><a href="global.html#CANON_OP">CANON_OP</a></li><li><a href="global.html#EVENT_TIMINGS">EVENT_TIMINGS</a></li><li><a href="global.html#LOCAL_SOURCE">LOCAL_SOURCE</a></li><li><a href="global.html#MongoDBConnector">MongoDBConnector</a></li><li><a href="global.html#OP_MAP">OP_MAP</a></li><li><a href="global.html#RANKING">RANKING</a></li><li><a href="global.html#SQL_OPERATORS">SQL_OPERATORS</a></li><li><a href="global.html#SnowflakeConnector">SnowflakeConnector</a></li><li><a href="global.html#VAR_TOKEN">VAR_TOKEN</a></li><li><a href="global.html#aggregateRaw">aggregateRaw</a></li><li><a href="global.html#applyWindows">applyWindows</a></li><li><a href="global.html#base">base</a></li><li><a href="global.html#cacheInvalidate">cacheInvalidate</a></li><li><a href="global.html#cached">cached</a></li><li><a href="global.html#callFunction">callFunction</a></li><li><a href="global.html#client">client</a></li><li><a href="global.html#deleteAnalytic">deleteAnalytic</a></li><li><a href="global.html#exportMetadata">exportMetadata</a></li><li><a href="global.html#extractWindows">extractWindows</a></li><li><a href="global.html#gName">gName</a></li><li><a href="global.html#getColumns">getColumns</a></li><li><a href="global.html#getTemplate">getTemplate</a></li><li><a href="global.html#handle">handle</a></li><li><a href="global.html#hasWindows">hasWindows</a></li><li><a href="global.html#ident">ident</a></li><li><a href="global.html#invalidateTenant">invalidateTenant</a></li><li><a href="global.html#isAggregateQuery">isAggregateQuery</a></li><li><a href="global.html#listConstraints">listConstraints</a></li><li><a href="global.html#listGrants">listGrants</a></li><li><a href="global.html#listPolicies">listPolicies</a></li><li><a href="global.html#listQueryLogs">listQueryLogs</a></li><li><a href="global.html#maxRowsPerLeg">maxRowsPerLeg</a></li><li><a href="global.html#mergePartials">mergePartials</a></li><li><a href="global.html#nextSequence">nextSequence</a></li><li><a href="global.html#parseAggregates">parseAggregates</a></li><li><a href="global.html#parseHaving">parseHaving</a></li><li><a href="global.html#parseLiteral">parseLiteral</a></li><li><a href="global.html#parseSelect">parseSelect</a></li><li><a href="global.html#parseWhere">parseWhere</a></li><li><a href="global.html#partialSpec">partialSpec</a></li><li><a href="global.html#projectWithWindows">projectWithWindows</a></li><li><a href="global.html#queryWithContext">queryWithContext</a></li><li><a href="global.html#readCol">readCol</a></li><li><a href="global.html#sessionOf">sessionOf</a></li><li><a href="global.html#splitTopLevel">splitTopLevel</a></li><li><a href="global.html#sqlToAst">sqlToAst</a></li><li><a href="global.html#toCanonical">toCanonical</a></li><li><a href="global.html#windowBaseColumns">windowBaseColumns</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">backend/src/modules/metadata/orchestrator.ts</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import { PoolClient } from 'pg';
+import { pool } from '../../config/database';
+import { DiffEngine } from './diff_engine';
+import { Transpiler } from './transpiler';
+import { MetadataManifest } from './types';
+import { DownstreamService } from './downstream_service';
+import { HeterogeneousDispatcher } from './dispatcher';
+import { PolicyService } from '../security/policy.service';
+import { ConstraintService } from '../query-engine/constraint.service';
+import { GrantService } from '../security/grant.service';
+
+export class MetadataOrchestrator {
+    async apply(tenantId: string, manifest: MetadataManifest, options: { force?: boolean } = {}) {
+        this.validateManifest(manifest); // Stage 1: Structural Validation
+        await this.validateDataSources(tenantId, manifest); // Stage 2: Connectivity Validation
+
+        const plan = await this.plan(tenantId, manifest);
+        
+        if (plan.summary.highRisk > 0 &amp;&amp; !options.force) {
+            throw new Error(`CRITICAL: ${plan.summary.highRisk} High-Risk changes detected. Use force=true to override.`);
+        }
+
+        if (options.force) {
+            for (const schema of manifest.schemas) {
+                if (!plan.changes.find(c => c.action === 'CREATE_SCHEMA' &amp;&amp; c.name === schema.name)) {
+                    plan.changes.unshift({ action: 'CREATE_SCHEMA', name: schema.name, targetSource: schema.targetSource || manifest.targetSource, risk: 'LOW' });
+                }
+            }
+        }
+
+        const client = await pool.connect();
+        const results: any[] = [];
+
+        try {
+            await client.query('BEGIN');
+            // DDL provisioning (distributed tables, EXCLUDE/GIST, matviews) can exceed the
+            // pool's 10s query-safety statement_timeout — raise it for this apply transaction.
+            await client.query(`SET LOCAL statement_timeout = '180s'`);
+
+            await this.ensureBaseInfrastructure(client);
+
+            // Provision Manifest Extensions
+            if (manifest.extensions) {
+                const extSqls = await Transpiler.toSql({ action: 'PROVISION_EXTENSIONS', extensions: manifest.extensions }, tenantId, manifest);
+                for (const sql of extSqls) {
+                    console.log(`[Orchestrator] Executing Extension SQL: ${sql}`);
+                    await client.query(sql);
+                }
+            }
+
+            const resourceDefinitions: Map&lt;string, { sql: string, ast: any }> = new Map();
+            const manifestResources: Map&lt;string, any> = new Map();
+            for (const schema of manifest.schemas) {
+                for (const res of schema.resources) {
+                    manifestResources.set(`${schema.name}.${res.name}`, res);
+                }
+            }
+
+            for (const diff of plan.changes) {
+                const targetSource = diff.targetSource || manifest.targetSource || 'Fabric_Hub_Postgres';
+                const isMongo = targetSource.toLowerCase().includes('mongo');
+                const sqls = isMongo ? [] : await Transpiler.toSql(diff, tenantId, manifest);
+                
+                const resourceName = diff.table || diff.name || (diff as any).resource;
+                const schemaName = diff.schema || (diff.action === 'CREATE_SCHEMA' ? diff.name : null);
+                
+                // 1. Capture Technical Specifications
+                if (resourceName &amp;&amp; schemaName) {
+                    const key = `${schemaName}.${resourceName}`;
+                    resourceDefinitions.set(key, {
+                        sql: sqls.filter(s => !s.toUpperCase().includes('DROP')).join(';\n'),
+                        ast: manifestResources.get(key) || diff
+                    });
+                }
+
+                // 2. Physical Deployment.
+                // Hub (local Postgres) DDL is transactional and MUST succeed (fatal on error).
+                // Remote engines (Mongo / warehouse) are dispatched best-effort (SAGA): a remote
+                // outage must NOT roll back the core Postgres provisioning — it degrades instead.
+                let deployStatus = 'SUCCESS';
+                if (isMongo) {
+                    // The local Postgres namespace (catalog/metadata home) is created transactionally.
+                    if (diff.action === 'CREATE_SCHEMA') {
+                        await client.query(`CREATE SCHEMA IF NOT EXISTS "tenant_${tenantId}_${diff.name}"`);
+                    }
+                    try {
+                        const ops = await Transpiler.toMongo(diff, tenantId, manifest);
+                        await HeterogeneousDispatcher.execute(tenantId, targetSource, ops);
+                    } catch (e: any) {
+                        deployStatus = 'DEGRADED';
+                        console.warn(`[Orchestrator] Remote(Mongo) dispatch degraded for ${resourceName}@${targetSource}: ${e.message}`);
+                    }
+                } else if (targetSource === 'Fabric_Hub_Postgres') {
+                    for (const sql of sqls) {
+                        console.log(`[Orchestrator:Hub] Executing: ${sql}`);
+                        await client.query(sql);
+                    }
+                } else {
+                    // Remote non-Mongo (e.g. warehouse Postgres): local namespace transactional, dispatch best-effort.
+                    if (diff.action === 'CREATE_SCHEMA') {
+                        const schemaName = `tenant_${tenantId}_${diff.name}`;
+                        await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+                    }
+                    try {
+                        await HeterogeneousDispatcher.execute(tenantId, targetSource, sqls);
+                    } catch (e: any) {
+                        deployStatus = 'DEGRADED';
+                        console.warn(`[Orchestrator] Remote dispatch degraded for ${resourceName}@${targetSource}: ${e.message}`);
+                    }
+                }
+
+                results.push({ action: diff.action, name: resourceName, targetSource, status: deployStatus });
+            }
+
+            // 3. Catalog Synchronization (Universal Refresh)
+            await this.persistMetadataState(client, tenantId, manifest, plan.summary, resourceDefinitions, manifestResources);
+            await this.ensureTenantSchemaPrivileges(client, tenantId, manifest);
+
+            // Step 4: Downstream Orchestration (Industrial Fabric Extension)
+            const downstreamResults = await DownstreamService.provision(tenantId, manifest);
+
+            await client.query('COMMIT');
+            return {
+                status: 'APPLIED',
+                manifestVersion: manifest.version,
+                appliedCount: results.length,
+                plan: plan.changes,
+                results: results,
+                downstream: downstreamResults
+            };
+        } catch (err: any) {
+            await client.query('ROLLBACK');
+            console.error(`[Orchestrator] CRITICAL ERROR during apply: ${err.message}`);
+            console.error(err.stack);
+            if (err.detail) console.error(`[Orchestrator] Error Detail: ${err.detail}`);
+            throw err;
+        } finally {
+            client.release();
+        }
+    }
+
+    private async ensureTenantSchemaPrivileges(client: PoolClient, tenantId: string, manifest: MetadataManifest) {
+        for (const schema of manifest.schemas) {
+            const schemaName = `tenant_${tenantId}_${schema.name}`;
+            // Skip schemas that have no local Postgres namespace (defensive — avoids a
+            // whole-apply rollback if provisioning of one schema was skipped).
+            const exists = await client.query(`SELECT 1 FROM information_schema.schemata WHERE schema_name = $1`, [schemaName]);
+            if (exists.rows.length === 0) continue;
+            await client.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fabric_user') THEN EXECUTE 'GRANT USAGE ON SCHEMA "${schemaName}" TO fabric_user'; END IF; END $$;`);
+            await client.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fabric_user') THEN EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "${schemaName}" TO fabric_user'; END IF; END $$;`);
+            await client.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fabric_user') THEN EXECUTE 'GRANT SELECT, USAGE ON ALL SEQUENCES IN SCHEMA "${schemaName}" TO fabric_user'; END IF; END $$;`);
+            await client.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fabric_user') THEN EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA "${schemaName}" GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO fabric_user'; END IF; END $$;`);
+            await client.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fabric_user') THEN EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA "${schemaName}" GRANT USAGE, SELECT ON SEQUENCES TO fabric_user'; END IF; END $$;`);
+        }
+    }
+
+    private async validateDataSources(tenantId: string, manifest: MetadataManifest) {
+        const referencedSources = new Set&lt;string>();
+        
+        if (manifest.targetSource) referencedSources.add(manifest.targetSource);
+        
+        if (manifest.schemas) {
+            for (const schema of manifest.schemas) {
+                if (schema.resources) {
+                    for (const res of schema.resources) {
+                        if (res.type === 'VIEW' &amp;&amp; res.query) {
+                            // Deep scan query for source references
+                            this.findSourcesInQuery(res.query, referencedSources);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (manifest.relationships) {
+            for (const rel of manifest.relationships) {
+                if (rel.from.source) referencedSources.add(rel.from.source);
+                if (rel.to.source) referencedSources.add(rel.to.source);
+            }
+        }
+
+        // Validate each referenced source against the catalog
+        for (const sourceName of referencedSources) {
+            // "Fabric_Hub_Postgres" is a reserved name for the local hub
+            if (sourceName === 'Fabric_Hub_Postgres') continue;
+
+            const { rows } = await pool.query(
+                `SELECT id, status FROM public.data_sources WHERE tenant_id = $1 AND name = $2`,
+                [tenantId, sourceName]
+            );
+
+            if (rows.length === 0) {
+                throw new Error(`Industrial Orchestration Failed: Referenced Data Source "${sourceName}" not found in Catalog.`);
+            }
+
+            if (rows[0].status !== 'ACTIVE') {
+                throw new Error(`Industrial Orchestration Failed: Referenced Data Source "${sourceName}" is currently ${rows[0].status}. Connectivity required.`);
+            }
+        }
+    }
+
+    private findSourcesInQuery(query: any, sources: Set&lt;string>) {
+        if (!query) return;
+        if (query.from &amp;&amp; query.from.source) sources.add(query.from.source);
+        if (query.joins) {
+            for (const join of query.joins) {
+                if (join.source) sources.add(join.source);
+            }
+        }
+        if (query.union) query.union.forEach((q: any) => this.findSourcesInQuery(q, sources));
+        if (query.intersect) query.intersect.forEach((q: any) => this.findSourcesInQuery(q, sources));
+        if (query.except) query.except.forEach((q: any) => this.findSourcesInQuery(q, sources));
+        if (query.with) {
+            for (const cte of query.with) {
+                this.findSourcesInQuery(cte.base, sources);
+                if (cte.unionAll) this.findSourcesInQuery(cte.unionAll, sources);
+            }
+        }
+    }
+
+    private static CORE_EXTENSIONS = ['uuid-ossp', 'pg_stat_statements', 'pgcrypto', 'btree_gist'];
+
+    private async ensureBaseInfrastructure(client: any) {
+        for (const ext of MetadataOrchestrator.CORE_EXTENSIONS) {
+            await client.query(`CREATE EXTENSION IF NOT EXISTS "${ext}"`);
+        }
+        await client.query(`CREATE SCHEMA IF NOT EXISTS fabric_system`);
+        await this.ensureFabricPrimitives(client);
+    }
+
+    /**
+     * Platform primitives that manifests are allowed to reference in column defaults,
+     * generators and triggers (uuid_generate_v7, current_user_id, current_tenant,
+     * generate_tenant_id, audit_log_fn). Created in `public` so they resolve from any
+     * tenant schema's search_path. Idempotent (CREATE OR REPLACE).
+     */
+    private async ensureFabricPrimitives(client: any) {
+        const stmts = [
+            // RFC-9562 UUIDv7 (time-ordered) — uuid-ossp only ships v1/v4.
+            `CREATE OR REPLACE FUNCTION public.uuid_generate_v7() RETURNS uuid AS $$
+                SELECT encode(
+                    set_bit(set_bit(
+                        overlay(uuid_send(gen_random_uuid())
+                            placing substring(int8send((extract(epoch FROM clock_timestamp()) * 1000)::bigint) FROM 3)
+                            FROM 1 FOR 6),
+                        52, 1), 53, 1), 'hex')::uuid;
+            $$ LANGUAGE sql VOLATILE`,
+            // Identity helpers backed by the session GUCs set by queryWithContext.
+            `CREATE OR REPLACE FUNCTION public.current_tenant() RETURNS text AS $$
+                SELECT current_setting('app.tenant_id', true) $$ LANGUAGE sql STABLE`,
+            `CREATE OR REPLACE FUNCTION public.current_user_id() RETURNS text AS $$
+                SELECT current_setting('app.user_name', true) $$ LANGUAGE sql STABLE`,
+            `CREATE OR REPLACE FUNCTION public.generate_tenant_id(p_tenant text DEFAULT NULL) RETURNS text AS $$
+                SELECT COALESCE(p_tenant, current_setting('app.tenant_id', true)) || '-' || nextval('fabric_system.global_seq')::text $$ LANGUAGE sql VOLATILE`,
+            `CREATE SEQUENCE IF NOT EXISTS fabric_system.global_seq`,
+            // Generic audit trigger fn manifests can attach (writes to fabric_admin.audit_logs if present).
+            // SECURITY DEFINER so it runs as the owner (fabric_admin) and can write the
+            // control-plane audit table even when a restricted tenant role fired the trigger.
+            // The inner handler swallows missing-table AND permission errors so auditing can
+            // never block the business write it observes.
+            `CREATE OR REPLACE FUNCTION public.audit_log_fn() RETURNS trigger AS $$
+                BEGIN
+                    BEGIN
+                        INSERT INTO fabric_admin.audit_logs (table_name, action, new_data, user_name, changed_at)
+                        VALUES (TG_TABLE_NAME, TG_OP, to_jsonb(NEW), current_setting('app.user_name', true), NOW());
+                    EXCEPTION WHEN undefined_table OR insufficient_privilege THEN NULL; END;
+                    RETURN COALESCE(NEW, OLD);
+                END; $$ LANGUAGE plpgsql SECURITY DEFINER`,
+        ];
+        for (const s of stmts) {
+            try { await client.query(s); } catch (e: any) { console.warn(`[Orchestrator] primitive skipped: ${e.message}`); }
+        }
+    }
+
+    async plan(tenantId: string, manifest: MetadataManifest) {
+        const client = await pool.connect();
+        try {
+            await this.ensureBaseInfrastructure(client);
+            const diffs = await DiffEngine.compare(tenantId, manifest, client);
+            return {
+                status: 'PLAN_READY',
+                summary: {
+                    total: diffs.length,
+                    highRisk: diffs.filter(d => d.risk === 'HIGH').length,
+                    quarantine: diffs.filter(d => d.action === 'QUARANTINE_TABLE').length
+                },
+                changes: diffs
+            };
+        } finally {
+            client.release();
+        }
+    }
+
+    private async persistMetadataState(
+        client: PoolClient, 
+        tenantId: string, 
+        manifest: MetadataManifest, 
+        summary: any, 
+        definitions: Map&lt;string, { sql: string, ast: any }>,
+        manifestResources: Map&lt;string, any>
+    ) {
+        // 1. Log History
+        await client.query(`
+            INSERT INTO fabric_system.metadata_history (tenant_id, version_tag, ast_content, summary)
+            VALUES ($1, $2, $3, $4)
+        `, [tenantId, manifest.version, JSON.stringify(manifest), JSON.stringify(summary)]);
+
+        // 2. Sync Catalog (Industrial Integrity: Ensure UI Explorer works)
+        for (const schema of manifest.schemas) {
+            const targetSourceName = schema.targetSource || manifest.targetSource || 'Fabric_Hub_Postgres';
+            let { rows: sourceRows } = await client.query(
+                'SELECT id FROM public.data_sources WHERE tenant_id = $1 AND name = $2',
+                [tenantId, targetSourceName]
+            );
+
+            // Keep Explorer in sync even when Hub source was not pre-seeded for this tenant.
+            if (sourceRows.length === 0 &amp;&amp; targetSourceName === 'Fabric_Hub_Postgres') {
+                const upsert = await client.query(`
+                    INSERT INTO public.data_sources (tenant_id, name, type, config, sync_type, status)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    ON CONFLICT (tenant_id, name) DO UPDATE SET status = EXCLUDED.status
+                    RETURNING id
+                `, [tenantId, targetSourceName, 'POSTGRES', JSON.stringify({ local: true }), 'VIRTUAL', 'ACTIVE']);
+                sourceRows = upsert.rows;
+            }
+
+            if (sourceRows.length === 0) continue;
+
+            const sourceId = sourceRows[0].id;
+            const physicalSchema = `tenant_${tenantId}_${schema.name}`;
+            const { rows: schemaRows } = await client.query(`
+                INSERT INTO public.catalog_schemas (source_id, name, physical_name)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (source_id, physical_name) DO UPDATE SET name = EXCLUDED.name
+                RETURNING id
+            `, [sourceId, schema.name, physicalSchema]);
+
+            const schemaId = schemaRows[0].id;
+
+            for (const resource of schema.resources) {
+                // Keep physical_name as object name only; schema is tracked separately in catalog_schemas.
+                const physicalName = `${resource.name}`;
+                const defKey = `${schema.name}.${resource.name}`;
+                const def = definitions.get(defKey);
+                const finalAst = manifestResources.get(defKey) || def?.ast || null;
+
+                await client.query(`
+                    INSERT INTO public.catalog_tables (schema_id, name, physical_name, resource_type, definition_sql, definition_ast)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    ON CONFLICT (schema_id, physical_name) DO UPDATE SET 
+                        last_crawled_at = NOW(), 
+                        resource_type = EXCLUDED.resource_type,
+                        definition_sql = COALESCE(EXCLUDED.definition_sql, public.catalog_tables.definition_sql),
+                        definition_ast = COALESCE(EXCLUDED.definition_ast, public.catalog_tables.definition_ast)
+                `, [schemaId, resource.name, physicalName, resource.type, def?.sql || null, finalAst ? JSON.stringify(finalAst) : null]);
+
+                // Sync Internal Triggers
+                if (resource.type === 'TABLE' &amp;&amp; resource.triggers) {
+                    for (const trg of resource.triggers) {
+                        const trgKey = trg.name; // Transpiler might need adjustment to return trigger SQL keyed by name
+                        await client.query(`
+                            INSERT INTO public.catalog_tables (schema_id, name, physical_name, resource_type, definition_ast)
+                            VALUES ($1, $2, $3, 'TRIGGER', $4)
+                            ON CONFLICT (schema_id, physical_name) DO UPDATE SET last_crawled_at = NOW(), definition_ast = EXCLUDED.definition_ast
+                        `, [schemaId, `${resource.name}.${trg.name}`, `${physicalName}.${trg.name}`, JSON.stringify(trg)]);
+                    }
+                }
+
+                // Sync RLS Policies
+                if (resource.type === 'TABLE' &amp;&amp; resource.security?.policies) {
+                    for (const pol of resource.security.policies) {
+                        await client.query(`
+                            INSERT INTO public.catalog_tables (schema_id, name, physical_name, resource_type, definition_ast)
+                            VALUES ($1, $2, $3, 'POLICY', $4)
+                            ON CONFLICT (schema_id, physical_name) DO UPDATE SET last_crawled_at = NOW(), definition_ast = EXCLUDED.definition_ast
+                        `, [schemaId, `${resource.name}.${pol.name}`, `${physicalName}.${pol.name}`, JSON.stringify(pol)]);
+                    }
+                }
+
+                // Sync ENGINE-AGNOSTIC access policies for the Policy Engine, so row
+                // predicates + column masking are enforced on non-RLS engines (Mongo/ES/
+                // remote), not just Postgres. Two sources:
+                //   (a) security.accessPolicies — structured, engine-agnostic policies.
+                //   (b) security.masking        — the legacy masking field (previously a
+                //       no-op comment) is mapped to a masking-only fabric policy.
+                if (resource.type === 'TABLE' &amp;&amp; resource.security) {
+                    const sec: any = resource.security;
+                    for (const ap of (sec.accessPolicies || [])) {
+                        await PolicyService.upsertPolicy(tenantId, {
+                            name: ap.name, schema: physicalSchema, table: resource.name,
+                            roles: ap.roles, rowFilter: ap.rowFilter, masking: ap.masking,
+                        }, 'MANIFEST');
+                    }
+                    // Engine-agnostic grants → fabric access gate for non-SQL engines.
+                    if (Array.isArray(sec.grants) &amp;&amp; sec.grants.length) {
+                        await GrantService.upsert(tenantId, physicalSchema, resource.name,
+                            sec.grants.map((g: any) => ({ role: g.role, privileges: g.privileges || [] })), 'MANIFEST');
+                    }
+                    if (Array.isArray(sec.masking) &amp;&amp; sec.masking.length) {
+                        await PolicyService.upsertPolicy(tenantId, {
+                            name: `${resource.name}_masking`, schema: physicalSchema, table: resource.name,
+                            masking: sec.masking.map((m: any) => ({
+                                column: m.column,
+                                roles: m.roles,
+                                strategy: /null/i.test(m.expression || '') ? 'NULL'
+                                    : /hash/i.test(m.expression || '') ? 'HASH'
+                                    : /partial|last4/i.test(m.expression || '') ? 'PARTIAL' : 'REDACT',
+                            })),
+                        }, 'MANIFEST');
+                    }
+                }
+
+                // Sync ENGINE-AGNOSTIC constraints so the fabric can enforce
+                // NOT NULL / UNIQUE / ENUM / CHECK / FK on non-SQL engines at write
+                // time (Postgres enforces natively; this compensates elsewhere).
+                if (resource.type === 'TABLE') {
+                    const enums: Record&lt;string, string[]> = {};
+                    for (const r of (schema.resources || [])) if (r.type === 'ENUM') enums[r.name] = r.values || [];
+                    const spec = ConstraintService.specFromManifestTable(resource, enums, []);
+                    if (spec.columns.length || spec.checks.length) {
+                        await ConstraintService.upsert(tenantId, physicalSchema, resource.name, spec, 'MANIFEST');
+                    }
+                }
+            }
+        }
+
+        // Persist declared relationships so ER diagrams / lineage have real data.
+        if (Array.isArray(manifest.relationships)) {
+            for (const rel of manifest.relationships) {
+                const card = rel.cardinality === 'M:N' ? 'M:M' : rel.cardinality; // table CHECK uses M:M
+                const fromSchema = (rel.from as any).source || manifest.namespace || 'default';
+                const toSchema = (rel.to as any).source || manifest.namespace || 'default';
+                try {
+                    await client.query(`
+                        INSERT INTO fabric_catalog.relationships
+                            (tenant_id, name, schema_name, source_schema, source_table, source_column, target_schema, target_table, target_column, cardinality)
+                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                        ON CONFLICT ON CONSTRAINT relationships_full_identity_key DO UPDATE SET cardinality = EXCLUDED.cardinality
+                    `, [tenantId, rel.name, fromSchema, fromSchema, rel.from.resource, rel.from.field, toSchema, rel.to.resource, rel.to.field, card]);
+                } catch (e: any) {
+                    // Fall back to the base unique key if the hardened constraint name differs.
+                    console.warn(`[Orchestrator] relationship persist skipped for ${rel.name}: ${e.message}`);
+                }
+            }
+        }
+    }
+
+    async getHistory(tenantId: string) {
+        const { rows } = await pool.query(`SELECT id, version_tag, summary, applied_at FROM fabric_system.metadata_history WHERE tenant_id = $1 ORDER BY applied_at DESC`, [tenantId]);
+        return rows;
+    }
+
+    async rollback(tenantId: string, versionId: string) {
+        const { rows } = await pool.query(`SELECT ast_content FROM fabric_system.metadata_history WHERE id = $1 AND tenant_id = $2`, [versionId, tenantId]);
+        if (rows.length === 0) throw new Error('Version not found');
+        return await this.apply(tenantId, rows[0].ast_content, { force: true });
+    }
+
+    private validateManifest(manifest: MetadataManifest) {
+        if (!manifest.version) throw new Error('Industrial Integrity Violation: Manifest version required');
+        if (!manifest.schemas || manifest.schemas.length === 0) throw new Error('Industrial Integrity Violation: At least one schema required');
+    }
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Jul 12 2026 08:28:49 GMT+0530 (India Standard Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+<script src="scripts/collapse.js" defer></script>
+
+
+</body>
+</html>

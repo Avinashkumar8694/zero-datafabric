@@ -20,14 +20,40 @@ underlying engine. The fabric:
 
 ## Documentation map
 
+**Start here**
+
 | Guide | Contents |
 |-------|----------|
+| [api-overview.md](api-overview.md) | Base URL, auth, required headers, the standard response envelope, error format + status codes, and a directory of **every** endpoint by area. |
+| [authentication-and-tenancy.md](authentication-and-tenancy.md) | Login → JWT, tenant scoping, tenant-scoped token exchange, and ADMIN impersonation (`x-act-as-role`). |
 | [concepts.md](concepts.md) | Core concepts: sources, resources, planner strategies, the execution trace envelope. |
+
+**Querying**
+
+| Guide | Contents |
+|-------|----------|
 | [query-language.md](query-language.md) | The AST query language — every clause and operator, joins, set-ops, aggregates, with examples. |
 | [recursive-and-window-queries.md](recursive-and-window-queries.md) | Recursive CTEs, window functions, materialized views — native SQL executed at the source. |
-| [crud-api.md](crud-api.md) | The simple `/api/data` fetch / create / update / delete endpoints. |
+| [analytics-api.md](analytics-api.md) | The query endpoints: `/api/analytics/query` (+async, jobs, refresh-view) and `/api/queries` (engine/exec/native/transpile); AST vs SQL modes. |
+| [saved-analytics-api.md](saved-analytics-api.md) | `/api/saved-analytics` CRUD + `/top` + `/:id/run`; `{{variable}}` binding, AST vs SQL saved configs, recursive+aggregate composition patterns. |
+
+**Data & governance**
+
+| Guide | Contents |
+|-------|----------|
+| [crud-api.md](crud-api.md) | The `/api/data` fetch / create / update / delete field reference and `where`-map operators. |
+| [data-crud-api.md](data-crud-api.md) | Full `/api/data` surface including `call` and `sequence`, error-code mapping, governance & audit. |
+| [governance-api.md](governance-api.md) | `/api/policies` (row predicates + masking), `/api/constraints`, `/api/grants`; AST vs SQL modes and the push-down / compensate / reject philosophy. |
 | [metadata-manifests.md](metadata-manifests.md) | Declarative schema management: every resource type, column strategy, constraint, index, RLS, trigger, relationship, downstream. |
 | [connectors.md](connectors.md) | Per-engine reference: config, supported operations, pushdown behavior, quirks. |
+
+**Automation, operations & admin**
+
+| Guide | Contents |
+|-------|----------|
+| [triggers-api.md](triggers-api.md) | `/api/triggers` CRUD, deploy, logs, jobs, retry; manifest triggers vs control-plane triggers. |
+| [observability-api.md](observability-api.md) | `/api/query-logs` (list + detail: legs/TAT/mem/strategy/rows scanned/warnings), `/api/events`, and how query logging is captured. |
+| [admin-api.md](admin-api.md) | `/api/admin` tenants, connections, users, stats, catalog, notification channels. |
 
 Interactive API reference (OpenAPI/Swagger): **`http://localhost:4000/api-docs`**
 (raw spec at `/api-docs.json`). Architecture & design: [`../system_docs/`](../system_docs/).

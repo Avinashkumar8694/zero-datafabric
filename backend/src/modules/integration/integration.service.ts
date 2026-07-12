@@ -3,12 +3,31 @@ import { SyncService } from './sync.service';
 import { MetadataService } from '../metadata/metadata.service';
 import axios from 'axios';
 
+/**
+ * IntegrationService — remote data-source registration and lifecycle.
+ *
+ * Owns the full "connect a source" flow: validating reachability
+ * ({@link IntegrationService.testConnection}), persisting the source config,
+ * then orchestrating either zero-copy virtualization (Postgres FDW via
+ * `fabric_admin.register_remote_source`) or physical sync (delegating to
+ * {@link SyncService}) depending on the declared {@link SyncType}, followed by
+ * an initial metadata catalog crawl. Also handles clean decommissioning
+ * ({@link IntegrationService.removeSource}). Includes Docker-networking
+ * normalization so the same host/port values work whether the caller is
+ * validating from the host machine or the containers are talking to each other.
+ */
+
+/** How a registered data source's data is made available to the fabric. */
 export enum SyncType {
+  /** Zero-copy access via a Postgres Foreign Data Wrapper — no data movement. */
   VIRTUAL = 'VIRTUAL',
+  /** Physical copy of source rows into tenant Hub tables (see {@link SyncService}). */
   SYNC = 'SYNC',
+  /** Change-data-capture based physical replication. */
   CDC = 'CDC'
 }
 
+/** Connection + sync configuration for a remote data source registration. */
 export interface RemoteSourceConfig {
   type: 'postgres' | 'mysql' | 'mongodb' | 'snowflake' | 'elasticsearch';
   host?: string;
@@ -32,7 +51,19 @@ export interface RemoteSourceConfig {
 
 export class IntegrationService {
   /**
-   * Validates if a remote source is reachable
+   * Validate that a remote source is reachable before it is registered, using
+   * the engine-appropriate client (pg / mongodb / axios against ES
+   * `_cluster/health` / mysql2 / a permissive presence check for Snowflake).
+   * Also normalizes common local-Docker host/port combinations (e.g.
+   * `localhost:5436` → `datafabric-remote:5432`) so validation succeeds
+   * whether it runs on the host or inside a container. Dummy hosts
+   * (`host === 'dummy'` or a connection string containing `'dummy'`) always
+   * succeed without attempting a real connection.
+   * @param config - The candidate source configuration to validate.
+   * @returns `true` if the connection succeeds (or the host is a recognized dummy/placeholder).
+   * @throws {Error} A type-specific `"<Engine> Connection Failed: <reason>"`
+   *   error if the connection attempt fails, or (Snowflake only) if no
+   *   account/host/connectionString is provided at all.
    */
   static async testConnection(config: RemoteSourceConfig) {
     // Industrial Defense: Skip validation for dummy hosts
@@ -155,7 +186,23 @@ export class IntegrationService {
   }
 
   /**
-   * Registers any remote source into the fabric
+   * Register a remote source into the fabric end-to-end: validates
+   * reachability, upserts the `public.data_sources` row (updating in place if
+   * a source with the same tenant+name already exists), then orchestrates the
+   * chosen sync strategy — for `VIRTUAL` Postgres sources it registers a
+   * foreign server via `fabric_admin.register_remote_source` (with Docker
+   * host/port normalization and connection-string decomposition to avoid FDW
+   * URI issues); for any other sync type it delegates to
+   * {@link SyncService.initializeSync}. Finally triggers a best-effort initial
+   * metadata catalog crawl via {@link MetadataService.crawlSource} (failure to
+   * crawl does not fail the registration — e.g. the source may be offline).
+   * @param tenantId - Owning tenant.
+   * @param name - Unique (per tenant) name for the source.
+   * @param config - The source's connection + sync configuration. Mutated in place to normalize `type`/`syncType`.
+   * @param context - Request context; `context.username` is used for audit/session scoping (defaults to `'system'`).
+   * @returns `{ sourceId, status: 'INTEGRATED' | 'RE-INTEGRATED', syncType }`.
+   * @throws {Error} If `config.type`/`config.syncType` is missing, if
+   *   {@link IntegrationService.testConnection} fails, or on any persistence/orchestration error (logged and re-thrown).
    */
   static async registerRemoteSource(tenantId: string, name: string, config: RemoteSourceConfig, context: any) {
     // INDUSTRIAL DEFENSE: Ensure type and syncType are correctly extracted
@@ -285,6 +332,19 @@ export class IntegrationService {
     }
   }
 
+  /**
+   * Fully decommission a registered source, scoped to `tenantId`: drops the
+   * Postgres foreign server if it was a VIRTUAL Postgres source, drops the
+   * physical tables it created in the tenant's Hub schema if it was a SYNC
+   * source, purges its metadata catalog entries (schemas cascade to tables),
+   * and finally deletes the `public.data_sources` row. Runs in a single
+   * transaction.
+   * @param sourceId - The `data_sources` row id to remove.
+   * @param tenantId - Owning tenant (guards against removing another tenant's source).
+   * @returns `{ status: 'DECOMMISSIONED', source, tracePurged: true }`.
+   * @throws {Error} 'Source not found or unauthorized' if no matching row
+   *   exists for this tenant; re-throws (after rollback) any other error.
+   */
   static async removeSource(sourceId: string, tenantId: string) {
     const client = await pool.connect();
     try {

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>backend/src/modules/query-engine/query-log.service.ts - Zero Data Fabric — API Reference</title>
+    
+    
+    
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="ConstraintService.html">ConstraintService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ConstraintService.html#.evalCheck">evalCheck</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.parseCheckExpression">parseCheckExpression</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.specFromManifestTable">specFromManifestTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.validate">validate</a></li></ul></li><li><a href="FabricSequenceService.html">FabricSequenceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.currval">currval</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.nextval">nextval</a></li></ul></li><li><a href="FederationExecutor.html">FederationExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyProjection">applyProjection</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.astLegToCanonical">astLegToCanonical</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.buildLegFilters">buildLegFilters</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fanAggregate">fanAggregate</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fetchLegDirect">fetchLegDirect</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.previewConnectorQuery">previewConnectorQuery</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.qualify">qualify</a></li></ul></li><li><a href="GrantService.html">GrantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GrantService.html#.decide">decide</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.enforce">enforce</a></li></ul></li><li><a href="PolicyService.html">PolicyService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PolicyService.html#.applyMasks">applyMasks</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.compileFilter">compileFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.mergeIntoFilter">mergeIntoFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.physicalSchema">physicalSchema</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolveValue">resolveValue</a></li></ul></li><li><a href="QueryLogService.html">QueryLogService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryLogService.html#.capture">capture</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.record">record</a></li></ul></li><li><a href="RecursiveExecutor.html">RecursiveExecutor</a></li><li><a href="SavedAnalyticsService.html">SavedAnalyticsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindAst">bindAst</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindSql">bindSql</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.resolveValues">resolveValues</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.run">run</a></li></ul></li><li><a href="TriggerActionCompiler.html">TriggerActionCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileActionBody">compileActionBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileEnqueueBody">compileEnqueueBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileExecute">compileExecute</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.condition">condition</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.expr">expr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.msg">msg</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.runAtExpr">runAtExpr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerService.html">TriggerService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerService.html#.registryUpsertSql">registryUpsertSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.transpileTriggerSql">transpileTriggerSql</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#AGG_FUNCS">AGG_FUNCS</a></li><li><a href="global.html#CANON_OP">CANON_OP</a></li><li><a href="global.html#EVENT_TIMINGS">EVENT_TIMINGS</a></li><li><a href="global.html#LOCAL_SOURCE">LOCAL_SOURCE</a></li><li><a href="global.html#MongoDBConnector">MongoDBConnector</a></li><li><a href="global.html#OP_MAP">OP_MAP</a></li><li><a href="global.html#RANKING">RANKING</a></li><li><a href="global.html#SQL_OPERATORS">SQL_OPERATORS</a></li><li><a href="global.html#SnowflakeConnector">SnowflakeConnector</a></li><li><a href="global.html#VAR_TOKEN">VAR_TOKEN</a></li><li><a href="global.html#aggregateRaw">aggregateRaw</a></li><li><a href="global.html#applyWindows">applyWindows</a></li><li><a href="global.html#base">base</a></li><li><a href="global.html#cacheInvalidate">cacheInvalidate</a></li><li><a href="global.html#cached">cached</a></li><li><a href="global.html#callFunction">callFunction</a></li><li><a href="global.html#client">client</a></li><li><a href="global.html#deleteAnalytic">deleteAnalytic</a></li><li><a href="global.html#exportMetadata">exportMetadata</a></li><li><a href="global.html#extractWindows">extractWindows</a></li><li><a href="global.html#gName">gName</a></li><li><a href="global.html#getColumns">getColumns</a></li><li><a href="global.html#getTemplate">getTemplate</a></li><li><a href="global.html#handle">handle</a></li><li><a href="global.html#hasWindows">hasWindows</a></li><li><a href="global.html#ident">ident</a></li><li><a href="global.html#invalidateTenant">invalidateTenant</a></li><li><a href="global.html#isAggregateQuery">isAggregateQuery</a></li><li><a href="global.html#listConstraints">listConstraints</a></li><li><a href="global.html#listGrants">listGrants</a></li><li><a href="global.html#listPolicies">listPolicies</a></li><li><a href="global.html#listQueryLogs">listQueryLogs</a></li><li><a href="global.html#maxRowsPerLeg">maxRowsPerLeg</a></li><li><a href="global.html#mergePartials">mergePartials</a></li><li><a href="global.html#nextSequence">nextSequence</a></li><li><a href="global.html#parseAggregates">parseAggregates</a></li><li><a href="global.html#parseHaving">parseHaving</a></li><li><a href="global.html#parseLiteral">parseLiteral</a></li><li><a href="global.html#parseSelect">parseSelect</a></li><li><a href="global.html#parseWhere">parseWhere</a></li><li><a href="global.html#partialSpec">partialSpec</a></li><li><a href="global.html#projectWithWindows">projectWithWindows</a></li><li><a href="global.html#queryWithContext">queryWithContext</a></li><li><a href="global.html#readCol">readCol</a></li><li><a href="global.html#sessionOf">sessionOf</a></li><li><a href="global.html#splitTopLevel">splitTopLevel</a></li><li><a href="global.html#sqlToAst">sqlToAst</a></li><li><a href="global.html#toCanonical">toCanonical</a></li><li><a href="global.html#windowBaseColumns">windowBaseColumns</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">backend/src/modules/query-engine/query-log.service.ts</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import { pool } from '../../config/database';
+
+/**
+ * QueryLogService — an execution audit trail for EVERY query the fabric runs.
+ *
+ * Wraps a query execution, measures wall-clock TAT and heap delta, and records
+ * the full story from the result envelope: the mode/operation, the query text
+ * (SQL or AST), the chosen strategy, the per-leg trace (which engine ran what,
+ * where, how many rows, how long), rows scanned across sources, pushdown notes,
+ * warnings, and success/error. Persisted to fabric_system.query_logs so it can
+ * be browsed in the audit UI (with a per-query detail view).
+ *
+ * Logging is best-effort: a failure to record NEVER affects the query result.
+ */
+
+export interface QueryLogMeta {
+  tenantId: string;
+  username?: string;
+  role?: string;
+  /** Coarse category: SELECT_AST | SELECT_SQL | CRUD_CREATE | CALL | RECURSIVE | ... */
+  mode: string;
+  /** The query as issued: a SQL string or a stringified AST/config. */
+  queryText?: string;
+  source?: string;
+  api?: string;
+}
+
+export class QueryLogService {
+  private static ready = false;
+
+  static async ensureTable(): Promise&lt;void> {
+    if (this.ready) return;
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS fabric_system.query_logs (
+        id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id     text NOT NULL,
+        username      text,
+        role          text,
+        api           text,
+        mode          text,
+        source        text,
+        strategy      text,
+        status        text NOT NULL DEFAULT 'SUCCESS',
+        error         text,
+        query_text    text,
+        row_count     integer,
+        rows_scanned  integer,
+        execution_ms  integer,
+        tat_ms        integer,
+        mem_delta_kb  integer,
+        legs          jsonb NOT NULL DEFAULT '[]'::jsonb,
+        plan          jsonb NOT NULL DEFAULT '{}'::jsonb,
+        pushed        jsonb NOT NULL DEFAULT '[]'::jsonb,
+        warnings      jsonb NOT NULL DEFAULT '[]'::jsonb,
+        created_at    timestamptz NOT NULL DEFAULT NOW()
+      )`);
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_query_logs_tenant_time ON fabric_system.query_logs (tenant_id, created_at DESC)');
+    this.ready = true;
+  }
+
+  /**
+   * Run `fn`, capture full execution telemetry, persist a log row, and return
+   * the result unchanged. Errors are recorded then re-thrown.
+   */
+  static async capture(meta: QueryLogMeta, fn: () => Promise&lt;any>): Promise&lt;any> {
+    const t0 = Date.now();
+    const m0 = process.memoryUsage().heapUsed;
+    try {
+      const res = await fn();
+      this.record(meta, res, { tatMs: Date.now() - t0, memDeltaKb: this.memDelta(m0), status: 'SUCCESS' }).catch(() => {});
+      return res;
+    } catch (err: any) {
+      this.record(meta, null, { tatMs: Date.now() - t0, memDeltaKb: this.memDelta(m0), status: 'ERROR', error: err?.message }).catch(() => {});
+      throw err;
+    }
+  }
+
+  private static memDelta(m0: number): number {
+    return Math.max(0, Math.round((process.memoryUsage().heapUsed - m0) / 1024));
+  }
+
+  /** Extract telemetry from a query envelope and insert a log row (best-effort). */
+  static async record(
+    meta: QueryLogMeta,
+    envelope: any,
+    extra: { tatMs: number; memDeltaKb: number; status: string; error?: string }
+  ): Promise&lt;void> {
+    try {
+      await this.ensureTable();
+      const plan = envelope?.plan || {};
+      const legs = Array.isArray(plan.legs) ? plan.legs : [];
+      const rowCount = envelope?.rowCount ?? (Array.isArray(envelope?.data) ? envelope.data.length : null);
+      const rowsScanned = plan.rowsScannedAcrossSources ?? legs.reduce((n: number, l: any) => n + (l.rowsReturned || 0), 0);
+      await pool.query(
+        `INSERT INTO fabric_system.query_logs
+          (tenant_id, username, role, api, mode, source, strategy, status, error, query_text,
+           row_count, rows_scanned, execution_ms, tat_ms, mem_delta_kb, legs, plan, pushed, warnings)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb,$18::jsonb,$19::jsonb)`,
+        [
+          meta.tenantId, meta.username || null, meta.role || null, meta.api || null, meta.mode, meta.source || null,
+          plan.strategy || null, extra.status, extra.error || null, this.truncate(meta.queryText, 20000),
+          rowCount, rowsScanned, plan.executionMs ?? null, extra.tatMs, extra.memDeltaKb,
+          JSON.stringify(legs), JSON.stringify(plan), JSON.stringify(plan.pushed || []), JSON.stringify(envelope?.warnings || plan.warnings || []),
+        ]
+      );
+    } catch { /* audit logging must never break a query */ }
+  }
+
+  private static truncate(s: any, max: number): string | null {
+    if (s === undefined || s === null) return null;
+    const str = typeof s === 'string' ? s : JSON.stringify(s);
+    return str.length > max ? str.slice(0, max) + '…(truncated)' : str;
+  }
+
+  static async list(tenantId: string, opts: { limit?: number; status?: string; mode?: string } = {}): Promise&lt;any[]> {
+    await this.ensureTable();
+    const params: any[] = [tenantId];
+    const where: string[] = ['tenant_id = $1'];
+    if (opts.status) { params.push(opts.status); where.push(`status = $${params.length}`); }
+    if (opts.mode) { params.push(opts.mode); where.push(`mode = $${params.length}`); }
+    params.push(Math.min(Math.max(Number(opts.limit) || 200, 1), 1000));
+    const { rows } = await pool.query(
+      `SELECT id, username, role, api, mode, source, strategy, status, error,
+              row_count AS "rowCount", rows_scanned AS "rowsScanned", execution_ms AS "executionMs",
+              tat_ms AS "tatMs", mem_delta_kb AS "memDeltaKb", created_at AS "createdAt"
+       FROM fabric_system.query_logs
+       WHERE ${where.join(' AND ')}
+       ORDER BY created_at DESC LIMIT $${params.length}`,
+      params
+    );
+    return rows;
+  }
+
+  static async get(tenantId: string, id: string): Promise&lt;any> {
+    await this.ensureTable();
+    const { rows } = await pool.query(
+      `SELECT id, username, role, api, mode, source, strategy, status, error, query_text AS "queryText",
+              row_count AS "rowCount", rows_scanned AS "rowsScanned", execution_ms AS "executionMs",
+              tat_ms AS "tatMs", mem_delta_kb AS "memDeltaKb", legs, plan, pushed, warnings, created_at AS "createdAt"
+       FROM fabric_system.query_logs WHERE tenant_id=$1 AND id=$2`, [tenantId, id]);
+    return rows[0] || null;
+  }
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Jul 12 2026 08:28:49 GMT+0530 (India Standard Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+<script src="scripts/collapse.js" defer></script>
+
+
+</body>
+</html>

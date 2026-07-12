@@ -1,15 +1,34 @@
 import { pool } from '../../config/database';
 
+/**
+ * SyncService — data-source synchronization strategy dispatcher.
+ *
+ * Two strategies are supported for bringing a remote source's data into the
+ * fabric: {@link SyncType.VIRTUAL} (zero-copy, delegated to the FDW-based
+ * virtualization already handled by IntegrationService) and
+ * {@link SyncType.CDC} (physical replication, where rows are captured into a
+ * local "shadow" table for durable, tenant-local storage).
+ */
+
+/** Synchronization strategy for a registered data source. */
 export enum SyncType {
+  /** Zero-copy access via a Foreign Data Wrapper — no local data movement. */
   VIRTUAL = 'VIRTUAL',
+  /** Physical replication/triggers — rows are captured into a local shadow table. */
   CDC = 'CDC'
 }
 
 export class SyncService {
   /**
-   * Orchestrates the synchronization strategy for a data source
-   * VIRTUAL: Uses FDW for zero-copy access.
-   * CDC: Uses physical replication/triggers for local persistence.
+   * Orchestrate the synchronization strategy for a data source: VIRTUAL is a
+   * no-op here (zero-copy FDW access is already wired up by
+   * IntegrationService); CDC provisions the local physical shadow table via
+   * {@link SyncService.setupPhysicalSync}.
+   * @param tenantId - Owning tenant.
+   * @param sourceName - Name of the data source being synced.
+   * @param type - The sync strategy to apply.
+   * @param config - Source-specific configuration (used by CDC to size/shape the shadow table).
+   * @returns Resolves once the requested strategy has been initialized.
    */
   static async initializeSync(tenantId: string, sourceName: string, type: SyncType, config: any) {
     if (type === SyncType.VIRTUAL) {
@@ -21,6 +40,18 @@ export class SyncService {
     }
   }
 
+  /**
+   * Create the tenant's local shadow table for CDC-based physical sync, if it
+   * does not already exist. Runs inside a transaction. This creates only the
+   * storage target — actual CDC ingestion (e.g. a Debezium connector or a
+   * trigger-based listener simulating Kafka CDC events) is not implemented
+   * here.
+   * @param tenantId - Owning tenant (schema is `tenant_<tenantId>`).
+   * @param sourceName - Name of the data source (used to derive the shadow table name `sync_<sourceName>_data`).
+   * @param config - Reserved for future connector-specific configuration (currently unused).
+   * @returns Resolves once the shadow table is created and the transaction committed.
+   * @throws Re-throws any error after rolling back the transaction.
+   */
   private static async setupPhysicalSync(tenantId: string, sourceName: string, config: any) {
     const client = await pool.connect();
     try {

@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>Home - Zero Data Fabric — API Reference</title>
+    
+    
+    
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="ConstraintService.html">ConstraintService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ConstraintService.html#.evalCheck">evalCheck</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.parseCheckExpression">parseCheckExpression</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.specFromManifestTable">specFromManifestTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.validate">validate</a></li></ul></li><li><a href="FabricSequenceService.html">FabricSequenceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.currval">currval</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.nextval">nextval</a></li></ul></li><li><a href="FederationExecutor.html">FederationExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyProjection">applyProjection</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.astLegToCanonical">astLegToCanonical</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.buildLegFilters">buildLegFilters</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fanAggregate">fanAggregate</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fetchLegDirect">fetchLegDirect</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.previewConnectorQuery">previewConnectorQuery</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.qualify">qualify</a></li></ul></li><li><a href="GrantService.html">GrantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GrantService.html#.decide">decide</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.enforce">enforce</a></li></ul></li><li><a href="PolicyService.html">PolicyService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PolicyService.html#.applyMasks">applyMasks</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.compileFilter">compileFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.mergeIntoFilter">mergeIntoFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.physicalSchema">physicalSchema</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolveValue">resolveValue</a></li></ul></li><li><a href="QueryLogService.html">QueryLogService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryLogService.html#.capture">capture</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.record">record</a></li></ul></li><li><a href="RecursiveExecutor.html">RecursiveExecutor</a></li><li><a href="SavedAnalyticsService.html">SavedAnalyticsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindAst">bindAst</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindSql">bindSql</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.resolveValues">resolveValues</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.run">run</a></li></ul></li><li><a href="TriggerActionCompiler.html">TriggerActionCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileActionBody">compileActionBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileEnqueueBody">compileEnqueueBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileExecute">compileExecute</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.condition">condition</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.expr">expr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.msg">msg</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.runAtExpr">runAtExpr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerService.html">TriggerService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerService.html#.registryUpsertSql">registryUpsertSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.transpileTriggerSql">transpileTriggerSql</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#AGG_FUNCS">AGG_FUNCS</a></li><li><a href="global.html#CANON_OP">CANON_OP</a></li><li><a href="global.html#EVENT_TIMINGS">EVENT_TIMINGS</a></li><li><a href="global.html#LOCAL_SOURCE">LOCAL_SOURCE</a></li><li><a href="global.html#MongoDBConnector">MongoDBConnector</a></li><li><a href="global.html#OP_MAP">OP_MAP</a></li><li><a href="global.html#RANKING">RANKING</a></li><li><a href="global.html#SQL_OPERATORS">SQL_OPERATORS</a></li><li><a href="global.html#SnowflakeConnector">SnowflakeConnector</a></li><li><a href="global.html#VAR_TOKEN">VAR_TOKEN</a></li><li><a href="global.html#aggregateRaw">aggregateRaw</a></li><li><a href="global.html#applyWindows">applyWindows</a></li><li><a href="global.html#base">base</a></li><li><a href="global.html#cacheInvalidate">cacheInvalidate</a></li><li><a href="global.html#cached">cached</a></li><li><a href="global.html#callFunction">callFunction</a></li><li><a href="global.html#client">client</a></li><li><a href="global.html#deleteAnalytic">deleteAnalytic</a></li><li><a href="global.html#exportMetadata">exportMetadata</a></li><li><a href="global.html#extractWindows">extractWindows</a></li><li><a href="global.html#gName">gName</a></li><li><a href="global.html#getColumns">getColumns</a></li><li><a href="global.html#getTemplate">getTemplate</a></li><li><a href="global.html#handle">handle</a></li><li><a href="global.html#hasWindows">hasWindows</a></li><li><a href="global.html#ident">ident</a></li><li><a href="global.html#invalidateTenant">invalidateTenant</a></li><li><a href="global.html#isAggregateQuery">isAggregateQuery</a></li><li><a href="global.html#listConstraints">listConstraints</a></li><li><a href="global.html#listGrants">listGrants</a></li><li><a href="global.html#listPolicies">listPolicies</a></li><li><a href="global.html#listQueryLogs">listQueryLogs</a></li><li><a href="global.html#maxRowsPerLeg">maxRowsPerLeg</a></li><li><a href="global.html#mergePartials">mergePartials</a></li><li><a href="global.html#nextSequence">nextSequence</a></li><li><a href="global.html#parseAggregates">parseAggregates</a></li><li><a href="global.html#parseHaving">parseHaving</a></li><li><a href="global.html#parseLiteral">parseLiteral</a></li><li><a href="global.html#parseSelect">parseSelect</a></li><li><a href="global.html#parseWhere">parseWhere</a></li><li><a href="global.html#partialSpec">partialSpec</a></li><li><a href="global.html#projectWithWindows">projectWithWindows</a></li><li><a href="global.html#queryWithContext">queryWithContext</a></li><li><a href="global.html#readCol">readCol</a></li><li><a href="global.html#sessionOf">sessionOf</a></li><li><a href="global.html#splitTopLevel">splitTopLevel</a></li><li><a href="global.html#sqlToAst">sqlToAst</a></li><li><a href="global.html#toCanonical">toCanonical</a></li><li><a href="global.html#windowBaseColumns">windowBaseColumns</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+
+    
+
+
+
+    
+
+
+    <section class="package">
+        <h3> </h3>		
+    </section>
+
+
+
+
+
+
+
+
+
+    
+
+
+
+    <section class="readme usertext">
+        <article><h1>Capability Model &amp; Matrix — one model, two modes, three tiers</h1>
+<p>This document explains <strong>how every feature of the fabric works</strong>, checked against
+every construct in <code>test_manifest.json</code>, and how each is reachable <strong>consistently
+from both the AST query mode and the SQL query mode</strong>.</p>
+<h2>1. One model</h2>
+<p>Two entry modes normalize to a <strong>single canonical AST</strong> before planning:</p>
+<ul>
+<li><strong>AST mode</strong> — a structured <code>query</code> object (<code>{ select, from, where, joins, groupBy, with, recursive, … }</code>).</li>
+<li><strong>SQL mode</strong> — a SQL string. On a SQL-native engine (Postgres/remote) it runs
+natively; on a non-SQL engine (Mongo) it is translated to the same AST by
+<code>sqlToAst</code>, then planned identically.</li>
+</ul>
+<p>Because both modes converge on the same AST + planner, every capability below is
+available the same way from either — that is the consistency guarantee.</p>
+<h2>2. Three enforcement tiers (the compensation philosophy)</h2>
+<p>For each capability the planner picks, per engine:</p>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Push-down</strong></td>
+<td>the source enforces/executes it natively (Postgres RLS, CHECK, GRANT, <code>nextval</code>, functions, <code>WITH RECURSIVE</code>)</td>
+</tr>
+<tr>
+<td><strong>Compensate-in-fabric</strong></td>
+<td>a fabric engine does it when the source can't — the whole point for Mongo/ES</td>
+</tr>
+<tr>
+<td><strong>Reject-if-impossible</strong></td>
+<td>explicit, non-silent error (e.g. <code>EXCLUDE … USING GIST</code> on Mongo)</td>
+</tr>
+</tbody>
+</table>
+<p>&quot;If Mongo doesn't support it, the fabric adds its own engine/helper&quot; — that is
+tier 2, applied uniformly.</p>
+<h2>3. The fabric engines (tier-2 compensations)</h2>
+<table>
+<thead>
+<tr>
+<th>Engine</th>
+<th>File</th>
+<th>Compensates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PushdownCompiler</td>
+<td><code>query-engine/pushdown.ts</code></td>
+<td>filter/projection/sort/limit → SQL / Mongo / ES</td>
+</tr>
+<tr>
+<td>FederationExecutor</td>
+<td><code>query-engine/federation.ts</code></td>
+<td>cross-engine JOIN / UNION / INTERSECT / EXCEPT, partial-aggregate merge, bind-join</td>
+</tr>
+<tr>
+<td>Aggregate engine</td>
+<td><code>query-engine/aggregate.ts</code></td>
+<td>multi-source GROUP BY (partial + merge)</td>
+</tr>
+<tr>
+<td>Window engine</td>
+<td><code>query-engine/compensate.ts</code></td>
+<td>RANK / ROW_NUMBER / SUM OVER … in-fabric</td>
+</tr>
+<tr>
+<td>Recursive engine</td>
+<td><code>query-engine/recursive.ts</code></td>
+<td><code>WITH RECURSIVE</code> / hierarchy traversal over any engine</td>
+</tr>
+<tr>
+<td>Sequence engine</td>
+<td><code>query-engine/sequence.service.ts</code></td>
+<td><code>nextval</code> for engines with no sequences</td>
+</tr>
+<tr>
+<td>Write-value engine</td>
+<td><code>query-engine/write_generators.ts</code></td>
+<td>UUID_V7 / IDENTITY / FUNCTIONAL / SOFT_DELETE defaults</td>
+</tr>
+<tr>
+<td><strong>Policy engine</strong></td>
+<td><code>security/policy.service.ts</code></td>
+<td>row-predicate injection + column masking</td>
+</tr>
+<tr>
+<td><strong>Constraint engine</strong></td>
+<td><code>query-engine/constraint.service.ts</code></td>
+<td>NOT NULL / UNIQUE / CHECK / ENUM / FK on write</td>
+</tr>
+<tr>
+<td><strong>Grant engine</strong></td>
+<td><code>security/grant.service.ts</code></td>
+<td>role/privilege table access gate</td>
+</tr>
+<tr>
+<td>Function-as-a-service</td>
+<td><code>CALL</code> op + <code>write_generators.ts</code></td>
+<td>run functions/procedures on the hub for any engine</td>
+</tr>
+<tr>
+<td>SQL translator</td>
+<td><code>query-engine/sql_translator.ts</code></td>
+<td>SQL → AST for non-SQL engines</td>
+</tr>
+<tr>
+<td>Trigger engine</td>
+<td><code>trigger-engine/</code> MS + <code>triggers/*</code></td>
+<td>durable action triggers + native manifest triggers</td>
+</tr>
+</tbody>
+</table>
+<h2>4. Capability matrix — every <code>test_manifest.json</code> construct</h2>
+<p><code>PG</code> = native Postgres. <code>Mongo/ES</code> = the non-SQL compensation tier.</p>
+<table>
+<thead>
+<tr>
+<th>Manifest construct</th>
+<th>AST mode</th>
+<th>SQL mode</th>
+<th>PG</th>
+<th>Mongo/ES (compensation)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ENUM type</td>
+<td>apply</td>
+<td>apply</td>
+<td>native <code>CREATE TYPE</code></td>
+<td>validated in-fabric on write (Constraint engine)</td>
+</tr>
+<tr>
+<td>SEQUENCE (incl. PROCEDURAL)</td>
+<td>✅</td>
+<td>✅</td>
+<td>native <code>nextval</code></td>
+<td>Sequence engine (atomic allocator)</td>
+</tr>
+<tr>
+<td>Column strategies (UUID_V7 / IDENTITY / LEGACY_SERIAL / FUNCTIONAL / SOFT_DELETE)</td>
+<td>✅ <code>generate</code></td>
+<td>✅</td>
+<td>native defaults</td>
+<td>Write-value engine supplies values</td>
+</tr>
+<tr>
+<td>TABLE / columns / types</td>
+<td>✅</td>
+<td>✅</td>
+<td>native DDL</td>
+<td><code>createCollection</code> + indexes</td>
+</tr>
+<tr>
+<td><strong>CHECK constraint</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>native</td>
+<td><strong>Constraint engine</strong> (regex/comparison eval on write)</td>
+</tr>
+<tr>
+<td><strong>UNIQUE</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>native</td>
+<td>Mongo unique index + fabric pre-check</td>
+</tr>
+<tr>
+<td><strong>NOT NULL</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>native</td>
+<td><strong>Constraint engine</strong></td>
+</tr>
+<tr>
+<td><strong>FOREIGN KEY</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>native (relationship or <code>constraints[]</code>)</td>
+<td><strong>Constraint engine</strong> (existence lookup)</td>
+</tr>
+<tr>
+<td>EXCLUDE … USING GIST</td>
+<td>✅</td>
+<td>—</td>
+<td>native</td>
+<td><strong>reject-if-impossible</strong> (Postgres-only)</td>
+</tr>
+<tr>
+<td>TRIGGER (manifest)</td>
+<td>✅</td>
+<td>via manifest</td>
+<td>native <code>CREATE TRIGGER</code></td>
+<td>native trigger enqueues durable job</td>
+</tr>
+<tr>
+<td>TRIGGER (API/UI action)</td>
+<td>✅</td>
+<td>✅</td>
+<td>—</td>
+<td>Trigger-engine MS + durable queue</td>
+</tr>
+<tr>
+<td><strong>masking</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>native (or fabric)</td>
+<td><strong>Policy engine</strong> post-fetch redaction</td>
+</tr>
+<tr>
+<td><strong>RLS policies</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>native RLS</td>
+<td><strong>Policy engine</strong> predicate injection (pushed to source)</td>
+</tr>
+<tr>
+<td><strong>grants</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>native GRANT</td>
+<td><strong>Grant engine</strong> role/privilege gate</td>
+</tr>
+<tr>
+<td><strong>FUNCTION</strong> (author)</td>
+<td>✅</td>
+<td>✅</td>
+<td>native</td>
+<td>provisioned on hub (FaaS)</td>
+</tr>
+<tr>
+<td><strong>FUNCTION/PROCEDURE (call)</strong></td>
+<td>✅ <code>{type:'CALL'}</code></td>
+<td>✅ <code>CALL</code>/<code>SELECT fn()</code></td>
+<td>native</td>
+<td><strong>function-as-a-service</strong> on hub</td>
+</tr>
+<tr>
+<td>VIEW (plain / window / aggregate)</td>
+<td>✅</td>
+<td>✅</td>
+<td>native view</td>
+<td>window/aggregate engines</td>
+</tr>
+<tr>
+<td>VIEW (federated VIRTUAL union/intersect/except)</td>
+<td>✅</td>
+<td>use AST</td>
+<td>—</td>
+<td>FederationExecutor set-ops</td>
+</tr>
+<tr>
+<td><strong>recursive VIEW / WITH RECURSIVE</strong></td>
+<td>✅ <code>query.with</code> / <code>query.recursive</code></td>
+<td>PG passthrough; Mongo → use AST</td>
+<td>native <code>WITH RECURSIVE</code></td>
+<td><strong>Recursive engine</strong> (in-fabric traversal)</td>
+</tr>
+<tr>
+<td>MATERIALIZED VIEW (+ refresh)</td>
+<td>✅</td>
+<td>✅</td>
+<td>native matview</td>
+<td>(Postgres target)</td>
+</tr>
+<tr>
+<td>relationships (1:1 / 1:M / M:N)</td>
+<td>✅</td>
+<td>✅</td>
+<td>native FK / bridge</td>
+<td>FK compensation via Constraint engine</td>
+</tr>
+</tbody>
+</table>
+<h3>Notes on <code>WITH</code>/CTE in SQL mode</h3>
+<p><code>WITH</code>/<code>WITH RECURSIVE</code> runs natively when the SQL targets a SQL engine
+(Postgres/remote — passthrough). For a <strong>non-SQL</strong> engine, <code>sqlToAst</code> returns an
+actionable error pointing to the AST equivalents (<code>query.with</code> for Postgres,
+<code>query.recursive</code> for cross-engine in-fabric traversal), which <strong>do</strong> run on
+Mongo/ES. So recursion is always available — the SQL string form just isn't the
+vehicle for a document store.</p>
+<h2>5. Control-plane APIs (all engine-agnostic, all synced from the manifest too)</h2>
+<table>
+<thead>
+<tr>
+<th>API</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST/GET/DELETE /api/policies</code></td>
+<td>row policies + masking</td>
+</tr>
+<tr>
+<td><code>POST/GET /api/constraints</code></td>
+<td>NOT NULL / UNIQUE / ENUM / CHECK / FK</td>
+</tr>
+<tr>
+<td><code>POST/GET /api/grants</code></td>
+<td>table privileges by role</td>
+</tr>
+<tr>
+<td><code>POST/GET/PUT/DELETE /api/triggers</code></td>
+<td>action triggers + durable jobs</td>
+</tr>
+<tr>
+<td><code>POST /api/data/{fetch,create,update,delete,call,sequence}</code></td>
+<td>CRUD + FaaS + sequences</td>
+</tr>
+<tr>
+<td><code>POST /api/analytics/query</code></td>
+<td>AST/SQL queries (federation, recursion, window, aggregate)</td>
+</tr>
+<tr>
+<td><code>POST/GET/DELETE /api/saved-analytics</code> (+ <code>/:id/run</code>)</td>
+<td>reusable, <code>{{variable}}</code>-bound analytics; run/trigger with inputs</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Session context</strong> (<code>tenant</code>, <code>role</code>, <code>region</code>) is threaded from the request
+(token + <code>x-tenant-id</code> + <code>x-region</code>); ADMIN may <code>x-act-as-role: &lt;role&gt;</code> to test
+policies/grants/masking as another role (&quot;view as&quot;).</p>
+<h2>6. Why this is efficient</h2>
+<ul>
+<li>Row policies compile into the <strong>pushdown</strong>, so the predicate runs at the source
+(Mongo <code>$match</code>) — the fabric never fetches then filters.</li>
+<li>Constraints validate the <strong>write payload</strong> (and a single bounded lookup for
+UNIQUE/FK) before dispatch — O(rows), not a scan.</li>
+<li>Recursion pushes one <code>IN(…)</code> <strong>bind-filter per level</strong> — not a query per node.</li>
+<li>Grants are a single cached decision; masking is an O(rows) post-map.</li>
+</ul></article>
+    </section>
+
+
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Jul 12 2026 08:28:49 GMT+0530 (India Standard Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+<script src="scripts/collapse.js" defer></script>
+
+
+</body>
+</html>

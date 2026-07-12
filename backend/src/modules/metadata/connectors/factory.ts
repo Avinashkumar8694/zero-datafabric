@@ -1,3 +1,23 @@
+/**
+ * Cross-source connector factory.
+ * --------------------------------
+ * Defines the `IConnector` contract every supported engine implements —
+ * schema/table/column discovery, filtered query with pushdown, optional raw
+ * SQL execution, and optional document-store write ops — plus one concrete
+ * connector per supported engine:
+ *  - `PostgresConnector` — a remote Postgres source, with catalog introspection
+ *    via `pg_class`/`pg_proc`/`pg_type` and SQL pushdown via `PushdownCompiler`.
+ *  - `MySQLConnector` — MySQL/MariaDB, via `SHOW`/`information_schema` and SQL pushdown.
+ *  - `MongoDBConnector` — MongoDB, with schema inferred by sampling documents and
+ *    pushdown compiled to either a `find` spec or a `$group` aggregation pipeline.
+ *  - `SnowflakeConnector` — Snowflake via the optional `snowflake-sdk` driver
+ *    (lazy-required so the build never hard-depends on it).
+ *  - `ElasticsearchConnector` — Elasticsearch as a queryable federated source via
+ *    `_search`/`_sql`, plus bulk write ops for the `/api/data` CRUD endpoints.
+ * `ConnectorFactory.getConnector` is the single entry point used across the
+ * metadata module (crawling, manifest export, live query execution) to obtain
+ * the right connector instance for a data source's engine `type`.
+ */
 import { Pool } from 'pg';
 import * as mysql from 'mysql2/promise';
 import { MongoClient } from 'mongodb';
@@ -19,11 +39,19 @@ function toCanonical(config: any): CanonicalQuery {
     };
 }
 
+/**
+ * Common contract every engine connector implements, letting the rest of the
+ * fabric (crawling, manifest export, live query execution, CRUD endpoints)
+ * treat Postgres/MySQL/MongoDB/Snowflake/Elasticsearch sources uniformly.
+ */
 export interface IConnector {
+    /** Lists the source's logical schemas/databases as `{ name, physicalName }`. */
     discoverSchemas(): Promise<any[]>;
+    /** Lists tables/views/other relations in a schema as `{ name, physicalName, rowCount, resourceType }`. */
     discoverTables(schema: string): Promise<any[]>;
     /** Column-level metadata: { name, type, nullable, default, primaryKey } */
     discoverColumns?(schema: string, table: string): Promise<any[]>;
+    /** Runs a canonical (pushdown-compiled) filtered/sorted/paginated query against one table/collection. */
     query(schema: string, table: string, config: any): Promise<any[]>;
     /** Execute arbitrary native SQL at the source (SQL-native engines only). */
     rawQuery?(sql: string, params?: any[]): Promise<any[]>;
@@ -31,11 +59,22 @@ export interface IConnector {
     insertDocs?(schema: string, table: string, docs: any[]): Promise<any>;
     updateDocs?(schema: string, table: string, filter: Record<string, any>, set: Record<string, any>): Promise<any>;
     deleteDocs?(schema: string, table: string, filter: Record<string, any>): Promise<any>;
+    /** Releases any pooled/native connection held by the connector. */
     close(): Promise<void>;
 }
 
+/**
+ * `IConnector` implementation for a remote Postgres data source: catalog
+ * introspection via `pg_class`/`pg_proc`/`pg_type`/`information_schema`, and
+ * filtered queries compiled through `PushdownCompiler` with a fallback to the
+ * `public` schema if the configured schema fails.
+ */
 export class PostgresConnector implements IConnector {
     private pool: Pool;
+    /**
+     * Creates a connection pool for the given source configuration.
+     * @param config Connection config: either `connectionString`, or `host`/`port`/`user`/`password|pass`/`database|dbName|db`.
+     */
     constructor(config: any) {
         if (config.advanced?.dynamicOptions) {
             console.log(`[Connector] Applying dynamic options:`, JSON.stringify(config.advanced.dynamicOptions));
@@ -61,9 +100,13 @@ export class PostgresConnector implements IConnector {
         }
     }
 
+    /**
+     * Lists user schemas, excluding `information_schema`/`pg_catalog` and any `pg_%` system schema.
+     * @returns Rows of `{ name, physicalName }` (identical, since Postgres schema names are already physical).
+     */
     async discoverSchemas(): Promise<any[]> {
         const { rows } = await this.pool.query(`
-            SELECT 
+            SELECT
                 schema_name as name,
                 schema_name as "physicalName"
             FROM information_schema.schemata
@@ -73,6 +116,14 @@ export class PostgresConnector implements IConnector {
         return rows;
     }
 
+    /**
+     * Lists every discoverable object in a schema: tables, partitioned
+     * tables, views, materialized views, foreign tables and sequences (via
+     * `pg_class`), plus functions/procedures (via `pg_proc`, ignored if
+     * `prokind` isn't supported pre-PG11) and enum types (via `pg_type`).
+     * @param schema Physical schema name to scan.
+     * @returns Combined rows of `{ name, physicalName, rowCount, resourceType }` across all object kinds.
+     */
     async discoverTables(schema: string): Promise<any[]> {
         // Relations: tables, partitioned tables, views, materialized views,
         // foreign tables, and sequences — each with its object type.
@@ -105,7 +156,11 @@ export class PostgresConnector implements IConnector {
         return [...rels.rows, ...funcs.rows, ...enums.rows];
     }
 
-    // Foreign-key relationships within a schema (for ER diagrams).
+    /**
+     * Foreign-key relationships within a schema (for ER diagrams).
+     * @param schema Physical schema name to scan.
+     * @returns Rows of `{ name, sourceTable, sourceColumn, targetTable, targetColumn }`, one per FK constraint column.
+     */
     async discoverRelationships(schema: string): Promise<any[]> {
         const { rows } = await this.pool.query(`
             SELECT tc.constraint_name AS name,
@@ -121,6 +176,14 @@ export class PostgresConnector implements IConnector {
         return rows;
     }
 
+    /**
+     * Column-level metadata for a table/view/materialized view/foreign table.
+     * Uses `pg_attribute` rather than `information_schema.columns` because
+     * the latter omits materialized views.
+     * @param schema Physical schema name.
+     * @param table Physical relation name.
+     * @returns Rows of `{ name, type, nullable, default, primaryKey }`, ordered by column position.
+     */
     async discoverColumns(schema: string, table: string): Promise<any[]> {
         // pg_attribute covers tables, views, materialized views and foreign tables
         // (information_schema.columns omits materialized views).
@@ -144,6 +207,18 @@ export class PostgresConnector implements IConnector {
         return rows;
     }
 
+    /**
+     * Runs a canonical (filter/projection/sort/limit/offset) query against a
+     * table, compiled to parameterized SQL by `PushdownCompiler`. If the
+     * query fails against the requested schema, retries once against
+     * `public` before giving up (some sources register objects there
+     * regardless of the nominal schema).
+     * @param schema Physical schema to query.
+     * @param table Physical table name.
+     * @param config Canonical query config (`select`/`filter`/`orderBy`/`limit`/`offset`/`groupBy`/`aggregates`).
+     * @returns The matching rows.
+     * @throws Rethrows the inner error if the query also fails against `public`.
+     */
     async query(schema: string, table: string, config: any): Promise<any[]> {
         const canonical = toCanonical(config);
         // Push filter / projection / sort / limit / offset down to the remote engine
@@ -173,6 +248,10 @@ export class PostgresConnector implements IConnector {
      * materialized-view reads) AT the source engine that owns the data, instead of
      * only against the hub. Sets a search_path so unqualified names resolve to the
      * caller-provided schema when supplied.
+     * @param sql SQL text to execute (unqualified names resolve against whatever `search_path` is currently set — see `setSearchPath`).
+     * @param params Positional parameters (`$1`, `$2`, ...) for the query; defaults to none.
+     * @returns The result rows.
+     * @throws Propagates any driver/query error.
      */
     async rawQuery(sql: string, params: any[] = []): Promise<any[]> {
         console.log(`[PostgresConnector] Raw SQL: ${String(sql).slice(0, 200)}`);
@@ -180,24 +259,44 @@ export class PostgresConnector implements IConnector {
         return rows;
     }
 
+    /**
+     * Sets this connection's `search_path` so subsequent unqualified `rawQuery`
+     * calls resolve names against `schema` first, falling back to `public`.
+     * @param schema Schema name to prepend to the search path; sanitized to a safe identifier charset.
+     */
     async setSearchPath(schema: string): Promise<void> {
         const safe = String(schema).replace(/[^a-zA-Z0-9_]/g, '');
         if (safe) await this.pool.query(`SET search_path TO "${safe}", public`);
     }
 
+    /** Closes the underlying connection pool. */
     async close() {
         await this.pool.end();
     }
 }
 
+/**
+ * `IConnector` implementation for a MySQL/MariaDB data source: catalog
+ * introspection via `SHOW`/`information_schema`, and filtered queries
+ * compiled through `PushdownCompiler`. The underlying connection is opened
+ * lazily on first use and reused for subsequent calls.
+ */
 export class MySQLConnector implements IConnector {
     private connection: mysql.Connection | null = null;
     private config: any;
 
+    /**
+     * Stores the connection config; the actual connection is opened lazily by `connect()`.
+     * @param config Connection config: either `connectionString`, or `host`/`port`/`user`/`password|pass`/`database|dbName|db`.
+     */
     constructor(config: any) {
         this.config = config;
     }
 
+    /**
+     * Returns the cached MySQL connection, opening one on first call.
+     * @returns The (possibly newly created) `mysql2` connection.
+     */
     private async connect() {
         if (!this.connection) {
             if (this.config.connectionString) {
@@ -215,12 +314,23 @@ export class MySQLConnector implements IConnector {
         return this.connection;
     }
 
+    /**
+     * Lists databases as MySQL's logical schemas.
+     * @returns Rows of `{ name, physicalName }` (both equal to the database name).
+     */
     async discoverSchemas(): Promise<any[]> {
         const conn = await this.connect();
         const [rows]: any = await conn.query('SHOW DATABASES');
         return rows.map((r: any) => ({ name: r.Database, physicalName: r.Database }));
     }
 
+    /**
+     * Lists tables/views (via `SHOW FULL TABLES`, which distinguishes the
+     * two) plus stored functions/procedures (via `information_schema.ROUTINES`,
+     * best-effort) in a database.
+     * @param schema Database name to scan; sanitized to a safe identifier charset before use in `USE`.
+     * @returns Combined rows of `{ name, physicalName, rowCount: 0, resourceType }`.
+     */
     async discoverTables(schema: string): Promise<any[]> {
         const conn = await this.connect();
         const safeSchema = schema.replace(/[^a-zA-Z0-9_]/g, '');
@@ -242,6 +352,12 @@ export class MySQLConnector implements IConnector {
         return out;
     }
 
+    /**
+     * Column-level metadata for a table via `information_schema.COLUMNS`.
+     * @param schema Database (schema) name.
+     * @param table Table name.
+     * @returns Rows of `{ name, type, nullable, default, primaryKey }`, ordered by column position.
+     */
     async discoverColumns(schema: string, table: string): Promise<any[]> {
         const conn = await this.connect();
         const [rows]: any = await conn.query(
@@ -252,6 +368,15 @@ export class MySQLConnector implements IConnector {
         return rows;
     }
 
+    /**
+     * Runs a canonical (filter/projection/sort/limit/offset) query against a
+     * table, compiled to parameterized SQL by `PushdownCompiler`. Switches
+     * the connection's active database to `schema` before executing.
+     * @param schema Database name to query.
+     * @param table Table name.
+     * @param config Canonical query config (`select`/`filter`/`orderBy`/`limit`/`offset`/`groupBy`/`aggregates`).
+     * @returns The matching rows.
+     */
     async query(schema: string, table: string, config: any): Promise<any[]> {
         const conn = await this.connect();
         await conn.query(`USE \`${schema.replace(/[^a-zA-Z0-9_]/g, '')}\``);
@@ -262,15 +387,29 @@ export class MySQLConnector implements IConnector {
         return rows;
     }
 
+    /** Closes the underlying connection, if one was ever opened. */
     async close() {
         if (this.connection) await this.connection.end();
     }
 }
 
+/**
+ * `IConnector` implementation for a MongoDB data source. Schemas map to
+ * Mongo databases and tables to collections; since Mongo is schemaless,
+ * column metadata is inferred by sampling documents. Filtered queries are
+ * pushed down either as a `find` spec or, when aggregates/grouping are
+ * requested, as a `$group` aggregation pipeline (both via `PushdownCompiler`).
+ * Also implements the optional document-store write ops used by the
+ * `/api/data` CRUD endpoints.
+ */
 export class MongoDBConnector implements IConnector {
     private client: MongoClient;
     private config: any;
 
+    /**
+     * Creates a (not-yet-connected) MongoDB client from the given config.
+     * @param config Connection config: `uri`/`connectionString`/`url`, or `user`/`pass`/`host`/`port` to build a `mongodb://` URL.
+     */
     constructor(config: any) {
         if (config.advanced?.dynamicOptions) {
             console.log(`[Connector] Applying dynamic options to Mongo:`, JSON.stringify(config.advanced.dynamicOptions));

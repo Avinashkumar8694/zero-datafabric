@@ -71,6 +71,14 @@ app.get('/analytics', (req, res) => {
   res.render('analytics', { title: 'Zero Data Fabric - Analytics Dashboard' });
 });
 
+app.get('/analytics/custom', (req, res) => {
+  res.render('custom_analytics', { title: 'Zero Data Fabric - Custom Analytics' });
+});
+// Back-compat: the old saved-analytics path now serves the custom analytics page.
+app.get('/analytics/saved', (req, res) => {
+  res.render('custom_analytics', { title: 'Zero Data Fabric - Custom Analytics' });
+});
+
 app.get('/settings', (req, res) => {
   res.render('settings', { title: 'Zero Data Fabric - Settings' });
 });

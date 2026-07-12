@@ -1,0 +1,4465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>Global - Zero Data Fabric — API Reference</title>
+    
+    
+    
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="ConstraintService.html">ConstraintService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ConstraintService.html#.evalCheck">evalCheck</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.parseCheckExpression">parseCheckExpression</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.specFromManifestTable">specFromManifestTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.validate">validate</a></li></ul></li><li><a href="FabricSequenceService.html">FabricSequenceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.currval">currval</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.nextval">nextval</a></li></ul></li><li><a href="FederationExecutor.html">FederationExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyProjection">applyProjection</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.astLegToCanonical">astLegToCanonical</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.buildLegFilters">buildLegFilters</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fanAggregate">fanAggregate</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fetchLegDirect">fetchLegDirect</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.previewConnectorQuery">previewConnectorQuery</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.qualify">qualify</a></li></ul></li><li><a href="GrantService.html">GrantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GrantService.html#.decide">decide</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.enforce">enforce</a></li></ul></li><li><a href="PolicyService.html">PolicyService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PolicyService.html#.applyMasks">applyMasks</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.compileFilter">compileFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.mergeIntoFilter">mergeIntoFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.physicalSchema">physicalSchema</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolveValue">resolveValue</a></li></ul></li><li><a href="QueryLogService.html">QueryLogService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryLogService.html#.capture">capture</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.record">record</a></li></ul></li><li><a href="RecursiveExecutor.html">RecursiveExecutor</a></li><li><a href="SavedAnalyticsService.html">SavedAnalyticsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindAst">bindAst</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindSql">bindSql</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.resolveValues">resolveValues</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.run">run</a></li></ul></li><li><a href="TriggerActionCompiler.html">TriggerActionCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileActionBody">compileActionBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileEnqueueBody">compileEnqueueBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileExecute">compileExecute</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.condition">condition</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.expr">expr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.msg">msg</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.runAtExpr">runAtExpr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerService.html">TriggerService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerService.html#.registryUpsertSql">registryUpsertSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.transpileTriggerSql">transpileTriggerSql</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#AGG_FUNCS">AGG_FUNCS</a></li><li><a href="global.html#CANON_OP">CANON_OP</a></li><li><a href="global.html#EVENT_TIMINGS">EVENT_TIMINGS</a></li><li><a href="global.html#LOCAL_SOURCE">LOCAL_SOURCE</a></li><li><a href="global.html#MongoDBConnector">MongoDBConnector</a></li><li><a href="global.html#OP_MAP">OP_MAP</a></li><li><a href="global.html#RANKING">RANKING</a></li><li><a href="global.html#SQL_OPERATORS">SQL_OPERATORS</a></li><li><a href="global.html#SnowflakeConnector">SnowflakeConnector</a></li><li><a href="global.html#VAR_TOKEN">VAR_TOKEN</a></li><li><a href="global.html#aggregateRaw">aggregateRaw</a></li><li><a href="global.html#applyWindows">applyWindows</a></li><li><a href="global.html#base">base</a></li><li><a href="global.html#cacheInvalidate">cacheInvalidate</a></li><li><a href="global.html#cached">cached</a></li><li><a href="global.html#callFunction">callFunction</a></li><li><a href="global.html#client">client</a></li><li><a href="global.html#deleteAnalytic">deleteAnalytic</a></li><li><a href="global.html#exportMetadata">exportMetadata</a></li><li><a href="global.html#extractWindows">extractWindows</a></li><li><a href="global.html#gName">gName</a></li><li><a href="global.html#getColumns">getColumns</a></li><li><a href="global.html#getTemplate">getTemplate</a></li><li><a href="global.html#handle">handle</a></li><li><a href="global.html#hasWindows">hasWindows</a></li><li><a href="global.html#ident">ident</a></li><li><a href="global.html#invalidateTenant">invalidateTenant</a></li><li><a href="global.html#isAggregateQuery">isAggregateQuery</a></li><li><a href="global.html#listConstraints">listConstraints</a></li><li><a href="global.html#listGrants">listGrants</a></li><li><a href="global.html#listPolicies">listPolicies</a></li><li><a href="global.html#listQueryLogs">listQueryLogs</a></li><li><a href="global.html#maxRowsPerLeg">maxRowsPerLeg</a></li><li><a href="global.html#mergePartials">mergePartials</a></li><li><a href="global.html#nextSequence">nextSequence</a></li><li><a href="global.html#parseAggregates">parseAggregates</a></li><li><a href="global.html#parseHaving">parseHaving</a></li><li><a href="global.html#parseLiteral">parseLiteral</a></li><li><a href="global.html#parseSelect">parseSelect</a></li><li><a href="global.html#parseWhere">parseWhere</a></li><li><a href="global.html#partialSpec">partialSpec</a></li><li><a href="global.html#projectWithWindows">projectWithWindows</a></li><li><a href="global.html#queryWithContext">queryWithContext</a></li><li><a href="global.html#readCol">readCol</a></li><li><a href="global.html#sessionOf">sessionOf</a></li><li><a href="global.html#splitTopLevel">splitTopLevel</a></li><li><a href="global.html#sqlToAst">sqlToAst</a></li><li><a href="global.html#toCanonical">toCanonical</a></li><li><a href="global.html#windowBaseColumns">windowBaseColumns</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">Global</h1>
+    
+
+    
+
+
+
+
+<section>
+
+<header>
+    
+        <h2>
+        
+            
+        
+        </h2>
+        
+    
+</header>
+
+<article>
+    
+        <div class="container-overview">
+        
+            
+
+<dl class="details">
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+            
+
+            
+        
+        </div>
+    
+
+    
+
+    
+
+    
+    
+    
+
+     
+
+    
+
+    
+        <h3 class="subsection-title">Members</h3>
+
+        
+            
+<h4 class="name" id="AGG_FUNCS"><span class="type-signature type-signature-constant">(constant) </span>AGG_FUNCS<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Aggregate decomposition for multi-source federation.
+-----------------------------------------------------
+Implements the "partial-aggregate split" that lets GROUP BY / aggregates run
+across many sources WITHOUT fetching every row into the fabric:
+
+  - Each source computes a PARTIAL aggregate (GROUP BY g..., COUNT/SUM/MIN/MAX)
+    and returns only #groups rows.
+  - The fabric MERGES the partials into the final result.
+
+Decomposition rules:
+  COUNT(*)/COUNT(c) -> partial COUNT -> final SUM(partial)
+  SUM(c)            -> partial SUM   -> final SUM
+  MIN/MAX(c)        -> partial MIN/MAX -> final MIN/MAX
+  AVG(c)            -> partial SUM(c)+COUNT(c) -> final ΣSUM/ΣCOUNT
+  COUNT(DISTINCT c) -> partial GROUP BY (g,c) distinct keys -> merge distinct set, count</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line1">line 1</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    Aggregate decomposition for multi-source federation.
+-----------------------------------------------------
+Implements the "partial-aggregate split" that lets GROUP BY / aggregates run
+across many sources WITHOUT fetching every row into the fabric:
+
+  - Each source computes a PARTIAL aggregate (GROUP BY g..., COUNT/SUM/MIN/MAX)
+    and returns only #groups rows.
+  - The fabric MERGES the partials into the final result.
+
+Decomposition rules:
+  COUNT(*)/COUNT(c) -> partial COUNT -> final SUM(partial)
+  SUM(c)            -> partial SUM   -> final SUM
+  MIN/MAX(c)        -> partial MIN/MAX -> final MIN/MAX
+  AVG(c)            -> partial SUM(c)+COUNT(c) -> final ΣSUM/ΣCOUNT
+  COUNT(DISTINCT c) -> partial GROUP BY (g,c) distinct keys -> merge distinct set, count
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="CANON_OP"><span class="type-signature type-signature-constant">(constant) </span>CANON_OP<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>PolicyService — the fabric's engine-agnostic access-policy layer.
+
+Postgres enforces row-level security and column masking natively. Non-RLS
+engines (MongoDB, Elasticsearch, remote warehouses reached as connectors) have
+no such enforcement, so the fabric compensates:
+
+  • ROW policies  → compiled into a CanonicalQuery filter and INJECTED into the
+                    leg's pushdown, so the predicate runs AT THE SOURCE (Mongo
+                    `$match`, ES query, remote SQL WHERE) — the tenant only ever
+                    receives rows they are allowed to see.
+  • COLUMN masking → applied to result rows POST-fetch (REDACT / NULL / HASH /
+                    PARTIAL) for the roles the rule targets.
+
+Policies are stored engine-agnostically in fabric_system.access_policies so the
+SAME definition drives every engine. A policy predicate clause is
+`{ column, operator, value }`, where `value` is a literal or a session
+reference `{ session: 'tenant_id' | 'region' | 'role' | 'username' }` resolved
+per request — the analogue of a Postgres policy's `current_setting('app.*')`.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_security_policy.service.ts.html">backend/src/modules/security/policy.service.ts</a>, <a href="backend_src_modules_security_policy.service.ts.html#line3">line 3</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    PolicyService — the fabric's engine-agnostic access-policy layer.
+
+Postgres enforces row-level security and column masking natively. Non-RLS
+engines (MongoDB, Elasticsearch, remote warehouses reached as connectors) have
+no such enforcement, so the fabric compensates:
+
+  • ROW policies  → compiled into a CanonicalQuery filter and INJECTED into the
+                    leg's pushdown, so the predicate runs AT THE SOURCE (Mongo
+                    `$match`, ES query, remote SQL WHERE) — the tenant only ever
+                    receives rows they are allowed to see.
+  • COLUMN masking → applied to result rows POST-fetch (REDACT / NULL / HASH /
+                    PARTIAL) for the roles the rule targets.
+
+Policies are stored engine-agnostically in fabric_system.access_policies so the
+SAME definition drives every engine. A policy predicate clause is
+`{ column, operator, value }`, where `value` is a literal or a session
+reference `{ session: 'tenant_id' | 'region' | 'role' | 'username' }` resolved
+per request — the analogue of a Postgres policy's `current_setting('app.*')`.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="EVENT_TIMINGS"><span class="type-signature type-signature-constant">(constant) </span>EVENT_TIMINGS<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>TriggerActionCompiler — turns a DECLARATIVE trigger definition into native
+Postgres DDL, so authors never hand-write plpgsql function bodies.
+
+A manifest/registry trigger may declare its behaviour in three ways:
+
+  1. procedure  — `{ procedure: 'audit_log_fn' }`
+                  EXECUTE an existing trigger function (advanced escape hatch).
+
+  2. execute    — `{ execute: { type: 'AUDIT' | 'WEBHOOK' | 'EMAIL' |
+                                       'TELEGRAM' | 'FUNCTION' | 'EXCEPTION' } }`
+                  The same declarative action model the API/UI triggers use.
+
+  3. action     — a mini SQL/AST action DSL, e.g.
+                  `{ action: { type: 'INSERT', into: 'audit',
+                               values: { ref: 'NEW.id', op: 'TG_OP', at: 'NOW()' } } }`
+                  `{ action: { type: 'RAISE', when: {left,operator,right}, message } }`
+                  `{ action: { type: 'PERFORM', function: 'fn' } }`
+                  `{ action: { sql: 'INSERT INTO audit(...) VALUES (NEW.id, TG_OP)' } }`
+
+All value expressions are compiled through a small whitelist (NEW./OLD. column
+refs, TG_OP/TG_TABLE_NAME/NOW()/CURRENT_TIMESTAMP/boolean/null keywords, numeric
+literals) — anything else becomes a safely-quoted string literal, so nothing
+authored here can inject SQL.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_triggers_action_compiler.ts.html">backend/src/modules/triggers/action_compiler.ts</a>, <a href="backend_src_modules_triggers_action_compiler.ts.html#line1">line 1</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    TriggerActionCompiler — turns a DECLARATIVE trigger definition into native
+Postgres DDL, so authors never hand-write plpgsql function bodies.
+
+A manifest/registry trigger may declare its behaviour in three ways:
+
+  1. procedure  — `{ procedure: 'audit_log_fn' }`
+                  EXECUTE an existing trigger function (advanced escape hatch).
+
+  2. execute    — `{ execute: { type: 'AUDIT' | 'WEBHOOK' | 'EMAIL' |
+                                       'TELEGRAM' | 'FUNCTION' | 'EXCEPTION' } }`
+                  The same declarative action model the API/UI triggers use.
+
+  3. action     — a mini SQL/AST action DSL, e.g.
+                  `{ action: { type: 'INSERT', into: 'audit',
+                               values: { ref: 'NEW.id', op: 'TG_OP', at: 'NOW()' } } }`
+                  `{ action: { type: 'RAISE', when: {left,operator,right}, message } }`
+                  `{ action: { type: 'PERFORM', function: 'fn' } }`
+                  `{ action: { sql: 'INSERT INTO audit(...) VALUES (NEW.id, TG_OP)' } }`
+
+All value expressions are compiled through a small whitelist (NEW./OLD. column
+refs, TG_OP/TG_TABLE_NAME/NOW()/CURRENT_TIMESTAMP/boolean/null keywords, numeric
+literals) — anything else becomes a safely-quoted string literal, so nothing
+authored here can inject SQL.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="LOCAL_SOURCE"><span class="type-signature type-signature-constant">(constant) </span>LOCAL_SOURCE<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>QueryPlanner
+------------
+Decides HOW a query should be executed across one or many data sources,
+instead of the old behaviour of blindly stripping every `source` label and
+assuming all resources live in the tenant's Postgres schema.
+
+For each resource referenced by the query (from / joins / set-op legs) it
+resolves the physical engine via the catalog and decides whether that
+resource is reachable *inside* the tenant Postgres schema (a local table, a
+postgres_fdw foreign table, or a locally-synced shadow) or only reachable
+through a live connector (a VIRTUAL Mongo/MySQL source).
+
+Strategies:
+  SINGLE_LOCAL      - every leg is reachable in Postgres -> one SQL statement
+                      (Postgres / Citus / FDW planner does the optimization).
+  SINGLE_CONNECTOR  - one simple SELECT against a single connector-only source
+                      -> pushdown via that connector.
+  CROSS_ENGINE      - legs span multiple engines (or a join / set-op crosses
+                      the Postgres <-> connector boundary) -> FederationExecutor.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_planner.ts.html">backend/src/modules/query-engine/planner.ts</a>, <a href="backend_src_modules_query-engine_planner.ts.html#line1">line 1</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    QueryPlanner
+------------
+Decides HOW a query should be executed across one or many data sources,
+instead of the old behaviour of blindly stripping every `source` label and
+assuming all resources live in the tenant's Postgres schema.
+
+For each resource referenced by the query (from / joins / set-op legs) it
+resolves the physical engine via the catalog and decides whether that
+resource is reachable *inside* the tenant Postgres schema (a local table, a
+postgres_fdw foreign table, or a locally-synced shadow) or only reachable
+through a live connector (a VIRTUAL Mongo/MySQL source).
+
+Strategies:
+  SINGLE_LOCAL      - every leg is reachable in Postgres -> one SQL statement
+                      (Postgres / Citus / FDW planner does the optimization).
+  SINGLE_CONNECTOR  - one simple SELECT against a single connector-only source
+                      -> pushdown via that connector.
+  CROSS_ENGINE      - legs span multiple engines (or a join / set-op crosses
+                      the Postgres <-> connector boundary) -> FederationExecutor.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="MongoDBConnector"><span class="type-signature"></span>MongoDBConnector<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>SnowflakeConnector — queries Snowflake as a federated source with full pushdown
+(filter/projection/sort/limit + GROUP BY aggregates via the shared SQL compiler).
+The `snowflake-sdk` driver is lazy-required so the build never depends on it;
+a clear error is thrown only if a Snowflake source is actually used without it.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_metadata_connectors_factory.ts.html">backend/src/modules/metadata/connectors/factory.ts</a>, <a href="backend_src_modules_metadata_connectors_factory.ts.html#line369">line 369</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    SnowflakeConnector — queries Snowflake as a federated source with full pushdown
+(filter/projection/sort/limit + GROUP BY aggregates via the shared SQL compiler).
+The `snowflake-sdk` driver is lazy-required so the build never depends on it;
+a clear error is thrown only if a Snowflake source is actually used without it.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="OP_MAP"><span class="type-signature type-signature-constant">(constant) </span>OP_MAP<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>SQL → AST translator.
+----------------------
+Lets a caller write plain SQL against a NON-SQL engine (e.g. MongoDB) and have
+the fabric translate it into the engine-agnostic query AST, which the planner
+then compiles to that engine's native query (Mongo find / $group, etc.).
+
+This is how "SQL over MongoDB" works: MongoDB has no SQL engine, so instead of
+executing SQL *at* the source, the fabric parses the SQL here and drives its
+normal pushdown path. SQL-native engines (Postgres/MySQL/Snowflake/ES) keep
+running SQL natively — they don't use this.
+
+Supported subset (single-collection analytics — the Mongo-translatable core):
+  SELECT <cols | * | aggregates>              (COUNT(*), COUNT/SUM/AVG/MIN/MAX(col), AS alias)
+  FROM <table>
+  [WHERE <col op value> [AND ...]]            (= != <> < > <= >= LIKE ILIKE IN(...))
+  [GROUP BY <cols>]
+  [ORDER BY <col [ASC|DESC]> [, ...]]
+  [LIMIT n] [OFFSET n]
+JOINs / subqueries / UNION are NOT supported here — use AST mode for those.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_sql_translator.ts.html">backend/src/modules/query-engine/sql_translator.ts</a>, <a href="backend_src_modules_query-engine_sql_translator.ts.html#line1">line 1</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    SQL → AST translator.
+----------------------
+Lets a caller write plain SQL against a NON-SQL engine (e.g. MongoDB) and have
+the fabric translate it into the engine-agnostic query AST, which the planner
+then compiles to that engine's native query (Mongo find / $group, etc.).
+
+This is how "SQL over MongoDB" works: MongoDB has no SQL engine, so instead of
+executing SQL *at* the source, the fabric parses the SQL here and drives its
+normal pushdown path. SQL-native engines (Postgres/MySQL/Snowflake/ES) keep
+running SQL natively — they don't use this.
+
+Supported subset (single-collection analytics — the Mongo-translatable core):
+  SELECT <cols | * | aggregates>              (COUNT(*), COUNT/SUM/AVG/MIN/MAX(col), AS alias)
+  FROM <table>
+  [WHERE <col op value> [AND ...]]            (= != <> < > <= >= LIKE ILIKE IN(...))
+  [GROUP BY <cols>]
+  [ORDER BY <col [ASC|DESC]> [, ...]]
+  [LIMIT n] [OFFSET n]
+JOINs / subqueries / UNION are NOT supported here — use AST mode for those.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="RANKING"><span class="type-signature type-signature-constant">(constant) </span>RANKING<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Capability Compensation Engine (query-side).
+--------------------------------------------
+The fabric's own engine for query features a source cannot do natively. The
+principle mirrors how a SQL database layers window/sort logic ON TOP of a scan:
+
+  1. PUSH DOWN everything the source CAN do (filter / projection) so we pull the
+     smallest bounded result set possible.
+  2. COMPENSATE in-fabric for what it CAN'T — computed over that bounded result,
+     never by fetching whole tables.
+
+This module implements WINDOW FUNCTIONS (ROW_NUMBER / RANK / DENSE_RANK / LAG /
+LEAD and running SUM/AVG/COUNT/MIN/MAX OVER (PARTITION BY … ORDER BY …)) so that
+MongoDB, Elasticsearch — any engine — gets consistent window semantics even
+though they can't express them.
+
+Complexity: O(n log n) per window over the pulled rows `n` (a partition sort);
+`n` is bounded by the federation row cap, so memory/CPU stay bounded.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_compensate.ts.html">backend/src/modules/query-engine/compensate.ts</a>, <a href="backend_src_modules_query-engine_compensate.ts.html#line1">line 1</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    Capability Compensation Engine (query-side).
+--------------------------------------------
+The fabric's own engine for query features a source cannot do natively. The
+principle mirrors how a SQL database layers window/sort logic ON TOP of a scan:
+
+  1. PUSH DOWN everything the source CAN do (filter / projection) so we pull the
+     smallest bounded result set possible.
+  2. COMPENSATE in-fabric for what it CAN'T — computed over that bounded result,
+     never by fetching whole tables.
+
+This module implements WINDOW FUNCTIONS (ROW_NUMBER / RANK / DENSE_RANK / LAG /
+LEAD and running SUM/AVG/COUNT/MIN/MAX OVER (PARTITION BY … ORDER BY …)) so that
+MongoDB, Elasticsearch — any engine — gets consistent window semantics even
+though they can't express them.
+
+Complexity: O(n log n) per window over the pulled rows `n` (a partition sort);
+`n` is bounded by the federation row cap, so memory/CPU stay bounded.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="SQL_OPERATORS"><span class="type-signature type-signature-constant">(constant) </span>SQL_OPERATORS<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>A grouping column: a plain field, or a date bucket for time-series aggregation.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_pushdown.ts.html">backend/src/modules/query-engine/pushdown.ts</a>, <a href="backend_src_modules_query-engine_pushdown.ts.html#line26">line 26</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    A grouping column: a plain field, or a date bucket for time-series aggregation.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="SnowflakeConnector"><span class="type-signature"></span>SnowflakeConnector<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>ElasticsearchConnector — makes ES a READABLE federated source via _search:
+predicate/sort/projection/size pushdown as query-DSL, and GROUP BY aggregates
+as terms + metric sub-aggregations. (The write/sink worker is separate.)</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_metadata_connectors_factory.ts.html">backend/src/modules/metadata/connectors/factory.ts</a>, <a href="backend_src_modules_metadata_connectors_factory.ts.html#line440">line 440</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    ElasticsearchConnector — makes ES a READABLE federated source via _search:
+predicate/sort/projection/size pushdown as query-DSL, and GROUP BY aggregates
+as terms + metric sub-aggregations. (The write/sink worker is separate.)
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="VAR_TOKEN"><span class="type-signature type-signature-constant">(constant) </span>VAR_TOKEN<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>SavedAnalyticsService — persist reusable, parameterized analytics and run them
+on demand or via API.
+
+An analytic captures a query (AST-mode `config`, or a raw `sql` string) plus a
+set of declared **variables**. The query body references a variable with a
+`{{name}}` placeholder. At run time the caller supplies values (from the UI or
+an API call) which are bound into the query:
+
+  • AST mode  — `{{name}}` tokens are replaced with the TYPED value in a deep
+                clone of the config; the value then flows through the normal
+                parameterized pushdown path (injection-safe).
+  • SQL mode  — `{{name}}` tokens are replaced with a safely-escaped SQL literal
+                (numbers/booleans bare, strings single-quote-escaped).
+
+This is the fabric's "saved query / scheduled report" primitive: define once,
+trigger many times with different inputs, from the UI or `POST /:id/run`.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_analytics.service.ts.html">backend/src/modules/query-engine/analytics.service.ts</a>, <a href="backend_src_modules_query-engine_analytics.service.ts.html#line4">line 4</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    SavedAnalyticsService — persist reusable, parameterized analytics and run them
+on demand or via API.
+
+An analytic captures a query (AST-mode `config`, or a raw `sql` string) plus a
+set of declared **variables**. The query body references a variable with a
+`{{name}}` placeholder. At run time the caller supplies values (from the UI or
+an API call) which are bound into the query:
+
+  • AST mode  — `{{name}}` tokens are replaced with the TYPED value in a deep
+                clone of the config; the value then flows through the normal
+                parameterized pushdown path (injection-safe).
+  • SQL mode  — `{{name}}` tokens are replaced with a safely-escaped SQL literal
+                (numbers/booleans bare, strings single-quote-escaped).
+
+This is the fabric's "saved query / scheduled report" primitive: define once,
+trigger many times with different inputs, from the UI or `POST /:id/run`.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="callFunction"><span class="type-signature type-signature-constant">(constant) </span>callFunction<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Invoke a provisioned function/procedure (fabric function-as-a-service).
+Body: { schema?, function? | procedure?, args?: any[] }. Works alongside the
+AST `{type:'CALL'}` form and SQL `CALL`/`SELECT fn(...)` passthrough.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_controllers_dataController.ts.html">backend/src/controllers/dataController.ts</a>, <a href="backend_src_controllers_dataController.ts.html#line52">line 52</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    Invoke a provisioned function/procedure (fabric function-as-a-service).
+Body: { schema?, function? | procedure?, args?: any[] }. Works alongside the
+AST `{type:'CALL'}` form and SQL `CALL`/`SELECT fn(...)` passthrough.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="client"><span class="type-signature"></span>client<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Redis cache — read-through helper for hot, low-write catalog/metadata reads.
+
+Fully OPTIONAL and graceful: if Redis is unavailable (no container, tests, CI),
+every operation becomes a no-op and the app falls back to the database. Nothing
+throws, so correctness never depends on the cache — only latency.
+
+Keys are tenant-scoped; invalidation is by prefix on catalog/source mutations.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_config_cache.ts.html">backend/src/config/cache.ts</a>, <a href="backend_src_config_cache.ts.html#line1">line 1</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    Redis cache — read-through helper for hot, low-write catalog/metadata reads.
+
+Fully OPTIONAL and graceful: if Redis is unavailable (no container, tests, CI),
+every operation becomes a no-op and the app falls back to the database. Nothing
+throws, so correctness never depends on the cache — only latency.
+
+Keys are tenant-scoped; invalidation is by prefix on catalog/source mutations.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="deleteAnalytic"><span class="type-signature"></span>deleteAnalytic<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Trigger a saved analytic with variable values: body = { variables: {...} } or {...}.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_controllers_savedAnalyticsController.ts.html">backend/src/controllers/savedAnalyticsController.ts</a>, <a href="backend_src_controllers_savedAnalyticsController.ts.html#line82">line 82</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    Trigger a saved analytic with variable values: body = { variables: {...} } or {...}.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="getColumns"><span class="type-signature"></span>getColumns<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Relationships (FKs / manifest relationships) for the tenant, for ER diagrams.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_controllers_metadataController.ts.html">backend/src/controllers/metadataController.ts</a>, <a href="backend_src_controllers_metadataController.ts.html#line147">line 147</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    Relationships (FKs / manifest relationships) for the tenant, for ER diagrams.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="getTemplate"><span class="type-signature"></span>getTemplate<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_controllers_metadataController.ts.html">backend/src/controllers/metadataController.ts</a>, <a href="backend_src_controllers_metadataController.ts.html#line221">line 221</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="nextSequence"><span class="type-signature type-signature-constant">(constant) </span>nextSequence<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Fabric sequence allocation — Postgres-style nextval() for ANY engine (e.g. to
+give MongoDB inserts consistent sequential IDs). Body: { name, start?, increment?, count? }.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_controllers_dataController.ts.html">backend/src/controllers/dataController.ts</a>, <a href="backend_src_controllers_dataController.ts.html#line43">line 43</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    Fabric sequence allocation — Postgres-style nextval() for ANY engine (e.g. to
+give MongoDB inserts consistent sequential IDs). Body: { name, start?, increment?, count? }.
+</div>
+
+
+
+
+
+
+
+
+        
+    
+
+    
+        <h3 class="subsection-title">Methods</h3>
+
+        
+            
+
+    
+
+    <h4 class="name" id="aggregateRaw"><span class="type-signature"></span>aggregateRaw<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Aggregate RAW rows directly (used after a cross-engine join, where rows are not
+pre-aggregated). Computes final COUNT/SUM/MIN/MAX/AVG/COUNT(DISTINCT) per group.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line191">line 191</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="applyWindows"><span class="type-signature"></span>applyWindows<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Compute each window spec in-fabric and attach its alias to every row.
+Mutates and returns the same row objects.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_compensate.ts.html">backend/src/modules/query-engine/compensate.ts</a>, <a href="backend_src_modules_query-engine_compensate.ts.html#line99">line 99</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="base"><span class="type-signature"></span>base<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>last segment of a possibly-qualified column path (alias.col -> col)</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line33">line 33</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="cacheInvalidate"><span class="type-signature type-signature-async">(async) </span>cacheInvalidate<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Delete all keys matching a glob pattern (e.g. `meta:tenant_A:*`).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_config_cache.ts.html">backend/src/config/cache.ts</a>, <a href="backend_src_config_cache.ts.html#line76">line 76</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="cached"><span class="type-signature type-signature-async">(async) </span>cached<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Read-through: return cached value or run producer(), caching its result.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_config_cache.ts.html">backend/src/config/cache.ts</a>, <a href="backend_src_config_cache.ts.html#line87">line 87</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="exportMetadata"><span class="type-signature type-signature-async">(async) </span>exportMetadata<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Export the current catalog as a datafabric manifest (reverse of apply).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_controllers_metadataController.ts.html">backend/src/controllers/metadataController.ts</a>, <a href="backend_src_controllers_metadataController.ts.html#line36">line 36</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="extractWindows"><span class="type-signature"></span>extractWindows<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Extract window specs from an AST `select` list (entries carrying a `window` field).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_compensate.ts.html">backend/src/modules/query-engine/compensate.ts</a>, <a href="backend_src_modules_query-engine_compensate.ts.html#line53">line 53</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="gName"><span class="type-signature"></span>gName<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Output column name for a group entry (date-bucket entries key by their field).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line39">line 39</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="handle"><span class="type-signature"></span>handle<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Simple CRUD façade over the query engine. Each endpoint accepts an ergonomic
+JSON body ({ source?, schema?, resource, where?, data?, columns?, ... }) and
+returns the standard fabric envelope including the per-leg execution plan.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_controllers_dataController.ts.html">backend/src/controllers/dataController.ts</a>, <a href="backend_src_controllers_dataController.ts.html#line6">line 6</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="hasWindows"><span class="type-signature"></span>hasWindows<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>True when the select carries any window spec.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_compensate.ts.html">backend/src/modules/query-engine/compensate.ts</a>, <a href="backend_src_modules_query-engine_compensate.ts.html#line170">line 170</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="ident"><span class="type-signature"></span>ident<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Write-time value generation (capability compensation for writes).
+------------------------------------------------------------------
+PostgreSQL fills columns from DEFAULTs at INSERT time — UUID_V7
+(`uuid_generate_v7()`), a SEQUENCE (`nextval`), or a FUNCTIONAL default
+(`generate_custom_id(region)`). MongoDB and other stores have no column
+defaults, so those columns would be missing / inconsistent.
+
+This engine applies the SAME generators the fabric uses for Postgres columns to
+a write on ANY engine, so IDs/values are consistent regardless of where the row
+lands. It composes three sources of generated values:
+  • UUID_V7   → the hub's `uuid_generate_v7()` (the same generator Postgres uses),
+                with a JS fallback if the primitive is absent.
+  • sequence  → the FabricSequence engine (Postgres-style nextval for any engine).
+  • function  → invoke a hub-hosted custom function as a value service
+                (e.g. generate_custom_id) — "function-as-a-service" compensation.
+
+A generator rule (per field): { strategy:'UUID_V7' } | { sequence:'name', start?, increment? }
+                            | { function:'fn', args?:[...], schema?:'LogicalSchema' }</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_write_generators.ts.html">backend/src/modules/query-engine/write_generators.ts</a>, <a href="backend_src_modules_query-engine_write_generators.ts.html#line1">line 1</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="invalidateTenant"><span class="type-signature type-signature-async">(async) </span>invalidateTenant<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Convenience: invalidate every cached read for a tenant's catalog/metadata.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_config_cache.ts.html">backend/src/config/cache.ts</a>, <a href="backend_src_config_cache.ts.html#line96">line 96</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="isAggregateQuery"><span class="type-signature"></span>isAggregateQuery<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>True when a query requests grouping/aggregation.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line263">line 263</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="listConstraints"><span class="type-signature type-signature-async">(async) </span>listConstraints<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Constraint control plane. Constraints are engine-agnostic (NOT NULL / UNIQUE /
+ENUM / CHECK / FK) and enforced by the fabric on non-SQL engines at write time.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_controllers_constraintController.ts.html">backend/src/controllers/constraintController.ts</a>, <a href="backend_src_controllers_constraintController.ts.html#line4">line 4</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="listGrants"><span class="type-signature type-signature-async">(async) </span>listGrants<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Grant control plane — engine-agnostic table privileges enforced on non-SQL engines.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_controllers_grantController.ts.html">backend/src/controllers/grantController.ts</a>, <a href="backend_src_controllers_grantController.ts.html#line10">line 10</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="listPolicies"><span class="type-signature type-signature-async">(async) </span>listPolicies<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Access-policy control plane. Policies are engine-agnostic (row predicate +
+column masking) and enforced by the fabric on non-RLS engines (Mongo/ES/remote).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_controllers_policyController.ts.html">backend/src/controllers/policyController.ts</a>, <a href="backend_src_controllers_policyController.ts.html#line4">line 4</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="listQueryLogs"><span class="type-signature type-signature-async">(async) </span>listQueryLogs<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Query execution audit trail — list recent query runs and inspect one in full.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_controllers_queryLogController.ts.html">backend/src/controllers/queryLogController.ts</a>, <a href="backend_src_controllers_queryLogController.ts.html#line10">line 10</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="maxRowsPerLeg"><span class="type-signature"></span>maxRowsPerLeg<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>FederationExecutor
+------------------
+Executes CROSS_ENGINE queries: those whose legs span more than one source
+(e.g. a JOIN of ds1.customer and ds2.customer, or a UNION of a Postgres table
+and a MongoDB collection).
+
+The whole point is to NOT fetch each table wholesale and filter in memory.
+For joins it uses the same techniques a real federated engine does:
+
+  1. Predicate pushdown        - each WHERE conjunct is attributed to its leg
+                                 (by alias) and pushed to that source.
+  2. Transitive propagation    - `c1.id = 5` + join `c1.id = c2.id` also pushes
+                                 `c2.id = 5` to the other source, so BOTH sides
+                                 are filtered before any rows are fetched.
+  3. Bind join (semi-join)     - fetch the filtered driving side first, collect
+                                 its join-key values, then push `key IN (...)`
+                                 to the other side so it only returns rows that
+                                 can match.
+  4. Collision-safe output     - join columns are qualified by alias so two
+                                 same-named tables don't overwrite each other.
+
+Safety: every leg fetch is bounded by `maxRowsPerLeg`
+(env FABRIC_FED_MAX_ROWS_PER_LEG, default 50000). A leg that hits the cap is
+truncated with an explicit warning — never silently. Bind-join IN lists are
+bounded by FABRIC_FED_BIND_MAX_KEYS (default 1000); above that a leg falls back
+to a bounded full fetch (also warned).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_federation.ts.html">backend/src/modules/query-engine/federation.ts</a>, <a href="backend_src_modules_query-engine_federation.ts.html#line1">line 1</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="mergePartials"><span class="type-signature"></span>mergePartials<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Merge partial-group rows (already grouped per source) into the final result.
+`distinctSets` accumulates COUNT(DISTINCT) values as sets keyed by group+alias.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line119">line 119</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="parseAggregates"><span class="type-signature"></span>parseAggregates<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Parse an AST/QueryConfig `select` into grouping columns + aggregate specs.
+Handles object specs `{aggregate, column, alias}` and string specs like
+`count(*)`, `SUM(amount)`, `avg(price) as p`.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line39">line 39</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="parseHaving"><span class="type-signature"></span>parseHaving<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Parse a HAVING clause into predicates on the aggregate RESULT columns. The
+left-hand side may be a SELECT alias (e.g. `cnt`) or an aggregate expression
+(e.g. `COUNT(*)`, `SUM(amount)`) — the latter is resolved to its select alias.
+HAVING is applied by the fabric as a post-aggregation filter (compensation),
+so it works uniformly across engines.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_sql_translator.ts.html">backend/src/modules/query-engine/sql_translator.ts</a>, <a href="backend_src_modules_query-engine_sql_translator.ts.html#line121">line 121</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="parseLiteral"><span class="type-signature"></span>parseLiteral<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Parse a SQL literal into a JS value (number, quoted string, boolean, null).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_sql_translator.ts.html">backend/src/modules/query-engine/sql_translator.ts</a>, <a href="backend_src_modules_query-engine_sql_translator.ts.html#line50">line 50</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="parseSelect"><span class="type-signature"></span>parseSelect<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Parse the SELECT list into columns + aggregate specs.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_sql_translator.ts.html">backend/src/modules/query-engine/sql_translator.ts</a>, <a href="backend_src_modules_query-engine_sql_translator.ts.html#line92">line 92</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="parseWhere"><span class="type-signature"></span>parseWhere<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Parse a WHERE clause (AND-combined simple predicates).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_sql_translator.ts.html">backend/src/modules/query-engine/sql_translator.ts</a>, <a href="backend_src_modules_query-engine_sql_translator.ts.html#line122">line 122</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="partialSpec"><span class="type-signature"></span>partialSpec<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>The partial aggregates each source must compute so the fabric can merge them.
+AVG is expanded to a hidden SUM + COUNT pair.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line97">line 97</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="projectWithWindows"><span class="type-signature"></span>projectWithWindows<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Project rows to the final select: plain columns + window aliases (drops helper cols).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_compensate.ts.html">backend/src/modules/query-engine/compensate.ts</a>, <a href="backend_src_modules_query-engine_compensate.ts.html#line175">line 175</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="queryWithContext"><span class="type-signature type-signature-async">(async) </span>queryWithContext<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Executes a query within a temporary session context
+This is critical for Module 3.1 (RLS) and 3.2 (Audit)</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_config_database.ts.html">backend/src/config/database.ts</a>, <a href="backend_src_config_database.ts.html#line11">line 11</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="readCol"><span class="type-signature"></span>readCol<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Read a column from a row tolerating alias-qualified keys (o.amount ~ amount).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line203">line 203</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="readCol"><span class="type-signature"></span>readCol<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>read a column tolerating alias-qualified keys (o.amount ~ amount)</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_compensate.ts.html">backend/src/modules/query-engine/compensate.ts</a>, <a href="backend_src_modules_query-engine_compensate.ts.html#line39">line 39</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="sessionOf"><span class="type-signature"></span>sessionOf<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Saved-analytics control plane: define reusable, parameterized analytics
+(AST or SQL, with `{{variable}}` bindings) and run/trigger them on demand.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_controllers_savedAnalyticsController.ts.html">backend/src/controllers/savedAnalyticsController.ts</a>, <a href="backend_src_controllers_savedAnalyticsController.ts.html#line5">line 5</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="splitTopLevel"><span class="type-signature"></span>splitTopLevel<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Split on a top-level delimiter (comma / AND), ignoring anything inside parentheses.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_sql_translator.ts.html">backend/src/modules/query-engine/sql_translator.ts</a>, <a href="backend_src_modules_query-engine_sql_translator.ts.html#line62">line 62</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="sqlToAst"><span class="type-signature"></span>sqlToAst<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Translate a single-table SELECT into the fabric AST `query` object.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_sql_translator.ts.html">backend/src/modules/query-engine/sql_translator.ts</a>, <a href="backend_src_modules_query-engine_sql_translator.ts.html#line147">line 147</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-throws">Throws:</h5>
+
+        
+
+    <div class="param-desc usertext">
+    
+        on unsupported constructs (JOIN / UNION / subquery) — use AST mode instead.
+    
+    </div>
+
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="toCanonical"><span class="type-signature"></span>toCanonical<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Extract the canonical query shape (select / filter / orderBy / limit / offset)
+from a QueryConfig so it can be pushed down to a source engine.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_metadata_connectors_factory.ts.html">backend/src/modules/metadata/connectors/factory.ts</a>, <a href="backend_src_modules_metadata_connectors_factory.ts.html#line6">line 6</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="windowBaseColumns"><span class="type-signature"></span>windowBaseColumns<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Columns the base fetch must return so windows can be computed (plain select cols + all window-referenced cols).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_compensate.ts.html">backend/src/modules/query-engine/compensate.ts</a>, <a href="backend_src_modules_query-engine_compensate.ts.html#line77">line 77</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+    
+
+    
+
+    
+</article>
+
+</section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Jul 12 2026 08:28:49 GMT+0530 (India Standard Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+<script src="scripts/collapse.js" defer></script>
+
+
+</body>
+</html>

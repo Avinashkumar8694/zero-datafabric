@@ -1,15 +1,37 @@
 <%- include('partials/header') %>
 
+<style>
+  /* Keep the analytics page fully contained — no horizontal overflow, grids that
+     shrink instead of pushing the layout wide. */
+  .fade-in { max-width: 100%; overflow-x: hidden; box-sizing: border-box; }
+  .fade-in .glass-card { max-width: 100%; box-sizing: border-box; overflow: hidden; }
+  .fade-in .glass-card > * { min-width: 0; }
+  #kpiRow > .glass-card { overflow: hidden; }
+  #kpiRow > .glass-card > div:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .table-wrapper { max-width: 100%; overflow: auto; }
+  .an-vars-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .an-vars-table th, .an-vars-table td { padding: 0.3rem 0.4rem; text-align: left; }
+  .an-vars-table input, .an-vars-table select { width: 100%; box-sizing: border-box; }
+  .an-code { width: 100%; min-height: 160px; box-sizing: border-box; font-family: monospace; font-size: 0.8rem; }
+</style>
+
 <div class="fade-in">
   <div class="glass-card">
-    <h3>Analytics Dashboard</h3>
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+      <h3 style="margin:0;">Analytics Dashboard</h3>
+      <a href="/analytics/custom" class="btn-outline" style="font-size:0.8rem;"><i class="fas fa-wand-magic-sparkles"></i> Custom analytics →</a>
+    </div>
     <p class="text-muted" style="margin-bottom: 1rem;">
       Configurable analytics over federated sources. Every query shows its execution plan — which engine ran what,
       how many rows each source returned, and total time — so you can see the fabric pushing work down and merging only the result.
     </p>
 
-    <!-- Preset widgets -->
-    <div id="presetRow" style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.5rem;"></div>
+    <!-- Top executed analytics (from saved analytics, ranked by run count) -->
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-top:0.75rem;">
+      <label class="text-muted" style="font-size:0.75rem;">Top analytics · click to run</label>
+      <a href="/analytics/custom" class="text-muted" style="font-size:0.72rem;">manage →</a>
+    </div>
+    <div id="presetRow" style="display:flex; flex-wrap:wrap; gap:0.5rem; margin:0.35rem 0 0.25rem;"></div>
   </div>
 
   <!-- Configurable query builder -->
@@ -68,16 +90,7 @@
 
 <script>
   const AGG_LABELS = { COUNT:'count', SUM:'total', AVG:'avg', MIN:'min', MAX:'max' };
-
-  const PRESETS = [
-    { label:'Revenue by order status', source:'Retail_Core', resource:'orders', dim:'status', agg:'SUM', measure:'total_amount' },
-    { label:'Customers by region', source:'Retail_Core', resource:'customers', dim:'region', agg:'COUNT', measure:null },
-    { label:'Avg lifetime value by segment', source:'Retail_Core', resource:'customers', dim:'segment', agg:'AVG', measure:'lifetime_value' },
-    { label:'Products by category', source:'Product_Warehouse', resource:'products', dim:'category', agg:'COUNT', measure:null },
-    { label:'Web events by type', source:'Web_Analytics', resource:'web_events', dim:'event_type', agg:'COUNT', measure:null },
-    { label:'Web revenue by device', source:'Web_Analytics', resource:'web_events', dim:'device', agg:'SUM', measure:'revenue' },
-    { label:'⚡ Cross-source: Customer 360 (orders ⋈ web events)', crossSource:true },
-  ];
+  let TOP = [];  // top executed saved analytics for this tenant
 
   function num(v){ const n = Number(v); return Number.isFinite(n) ? n : null; }
 
@@ -148,6 +161,7 @@
     }};
   }
 
+  let lastBuilderConfig = null;
   async function runBuilder(){
     const source = document.getElementById('cfgSource').value;
     const resource = document.getElementById('cfgResource').value;
@@ -156,23 +170,47 @@
     const measure = document.getElementById('cfgMeasure').value || null;
     if(!resource || !dim){ showModal('Pick fields','Choose a resource and a dimension to group by.'); return; }
     const title = `${AGG_LABELS[agg]}${measure?`(${measure})`:''} of ${resource} by ${dim} — ${source}`;
-    await runAndRender(buildAggQuery(source, resource, dim, agg, measure), { dim, title, source });
+    lastBuilderConfig = buildAggQuery(source, resource, dim, agg, measure);
+    await runAndRender(lastBuilderConfig, { dim, title, source });
   }
 
-  async function runPreset(p){
-    if(p.crossSource){ return runCustomer360(); }
-    const title = `${AGG_LABELS[p.agg]}${p.measure?`(${p.measure})`:''} of ${p.resource} by ${p.dim} — ${p.source}`;
-    await runAndRender(buildAggQuery(p.source, p.resource, p.dim, p.agg, p.measure), { dim:p.dim, title, source:p.source });
+  // ---------- top executed analytics (real, tenant-scoped) ----------
+  async function loadTopAnalytics(){
+    const row = document.getElementById('presetRow');
+    try { TOP = await getJson('/saved-analytics/top?limit=10'); } catch(e){ TOP = []; }
+    if(!Array.isArray(TOP) || !TOP.length){
+      row.innerHTML = `<span class="text-muted" style="font-size:0.8rem;">No saved analytics yet — build one in <a href="/analytics/custom">Custom Analytics</a>, run it, and your most-used ones appear here.</span>`;
+      return;
+    }
+    row.innerHTML = TOP.map((a,i)=>{
+      const runs = a.runCount ? ` <span style="opacity:0.6;">· ${a.runCount}×</span>` : '';
+      return `<button class="btn-outline" style="font-size:0.8rem;" onclick="runTop(${i})">${escapeHtml(a.name)}${runs}</button>`;
+    }).join('');
   }
 
-  async function runCustomer360(){
-    const id = 42;
-    const q = { type:'SELECT', schema:'public', limit:100, query:{
-      select:['*'], from:{ resource:'orders', source:'Retail_Core', alias:'o' },
-      joins:[{ type:'INNER', resource:'web_events', source:'Web_Analytics', alias:'w', on:{ left:'o.customer_id', operator:'EQ', right:'w.customer_id' } }],
-      where:[{ column:'o.customer_id', operator:'EQ', value:id }],
-    }};
-    await runAndRender(q, { title:`Customer ${id}: orders ⋈ web events (cross-engine)`, source:'Retail_Core + Web_Analytics', noChart:true });
+  async function runTop(i){
+    const a = TOP[i];
+    // Fill defaults for any variables; ask only if a required one has no default.
+    const vals = {};
+    const missing = [];
+    for(const v of (a.variables||[])){
+      if(v.default!==undefined && v.default!==null && v.default!=='') vals[v.name]=v.default;
+      else if(v.required) missing.push(v.name);
+    }
+    if(missing.length){
+      showModal('Inputs needed', `"${a.name}" needs value(s) for: ${missing.join(', ')}. Open it in Custom Analytics → Play to provide them.`);
+      return;
+    }
+    document.getElementById('resultTitle').innerText = a.name;
+    try {
+      const res = await fetch(`${API_BASE}/saved-analytics/${a.id}/run`, { method:'POST', headers:getAuthHeaders(), body:JSON.stringify({ variables: vals }) });
+      const r = await res.json();
+      if(!res.ok || r.error){ showModal('Run failed', r.error || 'error'); return; }
+      const dim = (a.variables && a.variables[0] && a.variables[0].name) || null;
+      renderKpis(r, { title:a.name });
+      renderChartTable(r, { title:a.name, dim: (r.data && r.data[0] && ('value' in r.data[0])) ? Object.keys(r.data[0]).find(k=>k!=='value') : null });
+      renderPlan(r);
+    } catch(e){ showModal('Error', e.message); }
   }
 
   async function runAndRender(queryConfig, opts){
@@ -253,10 +291,7 @@
   }
 
   // ---------- init ----------
-  document.getElementById('presetRow').innerHTML = PRESETS.map((p,i)=>
-    `<button class="btn-outline" style="font-size:0.8rem;" onclick="runPreset(PRESETS[${i}])">${escapeHtml(p.label)}</button>`).join('');
-  window.PRESETS = PRESETS;
-  document.addEventListener('DOMContentLoaded', loadSources);
+  document.addEventListener('DOMContentLoaded', () => { loadSources(); loadTopAnalytics(); });
 </script>
 
 <%- include('partials/footer') %>

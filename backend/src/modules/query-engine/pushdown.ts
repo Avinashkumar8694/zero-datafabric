@@ -76,18 +76,38 @@ const SQL_OPERATORS: Record<string, string> = {
 // Mongo comparison operators we understand (canonical == native here).
 const MONGO_OPERATORS = new Set(['$eq', '$ne', '$gt', '$gte', '$lt', '$lte', '$in']);
 
+/**
+ * Single source of truth for compiling a {@link CanonicalQuery} into each
+ * engine's native, parameterized request (SQL for Postgres/MySQL/Snowflake,
+ * a find()/aggregate() spec for MongoDB). See the file-level overview for the
+ * canonical filter convention. All methods are static; the class is never instantiated.
+ */
 export class PushdownCompiler {
-  /** Strip anything that isn't a safe identifier character. */
+  /**
+   * Strip anything that isn't a safe identifier character.
+   * @param name a possibly-unsafe identifier.
+   * @returns `name` with every character outside `[A-Za-z0-9_]` removed.
+   */
   private static ident(name: string): string {
     return String(name).replace(/[^a-zA-Z0-9_]/g, '');
   }
 
+  /**
+   * Sanitize and quote an identifier for the given SQL dialect.
+   * @param name the identifier to quote.
+   * @param dialect target SQL dialect (backtick-quoted for MySQL, double-quoted otherwise).
+   * @returns the quoted, sanitized identifier.
+   */
   private static quoteIdent(name: string, dialect: SqlDialect): string {
     const safe = this.ident(name);
     return dialect === 'mysql' ? `\`${safe}\`` : `"${safe}"`;
   }
 
-  /** Qualify a possibly dotted column path (a.b) with per-part quoting. */
+  /**
+   * Qualify a possibly dotted column path (a.b) with per-part quoting.
+   * @param path a plain or dotted column path, or `*`.
+   * @returns `*` unchanged, or each dot-separated part quoted and rejoined with `.`.
+   */
   private static quoteColumn(path: string, dialect: SqlDialect): string {
     if (!path || path === '*') return '*';
     return String(path)
@@ -96,7 +116,11 @@ export class PushdownCompiler {
       .join('.');
   }
 
-  /** Extract [operator, value] from a filter entry using the canonical convention. */
+  /**
+   * Extract [operator, value] from a filter entry using the canonical convention.
+   * @param rawValue a filter entry: either a bare scalar (implies `$eq`) or a `{ $op: value }` object.
+   * @returns the single `{ op, value }` pair (only the first operator key if the object carries several — use {@link splitOps} for multi-operator entries).
+   */
   private static splitOp(rawValue: any): { op: string; value: any } {
     if (rawValue !== null && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
       const firstKey = Object.keys(rawValue)[0];
@@ -111,6 +135,8 @@ export class PushdownCompiler {
    * Extract ALL operators for a filter entry, so a column can carry multiple
    * conditions (e.g. { $gte: x, $lte: y } for a range). Falls back to $eq for a
    * bare scalar value.
+   * @param rawValue a filter entry: either a bare scalar (implies `$eq`) or an all-`$op`-keyed object.
+   * @returns one `{ op, value }` pair per operator present.
    */
   private static splitOps(rawValue: any): { op: string; value: any }[] {
     if (rawValue !== null && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
@@ -125,6 +151,15 @@ export class PushdownCompiler {
   /**
    * Compile a canonical SELECT into a parameterized SQL statement for the given dialect.
    * Postgres uses `$1..$n` placeholders and "ident" quoting; MySQL uses `?` and `ident`.
+   * When `aggregates`/`groupBy` are present, builds a `GROUP BY` select list of
+   * grouping columns (date buckets rendered via `date_trunc`/`DATE()`) plus
+   * aggregate expressions ({@link aggExprSql}); otherwise builds a plain
+   * projection. `NULL` equality/inequality compiles to `IS [NOT] NULL` since
+   * `= NULL`/`!= NULL` are never true in SQL. `$match`/`$fuzzy` degrade to a
+   * case-insensitive substring match (`ILIKE`/`LIKE`) since full-text search is
+   * not a SQL-native concept for every dialect.
+   * @param input the canonical query plus its physical `schema` (optional), `table`, and target `dialect`.
+   * @returns `{ text, params }` — the parameterized SQL and its positional parameter values.
    */
   static toSql(
     input: CanonicalQuery & { schema?: string; table: string; dialect: SqlDialect }
@@ -174,6 +209,10 @@ export class PushdownCompiler {
           } else if (op === '$match' || op === '$fuzzy') {
             const like = dialect === 'postgres' ? 'ILIKE' : 'LIKE';
             clauses.push(`${col} ${like} ${placeholder('%' + String(value) + '%')}`);
+          } else if (value === null && (op === '$eq' || op === '$ne')) {
+            // NULL is not comparable with = / != — emit IS [NOT] NULL (drives the
+            // policy "hide soft-deleted rows" pattern: deleted_at IS NULL).
+            clauses.push(`${col} IS ${op === '$ne' ? 'NOT ' : ''}NULL`);
           } else {
             clauses.push(`${col} ${sqlOp} ${placeholder(value)}`);
           }
@@ -201,6 +240,12 @@ export class PushdownCompiler {
 
   /**
    * Compile a canonical SELECT into a MongoDB find() specification.
+   * Non-aggregate path only — use {@link toMongoAggregate} when the query has
+   * `groupBy`/`aggregates`. Excludes Mongo's implicit `_id` from the projection
+   * (unless explicitly requested) so projected rows line up with relational
+   * rows for set-ops/joins.
+   * @param input the canonical query (select/filter/orderBy/limit/offset).
+   * @returns `{ filter, projection?, sort?, limit?, skip? }` for `collection.find()`.
    */
   static toMongo(input: CanonicalQuery): CompiledMongo {
     const { select, filter, orderBy, limit, offset } = input;
@@ -227,7 +272,17 @@ export class PushdownCompiler {
     return out;
   }
 
-  /** Translate a canonical filter map into a MongoDB match document. */
+  /**
+   * Translate a canonical filter map into a MongoDB match document.
+   * A single `$eq` collapses to Mongo's shorthand `{ key: value }`; multiple
+   * operators on one column merge into one sub-document (e.g. a range).
+   * `$like`/`$ilike` compile to an anchored `$regex` (SQL wildcards `%`/`_`
+   * translated to `.*`/`.`); `$match`/`$fuzzy` compile to an unanchored,
+   * case-insensitive `$regex` substring match (Mongo has no native full-text
+   * operator in a plain `find()`).
+   * @param filter the canonical filter map, if any.
+   * @returns the Mongo match document (`{}` if `filter` is omitted).
+   */
   private static mongoMatch(filter?: Record<string, any>): Record<string, any> {
     const match: Record<string, any> = {};
     if (!filter) return match;
@@ -252,7 +307,12 @@ export class PushdownCompiler {
     return match;
   }
 
-  /** SQL for a group entry in the GROUP BY clause (plain col or date bucket). */
+  /**
+   * SQL for a group entry in the GROUP BY clause (plain col or date bucket).
+   * @param g a plain grouping column, or a `{ field, dateInterval }` date bucket.
+   * @param dialect target SQL dialect (MySQL uses `DATE()`; others use `date_trunc`).
+   * @returns the SQL expression to group by.
+   */
   private static groupBySql(g: GroupBy, dialect: SqlDialect): string {
     if (g && typeof g === 'object' && g.dateInterval) {
       const col = this.quoteColumn(g.field, dialect);
@@ -261,7 +321,12 @@ export class PushdownCompiler {
     return this.quoteColumn(g as string, dialect);
   }
 
-  /** SQL for a group entry in the SELECT list (date buckets aliased to the field name). */
+  /**
+   * SQL for a group entry in the SELECT list (date buckets aliased to the field name).
+   * @param g a plain grouping column, or a `{ field, dateInterval }` date bucket.
+   * @param dialect target SQL dialect.
+   * @returns the SELECT-list expression (date buckets are aliased back to their field name).
+   */
   private static groupSelectSql(g: GroupBy, dialect: SqlDialect): string {
     if (g && typeof g === 'object' && g.dateInterval) {
       return `${this.groupBySql(g, dialect)} AS ${this.quoteIdent(g.field, dialect)}`;
@@ -269,6 +334,15 @@ export class PushdownCompiler {
     return this.quoteColumn(g as string, dialect);
   }
 
+  /**
+   * SQL expression for a single aggregate spec.
+   * PERCENTILE uses `percentile_cont` on Postgres/Snowflake; MySQL has no
+   * direct equivalent so it falls back to `AVG` there (an approximation,
+   * documented so callers aren't surprised by the degradation).
+   * @param a the aggregate spec (`func`, optional `column`, `percent` for PERCENTILE).
+   * @param dialect target SQL dialect.
+   * @returns the SQL aggregate expression (unaliased — the caller adds `AS alias`).
+   */
   private static aggExprSql(a: AggregateSpec, dialect: SqlDialect): string {
     const col = a.column ? this.quoteColumn(a.column, dialect) : '*';
     switch (a.func) {
@@ -291,6 +365,14 @@ export class PushdownCompiler {
   /**
    * Compile a canonical aggregate query into a MongoDB aggregation pipeline.
    * Produces flat rows keyed by group columns + aggregate aliases.
+   * Pipeline shape: `$match` (from {@link mongoMatch}) → `$group` (by
+   * `groupBy` fields — a date-bucket entry degrades to grouping on its plain
+   * field, since `date_histogram`/`date_trunc` bucketing is a SQL/ES-only
+   * feature here) → `$project` (flattens `_id.<field>` back to top-level
+   * columns, and turns `COUNT_DISTINCT`'s `$addToSet` array into its `$size`)
+   * → optional `$sort`/`$limit`.
+   * @param input the canonical query (filter/groupBy/aggregates/orderBy/limit).
+   * @returns the MongoDB aggregation pipeline stages, in execution order.
    */
   static toMongoAggregate(input: CanonicalQuery): any[] {
     const { filter, groupBy = [], aggregates = [], orderBy, limit } = input;

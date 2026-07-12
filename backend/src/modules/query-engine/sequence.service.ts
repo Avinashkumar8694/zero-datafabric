@@ -15,9 +15,14 @@
  */
 import { pool } from '../../config/database';
 
+/**
+ * Engine-agnostic sequence allocator (see file-level overview for why this
+ * exists and its atomicity guarantee). All methods are static; the class is never instantiated.
+ */
 export class FabricSequenceService {
   private static ensured = false;
 
+  /** Lazily create the `fabric_system.fabric_sequences` table (idempotent, runs at most once per process). */
   private static async ensure(): Promise<void> {
     if (this.ensured) return;
     await pool.query(`CREATE SCHEMA IF NOT EXISTS fabric_system`);
@@ -39,7 +44,7 @@ export class FabricSequenceService {
    * @param opts.start first value on creation (default 1)
    * @param opts.increment step (default 1)
    * @param opts.count how many contiguous values to reserve (default 1)
-   * @returns { name, value } for count=1, or { name, values:[...] } for a block
+   * @returns {Promise<Object>} `{ name, value }` for count=1, or `{ name, values }` for a block
    */
   static async nextval(
     tenantId: string, name: string,
@@ -70,7 +75,12 @@ export class FabricSequenceService {
     return { name, values };
   }
 
-  /** Current value without advancing (null if never allocated). */
+  /**
+   * Current value without advancing (null if never allocated).
+   * @param tenantId tenant scope.
+   * @param name sequence name.
+   * @returns the sequence's current value, or `null` if `nextval` was never called for it.
+   */
   static async currval(tenantId: string, name: string): Promise<number | null> {
     await this.ensure();
     const { rows } = await pool.query(

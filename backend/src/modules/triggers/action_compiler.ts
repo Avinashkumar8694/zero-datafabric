@@ -24,6 +24,7 @@
  * authored here can inject SQL.
  */
 
+/** Compilation context: the schema/table the trigger is attached to and the trigger's own name. */
 type CompileCtx = { schemaName: string; tableName: string; triggerName: string };
 
 export interface CompiledTrigger {
@@ -39,13 +40,31 @@ const OP_MAP: Record<string, string> = {
   '>': '>', '<': '<', '=': '=', '>=': '>=', '<=': '<=', '!=': '<>', '<>': '<>',
 };
 
+/**
+ * Compiles a declarative trigger definition (procedure / execute / mini action DSL)
+ * into safe native Postgres trigger DDL — no hand-written plpgsql required.
+ * @class
+ * @hideconstructor
+ */
 export class TriggerActionCompiler {
-  /** Strip a string to a bare SQL identifier ([A-Za-z0-9_]). */
+  /**
+   * Strip a string to a bare SQL identifier ([A-Za-z0-9_]) — the core
+   * defense against SQL injection through user-authored names (trigger,
+   * table, column, function names).
+   * @param s - The raw candidate identifier.
+   * @returns The sanitized identifier (may be an empty string if nothing valid remained).
+   */
   static ident(s: any): string {
     return String(s || '').replace(/[^a-zA-Z0-9_]/g, '');
   }
 
-  /** Quote a single identifier, or a schema.table pair, defaulting bare names to `defaultSchema`. */
+  /**
+   * Quote a single identifier, or a `schema.table` pair, defaulting bare
+   * names to `defaultSchema`.
+   * @param name - A bare identifier, or a `schema.table` dotted pair.
+   * @param defaultSchema - Schema to qualify `name` with when it has no dot.
+   * @returns A double-quoted, schema-qualified SQL identifier, e.g. `"schema"."table"`.
+   */
   static qualify(name: any, defaultSchema: string): string {
     const raw = String(name || '').trim();
     if (raw.includes('.')) {
@@ -58,6 +77,10 @@ export class TriggerActionCompiler {
   /**
    * Compile a value into a safe SQL scalar expression. Recognised forms pass
    * through; everything else is treated as a string literal (quoted+escaped).
+   * @param v - The raw value: `null`/`undefined`, a number, a boolean, a
+   *   `NEW.col`/`OLD.col` reference, a numeric-looking string, a whitelisted
+   *   keyword (NOW(), TG_OP, ...), an already-quoted SQL literal, or an opaque string.
+   * @returns A safe SQL scalar expression string.
    */
   static expr(v: any): string {
     if (v === null || v === undefined) return 'NULL';
@@ -68,11 +91,20 @@ export class TriggerActionCompiler {
     if (colRef) return `${(colRef[1] || '').toUpperCase()}."${colRef[2] || ''}"`;
     if (/^-?\d+(\.\d+)?$/.test(s)) return s;
     if (KEYWORDS.has(s.toUpperCase())) return s.toUpperCase();
+    // Already a single-quoted SQL string literal (no interior quotes) → pass through.
+    if (/^'[^']*'$/.test(s)) return s;
     // Fallback: opaque value → string literal (escape embedded quotes).
     return `'${s.replace(/'/g, "''")}'`;
   }
 
-  /** Compile a structured condition into a boolean SQL expression. */
+  /**
+   * Compile a structured condition into a boolean SQL expression. Supports
+   * nested `and`/`or` groups and a single `{ left, operator, right }` leaf
+   * (including `IS_NULL`/`IS_NOT_NULL`, which take only `left`).
+   * @param c - The condition node, or a falsy value for an always-true condition.
+   * @returns A boolean SQL expression string.
+   * @throws {Error} If `c.operator`/`c.op` is not a supported comparison operator.
+   */
   static condition(c: any): string {
     if (!c) return 'TRUE';
     if (Array.isArray(c.and)) return `(${c.and.map((x: any) => this.condition(x)).join(' AND ')})`;
@@ -85,13 +117,26 @@ export class TriggerActionCompiler {
     return `${this.expr(c.left)} ${sqlOp} ${this.expr(c.right)}`;
   }
 
-  /** Escape a message for a RAISE literal. */
+  /**
+   * Escape a message for a RAISE literal.
+   * @param m - The user-authored message, or nullish to use `fallback`.
+   * @param fallback - Default message when `m` is not provided.
+   * @returns The message with embedded single quotes escaped (doubled).
+   */
   private static msg(m: any, fallback: string): string {
     return String(m || fallback).replace(/'/g, "''");
   }
 
   /**
-   * Body statements (no BEGIN/END/RETURN) for the mini action DSL.
+   * Compile a single mini action-DSL node into its SQL body statements (no
+   * surrounding BEGIN/END/RETURN) — the workhorse behind the `action` form
+   * and the `EXCEPTION`/`FUNCTION` cases of `execute`. Supports a raw `sql`
+   * escape hatch, plus `INSERT`/`UPDATE`/`DELETE`/`RAISE`(`EXCEPTION`)/`PERFORM`(`FUNCTION`).
+   * @param action - The action node (`{ sql }` or `{ type, ... }`).
+   * @param ctx - Compilation context (used to qualify target tables/functions).
+   * @returns One or more SQL statements as a single string, terminated with `;`.
+   * @throws {Error} If a required field is missing (e.g. `values`/`set`/`where`)
+   *   or `action.type` is unsupported.
    */
   static compileActionBody(action: any, ctx: CompileCtx): string {
     if (action?.sql) {
@@ -145,6 +190,8 @@ export class TriggerActionCompiler {
    * SQL expression for a durable job's run_at, evaluated in the trigger body.
    * Mirrors the trigger-engine RELATIVE-schedule semantics: anchor off a row
    * column when given, else off firing time; both plus after·unit.
+   * @param schedule - The trigger's `schedule` definition; non-RELATIVE (or absent) schedules resolve to `NOW()`.
+   * @returns A SQL expression (timestamptz) referencing NEW/OLD as needed.
    */
   static runAtExpr(schedule: any): string {
     if (!schedule || String(schedule.type || '').toUpperCase() !== 'RELATIVE') return 'NOW()';
@@ -163,6 +210,9 @@ export class TriggerActionCompiler {
    * Body statements for a durable action (WEBHOOK/EMAIL/TELEGRAM): enqueue an
    * EXECUTE_TRIGGER_ACTION job the trigger-engine worker will dispatch. Uses the
    * live session GUCs (set by queryWithContext at write time) for tenant/user.
+   * @param trigger - The trigger definition (`execute`, `event`/`events`, `schedule`).
+   * @param ctx - Compilation context (schema/table/trigger name for the job payload).
+   * @returns An `INSERT INTO public.trigger_jobs (...)` statement referencing NEW/OLD.
    */
   static compileEnqueueBody(trigger: any, ctx: CompileCtx): string {
     const type = String(trigger.execute?.type || '').toUpperCase();
@@ -192,7 +242,10 @@ export class TriggerActionCompiler {
   /**
    * Resolve a declarative `execute` block to either a bare procedure name
    * (native EXECUTE FUNCTION) or a compiled function body.
-   * Returns { procedure } for AUDIT/FUNCTION, or { body, securityDefiner } otherwise.
+   * @param trigger - The trigger definition; `trigger.execute.type` selects AUDIT/FUNCTION/EXCEPTION/WEBHOOK/EMAIL/TELEGRAM.
+   * @param ctx - Compilation context passed through to the relevant compiler.
+   * @returns `{ procedure }` for AUDIT/FUNCTION, or `{ body, securityDefiner }` for EXCEPTION/WEBHOOK/EMAIL/TELEGRAM.
+   * @throws {Error} If `trigger.execute.type` is not a supported type.
    */
   static compileExecute(trigger: any, ctx: CompileCtx): { procedure?: string; body?: string; securityDefiner?: boolean } {
     const type = String(trigger.execute?.type || '').toUpperCase();
@@ -216,8 +269,14 @@ export class TriggerActionCompiler {
   }
 
   /**
-   * Full DDL for a declarative trigger (action or execute forms).
-   * Returns the CREATE FUNCTION + DROP/CREATE TRIGGER statements.
+   * Full DDL for a declarative trigger (action, execute, or bare procedure
+   * forms): resolves timing/events/level, compiles the body (if not using an
+   * existing procedure), and emits the CREATE FUNCTION (when needed) plus
+   * DROP/CREATE TRIGGER statements ready to execute in order.
+   * @param trigger - The full trigger definition (name, timing, event(s), action/execute/procedure).
+   * @param ctx - Compilation context (schema, table, trigger name).
+   * @returns `{ statements }` — DDL statements to run in sequence.
+   * @throws {Error} If the trigger declares none of `action`, `execute`, `procedure`, or `function`.
    */
   static toSql(trigger: any, ctx: CompileCtx): CompiledTrigger {
     const name = this.ident(trigger.name);
@@ -240,10 +299,11 @@ export class TriggerActionCompiler {
       procedure = resolved.procedure;
       body = resolved.body;
       securityDefiner = !!resolved.securityDefiner;
-    } else if (trigger.procedure) {
-      procedure = trigger.procedure;
+    } else if (trigger.procedure || trigger.function) {
+      // `function` is a legacy alias for `procedure` (EXECUTE an existing trigger fn).
+      procedure = trigger.procedure || trigger.function;
     } else {
-      throw new Error(`trigger ${name || '(unnamed)'}: needs one of action, execute, or procedure`);
+      throw new Error(`trigger ${name || '(unnamed)'}: needs one of action, execute, procedure, or function`);
     }
 
     const statements: string[] = [];
@@ -267,6 +327,15 @@ export class TriggerActionCompiler {
     return { statements };
   }
 
+  /**
+   * Resolve the trigger's firing event(s) into a Postgres `CREATE TRIGGER`
+   * event clause. Accepts an explicit `events` array, the API's combined
+   * `event` form (e.g. `'AFTER_INSERT'`, from which only the event part is
+   * kept), or a bare `events` string; unrecognised events are dropped and
+   * `INSERT` is used as the fallback if nothing valid remains.
+   * @param trigger - The trigger definition (`events`, `event`, or nothing).
+   * @returns An `OR`-joined event list valid inside `CREATE TRIGGER ... FOR EACH ROW`, e.g. `"INSERT OR UPDATE"`.
+   */
   private static normalizeEvents(trigger: any): string {
     let evs: string[];
     if (Array.isArray(trigger.events)) evs = trigger.events;
@@ -279,6 +348,13 @@ export class TriggerActionCompiler {
     return filtered.length ? filtered.join(' OR ') : 'INSERT';
   }
 
+  /**
+   * Infer a trigger's timing (`BEFORE`/`AFTER`/`INSTEAD OF`) from a combined
+   * event label such as `'AFTER_INSERT'`, used as a fallback when
+   * `trigger.timing` is not explicitly set.
+   * @param event - The combined event label, if any.
+   * @returns The inferred timing keyword, or `null` if it cannot be determined.
+   */
   private static timingFromEvent(event: any): string | null {
     if (!event) return null;
     const up = String(event).toUpperCase();

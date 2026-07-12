@@ -1,68 +1,148 @@
 <%- include('partials/header') %>
 
+<style>
+  .fade-in { max-width: 100%; overflow-x: hidden; box-sizing: border-box; }
+  .ql-badge { font-size: 0.68rem; padding: 0.1rem 0.4rem; border-radius: 4px; background: var(--surface-hover); }
+  .ql-ok { color: var(--primary); } .ql-err { color: var(--danger, #dc2626); font-weight: 600; }
+  #qlModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:1000; align-items:center; justify-content:center; }
+  #qlModal .glass-card { max-width: 820px; width: 92%; max-height: 86vh; overflow:auto; }
+  .ql-kv { display:grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap:0.6rem; margin:0.6rem 0; }
+  .ql-kv > div { background: var(--bg); border-radius:6px; padding:0.5rem 0.7rem; }
+  .ql-kv .k { font-size:0.68rem; color: var(--text-muted); } .ql-kv .v { font-size:1.05rem; font-weight:600; }
+  .ql-leg { background: var(--bg); border-radius:6px; padding:0.5rem 0.7rem; margin:0.3rem 0; font-size:0.8rem; }
+  pre.ql-code { background: var(--bg); border-radius:6px; padding:0.6rem; font-size:0.75rem; white-space:pre-wrap; word-break:break-word; max-height:240px; overflow:auto; }
+  .table-wrapper { max-width:100%; overflow:auto; }
+</style>
+
 <div class="fade-in">
+    <!-- Query execution audit trail -->
     <div class="glass-card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
             <div>
-                <h3>Security Forensics & Audit Logs</h3>
-                <p class="text-muted">Immutable history of all fabric operations.</p>
+                <h3 style="margin:0;">Query Execution Log</h3>
+                <p class="text-muted" style="margin:0;">Every query the fabric runs — legs, turnaround time (TAT), memory, and plan. Click <strong>View</strong> for the full trace.</p>
+            </div>
+            <button onclick="loadQueryLogs()" class="btn-outline">Refresh</button>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead><tr>
+                    <th>Time</th><th>User</th><th>Mode</th><th>Strategy</th><th>Rows</th>
+                    <th>TAT</th><th>Exec</th><th>Mem</th><th>Status</th><th></th>
+                </tr></thead>
+                <tbody id="qlBody"><tr><td colspan="10">Loading…</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Governance audit logs (row changes) -->
+    <div class="glass-card" style="margin-top:1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div>
+                <h3 style="margin:0;">Security Forensics & Audit Logs</h3>
+                <p class="text-muted" style="margin:0;">Immutable history of row-level fabric operations.</p>
             </div>
             <button onclick="loadAudit()" class="btn-outline">Refresh Logs</button>
         </div>
-
         <div class="table-wrapper">
             <table>
-                <thead>
-                    <tr>
-                        <th>Time</th>
-                        <th>User</th>
-                        <th>Action</th>
-                        <th>Table</th>
-                        <th>Payload</th>
-                    </tr>
-                </thead>
-                <tbody id="auditBody">
-                    <tr><td colspan="5">Streaming logs...</td></tr>
-                </tbody>
+                <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Table</th><th>Payload</th></tr></thead>
+                <tbody id="auditBody"><tr><td colspan="5">Streaming logs...</td></tr></tbody>
             </table>
         </div>
     </div>
 </div>
 
+<!-- Query detail modal -->
+<div id="qlModal">
+  <div class="glass-card">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h3 id="qlTitle" style="margin:0;">Query detail</h3>
+      <button onclick="closeQl()" class="btn-outline">Close</button>
+    </div>
+    <div id="qlDetail"></div>
+  </div>
+</div>
+
 <script>
+    let QLOGS = [];
+    async function loadQueryLogs() {
+        const body = document.getElementById('qlBody');
+        body.innerHTML = '<tr><td colspan="10">Loading…</td></tr>';
+        try {
+            const res = await fetch(`${API_BASE}/query-logs?limit=300`, { headers: getAuthHeaders() });
+            QLOGS = await res.json();
+            if (!Array.isArray(QLOGS) || !QLOGS.length) { body.innerHTML = '<tr><td colspan="10">No query logs yet — run a query in the Workbench or Analytics.</td></tr>'; return; }
+            body.innerHTML = QLOGS.map((l,i) => `
+                <tr class="fade-in">
+                    <td><code style="font-size:0.72rem;">${escapeHtml(new Date(l.createdAt).toLocaleTimeString())}</code></td>
+                    <td>${escapeHtml(l.username||'')}${l.role?` <span class="ql-badge">${escapeHtml(l.role)}</span>`:''}</td>
+                    <td><span class="ql-badge">${escapeHtml(l.mode)}</span></td>
+                    <td><code style="font-size:0.72rem;">${escapeHtml(l.strategy||'—')}</code></td>
+                    <td>${escapeHtml(l.rowCount ?? '—')}</td>
+                    <td>${escapeHtml(l.tatMs ?? '—')}ms</td>
+                    <td>${escapeHtml(l.executionMs ?? '—')}ms</td>
+                    <td>${escapeHtml(l.memDeltaKb ?? '—')}KB</td>
+                    <td class="${l.status==='ERROR'?'ql-err':'ql-ok'}">${escapeHtml(l.status)}</td>
+                    <td><button class="btn-outline" style="font-size:0.72rem;" onclick="viewQl('${escapeHtml(l.id)}')">View</button></td>
+                </tr>`).join('');
+        } catch(e) { body.innerHTML = '<tr><td colspan="10">Failed to load query logs.</td></tr>'; }
+    }
+
+    async function viewQl(id) {
+        const res = await fetch(`${API_BASE}/query-logs/${id}`, { headers: getAuthHeaders() });
+        const l = await res.json();
+        if (l.error) { showModal('Error', l.error); return; }
+        document.getElementById('qlTitle').innerText = `${l.mode} · ${l.strategy||''}`;
+        const legs = (l.legs||[]).map(x => `
+            <div class="ql-leg"><strong>${escapeHtml(x.source||'')}</strong>
+              <span class="ql-badge">${escapeHtml(x.engine||'')}/${escapeHtml(x.mode||'')}</span>
+              ${escapeHtml(x.operation||'')} → <strong>${escapeHtml(x.rowsReturned ?? '—')}</strong> rows in ${escapeHtml(x.ms ?? '—')}ms
+              ${x.target?`<div class="text-muted" style="font-size:0.72rem;">${escapeHtml(x.target)}</div>`:''}
+              ${x.query?`<pre class="ql-code" style="margin-top:0.3rem; max-height:120px;">${escapeHtml(x.query)}</pre>`:''}
+            </div>`).join('') || '<div class="text-muted">No per-leg trace (single-statement execution).</div>';
+        document.getElementById('qlDetail').innerHTML = `
+            <div class="ql-kv">
+              <div><div class="k">TAT (wall)</div><div class="v">${escapeHtml(l.tatMs ?? '—')} ms</div></div>
+              <div><div class="k">Engine exec</div><div class="v">${escapeHtml(l.executionMs ?? '—')} ms</div></div>
+              <div><div class="k">Memory Δ</div><div class="v">${escapeHtml(l.memDeltaKb ?? '—')} KB</div></div>
+              <div><div class="k">Rows</div><div class="v">${escapeHtml(l.rowCount ?? '—')}</div></div>
+              <div><div class="k">Rows scanned</div><div class="v">${escapeHtml(l.rowsScanned ?? '—')}</div></div>
+              <div><div class="k">Status</div><div class="v ${l.status==='ERROR'?'ql-err':'ql-ok'}">${escapeHtml(l.status)}</div></div>
+            </div>
+            <div class="text-muted" style="font-size:0.75rem;">${escapeHtml(l.username||'')} ${l.role?'· '+escapeHtml(l.role):''} · ${escapeHtml(l.api||'')} · ${escapeHtml(new Date(l.createdAt).toLocaleString())}</div>
+            ${l.error?`<p class="ql-err" style="margin-top:0.5rem;">⚠ ${escapeHtml(l.error)}</p>`:''}
+            <h4 style="margin:0.8rem 0 0.3rem;">Query</h4>
+            <pre class="ql-code">${escapeHtml(l.queryText||'')}</pre>
+            <h4 style="margin:0.8rem 0 0.3rem;">Execution legs (${(l.legs||[]).length})</h4>
+            ${legs}
+            ${(l.pushed||[]).length?`<h4 style="margin:0.8rem 0 0.3rem;">Pushdown / compensation</h4>${(l.pushed||[]).map(p=>`<div class="text-muted" style="font-size:0.78rem;">• ${escapeHtml(p)}</div>`).join('')}`:''}
+            ${(l.warnings||[]).length?`<h4 style="margin:0.8rem 0 0.3rem;">Warnings</h4>${(l.warnings||[]).map(w=>`<div style="color:var(--warning,#d97706); font-size:0.78rem;">⚠ ${escapeHtml(w)}</div>`).join('')}`:''}
+        `;
+        document.getElementById('qlModal').style.display = 'flex';
+    }
+    function closeQl(){ document.getElementById('qlModal').style.display = 'none'; }
+
     async function loadAudit() {
         const body = document.getElementById('auditBody');
         body.innerHTML = '<tr><td colspan="5">Streaming logs…</td></tr>';
         try {
-            // Fetch from Orchestrator (Unified API)
-            const response = await fetch(`${API_BASE}/admin/audit-logs`, {
-                headers: getAuthHeaders()
-            });
+            const response = await fetch(`${API_BASE}/admin/audit-logs`, { headers: getAuthHeaders() });
             const data = await response.json();
-
-            if (!Array.isArray(data)) {
-                body.innerHTML = '<tr><td colspan="5">No audit logs available</td></tr>';
-                return;
-            }
-
+            if (!Array.isArray(data)) { body.innerHTML = '<tr><td colspan="5">No audit logs available</td></tr>'; return; }
             const capped = data.slice(0, 500);
-            const rows = capped.map(log => `
+            body.innerHTML = capped.map(log => `
                 <tr class="fade-in">
                     <td><code style="font-size: 0.75rem;">${escapeHtml(new Date(log.changed_at).toLocaleString())}</code></td>
                     <td><strong>${escapeHtml(log.user_name)}</strong></td>
                     <td><span class="badge-sync" style="background: ${log.action === 'DELETE' ? 'var(--danger)' : 'var(--primary)'}">${escapeHtml(log.action)}</span></td>
                     <td><code>${escapeHtml(log.table_name)}</code></td>
                     <td><pre style="font-size: 0.7rem; max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(JSON.stringify(log.new_data || log.old_data))}</pre></td>
-                </tr>
-            `).join('');
-            const note = data.length > 500
-                ? `<tr><td colspan="5" style="text-align:center; color: var(--text-muted)">Showing 500 of ${escapeHtml(data.length)} logs</td></tr>`
-                : '';
-            body.innerHTML = rows + note;
-        } catch (err) {
-            body.innerHTML = '<tr><td colspan="5">Failed to fetch governance logs</td></tr>';
-        }
+                </tr>`).join('') + (data.length > 500 ? `<tr><td colspan="5" style="text-align:center; color: var(--text-muted)">Showing 500 of ${escapeHtml(data.length)} logs</td></tr>` : '');
+        } catch (err) { body.innerHTML = '<tr><td colspan="5">Failed to fetch governance logs</td></tr>'; }
     }
+
+    loadQueryLogs();
     loadAudit();
 </script>
 

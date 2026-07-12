@@ -1,17 +1,58 @@
+/**
+ * Diff-to-DDL transpiler.
+ * -----------------------
+ * Compiles the diff objects produced by `DiffEngine.compare` into concrete,
+ * engine-native provisioning statements:
+ *  - `toSql` — Postgres DDL/DML text (schemas, enums, sequences, tables with
+ *    strategies/constraints/security/triggers, views via `QueryTranspiler`,
+ *    functions/procedures, and cross-resource relationships).
+ *  - `toMongo` — MongoDB op descriptors (createCollection/dropCollection/
+ *    createIndex) for the subset of diff actions relevant to a document store.
+ * Consumed by `MetadataOrchestrator.apply` for both the local Hub (executed
+ * directly) and heterogeneous remote sources (executed via
+ * `HeterogeneousDispatcher`).
+ */
 import axios from 'axios';
 import { ColumnDefinition, TableDefinition, EnumDefinition, SequenceDefinition, ViewDefinition, FunctionDefinition, MetadataManifest, RelationshipDefinition } from './types';
 import { QueryTranspiler } from './query_transpiler';
 import { TriggerService } from '../triggers/trigger.service';
 
+/**
+ * Compiles manifest diffs into Postgres DDL or MongoDB op descriptors.
+ * @class
+ * @hideconstructor
+ */
 export class Transpiler {
     private static TRIGGER_ENGINE_URL = process.env.TRIGGER_ENGINE_URL || 'http://localhost:4001/api/trig-engine/transpile';
 
+    /**
+     * Maps a manifest's portable/logical type name to its Postgres-native
+     * type. Unrecognized type names pass through unchanged.
+     * @param t Logical type name (e.g. `STRING`, `INTEGER`, `BOOLEAN`).
+     * @returns The Postgres-native type name (e.g. `TEXT`, `INT`, `BOOL`).
+     */
     private static normalizeType(t: string) {
         if (!t) return t;
         const map: any = { 'STRING': 'TEXT', 'INTEGER': 'INT', 'BOOLEAN': 'BOOL', 'TIMESTAMP': 'TIMESTAMP', 'UUID': 'UUID', 'BIGINT': 'BIGINT', 'JSONB': 'JSONB', 'NUMERIC': 'NUMERIC' };
         return map[t.toUpperCase()] || t;
     }
 
+    /**
+     * Compiles a single diff (as produced by `DiffEngine.compare`) into an
+     * ordered list of Postgres SQL statements. Dispatches on `diff.action`:
+     * `PROVISION_EXTENSIONS`, `CREATE_SCHEMA`, `CREATE_ENUM`, `CREATE_SEQUENCE`,
+     * `CREATE_FUNCTION`/`CREATE_PROCEDURE`, `CREATE_TABLE` (columns, strategies,
+     * constraints, indexes, functional-default triggers, maintenance settings,
+     * RLS/masking/grants, declared triggers), `CREATE_VIEW`/`CREATE_MATERIALIZED_VIEW`
+     * (via `QueryTranspiler`), `PROVISION_RELATIONSHIP` (FK or M:N bridge table,
+     * including federated/cross-source variants emitted as SQL comments), and
+     * `PROVISION_DOWNSTREAM` (emitted as a comment; actual work is done by
+     * `DownstreamService`). Unrecognized actions produce no statements.
+     * @param diff A single diff entry to compile (shape varies by `action`).
+     * @param tenantId Tenant scope; used to derive the physical schema name `tenant_{tenantId}_{diff.schema||diff.name}`.
+     * @param manifest Full manifest, consulted for custom enum type names (table column typing), relationship column type lookup, and function/procedure resource context.
+     * @returns The ordered SQL statements to execute for this diff (may be empty).
+     */
     static async toSql(diff: any, tenantId: string, manifest?: MetadataManifest): Promise<string[]> {
         const schemaName = `tenant_${tenantId}_${diff.schema || diff.name}`;
         const sql: string[] = [];
@@ -300,6 +341,15 @@ export class Transpiler {
         return out;
     }
 
+    /**
+     * Looks up a table column's declared logical type across a manifest's
+     * schemas, used to type the join columns of a generated relationship
+     * bridge table.
+     * @param manifest Manifest to search across all schemas.
+     * @param resourceName Table resource name to find.
+     * @param columnName Column name within that table.
+     * @returns The column's declared type, or `'UUID'` if the table/column can't be found.
+     */
     private static findColumnType(manifest: MetadataManifest, resourceName: string, columnName: string): string {
         for (const schema of manifest.schemas) {
             const resource = schema.resources.find(r => r.name === resourceName && r.type === 'TABLE') as TableDefinition;
@@ -311,6 +361,19 @@ export class Transpiler {
         return 'UUID'; 
     }
 
+    /**
+     * Compiles a single diff into MongoDB op descriptors for the subset of
+     * actions meaningful to a document store: `CREATE_TABLE` becomes a
+     * `createCollection` plus one `createIndex` per column marked
+     * indexed/unique/primaryKey; `DROP_TABLE` becomes a `dropCollection`;
+     * `ADD_COLUMN` becomes a `createIndex` only if the new column is
+     * indexed/unique (Mongo needs no DDL to add a field). Other actions
+     * produce no ops.
+     * @param diff A single diff entry to compile.
+     * @param tenantId Tenant scope (currently unused; kept for signature parity with `toSql`).
+     * @param manifest Full manifest (currently unused; kept for signature parity with `toSql`).
+     * @returns Op descriptors consumable by `HeterogeneousDispatcher.execute`'s Mongo path (may be empty).
+     */
     static async toMongo(diff: any, tenantId: string, manifest?: MetadataManifest): Promise<any[]> {
         const ops: any[] = [];
         switch (diff.action) {
@@ -336,6 +399,17 @@ export class Transpiler {
         return ops;
     }
 
+    /**
+     * Compiles a manifest-declared table trigger into its native Postgres SQL
+     * (CREATE FUNCTION + CREATE TRIGGER, and for WEBHOOK/EMAIL/TELEGRAM
+     * execute forms, durable job-enqueuing logic) and registers it in the
+     * trigger control plane, by delegating to `TriggerService.transpileTriggerSql`.
+     * @param trigger The manifest trigger definition (`procedure` | `execute` | `action` declarative form).
+     * @param schemaName Physical (tenant-qualified) schema the trigger's table lives in.
+     * @param tableName Physical table name the trigger is attached to.
+     * @param tenantId Tenant scope; when supplied, the trigger is also registered in `trigger_registry` (source=MANIFEST).
+     * @returns The SQL statements needed to create the trigger (and its backing function, if any).
+     */
     private static async callTriggerEngine(trigger: any, schemaName: string, tableName: string, tenantId?: string): Promise<string[]> {
         // Manifest triggers are compiled natively at apply time by
         // TriggerActionCompiler, which now handles ALL declarative forms:

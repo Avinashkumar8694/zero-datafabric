@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>backend/src/modules/query-engine/aggregate.ts - Zero Data Fabric — API Reference</title>
+    
+    
+    
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="ConstraintService.html">ConstraintService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ConstraintService.html#.evalCheck">evalCheck</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.parseCheckExpression">parseCheckExpression</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.specFromManifestTable">specFromManifestTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.validate">validate</a></li></ul></li><li><a href="FabricSequenceService.html">FabricSequenceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.currval">currval</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.nextval">nextval</a></li></ul></li><li><a href="FederationExecutor.html">FederationExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyProjection">applyProjection</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.astLegToCanonical">astLegToCanonical</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.buildLegFilters">buildLegFilters</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fanAggregate">fanAggregate</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fetchLegDirect">fetchLegDirect</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.previewConnectorQuery">previewConnectorQuery</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.qualify">qualify</a></li></ul></li><li><a href="GrantService.html">GrantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GrantService.html#.decide">decide</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.enforce">enforce</a></li></ul></li><li><a href="PolicyService.html">PolicyService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PolicyService.html#.applyMasks">applyMasks</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.compileFilter">compileFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.mergeIntoFilter">mergeIntoFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.physicalSchema">physicalSchema</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolveValue">resolveValue</a></li></ul></li><li><a href="QueryLogService.html">QueryLogService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryLogService.html#.capture">capture</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.record">record</a></li></ul></li><li><a href="RecursiveExecutor.html">RecursiveExecutor</a></li><li><a href="SavedAnalyticsService.html">SavedAnalyticsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindAst">bindAst</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindSql">bindSql</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.resolveValues">resolveValues</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.run">run</a></li></ul></li><li><a href="TriggerActionCompiler.html">TriggerActionCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileActionBody">compileActionBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileEnqueueBody">compileEnqueueBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileExecute">compileExecute</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.condition">condition</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.expr">expr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.msg">msg</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.runAtExpr">runAtExpr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerService.html">TriggerService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerService.html#.registryUpsertSql">registryUpsertSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.transpileTriggerSql">transpileTriggerSql</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#AGG_FUNCS">AGG_FUNCS</a></li><li><a href="global.html#CANON_OP">CANON_OP</a></li><li><a href="global.html#EVENT_TIMINGS">EVENT_TIMINGS</a></li><li><a href="global.html#LOCAL_SOURCE">LOCAL_SOURCE</a></li><li><a href="global.html#MongoDBConnector">MongoDBConnector</a></li><li><a href="global.html#OP_MAP">OP_MAP</a></li><li><a href="global.html#RANKING">RANKING</a></li><li><a href="global.html#SQL_OPERATORS">SQL_OPERATORS</a></li><li><a href="global.html#SnowflakeConnector">SnowflakeConnector</a></li><li><a href="global.html#VAR_TOKEN">VAR_TOKEN</a></li><li><a href="global.html#aggregateRaw">aggregateRaw</a></li><li><a href="global.html#applyWindows">applyWindows</a></li><li><a href="global.html#base">base</a></li><li><a href="global.html#cacheInvalidate">cacheInvalidate</a></li><li><a href="global.html#cached">cached</a></li><li><a href="global.html#callFunction">callFunction</a></li><li><a href="global.html#client">client</a></li><li><a href="global.html#deleteAnalytic">deleteAnalytic</a></li><li><a href="global.html#exportMetadata">exportMetadata</a></li><li><a href="global.html#extractWindows">extractWindows</a></li><li><a href="global.html#gName">gName</a></li><li><a href="global.html#getColumns">getColumns</a></li><li><a href="global.html#getTemplate">getTemplate</a></li><li><a href="global.html#handle">handle</a></li><li><a href="global.html#hasWindows">hasWindows</a></li><li><a href="global.html#ident">ident</a></li><li><a href="global.html#invalidateTenant">invalidateTenant</a></li><li><a href="global.html#isAggregateQuery">isAggregateQuery</a></li><li><a href="global.html#listConstraints">listConstraints</a></li><li><a href="global.html#listGrants">listGrants</a></li><li><a href="global.html#listPolicies">listPolicies</a></li><li><a href="global.html#listQueryLogs">listQueryLogs</a></li><li><a href="global.html#maxRowsPerLeg">maxRowsPerLeg</a></li><li><a href="global.html#mergePartials">mergePartials</a></li><li><a href="global.html#nextSequence">nextSequence</a></li><li><a href="global.html#parseAggregates">parseAggregates</a></li><li><a href="global.html#parseHaving">parseHaving</a></li><li><a href="global.html#parseLiteral">parseLiteral</a></li><li><a href="global.html#parseSelect">parseSelect</a></li><li><a href="global.html#parseWhere">parseWhere</a></li><li><a href="global.html#partialSpec">partialSpec</a></li><li><a href="global.html#projectWithWindows">projectWithWindows</a></li><li><a href="global.html#queryWithContext">queryWithContext</a></li><li><a href="global.html#readCol">readCol</a></li><li><a href="global.html#sessionOf">sessionOf</a></li><li><a href="global.html#splitTopLevel">splitTopLevel</a></li><li><a href="global.html#sqlToAst">sqlToAst</a></li><li><a href="global.html#toCanonical">toCanonical</a></li><li><a href="global.html#windowBaseColumns">windowBaseColumns</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">backend/src/modules/query-engine/aggregate.ts</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * Aggregate decomposition for multi-source federation.
+ * -----------------------------------------------------
+ * Implements the "partial-aggregate split" that lets GROUP BY / aggregates run
+ * across many sources WITHOUT fetching every row into the fabric:
+ *
+ *   - Each source computes a PARTIAL aggregate (GROUP BY g..., COUNT/SUM/MIN/MAX)
+ *     and returns only #groups rows.
+ *   - The fabric MERGES the partials into the final result.
+ *
+ * Decomposition rules:
+ *   COUNT(*)/COUNT(c) -> partial COUNT -> final SUM(partial)
+ *   SUM(c)            -> partial SUM   -> final SUM
+ *   MIN/MAX(c)        -> partial MIN/MAX -> final MIN/MAX
+ *   AVG(c)            -> partial SUM(c)+COUNT(c) -> final ΣSUM/ΣCOUNT
+ *   COUNT(DISTINCT c) -> partial GROUP BY (g,c) distinct keys -> merge distinct set, count
+ */
+
+import { AggregateSpec, AggFunc, GroupBy } from './pushdown';
+
+export interface AggregatePlan {
+  groupCols: GroupBy[];
+  aggregates: AggregateSpec[]; // as requested by the user
+}
+
+const AGG_FUNCS = new Set(['COUNT', 'SUM', 'MIN', 'MAX', 'AVG']);
+
+/** last segment of a possibly-qualified column path (alias.col -> col) */
+function base(path: string): string {
+  const s = String(path || '');
+  return s.includes('.') ? s.split('.').pop()! : s;
+}
+
+/** Output column name for a group entry (date-bucket entries key by their field). */
+function gName(g: GroupBy): string {
+  return typeof g === 'object' &amp;&amp; g ? g.field : (g as string);
+}
+
+/**
+ * Parse an AST/QueryConfig `select` into grouping columns + aggregate specs.
+ * Handles object specs `{aggregate, column, alias}` and string specs like
+ * `count(*)`, `SUM(amount)`, `avg(price) as p`.
+ */
+export function parseAggregates(select: any[] | undefined, groupBy: GroupBy[] | undefined): AggregatePlan | null {
+  if (!Array.isArray(select) || select.length === 0) {
+    return groupBy &amp;&amp; groupBy.length ? { groupCols: [...groupBy], aggregates: [] } : null;
+  }
+
+  const groupCols: GroupBy[] = [...(groupBy || [])];
+  const aggregates: AggregateSpec[] = [];
+  let sawAggregate = false;
+
+  for (const c of select) {
+    if (c &amp;&amp; typeof c === 'object' &amp;&amp; c.aggregate) {
+      sawAggregate = true;
+      const func = String(c.aggregate).toUpperCase();
+      const isDistinct = !!c.distinct || func === 'COUNT_DISTINCT';
+      const col = c.column &amp;&amp; c.column !== '*' ? base(c.column) : null;
+      aggregates.push({
+        func: (isDistinct ? 'COUNT_DISTINCT' : func) as AggFunc,
+        column: col,
+        alias: c.alias || `${func.toLowerCase()}_${col || 'all'}`,
+        ...(c.percent !== undefined ? { percent: Number(c.percent) } : {}),
+      });
+      continue;
+    }
+    if (typeof c === 'string') {
+      const m = c.match(/^\s*(count|sum|min|max|avg)\s*\(\s*(distinct\s+)?([\w.*]+)\s*\)\s*(?:as\s+([\w]+))?\s*$/i);
+      if (m) {
+        sawAggregate = true;
+        const func = m[1]!.toUpperCase();
+        const distinct = !!m[2];
+        const colRaw = m[3]!;
+        const col = colRaw === '*' ? null : base(colRaw);
+        aggregates.push({
+          func: (distinct ? 'COUNT_DISTINCT' : func) as AggFunc,
+          column: col,
+          alias: m[4] || `${func.toLowerCase()}_${col || 'all'}`,
+        });
+        continue;
+      }
+      // a plain column in an aggregate query is a grouping column
+      if (c !== '*') groupCols.push(base(c));
+    }
+  }
+
+  if (!sawAggregate &amp;&amp; (!groupBy || groupBy.length === 0)) return null;
+  // de-dup group columns preserving order (date-bucket entries keyed by JSON)
+  const seen = new Set&lt;string>();
+  const dedupGroup = groupCols.filter((g) => {
+    const k = typeof g === 'object' ? JSON.stringify(g) : g;
+    return seen.has(k) ? false : (seen.add(k), true);
+  });
+  return { groupCols: dedupGroup, aggregates };
+}
+
+/**
+ * The partial aggregates each source must compute so the fabric can merge them.
+ * AVG is expanded to a hidden SUM + COUNT pair.
+ */
+export function partialSpec(plan: AggregatePlan): { groupBy: GroupBy[]; aggregates: AggregateSpec[] } {
+  const aggregates: AggregateSpec[] = [];
+  for (const a of plan.aggregates) {
+    if (a.func === 'AVG') {
+      aggregates.push({ func: 'SUM', column: a.column, alias: `__sum__${a.alias}` });
+      aggregates.push({ func: 'COUNT', column: a.column, alias: `__cnt__${a.alias}` });
+    } else {
+      aggregates.push({ ...a });
+    }
+  }
+  return { groupBy: plan.groupCols, aggregates };
+}
+
+function numeric(v: any): number {
+  const n = typeof v === 'number' ? v : parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Merge partial-group rows (already grouped per source) into the final result.
+ * `distinctSets` accumulates COUNT(DISTINCT) values as sets keyed by group+alias.
+ */
+export function mergePartials(rows: any[], plan: AggregatePlan): any[] {
+  const groups = new Map&lt;string, any>();
+  // For COUNT(DISTINCT), we need the raw values. When pushed as an aggregate the
+  // source already returns a count (Mongo $addToSet size / SQL COUNT DISTINCT), so
+  // per-source distinct counts are summed as an upper bound; exactness across
+  // sources is handled by the raw-distinct path (see below).
+  const distinctAliases = new Set(plan.aggregates.filter((a) => a.func === 'COUNT_DISTINCT').map((a) => a.alias));
+  const distinctSets = new Map&lt;string, Set&lt;any>>();
+
+  const keyOf = (row: any) => JSON.stringify(plan.groupCols.map((g) => row[gName(g)] ?? row[base(gName(g))] ?? null));
+
+  for (const row of rows) {
+    const k = keyOf(row);
+    let acc = groups.get(k);
+    if (!acc) {
+      acc = {};
+      for (const g of plan.groupCols) { const n = gName(g); acc[n] = row[n] ?? row[base(n)] ?? null; }
+      groups.set(k, acc);
+    }
+    for (const a of plan.aggregates) {
+      if (a.func === 'AVG') {
+        acc[`__sum__${a.alias}`] = numeric(acc[`__sum__${a.alias}`]) + numeric(row[`__sum__${a.alias}`]);
+        acc[`__cnt__${a.alias}`] = numeric(acc[`__cnt__${a.alias}`]) + numeric(row[`__cnt__${a.alias}`]);
+      } else if (a.func === 'COUNT' || a.func === 'SUM' || a.func === 'COUNT_DISTINCT') {
+        // COUNT/SUM merge by summation. COUNT_DISTINCT summed as an approximation
+        // unless a raw distinct set is provided via row[`__set__${alias}`].
+        if (a.func === 'COUNT_DISTINCT' &amp;&amp; Array.isArray(row[`__set__${a.alias}`])) {
+          if (!distinctSets.has(k + a.alias)) distinctSets.set(k + a.alias, new Set());
+          for (const v of row[`__set__${a.alias}`]) distinctSets.get(k + a.alias)!.add(v);
+        } else {
+          acc[a.alias] = numeric(acc[a.alias]) + numeric(row[a.alias]);
+        }
+      } else if (a.func === 'MIN') {
+        acc[a.alias] = acc[a.alias] === undefined ? row[a.alias] : Math.min(numeric(acc[a.alias]), numeric(row[a.alias]));
+      } else if (a.func === 'MAX') {
+        acc[a.alias] = acc[a.alias] === undefined ? row[a.alias] : Math.max(numeric(acc[a.alias]), numeric(row[a.alias]));
+      }
+    }
+  }
+
+  const out: any[] = [];
+  for (const [k, acc] of groups) {
+    for (const a of plan.aggregates) {
+      if (a.func === 'AVG') {
+        const s = numeric(acc[`__sum__${a.alias}`]);
+        const c = numeric(acc[`__cnt__${a.alias}`]);
+        acc[a.alias] = c > 0 ? s / c : null;
+        delete acc[`__sum__${a.alias}`];
+        delete acc[`__cnt__${a.alias}`];
+      } else if (a.func === 'COUNT_DISTINCT' &amp;&amp; distinctSets.has(k + a.alias)) {
+        acc[a.alias] = distinctSets.get(k + a.alias)!.size;
+      }
+    }
+    out.push(acc);
+  }
+  return out;
+}
+
+/** Read a column from a row tolerating alias-qualified keys (o.amount ~ amount). */
+function readCol(row: any, name: string): any {
+  if (row == null) return undefined;
+  if (name in row) return row[name];
+  const b = base(name);
+  if (b in row) return row[b];
+  const hit = Object.keys(row).find((k) => base(k) === b);
+  return hit ? row[hit] : undefined;
+}
+
+/**
+ * Aggregate RAW rows directly (used after a cross-engine join, where rows are not
+ * pre-aggregated). Computes final COUNT/SUM/MIN/MAX/AVG/COUNT(DISTINCT) per group.
+ */
+export function aggregateRaw(rows: any[], plan: AggregatePlan): any[] {
+  const groups = new Map&lt;string, any>();
+  const state = new Map&lt;string, any>(); // per-group running state (sums, counts, distinct sets)
+
+  const keyOf = (row: any) => JSON.stringify(plan.groupCols.map((g) => readCol(row, gName(g)) ?? null));
+
+  for (const row of rows) {
+    const k = keyOf(row);
+    let acc = groups.get(k);
+    let st = state.get(k);
+    if (!acc) {
+      acc = {};
+      for (const g of plan.groupCols) { const n = gName(g); acc[n] = readCol(row, n) ?? null; }
+      groups.set(k, acc);
+      st = {};
+      state.set(k, st);
+    }
+    for (const a of plan.aggregates) {
+      const v = a.column ? readCol(row, a.column) : 1;
+      const key = a.alias;
+      if (a.func === 'COUNT') { if (a.column == null || (v !== undefined &amp;&amp; v !== null)) st[key] = (st[key] || 0) + 1; }
+      else if (a.func === 'SUM') st[key] = (st[key] || 0) + numeric(v);
+      else if (a.func === 'MIN') st[key] = st[key] === undefined ? numeric(v) : Math.min(st[key], numeric(v));
+      else if (a.func === 'MAX') st[key] = st[key] === undefined ? numeric(v) : Math.max(st[key], numeric(v));
+      else if (a.func === 'AVG') { st[`${key}__s`] = (st[`${key}__s`] || 0) + numeric(v); st[`${key}__c`] = (st[`${key}__c`] || 0) + 1; }
+      else if (a.func === 'COUNT_DISTINCT') { (st[key] ||= new Set()).add(v); }
+    }
+  }
+
+  const out: any[] = [];
+  for (const [k, acc] of groups) {
+    const st = state.get(k);
+    for (const a of plan.aggregates) {
+      if (a.func === 'AVG') { const c = st[`${a.alias}__c`] || 0; acc[a.alias] = c > 0 ? st[`${a.alias}__s`] / c : null; }
+      else if (a.func === 'COUNT_DISTINCT') acc[a.alias] = (st[a.alias] as Set&lt;any>)?.size || 0;
+      else acc[a.alias] = st[a.alias] ?? (a.func === 'COUNT' ? 0 : null);
+    }
+    out.push(acc);
+  }
+  return out;
+}
+
+/** True when a query requests grouping/aggregation. */
+export function isAggregateQuery(select: any[] | undefined, groupBy: string[] | undefined): boolean {
+  return parseAggregates(select, groupBy) !== null;
+}
+
+export { AGG_FUNCS };
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Jul 12 2026 08:28:49 GMT+0530 (India Standard Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+<script src="scripts/collapse.js" defer></script>
+
+
+</body>
+</html>

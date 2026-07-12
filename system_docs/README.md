@@ -20,6 +20,12 @@ System-level design docs. Each feature has its own page with architecture
 | [09-execution-trace.md](09-execution-trace.md) | The per-leg trace envelope |
 | [10-capability-compensation-engine.md](10-capability-compensation-engine.md) | How the fabric provides capabilities a source lacks (sequences, window fns, HAVING, policy) — push-down / compensate / reject, efficiently |
 | [11-stateful-feature-compensation.md](11-stateful-feature-compensation.md) | Compensating stateful/imperative features (custom sequences, custom functions, strategies, RLS policy, triggers, recursive) across engines, grounded in test_manifest.json |
+| [12-capability-model-and-matrix.md](12-capability-model-and-matrix.md) | One model, two modes (AST/SQL), three tiers (push/compensate/reject) — every `test_manifest.json` construct mapped per engine |
+| [13-api-catalog.md](13-api-catalog.md) | Authoritative catalog of every REST endpoint — method, path, guard, controller→service, request/response, error codes (companion to `/api-docs`) |
+| [14-algorithms.md](14-algorithms.md) | Deep dive on the core algorithms with complexity — pushdown, bind-join, partial-aggregate merge, recursion, window/HAVING compensation, planner classification, write-value gen, constraint validation |
+| [15-security-and-governance-architecture.md](15-security-and-governance-architecture.md) | Auth/JWT, schema-per-tenant isolation, the Policy/Grant/Constraint engines, injection defenses, and the industrial safety shield |
+| [16-observability-and-query-log.md](16-observability-and-query-log.md) | The QueryLogService audit trail (`fabric_system.query_logs`), captured telemetry, the execution trace, and the audit UI |
+| [17-concepts-and-glossary.md](17-concepts-and-glossary.md) | Every key concept and term defined — fabric, federation, virtualization, compensation, connectors, catalog, sync types, bind-join, control/data plane, and more |
 
 ## System context
 

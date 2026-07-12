@@ -52,12 +52,29 @@ export interface QueryPlan {
   /** human-readable notes about what was/ will be pushed down */
   pushed: string[];
   warnings: string[];
+  /** per-request session context (tenant/role/region) — used by the Policy Engine
+   *  to inject row predicates + column masking on non-RLS connector legs. */
+  session?: { tenantId: string; role?: string; region?: string; username?: string };
 }
 
+/** Build the `resolveMap` cache key for a `{ source, resource }` reference. */
 const legKey = (source: string, resource: string) => `${source}::${resource}`;
 
+/**
+ * Decides HOW a query should be executed (see file-level overview for the
+ * SINGLE_LOCAL / SINGLE_CONNECTOR / CROSS_ENGINE strategies). All methods are
+ * static; the class is never instantiated. `classify` is the entry point
+ * consumed by `QueryEngineService.executeQuery`.
+ */
 export class QueryPlanner {
-  /** Collect { source, resource } references from an AST (recurses set-ops / CTEs). */
+  /**
+   * Collect { source, resource } references from an AST (recurses set-ops / CTEs).
+   * Walks `from`, `joins[]`, and recurses into `union`/`intersect`/`except`
+   * legs and `with` (CTE) bases/`unionAll` bodies so every resource the query
+   * touches — however deeply nested — is captured for resolution.
+   * @param ast the query AST node to scan.
+   * @param acc output array that discovered `{ source, resource }` references are pushed onto (mutated); may contain duplicates.
+   */
   private static collectRefs(ast: any, acc: { source: string; resource: string }[]) {
     if (!ast || typeof ast !== 'object') return;
 
@@ -82,7 +99,21 @@ export class QueryPlanner {
 
   /**
    * Resolve a single logical reference to its physical engine + location.
-   * Local hub references are always reachable in Postgres.
+   * Local hub references are always reachable in Postgres. Named sources are
+   * looked up in the catalog first (`data_sources` joined through
+   * `catalog_schemas`/`catalog_tables`) so the physical schema/table name is
+   * known for connector execution; if the table hasn't been crawled into the
+   * catalog yet, falls back to the bare `data_sources` record (engine/sync
+   * type/config only, physical names default to the logical resource name).
+   * A resource is only `reachableInPg` when it's the local hub or its
+   * `sync_type` is SYNC/CDC (physically replicated into the tenant schema) —
+   * a VIRTUAL source (even Postgres) always goes through its connector, since
+   * `postgres_fdw` doesn't cover every object type/engine uniformly.
+   * @param tenantId tenant identifier.
+   * @param source logical source name, or {@link LOCAL_SOURCE} for the hub.
+   * @param resource logical resource/table/collection name.
+   * @returns the resolved {@link ResolvedLeg}.
+   * @throws if a named source has no catalog entry AND no `data_sources` row for the tenant.
    */
   static async resolveLeg(tenantId: string, source: string, resource: string): Promise<ResolvedLeg> {
     if (!source || source === LOCAL_SOURCE) {
@@ -147,6 +178,30 @@ export class QueryPlanner {
     return { source, resource, engine, syncType, reachableInPg, physicalSchema, physicalTable, config };
   }
 
+  /**
+   * Classify a query AST into an execution {@link Strategy} and resolve every
+   * leg it references. This is the planner's entry point:
+   *   1. {@link collectRefs} + {@link resolveLeg} every distinct `{source,
+   *      resource}` the query touches (deduplicated via `resolveMap`).
+   *   2. Partition legs into those reachable in Postgres vs. connector-only,
+   *      and count distinct NAMED sources (excluding the hub).
+   *   3. Decide the strategy:
+   *      - `SINGLE_LOCAL` — no connector-only legs and at most one named
+   *        source: everything resolves inside the tenant Postgres schema, so
+   *        one SQL statement suffices (Postgres/Citus/FDW push each scan's
+   *        predicate to its own remote).
+   *      - `SINGLE_CONNECTOR` — exactly one connector-only leg, no joins/set-ops:
+   *        a simple pushdown SELECT against that one connector.
+   *      - `CROSS_ENGINE` — anything else (multiple distinct sources, even if
+   *        all Postgres, or any join/set-op crossing the local/connector
+   *        boundary): each source is fetched independently with pushdown, then
+   *        combined in-memory by {@link FederationExecutor} — this avoids
+   *        cross-source table-name collisions and full scans.
+   * @param tenantId tenant identifier.
+   * @param ast the query AST to classify.
+   * @returns the {@link QueryPlan}: `{ strategy, legs, resolveMap, pushed, warnings }`.
+   * @throws if any referenced source can't be resolved (see {@link resolveLeg}).
+   */
   static async classify(tenantId: string, ast: any): Promise<QueryPlan> {
     const refs: { source: string; resource: string }[] = [];
     this.collectRefs(ast, refs);

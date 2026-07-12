@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>backend/src/modules/metadata/metadata.service.ts - Zero Data Fabric — API Reference</title>
+    
+    
+    
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="ConstraintService.html">ConstraintService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ConstraintService.html#.evalCheck">evalCheck</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.parseCheckExpression">parseCheckExpression</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.specFromManifestTable">specFromManifestTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.validate">validate</a></li></ul></li><li><a href="FabricSequenceService.html">FabricSequenceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.currval">currval</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.nextval">nextval</a></li></ul></li><li><a href="FederationExecutor.html">FederationExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyProjection">applyProjection</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.astLegToCanonical">astLegToCanonical</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.buildLegFilters">buildLegFilters</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fanAggregate">fanAggregate</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fetchLegDirect">fetchLegDirect</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.previewConnectorQuery">previewConnectorQuery</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.qualify">qualify</a></li></ul></li><li><a href="GrantService.html">GrantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GrantService.html#.decide">decide</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.enforce">enforce</a></li></ul></li><li><a href="PolicyService.html">PolicyService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PolicyService.html#.applyMasks">applyMasks</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.compileFilter">compileFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.mergeIntoFilter">mergeIntoFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.physicalSchema">physicalSchema</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolveValue">resolveValue</a></li></ul></li><li><a href="QueryLogService.html">QueryLogService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryLogService.html#.capture">capture</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.record">record</a></li></ul></li><li><a href="RecursiveExecutor.html">RecursiveExecutor</a></li><li><a href="SavedAnalyticsService.html">SavedAnalyticsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindAst">bindAst</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindSql">bindSql</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.resolveValues">resolveValues</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.run">run</a></li></ul></li><li><a href="TriggerActionCompiler.html">TriggerActionCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileActionBody">compileActionBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileEnqueueBody">compileEnqueueBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileExecute">compileExecute</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.condition">condition</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.expr">expr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.msg">msg</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.runAtExpr">runAtExpr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerService.html">TriggerService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerService.html#.registryUpsertSql">registryUpsertSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.transpileTriggerSql">transpileTriggerSql</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#AGG_FUNCS">AGG_FUNCS</a></li><li><a href="global.html#CANON_OP">CANON_OP</a></li><li><a href="global.html#EVENT_TIMINGS">EVENT_TIMINGS</a></li><li><a href="global.html#LOCAL_SOURCE">LOCAL_SOURCE</a></li><li><a href="global.html#MongoDBConnector">MongoDBConnector</a></li><li><a href="global.html#OP_MAP">OP_MAP</a></li><li><a href="global.html#RANKING">RANKING</a></li><li><a href="global.html#SQL_OPERATORS">SQL_OPERATORS</a></li><li><a href="global.html#SnowflakeConnector">SnowflakeConnector</a></li><li><a href="global.html#VAR_TOKEN">VAR_TOKEN</a></li><li><a href="global.html#aggregateRaw">aggregateRaw</a></li><li><a href="global.html#applyWindows">applyWindows</a></li><li><a href="global.html#base">base</a></li><li><a href="global.html#cacheInvalidate">cacheInvalidate</a></li><li><a href="global.html#cached">cached</a></li><li><a href="global.html#callFunction">callFunction</a></li><li><a href="global.html#client">client</a></li><li><a href="global.html#deleteAnalytic">deleteAnalytic</a></li><li><a href="global.html#exportMetadata">exportMetadata</a></li><li><a href="global.html#extractWindows">extractWindows</a></li><li><a href="global.html#gName">gName</a></li><li><a href="global.html#getColumns">getColumns</a></li><li><a href="global.html#getTemplate">getTemplate</a></li><li><a href="global.html#handle">handle</a></li><li><a href="global.html#hasWindows">hasWindows</a></li><li><a href="global.html#ident">ident</a></li><li><a href="global.html#invalidateTenant">invalidateTenant</a></li><li><a href="global.html#isAggregateQuery">isAggregateQuery</a></li><li><a href="global.html#listConstraints">listConstraints</a></li><li><a href="global.html#listGrants">listGrants</a></li><li><a href="global.html#listPolicies">listPolicies</a></li><li><a href="global.html#listQueryLogs">listQueryLogs</a></li><li><a href="global.html#maxRowsPerLeg">maxRowsPerLeg</a></li><li><a href="global.html#mergePartials">mergePartials</a></li><li><a href="global.html#nextSequence">nextSequence</a></li><li><a href="global.html#parseAggregates">parseAggregates</a></li><li><a href="global.html#parseHaving">parseHaving</a></li><li><a href="global.html#parseLiteral">parseLiteral</a></li><li><a href="global.html#parseSelect">parseSelect</a></li><li><a href="global.html#parseWhere">parseWhere</a></li><li><a href="global.html#partialSpec">partialSpec</a></li><li><a href="global.html#projectWithWindows">projectWithWindows</a></li><li><a href="global.html#queryWithContext">queryWithContext</a></li><li><a href="global.html#readCol">readCol</a></li><li><a href="global.html#sessionOf">sessionOf</a></li><li><a href="global.html#splitTopLevel">splitTopLevel</a></li><li><a href="global.html#sqlToAst">sqlToAst</a></li><li><a href="global.html#toCanonical">toCanonical</a></li><li><a href="global.html#windowBaseColumns">windowBaseColumns</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">backend/src/modules/metadata/metadata.service.ts</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import { pool } from '../../config/database';
+import { ConnectorFactory } from './connectors/factory';
+
+export class MetadataService {
+  /**
+   * Discovers and registers schemas and tables for a specific data source
+   */
+  static async crawlSource(sourceId: string) {
+    const client = await pool.connect();
+    try {
+      // 1. Fetch source configuration
+      const { rows: sources } = await client.query('SELECT * FROM public.data_sources WHERE id = $1', [sourceId]);
+      if (sources.length === 0) throw new Error('Source not found');
+      const source = sources[0];
+
+      // Industrial Defense: Skip crawl for dummy test hosts
+      const host = source.config.host || source.config.connectionString;
+      if (host === 'dup' || host?.includes('dummy')) {
+          console.log(`[Metadata] Skipping crawl for dummy host: ${host}`);
+          return;
+      }
+
+      const connector = ConnectorFactory.getConnector(source.type, source.config);
+      console.log(`[Metadata] Connector obtained for ${source.type}. Discovering schemas...`);
+      
+      await client.query('BEGIN');
+
+      // 2. Discover Schemas
+      const schemas = await connector.discoverSchemas();
+      console.log(`[Metadata] Discovered ${schemas.length} schemas.`);
+      let totalTables = 0;
+      for (const schema of schemas) {
+        console.log(`[Metadata] Processing schema: ${schema.name}`);
+        // Upsert Schema into Catalog
+        const schemaRes = await client.query(`
+          INSERT INTO public.catalog_schemas (source_id, name, physical_name)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (source_id, physical_name) 
+          DO UPDATE SET name = EXCLUDED.name
+          RETURNING id
+        `, [sourceId, schema.name, schema.physicalName]);
+
+        const schemaUuid = schemaRes.rows[0].id;
+
+        // 3. Discover Tables for this Schema
+        const tables = await connector.discoverTables(schema.physicalName);
+        totalTables += tables.length;
+        for (const table of tables) {
+          // Upsert Table into Catalog, PRESERVING the discovered object type
+          // (TABLE / VIEW / MATERIALIZED_VIEW / SEQUENCE / FUNCTION / ENUM / ...).
+          await client.query(`
+            INSERT INTO public.catalog_tables (schema_id, name, physical_name, row_count, resource_type, last_crawled_at)
+            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+            ON CONFLICT (schema_id, physical_name)
+            DO UPDATE SET
+              name = EXCLUDED.name,
+              row_count = EXCLUDED.row_count,
+              resource_type = EXCLUDED.resource_type,
+              last_crawled_at = CURRENT_TIMESTAMP
+          `, [schemaUuid, table.name, table.physicalName, table.rowCount || 0, table.resourceType || 'TABLE']);
+        }
+
+        // Discover foreign-key relationships (for ER diagrams), if the connector supports it.
+        const anyConn = connector as any;
+        if (typeof anyConn.discoverRelationships === 'function') {
+          try {
+            const rels = await anyConn.discoverRelationships(schema.physicalName);
+            for (const rel of rels) {
+              const card = '1:M';
+              await client.query(`
+                INSERT INTO fabric_catalog.relationships
+                    (tenant_id, name, schema_name, source_schema, source_table, source_column, target_schema, target_table, target_column, cardinality)
+                VALUES ($1,$2,$3,$3,$4,$5,$3,$6,$7,$8)
+                ON CONFLICT ON CONSTRAINT relationships_full_identity_key DO NOTHING
+              `, [source.tenant_id, rel.name, schema.physicalName, rel.sourceTable, rel.sourceColumn, rel.targetTable, rel.targetColumn, card])
+                .catch(() => { /* relationship optional; ignore constraint/name mismatches */ });
+            }
+          } catch { /* FK discovery is best-effort */ }
+        }
+      }
+
+      await client.query('COMMIT');
+      return { sourceId, status: 'CRAWLED', schemaCount: schemas.length, tableCount: totalTables };
+    } catch (err: any) {
+      await client.query('ROLLBACK');
+      console.error(`[Metadata] Crawl failed for source ${sourceId}:`, err.message);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Returns all discovered schemas for a data source
+   */
+  static async getSchemas(sourceId: string) {
+    const { rows } = await pool.query(`
+      SELECT id as "schemaId", name, physical_name as "physicalName", created_at as "createdAt"
+      FROM public.catalog_schemas
+      WHERE source_id = $1
+      ORDER BY name ASC
+    `, [sourceId]);
+    return rows;
+  }
+
+  /**
+   * Returns all discovered tables for a specific schema UUID
+   */
+  static async getTables(schemaId: string) {
+    const { rows } = await pool.query(`
+      SELECT id as "tableId", name, physical_name as "physicalName", row_count as "rowCount", last_crawled_at as "lastCrawledAt"
+      FROM public.catalog_tables
+      WHERE schema_id = $1
+      ORDER BY name ASC
+    `, [schemaId]);
+    return rows;
+  }
+
+  /**
+   * Backward compatible crawl for a tenant (crawls all its sources + local schemas)
+   */
+  static async crawlTenant(tenantId: string) {
+    const client = await pool.connect();
+    try {
+        // 1. Crawl External Data Sources
+        const { rows: sources } = await client.query('SELECT id, name FROM public.data_sources WHERE tenant_id = $1', [tenantId]);
+        const results = [];
+        // Resilient per-source crawl: an unreachable / misconfigured source (e.g. a
+        // missing password) is recorded as FAILED and skipped — it must not abort the
+        // crawl of every other source.
+        for (const source of sources) {
+            try {
+                results.push(await this.crawlSource(source.id));
+            } catch (e: any) {
+                console.warn(`[Crawl] source ${source.name} (${source.id}) failed: ${e.message}`);
+                results.push({ sourceId: source.id, source: source.name, status: 'FAILED', error: e.message });
+            }
+        }
+
+        // 2. Crawl Local Tenant Schemas (tenant_{id}_*)
+        const cleanTenant = tenantId.replace(/[^a-zA-Z0-9_]/g, '');
+        const { rows: localSchemas } = await client.query(`
+            SELECT schema_name 
+            FROM information_schema.schemata 
+            WHERE schema_name LIKE $1
+        `, [`tenant_${cleanTenant}%`]);
+
+        let localTableCount = 0;
+        for (const schema of localSchemas) {
+            // Register/Update Local Schema in Catalog
+            let schemaUuid;
+            const existingSchema = await client.query('SELECT id FROM public.catalog_schemas WHERE source_id IS NULL AND physical_name = $1', [schema.schema_name]);
+            if (existingSchema.rows.length > 0) {
+                schemaUuid = existingSchema.rows[0].id;
+            } else {
+                const schemaRes = await client.query(`
+                    INSERT INTO public.catalog_schemas (source_id, name, physical_name)
+                    VALUES (NULL, $1, $1)
+                    RETURNING id
+                `, [schema.schema_name]);
+                schemaUuid = schemaRes.rows[0].id;
+            }
+
+            // Discover Local Objects (tables, views, matviews, foreign, sequences)
+            // with their real object type — plus functions/procedures and enums.
+            const { rows: rels } = await client.query(`
+                SELECT c.relname AS name,
+                       CASE c.relkind
+                            WHEN 'r' THEN 'TABLE' WHEN 'p' THEN 'TABLE'
+                            WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED_VIEW'
+                            WHEN 'f' THEN 'FOREIGN_TABLE' WHEN 'S' THEN 'SEQUENCE'
+                       END AS resource_type
+                FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = $1 AND c.relkind IN ('r','p','v','m','f','S')
+            `, [schema.schema_name]);
+            const { rows: funcs } = await client.query(`
+                SELECT p.proname AS name, CASE p.prokind WHEN 'p' THEN 'PROCEDURE' ELSE 'FUNCTION' END AS resource_type
+                FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                WHERE n.nspname = $1 AND p.prokind IN ('f','p')
+            `, [schema.schema_name]).catch(() => ({ rows: [] as any[] }));
+            const { rows: enums } = await client.query(`
+                SELECT t.typname AS name, 'ENUM' AS resource_type FROM pg_type t
+                JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = $1 AND t.typtype = 'e'
+            `, [schema.schema_name]).catch(() => ({ rows: [] as any[] }));
+
+            for (const obj of [...rels, ...funcs, ...enums]) {
+                // Row count only makes sense (and is safe) for relations you can count.
+                let rowCount = 0;
+                if (['TABLE', 'VIEW', 'MATERIALIZED_VIEW', 'FOREIGN_TABLE'].includes(obj.resource_type)) {
+                    try {
+                        const countRes = await client.query(`SELECT count(*) FROM "${schema.schema_name}"."${obj.name}"`);
+                        rowCount = parseInt(countRes.rows[0].count);
+                    } catch { rowCount = 0; }
+                }
+                await client.query(`
+                    INSERT INTO public.catalog_tables (schema_id, name, physical_name, row_count, resource_type, last_crawled_at)
+                    VALUES ($1, $2, $2, $3, $4, CURRENT_TIMESTAMP)
+                    ON CONFLICT (schema_id, physical_name)
+                    DO UPDATE SET
+                        row_count = EXCLUDED.row_count,
+                        resource_type = EXCLUDED.resource_type,
+                        last_crawled_at = CURRENT_TIMESTAMP
+                `, [schemaUuid, obj.name, rowCount, obj.resource_type || 'TABLE']);
+                localTableCount++;
+            }
+        }
+
+        const tableCount = results.reduce((acc, s: any) => acc + (s?.tableCount || 0), 0) + localTableCount;
+        return { tenantId, tableCount, sourceResults: results, localTableCount };
+    } catch (err: any) {
+        console.error(`[Metadata] Local Crawl FAILED for ${tenantId}:`, err.message);
+        throw err;
+    } finally {
+        client.release();
+    }
+  }
+
+  static async diffMetadata(tenantId: string, manifest: any) {
+    const diffs = [];
+    const client = await pool.connect();
+    try {
+        // 1. First Pass: Functions (Needed for Triggers)
+        for (const schema of manifest.schemas) {
+            if (schema.functions) {
+                for (const fn of schema.functions) {
+                    diffs.push({ 
+                        action: 'CREATE_FUNCTION', 
+                        schema: schema.name, 
+                        name: fn.name, 
+                        body: fn.body,
+                        returnType: fn.returnType,
+                        params: fn.params
+                    });
+                }
+            }
+        }
+
+        // 2. Second Pass: Schemas, Tables, Columns
+        for (const schema of manifest.schemas) {
+            const schemaName = `tenant_${tenantId}_${schema.name}`;
+            
+            // Check if schema exists
+            const schemaExists = await client.query(`SELECT 1 FROM information_schema.schemata WHERE schema_name = $1`, [schemaName]);
+            if (schemaExists.rows.length === 0) {
+                diffs.push({ action: 'CREATE_SCHEMA', name: schema.name });
+            }
+
+            for (const table of schema.tables) {
+                const tableName = table.name;
+                
+                // Check if table exists
+                const tableExists = await client.query(`
+                    SELECT 1 FROM information_schema.tables 
+                    WHERE table_schema = $1 AND table_name = $2
+                `, [schemaName, tableName]);
+
+                if (tableExists.rows.length === 0) {
+                    diffs.push({ action: 'CREATE_TABLE', schema: schema.name, table: tableName, columns: table.columns, details: table });
+                } else {
+                    // Check for column drifts
+                    for (const col of table.columns) {
+                        const colExists = await client.query(`
+                            SELECT 1 FROM information_schema.columns 
+                            WHERE table_schema = $1 AND table_name = $2 AND column_name = $3
+                        `, [schemaName, tableName, col.name]);
+
+                        if (colExists.rows.length === 0) {
+                            diffs.push({ action: 'ADD_COLUMN', schema: schema.name, table: tableName, column: col });
+                        }
+                    }
+                }
+            }
+
+            // 3. Third Pass: Views
+            if (schema.views) {
+                for (const view of schema.views) {
+                    const viewExists = await client.query(`
+                        SELECT 1 FROM information_schema.tables 
+                        WHERE table_schema = $1 AND table_name = $2
+                    `, [schemaName, view.name]);
+
+                    if (viewExists.rows.length === 0) {
+                        diffs.push({ 
+                            action: 'CREATE_VIEW', 
+                            schema: schema.name, 
+                            name: view.name, 
+                            query: view.query, 
+                            materialized: view.materialized 
+                        });
+                    }
+                }
+            }
+        }
+        return { status: 'PLAN_GENERATED', diffs };
+    } finally {
+        client.release();
+    }
+  }
+
+  static async migrateMetadata(tenantId: string, diffs: any[]) {
+    const results = [];
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        for (const diff of diffs) {
+            const schemaName = diff.schema ? `tenant_${tenantId}_${diff.schema}` : `tenant_${tenantId}`;
+            const tableName = diff.table;
+            const details = diff.details || {};
+
+            // 1. Ensure tenant root schema exists
+            await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+            await client.query(`GRANT ALL ON SCHEMA "${schemaName}" TO public`);
+            await client.query(`GRANT ALL ON ALL SEQUENCES IN SCHEMA "${schemaName}" TO public`);
+
+            if (diff.action === 'CREATE_SCHEMA') {
+                const ddl = `CREATE SCHEMA IF NOT EXISTS "${schemaName}"`;
+                console.log(`[Metadata] Executing DDL: ${ddl}`);
+                await client.query(ddl);
+                results.push({ action: 'CREATE_SCHEMA', status: 'SUCCESS' });
+            }
+            else if (diff.action === 'CREATE_TABLE') {
+                const columns = details.columns || diff.columns || [];
+                const columnsSql = columns.map((c: any) => {
+                    let colDef = `"${c.name}" ${c.type}`;
+                    if (c.primaryKey) colDef += ' PRIMARY KEY';
+                    return colDef;
+                }).join(', ');
+
+                const ddl = `CREATE TABLE IF NOT EXISTS "${schemaName}"."${tableName}" (${columnsSql})`;
+                console.log(`[Metadata] Executing DDL: ${ddl}`);
+                await client.query(ddl);
+                await client.query(`GRANT ALL ON TABLE "${schemaName}"."${tableName}" TO public`);
+
+                // Industrial Isolation: Apply hard-coded schema RLS policy
+                await client.query(`ALTER TABLE "${schemaName}"."${tableName}" ENABLE ROW LEVEL SECURITY`);
+                await client.query(`DROP POLICY IF EXISTS tenant_isolation_policy ON "${schemaName}"."${tableName}"`);
+                await client.query(`
+                    CREATE POLICY tenant_isolation_policy ON "${schemaName}"."${tableName}"
+                    USING ('${schemaName}' LIKE 'tenant_' || current_setting('app.tenant_id') || '%')
+                `);
+                
+                // Ensure sequences are accessible
+                await client.query(`GRANT ALL ON ALL SEQUENCES IN SCHEMA "${schemaName}" TO public`);
+
+                // Sync to Catalog
+                for (const col of columns) {
+                    await client.query(`
+                        INSERT INTO fabric_catalog.metadata (schema_name, table_name, column_name, data_type)
+                        VALUES ($1, $2, $3, $4)
+                        ON CONFLICT (schema_name, table_name, column_name) DO UPDATE 
+                        SET data_type = EXCLUDED.data_type, is_deleted = FALSE
+                    `, [schemaName, tableName, col.name, col.type]);
+                }
+
+                // Triggers
+                if (details.triggers) {
+                    for (const trg of details.triggers) {
+                        await client.query(`DROP TRIGGER IF EXISTS "${trg.name}" ON "${schemaName}"."${tableName}"`);
+                        const fnCall = trg.function.endsWith('()') ? trg.function : `${trg.function}()`;
+                        await client.query(`CREATE TRIGGER "${trg.name}" ${trg.event} ON "${schemaName}"."${tableName}" FOR EACH ROW EXECUTE FUNCTION ${fnCall}`);
+                    }
+                }
+
+                results.push({ action: 'CREATE_TABLE', status: 'SUCCESS', table: tableName });
+            }
+            else if (diff.action === 'ADD_COLUMN') {
+                const col = diff.column;
+                await client.query(`ALTER TABLE "${schemaName}"."${tableName}" ADD COLUMN IF NOT EXISTS "${col.name}" ${col.type}`);
+                
+                // Sync to Catalog
+                await client.query(`
+                    INSERT INTO fabric_catalog.metadata (schema_name, table_name, column_name, data_type)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (schema_name, table_name, column_name) DO UPDATE 
+                    SET data_type = EXCLUDED.data_type, is_deleted = FALSE
+                `, [schemaName, tableName, col.name, col.type]);
+
+                results.push({ action: 'ADD_COLUMN', status: 'SUCCESS', table: tableName, column: col.name });
+            }
+            else if (diff.action === 'CREATE_FUNCTION') {
+                const returnType = diff.returnType || 'TRIGGER';
+                const body = diff.body.trim().toUpperCase().startsWith('BEGIN') ? diff.body : `BEGIN\n  ${diff.body};\nEND;`;
+                const params = diff.params ? diff.params.map((p: any) => `${p.name} ${p.type}`).join(', ') : '';
+                
+                const ddl = `CREATE OR REPLACE FUNCTION "${schemaName}"."${diff.name}"(${params}) RETURNS ${returnType} AS $$ ${body} $$ LANGUAGE plpgsql`;
+                console.log(`[Metadata] Executing DDL: ${ddl}`);
+                await client.query(ddl);
+                results.push({ action: 'CREATE_FUNCTION', status: 'SUCCESS', name: diff.name });
+            }
+            else if (diff.action === 'CREATE_VIEW') {
+                const materializedSql = diff.materialized ? 'MATERIALIZED' : '';
+                const ddl = `CREATE ${materializedSql} VIEW "${schemaName}"."${diff.name}" AS ${diff.query}`;
+                console.log(`[Metadata] Executing DDL: ${ddl}`);
+                await client.query(`DROP ${materializedSql} VIEW IF EXISTS "${schemaName}"."${diff.name}" CASCADE`);
+                await client.query(ddl);
+                await client.query(`ALTER ${materializedSql} VIEW "${schemaName}"."${diff.name}" OWNER TO fabric_user`);
+                await client.query(`GRANT SELECT ON "${schemaName}"."${diff.name}" TO public`);
+                results.push({ action: 'CREATE_VIEW', status: 'SUCCESS', name: diff.name });
+            }
+            else if (diff.action === 'SOFT_DELETE_TABLE') {
+                const deletedName = `${tableName}_deleted_${Date.now()}`;
+                await client.query(`ALTER TABLE "${schemaName}"."${tableName}" RENAME TO "${deletedName}"`);
+                
+                // Sync to Catalog (mark as deleted)
+                await client.query(`UPDATE fabric_catalog.metadata SET is_deleted = TRUE, deleted_at = CURRENT_TIMESTAMP WHERE schema_name = $1 AND table_name = $2`, [schemaName, tableName]);
+                
+                results.push({ action: 'SOFT_DELETE_TABLE', status: 'SUCCESS_METADATA_ONLY' });
+            }
+        }
+        await client.query('COMMIT');
+        return results;
+    } catch (err: any) {
+        await client.query('ROLLBACK');
+        console.error(`[Metadata] Migration FAILED:`, err.message);
+        throw err;
+    } finally {
+        client.release();
+    }
+  }
+  
+  /**
+   * Export the current catalog as a datafabric manifest (the reverse of apply).
+   * Prefers each resource's stored definition_ast (perfect round-trip for
+   * manifest-applied objects); for crawled objects it reconstructs columns via
+   * live introspection. Pass sourceName to export a single, self-contained source.
+   */
+  static async exportManifest(tenantId: string, sourceName?: string): Promise&lt;any> {
+    const cleanTenant = tenantId.replace(/[^a-zA-Z0-9_]/g, '');
+    const srcParams: any[] = [tenantId];
+    let srcSql = `SELECT id, name, type, config FROM public.data_sources WHERE tenant_id = $1`;
+    if (sourceName) { srcParams.push(sourceName); srcSql += ` AND name = $2`; }
+    const { rows: sources } = await pool.query(srcSql, srcParams);
+
+    const schemas: any[] = [];
+    const exportedTables = new Set&lt;string>(); // schemaName.tableName present in this export
+
+    const SYSTEM_SCHEMAS = new Set(['pg_toast', 'pg_catalog', 'information_schema']);
+    const isSystemSchema = (n: string) => SYSTEM_SCHEMAS.has(n) || /^pg_(toast_)?temp/.test(n) || n.startsWith('pg_');
+    for (const source of sources) {
+      const { rows: cats } = await pool.query(
+        `SELECT id, name, physical_name FROM public.catalog_schemas WHERE source_id = $1`, [source.id]);
+      for (const cat of cats) {
+        if (isSystemSchema(cat.name)) continue; // omit Postgres system schemas from a portable manifest
+        const { rows: objs } = await pool.query(
+          `SELECT name, physical_name, resource_type, definition_ast, definition_sql
+           FROM public.catalog_tables WHERE schema_id = $1`, [cat.id]);
+        const resources: any[] = [];
+        for (const o of objs) {
+          // Child metadata rows (a table's policies/triggers) are folded into their table's AST.
+          if (o.resource_type === 'POLICY' || o.resource_type === 'TRIGGER' || String(o.name).includes('.')) continue;
+
+          if (o.definition_ast &amp;&amp; typeof o.definition_ast === 'object') {
+            resources.push(o.definition_ast); // round-trip manifest-applied resource verbatim
+          } else if (['TABLE', 'VIEW', 'MATERIALIZED_VIEW', 'FOREIGN_TABLE'].includes(o.resource_type)) {
+            const columns = await this.introspectColumns(source, cat.physical_name, o.physical_name);
+            const type = o.resource_type === 'FOREIGN_TABLE' ? 'TABLE' : o.resource_type;
+            const res: any = { type, name: o.name };
+            if (columns.length) res.columns = columns;
+            if (o.definition_sql &amp;&amp; type !== 'TABLE') res.definitionSql = o.definition_sql;
+            resources.push(res);
+          } else {
+            // SEQUENCE / FUNCTION / PROCEDURE / ENUM without an AST — name-level export.
+            resources.push({ type: o.resource_type, name: o.name });
+          }
+          exportedTables.add(`${cat.name}.${o.name}`);
+        }
+        schemas.push({ name: cat.name, targetSource: source.name, resources });
+      }
+    }
+
+    // Relationships. For a single-source export keep only those whose BOTH endpoints
+    // are present in this export (self-contained); cross-source relationships are dropped.
+    const { rows: rels } = await pool.query(
+      `SELECT name, cardinality, source_schema, source_table, source_column, target_schema, target_table, target_column
+       FROM fabric_catalog.relationships WHERE tenant_id = $1`, [tenantId]);
+    const contained = (schema: string, table: string) => !sourceName || exportedTables.has(`${schema}.${table}`);
+    const relationships = rels
+      .filter((r) => contained(r.source_schema, r.source_table) &amp;&amp; contained(r.target_schema, r.target_table))
+      .map((r) => ({
+        name: r.name,
+        cardinality: r.cardinality === 'M:M' ? 'M:N' : r.cardinality,
+        ...(r.cardinality === 'M:M' ? { bridge: `${r.source_table}_${r.target_table}_link` } : {}),
+        from: { resource: r.source_table, field: r.source_column },
+        to: { resource: r.target_table, field: r.target_column },
+      }));
+
+    // For a single-source export, flag any resource whose definition references another
+    // datasource (e.g. a federated view) — such a source is not self-contained.
+    const warnings: string[] = [];
+    if (sourceName) {
+      const ownSources = new Set(sources.map((s) => s.name));
+      for (const sch of schemas) {
+        for (const r of sch.resources) {
+          const ext = this.collectExternalSources(r, ownSources);
+          if (ext.length) warnings.push(
+            `Resource "${sch.name}.${r.name}" depends on other datasource(s): ${ext.join(', ')}. ` +
+            `Re-applying this single-source manifest requires those sources.`);
+        }
+      }
+    }
+
+    return {
+      version: '1.0-export',
+      namespace: sourceName ? (schemas[0]?.name || sourceName) : 'Exported_Fabric',
+      targetSource: sourceName || 'Fabric_Hub_Postgres',
+      exportedAt: new Date().toISOString(),
+      schemas,
+      ...(relationships.length ? { relationships } : {}),
+      ...(warnings.length ? { warnings } : {}),
+    };
+  }
+
+  /** Walk a resource definition and collect any `source` values that aren't in ownSources. */
+  private static collectExternalSources(obj: any, ownSources: Set&lt;string>, acc = new Set&lt;string>()): string[] {
+    if (obj &amp;&amp; typeof obj === 'object') {
+      if (Array.isArray(obj)) { obj.forEach((x) => this.collectExternalSources(x, ownSources, acc)); }
+      else {
+        for (const [k, v] of Object.entries(obj)) {
+          if (k === 'source' &amp;&amp; typeof v === 'string' &amp;&amp; !ownSources.has(v)) acc.add(v);
+          else this.collectExternalSources(v, ownSources, acc);
+        }
+      }
+    }
+    return [...acc];
+  }
+
+  /** Reconstruct column metadata for a crawled resource (no manifest AST). */
+  private static async introspectColumns(source: any, physicalSchema: string, physicalTable: string): Promise&lt;any[]> {
+    const engine = String(source.type || 'POSTGRES').toUpperCase();
+    const cfg = source.config || {};
+    const isLocalHub = cfg.local === true || source.name === 'Fabric_Hub_Postgres' || (engine === 'POSTGRES' &amp;&amp; !cfg.host &amp;&amp; !cfg.connectionString);
+    const toManifestCol = (c: any) => ({
+      name: c.name, type: c.type, ...(c.nullable === false ? { nullable: false } : {}), ...(c.primaryKey ? { primaryKey: true } : {}),
+    });
+    try {
+      if (isLocalHub) {
+        const { rows } = await pool.query(`
+          SELECT column_name AS name, data_type AS type, (is_nullable='YES') AS nullable, false AS "primaryKey"
+          FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position
+        `, [physicalSchema, physicalTable]);
+        return rows.map(toManifestCol);
+      }
+      const connector = ConnectorFactory.getConnector(engine, cfg);
+      try {
+        const cols = connector.discoverColumns ? await connector.discoverColumns(physicalSchema, physicalTable) : [];
+        return cols.map(toManifestCol);
+      } finally { await connector.close(); }
+    } catch { return []; }
+  }
+
+  static getTemplate(): any {
+    return {
+      version: "4.0",
+      namespace: "Global_Supply_Chain",
+      targetSource: "Fabric_Hub_Postgres",
+      consistencyMode: "SAGA", 
+      downstream: [
+        { type: "ELASTICSEARCH", enabled: true, fallback: "PRIMARY_SQL" },
+        { type: "SNOWFLAKE", enabled: true, strategy: "CDC" }
+      ],
+      extensions: ["uuid-ossp", "pg_stat_statements"],
+      resources: [
+        {
+          type: "ENUM",
+          name: "shipment_status",
+          values: ["PENDING", "IN_TRANSIT", "DELIVERED", "CANCELLED"]
+        },
+        {
+          type: "SEQUENCE",
+          name: "tracking_seq",
+          start: 100000,
+          increment: 1,
+          minValue: 100000,
+          maxValue: 999999999,
+          cache: 20,
+          ownedBy: { table: "shipments", column: "id" }
+        },
+        {
+          type: "SEQUENCE",
+          name: "tenant_aware_seq",
+          start: 1,
+          increment: 1,
+          strategy: "PROCEDURAL",
+          generator: "generate_tenant_id(tenant_id)"
+        },
+        {
+          type: "TABLE",
+          name: "shipments",
+          comment: "Master table for global logistics tracking",
+          partitionBy: { type: "RANGE", column: "created_at" },
+          identity: { type: "PRIMARY_KEY", columns: ["id", "region"] },
+          version: "1.4.2",
+          maintenance: { autovacuum_enabled: true, fillfactor: 80 },
+          columns: [
+            { name: "id", type: "UUID", default: "uuid_generate_v7()", strategy: "UUID_V7" },
+            { name: "internal_id", type: "BIGINT", strategy: "IDENTITY_ALWAYS" },
+            { name: "legacy_id", type: "SERIAL", strategy: "LEGACY_SERIAL" },
+            { name: "custom_id", type: "STRING", default: "generate_custom_id(region)", strategy: "FUNCTIONAL" },
+            { name: "region", type: "STRING", length: 10, collation: "en_US.UTF-8" },
+            { name: "full_tracking_label", type: "STRING", generated: "id || ' [' || region || ']'", stored: true },
+            { name: "status", type: "ENUM", ref: "shipment_status", default: "PENDING" },
+            { name: "metadata", type: "JSONB", comment: "Flexible attributes for custom carrier data", index: { type: "GIN" } },
+            { name: "created_at", type: "TIMESTAMP", default: "NOW()", index: { type: "BRIN" } },
+            { name: "created_by", type: "UUID", default: "current_user_id()", readonly: true },
+            { name: "deleted_at", type: "TIMESTAMP", nullable: true, strategy: "SOFT_DELETE" }
+          ],
+          constraints: [
+            { name: "check_region_format", type: "CHECK", expression: "region ~ '^[A-Z]{2,3}$'" },
+            { name: "exclude_overlapping_shipments", type: "EXCLUDE", using: "GIST", columns: [{ name: "region", operator: "=" }, { name: "created_at", operator: "&amp;&amp;" }] }
+          ],
+          triggers: [
+            { name: "trg_audit_shipment", timing: "AFTER", events: ["INSERT", "UPDATE"], execution: "row", procedure: "audit_log_fn" }
+          ],
+          security: {
+            enable_rls: true,
+            masking: [{ column: "metadata", roles: ["logistics_viewer"], expression: "'REDACTED'" }],
+            policies: [
+              { name: "regional_isolation", roles: ["fabric_user"], using: "region = current_setting('app.current_region')" },
+              { name: "hide_deleted", using: "deleted_at IS NULL" }
+            ],
+            grants: [{ role: "logistics_viewer", privileges: ["SELECT"] }]
+          }
+        },
+        {
+          type: "FUNCTION",
+          name: "generate_custom_id",
+          arguments: [{ name: "p_region", type: "STRING" }],
+          returnType: "STRING",
+          body: "DECLARE v_seq BIGINT; BEGIN v_seq := nextval('tracking_seq'); RETURN p_region || '-' || to_char(NOW(), 'YYYY') || '-' || lpad(v_seq::text, 8, '0'); END;"
+        },
+        {
+          type: "PROCEDURE",
+          name: "process_delivery",
+          parameters: [
+            { name: "p_shipment_id", type: "BIGINT", mode: "IN" },
+            { name: "p_success", type: "BOOLEAN", mode: "OUT" }
+          ],
+          body: "UPDATE shipments SET status = 'DELIVERED' WHERE id = p_shipment_id; p_success := true;"
+        },
+        {
+          type: "VIEW",
+          name: "org_hierarchy_recursive",
+          recursive: true,
+          query: {
+            with: [
+              {
+                name: "emp_path",
+                columns: ["id", "name", "manager_id", "path", "level"],
+                base: {
+                  select: ["id", "name", "manager_id", { expression: "name", alias: "path" }, { expression: "1", alias: "level" }],
+                  from: { resource: "employees" },
+                  where: [{ column: "manager_id", operator: "IS_NULL" }]
+                },
+                unionAll: {
+                  select: ["e.id", "e.name", "e.manager_id", { expression: "ep.path || ' -> ' || e.name" }, { expression: "ep.level + 1" }],
+                  from: { resource: "employees", alias: "e" },
+                  joins: [{ type: "INNER", resource: "emp_path", alias: "ep", on: { left: "e.manager_id", operator: "EQ", right: "ep.id" } }]
+                }
+              }
+            ],
+            select: ["*"],
+            from: { resource: "emp_path" }
+          }
+        },
+        {
+          type: "VIEW",
+          name: "high_value_regional_summary",
+          query: {
+            select: [
+              { column: "s.region" },
+              { aggregate: "SUM", column: "s.total_amount", alias: "revenue" },
+              { window: "RANK", partitionBy: ["s.region"], orderBy: [{ column: "s.total_amount", direction: "DESC" }], alias: "rank" }
+            ],
+            from: { resource: "shipments", alias: "s" },
+            joins: [
+              { type: "LEFT", resource: "shipment_details", alias: "d", on: { left: "s.id", operator: "EQ", right: "d.shipment_id" } }
+            ],
+            where: [
+              { search: { column: "d.notes", type: "FULL_TEXT", query: "priority" } }
+            ],
+            groupBy: ["s.region", "s.total_amount"]
+          }
+        },
+        {
+          type: "VIEW",
+          name: "federated_inventory_analysis",
+          federationStrategy: "VIRTUAL",
+          query: {
+            union: [
+              { select: ["sku", "stock"], from: { resource: "local_inventory", source: "Fabric_Hub_Postgres" } },
+              { select: ["item_id", "qty"], from: { resource: "remote_depot_mongo", source: "Activity_Mongo" } }
+            ],
+            intersect: [
+              { select: ["sku"], from: { resource: "active_products", source: "External_Warehouse" } },
+              { select: ["product_id"], from: { resource: "mongo_product_catalog", source: "Activity_Mongo" } }
+            ],
+            except: [
+              { select: ["sku"], from: { resource: "quarantined_items", source: "External_Warehouse" } }
+            ]
+          }
+        },
+        {
+          type: "MATERIALIZED_VIEW",
+          name: "regional_volume_stats",
+          refreshStrategy: "CONCURRENTLY",
+          refreshInterval: "1 hour",
+          query: {
+            select: [{ column: "region" }, { aggregate: "COUNT", alias: "volume" }],
+            from: { resource: "shipments" },
+            groupBy: ["region"]
+          },
+          indexes: [{ columns: ["region"], unique: true }]
+        }
+      ],
+      relationships: [
+        {
+          name: "rel_1_1_shipment_details",
+          cardinality: "1:1",
+          from: { resource: "shipments", field: "id" },
+          to: { resource: "shipment_details", field: "shipment_id" }
+        },
+        {
+          name: "rel_1_M_shipment_logs",
+          cardinality: "1:M",
+          from: { resource: "shipments", field: "id" },
+          to: { source: "Activity_Mongo", resource: "shipment_audit_logs", field: "shipment_id" }
+        },
+        {
+          name: "rel_M_N_shipment_tags",
+          cardinality: "M:N",
+          bridge: "shipment_tags_link",
+          from: { resource: "shipments", field: "id" },
+          to: { source: "External_Warehouse", resource: "global_tags", field: "id" }
+        }
+      ]
+    };
+  }
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Jul 12 2026 08:28:49 GMT+0530 (India Standard Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+<script src="scripts/collapse.js" defer></script>
+
+
+</body>
+</html>

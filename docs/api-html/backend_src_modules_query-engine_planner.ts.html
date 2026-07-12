@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>backend/src/modules/query-engine/planner.ts - Zero Data Fabric — API Reference</title>
+    
+    
+    
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="ConstraintService.html">ConstraintService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ConstraintService.html#.evalCheck">evalCheck</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.parseCheckExpression">parseCheckExpression</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.specFromManifestTable">specFromManifestTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.validate">validate</a></li></ul></li><li><a href="FabricSequenceService.html">FabricSequenceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.currval">currval</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.nextval">nextval</a></li></ul></li><li><a href="FederationExecutor.html">FederationExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyProjection">applyProjection</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.astLegToCanonical">astLegToCanonical</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.buildLegFilters">buildLegFilters</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fanAggregate">fanAggregate</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fetchLegDirect">fetchLegDirect</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.previewConnectorQuery">previewConnectorQuery</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.qualify">qualify</a></li></ul></li><li><a href="GrantService.html">GrantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GrantService.html#.decide">decide</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.enforce">enforce</a></li></ul></li><li><a href="PolicyService.html">PolicyService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PolicyService.html#.applyMasks">applyMasks</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.compileFilter">compileFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.mergeIntoFilter">mergeIntoFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.physicalSchema">physicalSchema</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolveValue">resolveValue</a></li></ul></li><li><a href="QueryLogService.html">QueryLogService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryLogService.html#.capture">capture</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.record">record</a></li></ul></li><li><a href="RecursiveExecutor.html">RecursiveExecutor</a></li><li><a href="SavedAnalyticsService.html">SavedAnalyticsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindAst">bindAst</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindSql">bindSql</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.resolveValues">resolveValues</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.run">run</a></li></ul></li><li><a href="TriggerActionCompiler.html">TriggerActionCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileActionBody">compileActionBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileEnqueueBody">compileEnqueueBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileExecute">compileExecute</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.condition">condition</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.expr">expr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.msg">msg</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.runAtExpr">runAtExpr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerService.html">TriggerService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerService.html#.registryUpsertSql">registryUpsertSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.transpileTriggerSql">transpileTriggerSql</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#AGG_FUNCS">AGG_FUNCS</a></li><li><a href="global.html#CANON_OP">CANON_OP</a></li><li><a href="global.html#EVENT_TIMINGS">EVENT_TIMINGS</a></li><li><a href="global.html#LOCAL_SOURCE">LOCAL_SOURCE</a></li><li><a href="global.html#MongoDBConnector">MongoDBConnector</a></li><li><a href="global.html#OP_MAP">OP_MAP</a></li><li><a href="global.html#RANKING">RANKING</a></li><li><a href="global.html#SQL_OPERATORS">SQL_OPERATORS</a></li><li><a href="global.html#SnowflakeConnector">SnowflakeConnector</a></li><li><a href="global.html#VAR_TOKEN">VAR_TOKEN</a></li><li><a href="global.html#aggregateRaw">aggregateRaw</a></li><li><a href="global.html#applyWindows">applyWindows</a></li><li><a href="global.html#base">base</a></li><li><a href="global.html#cacheInvalidate">cacheInvalidate</a></li><li><a href="global.html#cached">cached</a></li><li><a href="global.html#callFunction">callFunction</a></li><li><a href="global.html#client">client</a></li><li><a href="global.html#deleteAnalytic">deleteAnalytic</a></li><li><a href="global.html#exportMetadata">exportMetadata</a></li><li><a href="global.html#extractWindows">extractWindows</a></li><li><a href="global.html#gName">gName</a></li><li><a href="global.html#getColumns">getColumns</a></li><li><a href="global.html#getTemplate">getTemplate</a></li><li><a href="global.html#handle">handle</a></li><li><a href="global.html#hasWindows">hasWindows</a></li><li><a href="global.html#ident">ident</a></li><li><a href="global.html#invalidateTenant">invalidateTenant</a></li><li><a href="global.html#isAggregateQuery">isAggregateQuery</a></li><li><a href="global.html#listConstraints">listConstraints</a></li><li><a href="global.html#listGrants">listGrants</a></li><li><a href="global.html#listPolicies">listPolicies</a></li><li><a href="global.html#listQueryLogs">listQueryLogs</a></li><li><a href="global.html#maxRowsPerLeg">maxRowsPerLeg</a></li><li><a href="global.html#mergePartials">mergePartials</a></li><li><a href="global.html#nextSequence">nextSequence</a></li><li><a href="global.html#parseAggregates">parseAggregates</a></li><li><a href="global.html#parseHaving">parseHaving</a></li><li><a href="global.html#parseLiteral">parseLiteral</a></li><li><a href="global.html#parseSelect">parseSelect</a></li><li><a href="global.html#parseWhere">parseWhere</a></li><li><a href="global.html#partialSpec">partialSpec</a></li><li><a href="global.html#projectWithWindows">projectWithWindows</a></li><li><a href="global.html#queryWithContext">queryWithContext</a></li><li><a href="global.html#readCol">readCol</a></li><li><a href="global.html#sessionOf">sessionOf</a></li><li><a href="global.html#splitTopLevel">splitTopLevel</a></li><li><a href="global.html#sqlToAst">sqlToAst</a></li><li><a href="global.html#toCanonical">toCanonical</a></li><li><a href="global.html#windowBaseColumns">windowBaseColumns</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">backend/src/modules/query-engine/planner.ts</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * QueryPlanner
+ * ------------
+ * Decides HOW a query should be executed across one or many data sources,
+ * instead of the old behaviour of blindly stripping every `source` label and
+ * assuming all resources live in the tenant's Postgres schema.
+ *
+ * For each resource referenced by the query (from / joins / set-op legs) it
+ * resolves the physical engine via the catalog and decides whether that
+ * resource is reachable *inside* the tenant Postgres schema (a local table, a
+ * postgres_fdw foreign table, or a locally-synced shadow) or only reachable
+ * through a live connector (a VIRTUAL Mongo/MySQL source).
+ *
+ * Strategies:
+ *   SINGLE_LOCAL      - every leg is reachable in Postgres -> one SQL statement
+ *                       (Postgres / Citus / FDW planner does the optimization).
+ *   SINGLE_CONNECTOR  - one simple SELECT against a single connector-only source
+ *                       -> pushdown via that connector.
+ *   CROSS_ENGINE      - legs span multiple engines (or a join / set-op crosses
+ *                       the Postgres &lt;-> connector boundary) -> FederationExecutor.
+ */
+
+import { pool } from '../../config/database';
+
+export type Strategy = 'SINGLE_LOCAL' | 'SINGLE_CONNECTOR' | 'CROSS_ENGINE';
+
+export const LOCAL_SOURCE = 'Fabric_Hub_Postgres';
+
+export interface ResolvedLeg {
+  /** logical source name; LOCAL_SOURCE for the tenant hub */
+  source: string;
+  /** logical resource / table / collection name */
+  resource: string;
+  /** data_sources.type (POSTGRES / MYSQL / MONGODB / ...) */
+  engine: string;
+  /** VIRTUAL / SYNC / CDC */
+  syncType: string;
+  /** true when the resource can be queried inside the tenant Postgres schema */
+  reachableInPg: boolean;
+  /** physical location for connector execution (null for local hub) */
+  physicalSchema: string | null;
+  physicalTable: string | null;
+  /** connector config for connector-only legs */
+  config: any;
+}
+
+export interface QueryPlan {
+  strategy: Strategy;
+  legs: ResolvedLeg[];
+  /** key `source::resource` -> resolved leg (used by the federation executor) */
+  resolveMap: Record&lt;string, ResolvedLeg>;
+  /** human-readable notes about what was/ will be pushed down */
+  pushed: string[];
+  warnings: string[];
+  /** per-request session context (tenant/role/region) — used by the Policy Engine
+   *  to inject row predicates + column masking on non-RLS connector legs. */
+  session?: { tenantId: string; role?: string; region?: string; username?: string };
+}
+
+const legKey = (source: string, resource: string) => `${source}::${resource}`;
+
+export class QueryPlanner {
+  /** Collect { source, resource } references from an AST (recurses set-ops / CTEs). */
+  private static collectRefs(ast: any, acc: { source: string; resource: string }[]) {
+    if (!ast || typeof ast !== 'object') return;
+
+    if (ast.from &amp;&amp; ast.from.resource) {
+      acc.push({ source: ast.from.source || LOCAL_SOURCE, resource: ast.from.resource });
+    }
+    if (Array.isArray(ast.joins)) {
+      for (const j of ast.joins) {
+        if (j &amp;&amp; j.resource) acc.push({ source: j.source || LOCAL_SOURCE, resource: j.resource });
+      }
+    }
+    for (const key of ['union', 'intersect', 'except'] as const) {
+      if (Array.isArray(ast[key])) for (const leg of ast[key]) this.collectRefs(leg, acc);
+    }
+    if (Array.isArray(ast.with)) {
+      for (const cte of ast.with) {
+        this.collectRefs(cte.base, acc);
+        if (cte.unionAll) this.collectRefs(cte.unionAll, acc);
+      }
+    }
+  }
+
+  /**
+   * Resolve a single logical reference to its physical engine + location.
+   * Local hub references are always reachable in Postgres.
+   */
+  static async resolveLeg(tenantId: string, source: string, resource: string): Promise&lt;ResolvedLeg> {
+    if (!source || source === LOCAL_SOURCE) {
+      return {
+        source: LOCAL_SOURCE,
+        resource,
+        engine: 'POSTGRES',
+        syncType: 'VIRTUAL',
+        reachableInPg: true,
+        physicalSchema: null,
+        physicalTable: resource,
+        config: { local: true },
+      };
+    }
+
+    // Prefer a catalog row so we know the physical schema/table for connector execution.
+    const { rows } = await pool.query(
+      `SELECT ds.type AS engine, ds.sync_type AS sync_type, ds.config AS config,
+              cs.physical_name AS physical_schema, ct.physical_name AS physical_table
+       FROM public.data_sources ds
+       JOIN public.catalog_schemas cs ON cs.source_id = ds.id
+       JOIN public.catalog_tables ct ON ct.schema_id = cs.id
+       WHERE ds.tenant_id = $1 AND ds.name = $2 AND ct.name = $3
+       LIMIT 1`,
+      [tenantId, source, resource]
+    );
+
+    let engine = 'POSTGRES';
+    let syncType = 'VIRTUAL';
+    let config: any = {};
+    let physicalSchema: string | null = null;
+    let physicalTable: string | null = resource;
+
+    if (rows.length > 0) {
+      engine = String(rows[0].engine || 'POSTGRES').toUpperCase();
+      syncType = String(rows[0].sync_type || 'VIRTUAL').toUpperCase();
+      config = rows[0].config || {};
+      physicalSchema = rows[0].physical_schema || null;
+      physicalTable = rows[0].physical_table || resource;
+    } else {
+      // Fall back to the source record alone (table not crawled into the catalog yet).
+      const alt = await pool.query(
+        `SELECT type AS engine, sync_type AS sync_type, config FROM public.data_sources
+         WHERE tenant_id = $1 AND name = $2 LIMIT 1`,
+        [tenantId, source]
+      );
+      if (alt.rows.length === 0) {
+        throw new Error(`QueryPlanner: referenced source "${source}" not found for tenant "${tenantId}"`);
+      }
+      engine = String(alt.rows[0].engine || 'POSTGRES').toUpperCase();
+      syncType = String(alt.rows[0].sync_type || 'VIRTUAL').toUpperCase();
+      config = alt.rows[0].config || {};
+    }
+
+    // Reachable inside the tenant Postgres schema ONLY for the local hub or for
+    // sources physically synced/replicated into it. A VIRTUAL *remote* source (even
+    // Postgres) is queried through its connector instead: postgres_fdw's
+    // IMPORT FOREIGN SCHEMA does not cover materialized views / sequences / functions,
+    // and the connector path works uniformly for every object type and every engine.
+    const reachableInPg = syncType === 'SYNC' || syncType === 'CDC';
+
+    return { source, resource, engine, syncType, reachableInPg, physicalSchema, physicalTable, config };
+  }
+
+  static async classify(tenantId: string, ast: any): Promise&lt;QueryPlan> {
+    const refs: { source: string; resource: string }[] = [];
+    this.collectRefs(ast, refs);
+
+    // Deduplicate references and resolve each once.
+    const resolveMap: Record&lt;string, ResolvedLeg> = {};
+    for (const ref of refs) {
+      const key = legKey(ref.source, ref.resource);
+      if (!resolveMap[key]) resolveMap[key] = await this.resolveLeg(tenantId, ref.source, ref.resource);
+    }
+    const legs = Object.values(resolveMap);
+
+    const connectorLegs = legs.filter((l) => !l.reachableInPg);
+    const namedSources = new Set(legs.filter((l) => l.source !== LOCAL_SOURCE).map((l) => l.source));
+    const hasSetOps = Array.isArray(ast.union) || Array.isArray(ast.intersect) || Array.isArray(ast.except);
+    const hasJoins = Array.isArray(ast.joins) &amp;&amp; ast.joins.length > 0;
+
+    const pushed: string[] = [];
+    const warnings: string[] = [];
+
+    let strategy: Strategy;
+    if (connectorLegs.length === 0 &amp;&amp; namedSources.size &lt;= 1) {
+      // Everything is the hub or a single Postgres/synced source: one SQL statement,
+      // and Postgres/Citus/FDW pushes each scan's predicate to its remote.
+      strategy = 'SINGLE_LOCAL';
+      pushed.push('single source resolvable in Postgres; executed as one SQL statement (predicates pushed by Postgres/FDW)');
+    } else if (connectorLegs.length === 1 &amp;&amp; legs.length === 1 &amp;&amp; !hasSetOps &amp;&amp; !hasJoins) {
+      strategy = 'SINGLE_CONNECTOR';
+      const only = connectorLegs[0]!;
+      pushed.push(`pushed filter/projection/sort/limit to ${only.engine} source "${only.source}"`);
+    } else {
+      // Query spans multiple distinct sources (even if all Postgres): fetch each source
+      // independently with predicate + bind-join pushdown, then combine in-memory. This
+      // avoids cross-source table-name collisions and full scans.
+      strategy = 'CROSS_ENGINE';
+      const engines = Array.from(new Set(legs.map((l) => l.engine)));
+      pushed.push(`federated across ${namedSources.size} sources [engines: ${engines.join(', ')}]; each leg pushed down at its source`);
+    }
+
+    return { strategy, legs, resolveMap, pushed, warnings };
+  }
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Jul 12 2026 08:28:49 GMT+0530 (India Standard Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+<script src="scripts/collapse.js" defer></script>
+
+
+</body>
+</html>

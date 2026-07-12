@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>backend/src/modules/query-engine/compensate.ts - Zero Data Fabric — API Reference</title>
+    
+    
+    
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="ConstraintService.html">ConstraintService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ConstraintService.html#.evalCheck">evalCheck</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.parseCheckExpression">parseCheckExpression</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.specFromManifestTable">specFromManifestTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.validate">validate</a></li></ul></li><li><a href="FabricSequenceService.html">FabricSequenceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.currval">currval</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.nextval">nextval</a></li></ul></li><li><a href="FederationExecutor.html">FederationExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyProjection">applyProjection</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.astLegToCanonical">astLegToCanonical</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.buildLegFilters">buildLegFilters</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fanAggregate">fanAggregate</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fetchLegDirect">fetchLegDirect</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.previewConnectorQuery">previewConnectorQuery</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.qualify">qualify</a></li></ul></li><li><a href="GrantService.html">GrantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GrantService.html#.decide">decide</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.enforce">enforce</a></li></ul></li><li><a href="PolicyService.html">PolicyService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PolicyService.html#.applyMasks">applyMasks</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.compileFilter">compileFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.mergeIntoFilter">mergeIntoFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.physicalSchema">physicalSchema</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolveValue">resolveValue</a></li></ul></li><li><a href="QueryLogService.html">QueryLogService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryLogService.html#.capture">capture</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.record">record</a></li></ul></li><li><a href="RecursiveExecutor.html">RecursiveExecutor</a></li><li><a href="SavedAnalyticsService.html">SavedAnalyticsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindAst">bindAst</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindSql">bindSql</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.resolveValues">resolveValues</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.run">run</a></li></ul></li><li><a href="TriggerActionCompiler.html">TriggerActionCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileActionBody">compileActionBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileEnqueueBody">compileEnqueueBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileExecute">compileExecute</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.condition">condition</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.expr">expr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.msg">msg</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.runAtExpr">runAtExpr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerService.html">TriggerService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerService.html#.registryUpsertSql">registryUpsertSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.transpileTriggerSql">transpileTriggerSql</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#AGG_FUNCS">AGG_FUNCS</a></li><li><a href="global.html#CANON_OP">CANON_OP</a></li><li><a href="global.html#EVENT_TIMINGS">EVENT_TIMINGS</a></li><li><a href="global.html#LOCAL_SOURCE">LOCAL_SOURCE</a></li><li><a href="global.html#MongoDBConnector">MongoDBConnector</a></li><li><a href="global.html#OP_MAP">OP_MAP</a></li><li><a href="global.html#RANKING">RANKING</a></li><li><a href="global.html#SQL_OPERATORS">SQL_OPERATORS</a></li><li><a href="global.html#SnowflakeConnector">SnowflakeConnector</a></li><li><a href="global.html#VAR_TOKEN">VAR_TOKEN</a></li><li><a href="global.html#aggregateRaw">aggregateRaw</a></li><li><a href="global.html#applyWindows">applyWindows</a></li><li><a href="global.html#base">base</a></li><li><a href="global.html#cacheInvalidate">cacheInvalidate</a></li><li><a href="global.html#cached">cached</a></li><li><a href="global.html#callFunction">callFunction</a></li><li><a href="global.html#client">client</a></li><li><a href="global.html#deleteAnalytic">deleteAnalytic</a></li><li><a href="global.html#exportMetadata">exportMetadata</a></li><li><a href="global.html#extractWindows">extractWindows</a></li><li><a href="global.html#gName">gName</a></li><li><a href="global.html#getColumns">getColumns</a></li><li><a href="global.html#getTemplate">getTemplate</a></li><li><a href="global.html#handle">handle</a></li><li><a href="global.html#hasWindows">hasWindows</a></li><li><a href="global.html#ident">ident</a></li><li><a href="global.html#invalidateTenant">invalidateTenant</a></li><li><a href="global.html#isAggregateQuery">isAggregateQuery</a></li><li><a href="global.html#listConstraints">listConstraints</a></li><li><a href="global.html#listGrants">listGrants</a></li><li><a href="global.html#listPolicies">listPolicies</a></li><li><a href="global.html#listQueryLogs">listQueryLogs</a></li><li><a href="global.html#maxRowsPerLeg">maxRowsPerLeg</a></li><li><a href="global.html#mergePartials">mergePartials</a></li><li><a href="global.html#nextSequence">nextSequence</a></li><li><a href="global.html#parseAggregates">parseAggregates</a></li><li><a href="global.html#parseHaving">parseHaving</a></li><li><a href="global.html#parseLiteral">parseLiteral</a></li><li><a href="global.html#parseSelect">parseSelect</a></li><li><a href="global.html#parseWhere">parseWhere</a></li><li><a href="global.html#partialSpec">partialSpec</a></li><li><a href="global.html#projectWithWindows">projectWithWindows</a></li><li><a href="global.html#queryWithContext">queryWithContext</a></li><li><a href="global.html#readCol">readCol</a></li><li><a href="global.html#sessionOf">sessionOf</a></li><li><a href="global.html#splitTopLevel">splitTopLevel</a></li><li><a href="global.html#sqlToAst">sqlToAst</a></li><li><a href="global.html#toCanonical">toCanonical</a></li><li><a href="global.html#windowBaseColumns">windowBaseColumns</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">backend/src/modules/query-engine/compensate.ts</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * Capability Compensation Engine (query-side).
+ * --------------------------------------------
+ * The fabric's own engine for query features a source cannot do natively. The
+ * principle mirrors how a SQL database layers window/sort logic ON TOP of a scan:
+ *
+ *   1. PUSH DOWN everything the source CAN do (filter / projection) so we pull the
+ *      smallest bounded result set possible.
+ *   2. COMPENSATE in-fabric for what it CAN'T — computed over that bounded result,
+ *      never by fetching whole tables.
+ *
+ * This module implements WINDOW FUNCTIONS (ROW_NUMBER / RANK / DENSE_RANK / LAG /
+ * LEAD and running SUM/AVG/COUNT/MIN/MAX OVER (PARTITION BY … ORDER BY …)) so that
+ * MongoDB, Elasticsearch — any engine — gets consistent window semantics even
+ * though they can't express them.
+ *
+ * Complexity: O(n log n) per window over the pulled rows `n` (a partition sort);
+ * `n` is bounded by the federation row cap, so memory/CPU stay bounded.
+ */
+
+export interface WindowSpec {
+  /** RANK | DENSE_RANK | ROW_NUMBER | LAG | LEAD | SUM | AVG | COUNT | MIN | MAX */
+  fn: string;
+  column?: string | null;
+  partitionBy: string[];
+  orderBy: { column: string; direction: 'ASC' | 'DESC' }[];
+  alias: string;
+  offset?: number; // for LAG / LEAD (default 1)
+}
+
+const RANKING = new Set(['RANK', 'DENSE_RANK', 'ROW_NUMBER']);
+const NAV = new Set(['LAG', 'LEAD']);
+const RUNNING = new Set(['SUM', 'AVG', 'COUNT', 'MIN', 'MAX']);
+
+function base(path: string): string {
+  const s = String(path || '');
+  return s.includes('.') ? s.split('.').pop()! : s;
+}
+/** read a column tolerating alias-qualified keys (o.amount ~ amount) */
+function readCol(row: any, name: string): any {
+  if (row == null) return undefined;
+  if (name in row) return row[name];
+  const b = base(name);
+  if (b in row) return row[b];
+  const hit = Object.keys(row).find((k) => base(k) === b);
+  return hit ? row[hit] : undefined;
+}
+const num = (v: any) => { const n = typeof v === 'number' ? v : parseFloat(v); return Number.isFinite(n) ? n : 0; };
+
+/** Extract window specs from an AST `select` list (entries carrying a `window` field). */
+export function extractWindows(select: any[] | undefined): WindowSpec[] {
+  if (!Array.isArray(select)) return [];
+  const out: WindowSpec[] = [];
+  for (const c of select) {
+    if (c &amp;&amp; typeof c === 'object' &amp;&amp; c.window) {
+      out.push({
+        fn: String(c.window).toUpperCase(),
+        column: c.column ? base(c.column) : null,
+        partitionBy: (c.partitionBy || []).map(base),
+        orderBy: (c.orderBy || []).map((o: any) => ({ column: base(o.column), direction: o.direction === 'DESC' ? 'DESC' : 'ASC' })),
+        alias: c.alias || `${String(c.window).toLowerCase()}`,
+        ...(typeof c.offset === 'number' ? { offset: c.offset } : {}),
+      });
+    }
+  }
+  return out;
+}
+
+/** Columns the base fetch must return so windows can be computed (plain select cols + all window-referenced cols). */
+export function windowBaseColumns(select: any[]): string[] {
+  const cols = new Set&lt;string>();
+  let star = false;
+  for (const c of select) {
+    if (c === '*') { star = true; continue; }
+    if (typeof c === 'string') { cols.add(base(c)); continue; }
+    if (c &amp;&amp; typeof c === 'object' &amp;&amp; c.window) {
+      if (c.column) cols.add(base(c.column));
+      for (const p of c.partitionBy || []) cols.add(base(p));
+      for (const o of c.orderBy || []) cols.add(base(o.column));
+    } else if (c &amp;&amp; c.column) cols.add(base(c.column));
+  }
+  return star ? [] : [...cols]; // [] → fetch all columns
+}
+
+function partitionKey(row: any, cols: string[]): string {
+  return JSON.stringify(cols.map((c) => readCol(row, c) ?? null));
+}
+function comparator(orderBy: { column: string; direction: 'ASC' | 'DESC' }[]) {
+  return (a: any, b: any) => {
+    for (const o of orderBy) {
+      const av = readCol(a, o.column), bv = readCol(b, o.column);
+      if (av &lt; bv) return o.direction === 'DESC' ? 1 : -1;
+      if (av > bv) return o.direction === 'DESC' ? -1 : 1;
+    }
+    return 0;
+  };
+}
+
+/**
+ * Compute each window spec in-fabric and attach its alias to every row.
+ * Mutates and returns the same row objects.
+ */
+export function applyWindows(rows: any[], specs: WindowSpec[]): any[] {
+  for (const spec of specs) {
+    // 1. Partition
+    const parts = new Map&lt;string, any[]>();
+    for (const r of rows) {
+      const k = partitionKey(r, spec.partitionBy);
+      (parts.get(k) || parts.set(k, []).get(k)!).push(r);
+    }
+    // 2. Per-partition: order, then compute the function
+    for (const part of parts.values()) {
+      if (spec.orderBy.length) part.sort(comparator(spec.orderBy));
+
+      if (RANKING.has(spec.fn)) {
+        let rank = 0, dense = 0, prevKey: string | null = null;
+        part.forEach((r, i) => {
+          const key = JSON.stringify(spec.orderBy.map((o) => readCol(r, o.column) ?? null));
+          if (key !== prevKey) { dense++; rank = i + 1; prevKey = key; }
+          r[spec.alias] = spec.fn === 'ROW_NUMBER' ? i + 1 : spec.fn === 'DENSE_RANK' ? dense : rank;
+        });
+      } else if (NAV.has(spec.fn)) {
+        const off = spec.offset ?? 1;
+        part.forEach((r, i) => {
+          const j = spec.fn === 'LAG' ? i - off : i + off;
+          r[spec.alias] = (j >= 0 &amp;&amp; j &lt; part.length) ? readCol(part[j], spec.column || '') ?? null : null;
+        });
+      } else if (RUNNING.has(spec.fn)) {
+        // Running frame: unbounded preceding → current row (SQL default with ORDER BY).
+        let sum = 0, cnt = 0, mn: number | null = null, mx: number | null = null;
+        part.forEach((r) => {
+          const v = spec.column ? num(readCol(r, spec.column)) : 1;
+          const present = spec.column ? (readCol(r, spec.column) != null) : true;
+          if (present) { sum += v; cnt++; mn = mn === null ? v : Math.min(mn, v); mx = mx === null ? v : Math.max(mx, v); }
+          r[spec.alias] =
+            spec.fn === 'SUM' ? sum :
+            spec.fn === 'COUNT' ? cnt :
+            spec.fn === 'AVG' ? (cnt ? sum / cnt : null) :
+            spec.fn === 'MIN' ? mn : mx;
+        });
+      }
+    }
+  }
+  return rows;
+}
+
+/** True when the select carries any window spec. */
+export function hasWindows(select: any[] | undefined): boolean {
+  return extractWindows(select).length > 0;
+}
+
+/** Project rows to the final select: plain columns + window aliases (drops helper cols). */
+export function projectWithWindows(rows: any[], select: any[]): any[] {
+  const cols: string[] = [];
+  for (const c of select) {
+    if (c === '*') return rows;
+    if (typeof c === 'string') cols.push(base(c));
+    else if (c &amp;&amp; c.window) cols.push(c.alias);
+    else if (c &amp;&amp; c.column) cols.push(c.alias || base(c.column));
+  }
+  return rows.map((r) => { const o: any = {}; for (const c of cols) o[c] = readCol(r, c); return o; });
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Jul 12 2026 08:28:49 GMT+0530 (India Standard Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+<script src="scripts/collapse.js" defer></script>
+
+
+</body>
+</html>

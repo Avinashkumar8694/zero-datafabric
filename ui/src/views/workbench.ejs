@@ -340,8 +340,12 @@
     function normalizeRows(payload) {
         if (Array.isArray(payload)) return payload;
         if (Array.isArray(payload?.results)) return payload.results;
+        // /queries/exec (raw SQL) wraps rows as { results: { results: [...] } }.
+        if (Array.isArray(payload?.results?.results)) return payload.results.results;
+        if (Array.isArray(payload?.results?.rows)) return payload.results.rows;
         if (Array.isArray(payload?.data)) return payload.data;
         if (Array.isArray(payload?.data?.results)) return payload.data.results;
+        if (Array.isArray(payload?.rows)) return payload.rows;
         if (Array.isArray(payload?.result)) return payload.result;
         return [];
     }

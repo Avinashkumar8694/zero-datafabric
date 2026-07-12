@@ -1,0 +1,228 @@
+<%- include('partials/header') %>
+
+<style>
+  .fade-in { max-width: 100%; overflow-x: hidden; box-sizing: border-box; }
+  .ca-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; margin-top: 1rem; }
+  .ca-item { background: var(--bg); border-radius: 10px; padding: 1.1rem; border: 1px solid var(--surface-hover); transition: transform .12s, box-shadow .12s; }
+  .ca-item:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+  .ca-item h4 { margin: 0 0 .3rem; }
+  .ca-badge { font-size: .68rem; padding: .12rem .45rem; border-radius: 999px; background: var(--surface-hover); }
+  /* modal shell */
+  .ca-modal { display:none; position:fixed; inset:0; background:rgba(15,23,42,.55); backdrop-filter: blur(3px); z-index:1000; align-items:center; justify-content:center; padding:2vh 1rem; }
+  .ca-modal .sheet { background: var(--surface, #fff); border-radius:14px; width: min(980px, 96%); max-height: 94vh; overflow:auto; box-shadow: 0 24px 60px rgba(0,0,0,.35); }
+  .ca-head { position:sticky; top:0; background:inherit; display:flex; justify-content:space-between; align-items:center; padding:1.1rem 1.4rem; border-bottom:1px solid var(--surface-hover); z-index:2; }
+  .ca-head h3 { margin:0; }
+  .ca-body { padding:1.1rem 1.4rem; display:grid; grid-template-columns: 1fr 360px; gap:1.2rem; }
+  .ca-body.no-preview { grid-template-columns: 1fr; }  /* preview hidden → builder gets full width */
+  .ca-foot { position:sticky; bottom:0; background:inherit; display:flex; gap:.6rem; justify-content:flex-end; padding:1rem 1.4rem; border-top:1px solid var(--surface-hover); }
+  .ca-field { margin-bottom:.8rem; } .ca-field > label { display:block; font-size:.72rem; color:var(--text-muted); margin-bottom:.2rem; }
+  .ca-input, .ca-select { width:100%; box-sizing:border-box; padding:.45rem .55rem; border:1px solid var(--surface-hover); border-radius:7px; background:var(--bg); font-size:.85rem; }
+  .ca-types { display:flex; gap:.4rem; flex-wrap:wrap; margin-bottom:.9rem; }
+  .ca-type { padding:.4rem .8rem; border-radius:8px; border:1px solid var(--surface-hover); background:var(--bg); cursor:pointer; font-size:.82rem; }
+  .ca-type.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .ca-row { display:grid; gap:.4rem; align-items:center; margin-bottom:.4rem; }
+  .ca-where { grid-template-columns: 1.3fr .9fr 1.3fr auto auto; }
+  .ca-agg { grid-template-columns: .9fr 1.2fr 1fr auto; }
+  .ca-order { grid-template-columns: 1.5fr 1fr auto; }
+  .ca-var { grid-template-columns: 1.2fr .9fr 1fr auto auto; }
+  .ca-sec { border:1px solid var(--surface-hover); border-radius:9px; padding:.7rem .8rem; margin-bottom:.8rem; }
+  .ca-sec > .h { display:flex; justify-content:space-between; align-items:center; margin-bottom:.5rem; }
+  .ca-sec > .h b { font-size:.82rem; }
+  .ca-chip { display:inline-flex; align-items:center; gap:.3rem; background:var(--surface-hover); border-radius:999px; padding:.15rem .5rem; font-size:.75rem; margin:.15rem; cursor:pointer; }
+  .ca-preview { position:sticky; top:0; }
+  pre.ca-code { background:#0b1020; color:#c9d3f0; border-radius:9px; padding:.8rem; font-size:.72rem; white-space:pre-wrap; word-break:break-word; max-height:320px; overflow:auto; }
+  .mini-btn { font-size:.72rem; padding:.25rem .5rem; }
+  .table-wrapper { max-width:100%; overflow:auto; max-height:380px; }
+  .ca-test { background:var(--bg); border-radius:8px; padding:.6rem .8rem; font-size:.8rem; margin-top:.6rem; }
+</style>
+
+<div class="fade-in">
+  <div class="glass-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:.5rem; flex-wrap:wrap;">
+      <div>
+        <h3 style="margin:0;">Custom Analytics</h3>
+        <p class="text-muted" style="margin:.3rem 0 0;">Build reusable, parameterized analytics with the visual AST builder. Play one to run it (you'll be prompted for variables) or trigger it via <code>POST /api/saved-analytics/:id/run</code>.</p>
+      </div>
+      <div style="display:flex; gap:.5rem;">
+        <a href="/analytics" class="btn-outline" style="font-size:.8rem;">← Dashboard</a>
+        <button class="btn-primary" onclick="openBuilder()"><i class="fas fa-plus"></i> Create analytic</button>
+      </div>
+    </div>
+    <div id="caList" class="ca-list"></div>
+    <div id="caEmpty" class="text-muted" style="display:none; margin-top:1rem;">No custom analytics yet — click <strong>Create analytic</strong>.</div>
+  </div>
+</div>
+
+<!-- ============ BUILDER MODAL ============ -->
+<div id="builderModal" class="ca-modal">
+  <div class="sheet">
+    <div class="ca-head">
+      <h3 id="builderTitle">Create analytic</h3>
+      <div style="display:flex; gap:.5rem;">
+        <button id="bPreviewToggle" class="btn-outline" onclick="togglePreviewPane()"><i class="fas fa-eye"></i> Preview</button>
+        <button class="btn-outline" onclick="closeBuilder()">Close</button>
+      </div>
+    </div>
+    <div class="ca-body" id="caBody">
+      <!-- left: the builder -->
+      <div>
+        <div class="ca-field"><label>Name</label><input id="bName" class="ca-input" placeholder="reports_by_manager"></div>
+        <div class="ca-field"><label>Description</label><input id="bDesc" class="ca-input" placeholder="Direct reports of a manager"></div>
+
+        <label style="font-size:.72rem; color:var(--text-muted);">Query type</label>
+        <div class="ca-types" id="bTypes"></div>
+
+        <!-- source/resource (SELECT/AGGREGATE/RECURSIVE) -->
+        <div id="bSourceRow" style="display:grid; grid-template-columns:1fr 1fr; gap:.6rem;">
+          <div class="ca-field"><label>Source</label><select id="bSource" class="ca-select" onchange="onBSource()"></select></div>
+          <div class="ca-field"><label>Resource</label><select id="bResource" class="ca-select" onchange="onBResource()"></select></div>
+        </div>
+
+        <!-- SUB-ANALYTICS as CTEs (compose one analytic inside another) -->
+        <div class="ca-sec" data-for="SELECT,AGGREGATE">
+          <div class="h"><b>Sub-analytics (CTE)</b>
+            <span style="display:flex; gap:.3rem; align-items:center;">
+              <select id="bCtePick" class="ca-select" style="max-width:180px; padding:.25rem .4rem; font-size:.75rem;"></select>
+              <button class="btn-outline mini-btn" onclick="addCteFromPick()">+ as CTE</button>
+            </span>
+          </div>
+          <div class="text-muted" style="font-size:.71rem; margin-bottom:.4rem;">Reuse a saved AST analytic as a named CTE, then set <b>Resource</b> to that CTE to query its result.</div>
+          <div id="bCtes"></div>
+        </div>
+
+        <!-- SELECT section -->
+        <div class="ca-sec" data-for="SELECT,AGGREGATE">
+          <div class="h"><b>Columns</b><span class="text-muted" style="font-size:.72rem;">click to toggle · empty = all (*)</span></div>
+          <div id="bCols"></div>
+        </div>
+
+        <!-- WHERE section -->
+        <div class="ca-sec" data-for="SELECT,AGGREGATE,RECURSIVE">
+          <div class="h"><b>Filters (WHERE)</b><button class="btn-outline mini-btn" onclick="addWhere()">+ filter</button></div>
+          <div id="bWhere"></div>
+        </div>
+
+        <!-- DISTINCT (SELECT) -->
+        <div class="ca-sec" data-for="SELECT">
+          <div class="h"><b>Modifiers</b><label style="font-size:.72rem;"><input type="checkbox" id="bDistinct" onchange="renderPreview()"> DISTINCT</label></div>
+        </div>
+
+        <!-- WINDOW functions (SELECT/AGGREGATE) — RANK / ROW_NUMBER / running totals -->
+        <div class="ca-sec" data-for="SELECT,AGGREGATE">
+          <div class="h"><b>Window functions</b><button class="btn-outline mini-btn" onclick="addWindow()">+ window</button></div>
+          <div class="text-muted" style="font-size:.71rem; margin-bottom:.4rem;">RANK / DENSE_RANK / ROW_NUMBER, or SUM/AVG/COUNT/MIN/MAX OVER (PARTITION BY … ORDER BY …). Computed in-fabric.</div>
+          <div id="bWindows"></div>
+        </div>
+
+        <!-- AGGREGATE section -->
+        <div class="ca-sec" data-for="AGGREGATE">
+          <div class="h"><b>Group by</b></div>
+          <div id="bGroupBy"></div>
+          <div class="h" style="margin-top:.5rem;"><b>Aggregates</b><button class="btn-outline mini-btn" onclick="addAgg()">+ aggregate</button></div>
+          <div id="bAggs"></div>
+          <div class="h" style="margin-top:.5rem;"><b>Having (post-aggregate)</b><button class="btn-outline mini-btn" onclick="addHaving()">+ having</button></div>
+          <div id="bHaving"></div>
+        </div>
+
+        <!-- ORDER/LIMIT -->
+        <div class="ca-sec" data-for="SELECT,AGGREGATE">
+          <div class="h"><b>Order by</b><button class="btn-outline mini-btn" onclick="addOrder()">+ order</button></div>
+          <div id="bOrders"></div>
+          <div class="ca-field" style="margin-top:.5rem;"><label>Limit</label><input id="bLimit" class="ca-input" type="number" value="50" style="max-width:120px;"></div>
+        </div>
+
+        <!-- JOINS (SELECT) — multiple, cross-source; base table alias is `a` -->
+        <div class="ca-sec" data-for="SELECT">
+          <div class="h"><b>Joins (cross-source, chainable)</b><button class="btn-outline mini-btn" onclick="addJoin()">+ join</button></div>
+          <div class="text-muted" style="font-size:.71rem; margin-bottom:.4rem;">Base table is alias <code>a</code>; joins are <code>b</code>, <code>c</code>, … Reference columns like <code>a.id</code> / <code>b.customer_id</code>.</div>
+          <div id="bJoins"></div>
+        </div>
+
+        <!-- SET OPERATIONS (SELECT) — UNION / INTERSECT / EXCEPT legs -->
+        <div class="ca-sec" data-for="SELECT">
+          <div class="h"><b>Set operations</b><button class="btn-outline mini-btn" onclick="addSetOp()">+ leg</button></div>
+          <div class="text-muted" style="font-size:.71rem; margin-bottom:.4rem;">Combine the base query with other source/resource legs (columns must line up).</div>
+          <div id="bSetOps"></div>
+        </div>
+
+        <!-- RECURSIVE -->
+        <div class="ca-sec" data-for="RECURSIVE">
+          <div class="h"><b>Hierarchy (connect-by)</b></div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:.5rem;">
+            <div class="ca-field"><label>parent column</label><select id="bRecParent" class="ca-select" onchange="renderPreview()"></select></div>
+            <div class="ca-field"><label>child column</label><select id="bRecChild" class="ca-select" onchange="renderPreview()"></select></div>
+            <div class="ca-field"><label>anchor column (roots)</label><select id="bRecAnchor" class="ca-select" onchange="renderPreview()"></select></div>
+            <div class="ca-field"><label>direction</label><select id="bRecDir" class="ca-select" onchange="renderPreview()"><option value="down">down (children)</option><option value="up">up (ancestors)</option></select></div>
+            <div class="ca-field"><label>max depth</label><input id="bRecDepth" class="ca-input" type="number" value="10"></div>
+            <div class="ca-field"><label>path column (optional)</label><select id="bRecPath" class="ca-select" onchange="renderPreview()"></select></div>
+          </div>
+        </div>
+
+        <!-- CALL -->
+        <div class="ca-sec" data-for="CALL">
+          <div class="h"><b>Function / procedure</b></div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:.5rem;">
+            <div class="ca-field"><label>kind</label><select id="bCallKind" class="ca-select" onchange="renderPreview()"><option value="function">function</option><option value="procedure">procedure</option></select></div>
+            <div class="ca-field"><label>schema (optional)</label><input id="bCallSchema" class="ca-input" placeholder="public" oninput="renderPreview()"></div>
+          </div>
+          <div class="ca-field"><label>name</label><input id="bCallName" class="ca-input" placeholder="current_user_id" oninput="renderPreview()"></div>
+          <div class="h"><b>Arguments</b><button class="btn-outline mini-btn" onclick="addArg()">+ arg</button></div>
+          <div id="bArgs"></div>
+        </div>
+
+        <!-- VARIABLES -->
+        <div class="ca-sec">
+          <div class="h"><b>Variables</b><span style="display:flex; gap:.4rem;"><button class="btn-outline mini-btn" onclick="detectVars()">detect {{ }}</button><button class="btn-outline mini-btn" onclick="addVar()">+ variable</button></span></div>
+          <div id="bVars"></div>
+          <div class="text-muted" style="font-size:.72rem; margin-top:.3rem;">Tick "bind" on a filter to turn its value into a <code>{{variable}}</code>. Variables are prompted at Play time.</div>
+        </div>
+      </div>
+
+      <!-- right: live preview (AST | SQL) + test — toggled via the Preview button -->
+      <div id="bPreviewPane" style="display:none;">
+        <div class="ca-preview">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="ca-types" style="margin:0;">
+              <div class="ca-type active" id="pvAst" onclick="setPreview('AST')">AST</div>
+              <div class="ca-type" id="pvSql" onclick="setPreview('SQL')">SQL</div>
+            </div>
+            <label style="font-size:.72rem;"><input type="checkbox" id="bRawOn" onchange="toggleRaw()"> advanced (edit raw)</label>
+          </div>
+          <pre class="ca-code" id="bPreview" style="margin-top:.4rem;">{}</pre>
+          <textarea id="bRaw" class="ca-input" style="display:none; width:100%; min-height:260px; font-family:monospace; font-size:.72rem; margin-top:.4rem;" oninput="renderPreview()" placeholder='Full control — edit/paste any nested AST config here (subqueries, AND/OR groups, multiple joins, unions, CTEs)…'></textarea>
+          <button class="btn-outline" style="width:100%; margin-top:.5rem;" onclick="testBuild()"><i class="fas fa-flask"></i> Test run</button>
+          <div id="bTest" class="ca-test" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="ca-foot">
+      <button class="btn-outline" onclick="closeBuilder()">Cancel</button>
+      <button class="btn-primary" onclick="saveBuild()"><i class="fas fa-floppy-disk"></i> Save analytic</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PLAY (variable prompt) MODAL ============ -->
+<div id="playModal" class="ca-modal">
+  <div class="sheet" style="width:min(460px,96%);">
+    <div class="ca-head"><h3 id="playTitle">Inputs</h3><button class="btn-outline" onclick="closePlay()">Close</button></div>
+    <div class="ca-body" style="display:block;"><div id="playInputs"></div></div>
+    <div class="ca-foot"><button class="btn-outline" onclick="closePlay()">Cancel</button><button class="btn-primary" id="playRunBtn"><i class="fas fa-play"></i> Run</button></div>
+  </div>
+</div>
+
+<!-- ============ RESULT MODAL ============ -->
+<div id="resultModal" class="ca-modal">
+  <div class="sheet">
+    <div class="ca-head"><h3 id="resultTitle">Result</h3><button class="btn-outline" onclick="closeResult()">Close</button></div>
+    <div class="ca-body" style="display:block;">
+      <div id="resultBound" class="text-muted" style="font-size:.8rem; margin-bottom:.5rem;"></div>
+      <div id="resultKpis" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:.6rem; margin-bottom:.8rem;"></div>
+      <div class="table-wrapper"><table id="resultTable"><thead id="resultHead"></thead><tbody id="resultBody"></tbody></table></div>
+      <div id="resultPlan" style="margin-top:.8rem;"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/custom-analytics.js"></script>
+<%- include('partials/footer') %>

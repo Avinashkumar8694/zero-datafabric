@@ -1,0 +1,35 @@
+{
+  "plugins": ["node_modules/jsdoc-babel"],
+  "babel": {
+    "extensions": ["ts", "js"],
+    "presets": [
+      ["@babel/preset-env", { "targets": { "node": "current" } }],
+      "@babel/preset-typescript"
+    ]
+  },
+  "source": {
+    "include": ["backend/src", "trigger-engine/src", "system_docs/12-capability-model-and-matrix.md"],
+    "includePattern": "\\.(js|ts)$",
+    "excludePattern": "(node_modules|scratch|/tests/|\\.test\\.ts$)"
+  },
+  "opts": {
+    "destination": "docs/api-html",
+    "recurse": true,
+    "template": "node_modules/docdash",
+    "readme": "system_docs/12-capability-model-and-matrix.md",
+    "encoding": "utf8"
+  },
+  "templates": {
+    "cleverLinks": true,
+    "monospaceLinks": true
+  },
+  "docdash": {
+    "search": true,
+    "collapse": true,
+    "sort": true,
+    "static": true,
+    "meta": {
+      "title": "Zero Data Fabric — API Reference"
+    }
+  }
+}

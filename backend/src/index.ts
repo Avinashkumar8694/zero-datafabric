@@ -14,6 +14,11 @@ import queryRoutes from './routes/queryRoutes';
 import metadataRoutes from './routes/metadataRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
 import triggerRoutes from './routes/triggerRoutes';
+import policyRoutes from './routes/policyRoutes';
+import constraintRoutes from './routes/constraintRoutes';
+import grantRoutes from './routes/grantRoutes';
+import savedAnalyticsRoutes from './routes/savedAnalyticsRoutes';
+import queryLogRoutes from './routes/queryLogRoutes';
 import dataRoutes from './routes/dataRoutes';
 import * as metadataController from './controllers/metadataController';
 import { ElasticsearchMutationWorker } from './modules/metadata/es_mutation_worker';
@@ -108,6 +113,11 @@ app.use('/api/metadata', requireAuth, metadataRoutes);
 app.use('/api/analytics', requireAuth, analyticsRoutes);
 app.use('/api/data', requireAuth, dataRoutes);
 app.use('/api/triggers', requireAuth, triggerRoutes);
+app.use('/api/policies', requireAuth, policyRoutes);
+app.use('/api/constraints', requireAuth, constraintRoutes);
+app.use('/api/grants', requireAuth, grantRoutes);
+app.use('/api/saved-analytics', requireAuth, savedAnalyticsRoutes);
+app.use('/api/query-logs', requireAuth, queryLogRoutes);
 
 // Shared Global Events API
 app.get('/api/events', requireAuth, metadataController.getEvents);

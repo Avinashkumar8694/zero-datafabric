@@ -9,6 +9,8 @@
     "db:seed": "ts-node src/seed_admin.ts",
     "db:verify": "ts-node src/verify_login.ts",
     "test": "jest",
+    "test:unit": "jest src/modules --runInBand",
+    "test:integration": "jest src/tests --runInBand",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },

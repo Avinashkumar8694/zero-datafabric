@@ -234,7 +234,8 @@ export class IntegrationService {
             if (existing.rows.length > 0) {
                 sourceId = existing.rows[0].id;
                 isNew = false;
-                await queryWithContext('UPDATE public.data_sources SET config = $1, status = $2 WHERE id = $3', [config, 'CONNECTED', sourceId], contextObj);
+                // Persist sync_type on update too (the planner reads the COLUMN, not config.syncType).
+                await queryWithContext('UPDATE public.data_sources SET config = $1, status = $2, sync_type = $3 WHERE id = $4', [config, 'CONNECTED', syncType, sourceId], contextObj);
             } else {
                 const { rows } = await queryWithContext(
                     'INSERT INTO public.data_sources (tenant_id, name, type, config, sync_type, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
@@ -245,6 +246,15 @@ export class IntegrationService {
             }
         } catch (err: any) {
             throw err;
+        }
+
+        // SYNC / CDC: physically replicate the source into the hub (real backfill)
+        // so the planner serves it from Postgres. Fire-and-forget to keep registration fast.
+        if (config.syncType === 'SYNC' || config.syncType === 'CDC') {
+            import('../sync/physical_sync.service')
+                .then(({ PhysicalSync }) => PhysicalSync.backfill(tenantId, name))
+                .then((r) => console.log(`[Integration] ${config.syncType} backfill "${name}": ${r.tables.reduce((n, t) => n + t.rows, 0)} rows across ${r.tables.length} table(s)`))
+                .catch((e) => console.warn(`[Integration] backfill "${name}" failed: ${e.message}`));
         }
 
         // 2. Orchestrate Sync Strategy

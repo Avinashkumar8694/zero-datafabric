@@ -27,6 +27,7 @@ router.get('/template', metadataController.getTemplate); // GET /api/metadata/te
 router.get('/export', metadataController.exportMetadata); // GET /api/metadata/export?source= — export the live catalog as a manifest
 
 router.post('/crawl', metadataController.crawlTenant); // POST /api/metadata/crawl — crawl a tenant's connected sources
+router.post('/sync', metadataController.syncSource); // POST /api/metadata/sync — SYNC/CDC replicate a source into the hub (body: source, mode?: full|cdc)
 router.post('/diff', upload.single('file'), metadataController.diffMetadata); // POST /api/metadata/diff — analyze drift between a manifest and live state
 router.post('/apply', upload.single('file'), metadataController.applyMetadata); // POST /api/metadata/apply?force= — apply a manifest (provision)
 router.post('/migrate', metadataController.migrateMetadata); // POST /api/metadata/migrate — apply an ad-hoc migration plan

@@ -131,6 +131,8 @@ if (process.env.NODE_ENV !== 'test') {
       server.listen(PORT, '0.0.0.0', () => {
         console.log(`\x1b[32m✔ Industrial Data Fabric Orchestrator running on port ${PORT}\x1b[0m`);
         ElasticsearchMutationWorker.start();
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        require('./modules/sync/physical_sync.service').PhysicalSync.startCdcPoller();
         initCache();
       });
     } catch (err: any) {

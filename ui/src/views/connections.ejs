@@ -71,13 +71,31 @@
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.9rem; margin-bottom:0.9rem;">
                     <div>
                         <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Sync Strategy</label>
-                        <select id="syncType" class="context-select" style="width:100%">
-                            <option value="VIRTUAL">VIRTUAL (FDW Federation)</option>
-                            <option value="SYNC">SYNC (Hub Ingestion)</option>
+                        <select id="syncType" class="context-select" style="width:100%" onchange="applySyncFieldConfig()">
+                            <option value="VIRTUAL">VIRTUAL — query live at the source (zero copy)</option>
+                            <option value="SYNC">SYNC — one-time full copy into the hub</option>
+                            <option value="CDC">CDC — copy + incremental refresh (watermark)</option>
                         </select>
                     </div>
-                    <div></div>
+                    <div id="cdcCol" style="display:none;">
+                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">CDC Watermark Column</label>
+                        <input id="cdcColumn" class="context-select" style="width:100%" placeholder="e.g. updated_at or id" />
+                    </div>
                 </div>
+                <div id="cdcRow" style="display:none; grid-template-columns:1fr 1fr; gap:0.9rem; margin-bottom:0.9rem;">
+                    <div>
+                        <label style="display:block; font-size:0.7rem; color:var(--text-muted); margin-bottom:0.3rem;">Poll interval (ms)</label>
+                        <input id="cdcInterval" class="context-select" style="width:100%" placeholder="15000" value="15000" />
+                    </div>
+                    <div style="font-size:0.72rem; color:var(--text-muted); align-self:end;">CDC pulls rows where <b>watermark &gt; last</b> on each poll and upserts them into the hub replica.</div>
+                </div>
+                <script>
+                    function applySyncFieldConfig() {
+                        var isCdc = document.getElementById('syncType').value === 'CDC';
+                        document.getElementById('cdcCol').style.display = isCdc ? 'block' : 'none';
+                        document.getElementById('cdcRow').style.display = isCdc ? 'grid' : 'none';
+                    }
+                </script>
 
                 <div style="display:grid; grid-template-columns:3fr 1fr; gap:0.9rem; margin-bottom:0.9rem;">
                     <div id="row-host">
@@ -335,6 +353,11 @@
             user: document.getElementById('connUser').value || undefined,
             pass: document.getElementById('connPass').value || undefined
         };
+        // CDC config: watermark column + poll interval (only when syncType === CDC).
+        if (common.syncType === 'CDC') {
+            const col = document.getElementById('cdcColumn').value.trim();
+            if (col) common.cdc = { column: col, intervalMs: parseInt(document.getElementById('cdcInterval').value) || 15000 };
+        }
         let config = { ...common };
         if (type === 'postgres' || type === 'mysql' || type === 'mongodb') {
             config = { ...common, dbName: document.getElementById('connDB').value || undefined };

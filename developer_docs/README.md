@@ -36,6 +36,7 @@ underlying engine. The fabric:
 | [recursive-and-window-queries.md](recursive-and-window-queries.md) | Recursive CTEs, window functions, materialized views — native SQL executed at the source. |
 | [analytics-api.md](analytics-api.md) | The query endpoints: `/api/analytics/query` (+async, jobs, refresh-view) and `/api/queries` (engine/exec/native/transpile); AST vs SQL modes. |
 | [streaming-responses.md](streaming-responses.md) | `stream: true \| false` — buffered JSON envelope vs NDJSON row stream + `{__meta__}` trailer; processing, response shape, and curl/Node/browser client patterns. |
+| [sync-and-cdc.md](sync-and-cdc.md) | Source sync strategies **VIRTUAL / SYNC / CDC** — how data is replicated into the hub, how new records are handled, watermark CDC config, the `/api/metadata/sync` endpoint, and the query-planner effect. |
 | [saved-analytics-api.md](saved-analytics-api.md) | `/api/saved-analytics` CRUD + `/top` + `/:id/run`; `{{variable}}` binding, AST vs SQL saved configs, recursive+aggregate composition patterns. |
 
 **Data & governance**

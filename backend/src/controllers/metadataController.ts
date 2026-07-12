@@ -19,6 +19,7 @@ import { pool, queryWithContext } from '../config/database';
 import { cached, invalidateTenant } from '../config/cache';
 import { ConnectorFactory } from '../modules/metadata/connectors/factory';
 import { renderFabricDdl, renderFabricAst } from '../modules/metadata/ddl_render';
+import { PhysicalSync } from '../modules/sync/physical_sync.service';
 
 const orchestrator = new MetadataOrchestrator();
 // Catalog reads change ONLY on sync (crawl/apply/register/remove), and every such
@@ -767,6 +768,31 @@ export const toggleDownstream = async (req: Request, res: Response) => {
  * @throws Responds 404 `(error: 'Resource not found')` when the id doesn't
  *   match any catalog table; 500 `(error)` on failure.
  */
+/**
+ * Trigger a physical SYNC/CDC replication of a source into the hub.
+ * @param req - Express request. Requires `(req as any).user` (tenant_id). Body:
+ *   `(source: string, mode?: 'full' | 'cdc')` — `full` (default) does a full
+ *   backfill; `cdc` does an incremental watermark refresh.
+ * @param res - Express response.
+ * @returns 200 with the per-table sync summary from `PhysicalSync`.
+ * @throws Responds 400 when `source` is missing; 500 on failure.
+ */
+export const syncSource = async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user;
+        const tenantId = user?.internal_role === 'ADMIN' && req.body.tenantId ? req.body.tenantId : user.tenant_id;
+        const source = req.body.source as string;
+        if (!source) return res.status(400).json({ error: 'source is required' });
+        const result = req.body.mode === 'cdc'
+            ? await PhysicalSync.refreshCdc(tenantId, source)
+            : await PhysicalSync.backfill(tenantId, source);
+        invalidateTenant(tenantId).catch(() => {});
+        res.json(result);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 export const getResourceDetails = async (req: Request, res: Response) => {
     try {
         const resourceId = req.params.id;

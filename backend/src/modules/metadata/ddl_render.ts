@@ -66,7 +66,8 @@ export function canonicalType(raw?: string): string {
   if (/(^|\b)time/.test(t)) return 'TIME';
   if (/(uuid)/.test(t)) return 'UUID';
   if (/(json|object|array|nested|map)/.test(t)) return 'JSONB';
-  if (/(char|text|string|keyword|varchar)/.test(t)) return 'TEXT';
+  if (/(blob|raw|bytea|binary)/.test(t)) return 'BYTEA';                 // Oracle BLOB/RAW → bytea
+  if (/(char|text|string|keyword|varchar|clob|nclob|long)/.test(t)) return 'TEXT'; // Oracle CLOB/VARCHAR2/LONG → text
   // preserve an already-SQL-looking type (e.g. VARCHAR(255)), else fall back to TEXT
   return /^[a-z][a-z0-9_]*(\(\d+(,\d+)?\))?$/.test(t) ? t.toUpperCase() : 'TEXT';
 }

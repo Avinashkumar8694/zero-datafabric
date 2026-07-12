@@ -52,6 +52,13 @@ export interface QueryPlan {
   /** human-readable notes about what was/ will be pushed down */
   pushed: string[];
   warnings: string[];
+  /** true when every leg resolves to ONE physical SQL database → push the whole
+   *  statement (joins/group-by/set-ops incl.) down as a single native query. */
+  colocated?: boolean;
+  /** the single source name to push the co-located SQL to (set when `colocated`). */
+  coLocatedSource?: string;
+  /** SQL dialect for the co-located source ('postgres' | 'mysql' | 'oracle' | 'snowflake'). */
+  dialect?: string;
   /** per-request session context (tenant/role/region) — used by the Policy Engine
    *  to inject row predicates + column masking on non-RLS connector legs. */
   session?: { tenantId: string; role?: string; region?: string; username?: string };
@@ -59,6 +66,49 @@ export interface QueryPlan {
 
 /** Build the `resolveMap` cache key for a `{ source, resource }` reference. */
 const legKey = (source: string, resource: string) => `${source}::${resource}`;
+
+/** Fold engine aliases to one canonical token so `POSTGRESQL`/`POSTGRES` and
+ *  `ORACLEDB`/`ORACLE` compare equal when fingerprinting co-located legs. */
+const normEngine = (engine: string): string => {
+  const e = String(engine || '').toUpperCase();
+  if (e === 'POSTGRESQL' || e === 'PG') return 'POSTGRES';
+  if (e === 'ORACLEDB') return 'ORACLE';
+  if (e === 'MARIADB') return 'MYSQL';
+  return e;
+};
+
+/** Relational SQL engines whose planner+optimizer can execute a full
+ *  JOIN/GROUP BY/set-op natively → candidates for co-located pushdown. */
+const SQL_RELATIONAL = new Set(['POSTGRES', 'MYSQL', 'ORACLE', 'SNOWFLAKE']);
+
+/** SQL dialect key consumed by `PushdownCompiler` for a given engine. */
+const dialectOf = (engine: string): string => {
+  switch (normEngine(engine)) {
+    case 'MYSQL': return 'mysql';
+    case 'ORACLE': return 'oracle';
+    case 'SNOWFLAKE': return 'snowflake';
+    default: return 'postgres';
+  }
+};
+
+/**
+ * Stable identity of the *physical database* a connector leg points at, so two
+ * legs that resolve to the same server+database (regardless of which logical
+ * table/alias) collapse to one fingerprint. Prefers an explicit connection
+ * string/URI; otherwise `engine|host:port/database`. This is the co-location
+ * signal: if every leg shares one fingerprint on a SQL engine, the whole
+ * JOIN/GROUP BY/set-op can be pushed down as a single native statement instead
+ * of fanning out into per-leg bind-joins.
+ */
+const connFingerprint = (leg: ResolvedLeg): string => {
+  const c = leg.config || {};
+  const cs = c.connectionString || c.connectionUri || c.uri || c.url || c.dsn;
+  if (cs) return `${normEngine(leg.engine)}|${String(cs).trim().toLowerCase()}`;
+  const host = String(c.host || c.server || c.account || '').toLowerCase();
+  const port = c.port != null ? String(c.port) : '';
+  const db = String(c.database || c.db || c.serviceName || c.sid || c.schema || '').toLowerCase();
+  return `${normEngine(leg.engine)}|${host}:${port}/${db}`;
+};
 
 /**
  * Decides HOW a query should be executed (see file-level overview for the
@@ -206,9 +256,25 @@ export class QueryPlanner {
     const refs: { source: string; resource: string }[] = [];
     this.collectRefs(ast, refs);
 
-    // Deduplicate references and resolve each once.
+    // Gather every declared CTE name (recursively) so references to a CTE are not
+    // mistaken for physical tables when resolving legs.
+    const cteNames = new Set<string>();
+    const hasRecursiveCte = (() => {
+      let rec = false;
+      const walk = (n: any): void => {
+        if (!n || typeof n !== 'object') return;
+        if (Array.isArray(n.with)) for (const c of n.with) { if (c?.name) cteNames.add(c.name); if (c?.unionAll) rec = true; walk(c.base); walk(c.unionAll); }
+        for (const k of ['union', 'intersect', 'except'] as const) if (Array.isArray(n[k])) n[k].forEach(walk);
+      };
+      walk(ast);
+      return rec;
+    })();
+
+    // Deduplicate references and resolve each once — skipping references to CTE
+    // names (they are logical, not catalog tables).
     const resolveMap: Record<string, ResolvedLeg> = {};
     for (const ref of refs) {
+      if (cteNames.has(ref.resource) && (!ref.source || ref.source === LOCAL_SOURCE)) continue;
       const key = legKey(ref.source, ref.resource);
       if (!resolveMap[key]) resolveMap[key] = await this.resolveLeg(tenantId, ref.source, ref.resource);
     }
@@ -218,12 +284,48 @@ export class QueryPlanner {
     const namedSources = new Set(legs.filter((l) => l.source !== LOCAL_SOURCE).map((l) => l.source));
     const hasSetOps = Array.isArray(ast.union) || Array.isArray(ast.intersect) || Array.isArray(ast.except);
     const hasJoins = Array.isArray(ast.joins) && ast.joins.length > 0;
+    // A non-recursive WITH whose base tables all live in one connector can be
+    // pushed whole; recursive CTEs stay on the in-fabric recursive executor.
+    const hasWith = Array.isArray(ast.with) && ast.with.length > 0 && !hasRecursiveCte;
 
     const pushed: string[] = [];
     const warnings: string[] = [];
 
+    // Co-location detection. If EVERY leg is connector-only and they all resolve
+    // to the same physical SQL database (one fingerprint, one relational engine),
+    // the source's own optimizer can run the entire JOIN/GROUP BY/set-op far more
+    // efficiently than the fabric's per-leg bind-join fan-out. Push it down whole.
+    const allConnector = legs.length > 0 && connectorLegs.length === legs.length;
+    const fingerprints = new Set(connectorLegs.map(connFingerprint));
+    const engineTokens = new Set(connectorLegs.map((l) => normEngine(l.engine)));
+    const firstEngine = connectorLegs[0]?.engine || '';
+    const coLocatable =
+      allConnector &&
+      fingerprints.size === 1 &&
+      engineTokens.size === 1 &&
+      SQL_RELATIONAL.has(normEngine(firstEngine));
+
     let strategy: Strategy;
-    if (connectorLegs.length === 0 && namedSources.size <= 1) {
+    if (coLocatable && (hasJoins || hasSetOps || hasWith)) {
+      // The whole statement (joins, set-ops, group-by, aggregates, order/limit)
+      // compiles to ONE native parameterized query run by the remote engine.
+      strategy = 'SINGLE_CONNECTOR';
+      const src = connectorLegs[0]!;
+      pushed.push(
+        `co-located: all ${legs.length} leg(s) resolve to one physical ${normEngine(firstEngine)} database "${src.source}"; ` +
+          `pushing the full JOIN/GROUP BY/set-op down as a single native query (source optimizer executes it)`
+      );
+      return {
+        strategy,
+        legs,
+        resolveMap,
+        pushed,
+        warnings,
+        colocated: true,
+        coLocatedSource: src.source,
+        dialect: dialectOf(firstEngine),
+      };
+    } else if (connectorLegs.length === 0 && namedSources.size <= 1) {
       // Everything is the hub or a single Postgres/synced source: one SQL statement,
       // and Postgres/Citus/FDW pushes each scan's predicate to its remote.
       strategy = 'SINGLE_LOCAL';

@@ -42,6 +42,7 @@ import { randomUUID } from 'crypto';
 import { ElasticsearchMutationWorker } from '../metadata/es_mutation_worker';
 import { QueryPlanner, LOCAL_SOURCE } from './planner';
 import { FederationExecutor } from './federation';
+import { PushdownCompiler, SqlDialect } from './pushdown';
 import { sqlToAst } from './sql_translator';
 import { hasWindows, extractWindows, windowBaseColumns, applyWindows, projectWithWindows } from './compensate';
 import { FabricWriteGenerators } from './write_generators';
@@ -425,7 +426,11 @@ export class QueryEngineService {
         // per-leg filters on a set-op or a join also count as "bounded by a filter"
         || (Array.isArray(ast.union || ast.intersect || ast.except) && (ast.union || ast.intersect || ast.except).some((l: any) => Array.isArray(l.where) && l.where.length))
         || (Array.isArray(ast.joins) && Array.isArray(ast.where) && ast.where.length > 0);
-      const hasLimit = typeof config.limit === 'number' && config.limit > 0;
+      // A LIMIT bounds the scan whether it's set at the config top level OR inside
+      // the query AST (`query.limit`) — honour both so a bounded AST query isn't
+      // wrongly blocked as "unbounded".
+      const hasLimit = (typeof config.limit === 'number' && config.limit > 0)
+        || (typeof ast.limit === 'number' && ast.limit > 0);
       const hasSetOps = Array.isArray(ast.union) || Array.isArray(ast.intersect) || Array.isArray(ast.except);
       // A query is "bounded by shape" if it aggregates/traverses to a small result
       // rather than streaming rows: GROUP BY, aggregates, or a recursive traversal.
@@ -483,6 +488,68 @@ export class QueryEngineService {
       // Plan HOW to execute across sources instead of assuming everything is local Postgres.
       const plan = await QueryPlanner.classify(tenantId, ast);
       console.log(`[QueryEngine] AST strategy=${plan.strategy} :: ${plan.pushed.join('; ')}`);
+
+      // ---- CO-LOCATED JOIN PUSHDOWN ----
+      // When every leg resolves to ONE physical SQL database, hand the entire
+      // JOIN/GROUP BY/set-op to that engine's optimizer as a single native query
+      // instead of fanning out into per-leg bind-joins (which do N+1 round-trips
+      // and can pull whole tables). Correctness first: enforce grants per table,
+      // and if ANY involved table carries a row-level policy or masking rule,
+      // fall back to federation (which injects the predicate / masks the columns).
+      // Any compile/execution problem also falls back — co-location only ever
+      // changes speed, never results.
+      if (plan.colocated && plan.coLocatedSource && plan.legs.length > 0) {
+        const only = plan.legs[0]!;
+        const conn: any = ConnectorFactory.getConnector(only.engine, only.config);
+        try {
+          if (typeof conn.rawQuery !== 'function') throw new Error(`${only.engine} connector has no rawQuery`);
+          // Grants + policy gate across every distinct table the query touches.
+          let policyBlocks = false;
+          for (const leg of plan.legs) {
+            const schema = leg.physicalSchema || schemaName;
+            const table = leg.physicalTable || leg.resource;
+            await GrantService.enforce(tenantId, schema, table, sessionCtx?.role, 'SELECT');
+            const pol = await PolicyService.resolve(tenantId, schema, table, sessionCtx || { tenantId });
+            if (Object.keys(pol.filter).length || (pol.masks && pol.masks.length)) { policyBlocks = true; break; }
+          }
+          if (policyBlocks) throw new Error('row-level policy/masking active — using federation for enforcement');
+
+          const resolve = (source: string | undefined, resource: string) => {
+            const leg = plan.resolveMap[`${source || LOCAL_SOURCE}::${resource}`]
+              || plan.legs.find((l) => l.resource === resource);
+            return { schema: leg?.physicalSchema ?? null, table: leg?.physicalTable || resource };
+          };
+          const compiled = PushdownCompiler.toJoinSql({ ast, dialect: (plan.dialect || 'postgres') as SqlDialect, resolve });
+          console.log(`[QueryEngine] co-located pushdown → ${only.engine} "${plan.coLocatedSource}": ${compiled.text}`);
+          const startedAt = Date.now();
+          let rows: any[];
+          try { rows = await conn.rawQuery(compiled.text, compiled.params); }
+          finally { await conn.close(); }
+          const executionMs = Date.now() - startedAt;
+          return {
+            data: rows,
+            rowCount: rows.length,
+            plan: {
+              strategy: 'SINGLE_CONNECTOR',
+              pushed: plan.pushed,
+              executionMs,
+              legs: [{
+                source: plan.coLocatedSource, engine: only.engine, mode: 'connector',
+                operation: 'colocated-pushdown', target: plan.coLocatedSource,
+                query: compiled.text, params: compiled.params,
+                rowsReturned: rows.length, ms: executionMs,
+              }],
+              rowsScannedAcrossSources: rows.length,
+            },
+            warnings: plan.warnings,
+          };
+        } catch (e: any) {
+          try { await conn.close(); } catch { /* already closed / never opened */ }
+          console.warn(`[QueryEngine] co-located pushdown unavailable (${e.message}); falling back to federation`);
+          plan.warnings.push(`co-located pushdown skipped (${e.message}); executed via federation`);
+          plan.colocated = false;
+        }
+      }
 
       if (plan.strategy === 'SINGLE_CONNECTOR' || plan.strategy === 'CROSS_ENGINE') {
         // Each leg is fetched from its own engine WITH pushdown (predicate + bind-join),
@@ -719,7 +786,7 @@ export class QueryEngineService {
     // recursive CTEs, ES _sql). Non-SQL engines (MongoDB) have no SQL engine, so
     // the fabric TRANSLATES the SQL into its query AST and runs it through the
     // normal planner → the engine's native query language (Mongo find / $group).
-    const SQL_NATIVE = new Set(['POSTGRES', 'POSTGRESQL', 'MYSQL', 'SNOWFLAKE', 'ELASTICSEARCH', 'ELASTIC', 'ES']);
+    const SQL_NATIVE = new Set(['POSTGRES', 'POSTGRESQL', 'MYSQL', 'SNOWFLAKE', 'ELASTICSEARCH', 'ELASTIC', 'ES', 'ORACLE', 'ORACLEDB']);
     if (!SQL_NATIVE.has(engine)) {
       const query: any = sqlToAst(sql);
       query.from.source = sourceName;
@@ -1276,7 +1343,16 @@ export class QueryEngineService {
 
     if (type === 'SELECT') {
         if (groupBy) queryStr += ` GROUP BY ${groupBy.join(', ')}`;
-        if (orderBy) queryStr += ` ORDER BY ${orderBy.map(o => `${o.field} ${o.dir}`).join(', ')}`;
+        if (orderBy) {
+            // Accept both the generateSql shape ({field, dir}) and the AST shape
+            // ({column, direction}); drop malformed entries so we never emit
+            // "ORDER BY undefined" (which used to produce a silent empty result).
+            const cols = orderBy
+                .map((o: any) => ({ f: o.field ?? o.column, d: (o.dir ?? o.direction) === 'DESC' ? 'DESC' : 'ASC' }))
+                .filter((o: any) => o.f)
+                .map((o: any) => `${o.f} ${o.d}`);
+            if (cols.length) queryStr += ` ORDER BY ${cols.join(', ')}`;
+        }
         if (limit) queryStr += ` LIMIT ${limit}`;
         if (offset) queryStr += ` OFFSET ${offset}`;
     }

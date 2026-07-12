@@ -43,6 +43,30 @@ function bindMaxKeys(): number {
   const raw = Number(process.env.FABRIC_FED_BIND_MAX_KEYS);
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 1000;
 }
+// Cost-based driving-side selection (live cardinality probe). On by default;
+// set FABRIC_FED_COST_PROBE=0 to always drive from the FROM side.
+function costProbeEnabled(): boolean {
+  return !/^(0|false|no|off)$/i.test(process.env.FABRIC_FED_COST_PROBE || '1');
+}
+// When BOTH sides of a 2-leg INNER equijoin are at/below this post-filter row
+// count, fetch them in parallel and hash-join (broadcast) — one round-trip of
+// latency instead of the two sequential ones a bind-join needs. Default 5000.
+function broadcastMaxRows(): number {
+  const raw = Number(process.env.FABRIC_FED_BROADCAST_MAX);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 5000;
+}
+// Cap on how many bind-key batches we'll issue before giving up on the semi-join
+// and doing a single bounded scan instead (bounds the round-trip fan-out).
+function maxBindBatches(): number {
+  const raw = Number(process.env.FABRIC_FED_MAX_BIND_BATCHES);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 20;
+}
+/** Split an array into chunks of at most `size`. */
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
 
 // AST where-operator codes -> canonical $ops understood by PushdownCompiler.
 const AST_OP_TO_CANONICAL: Record<string, string> = {
@@ -175,6 +199,138 @@ export class FederationExecutor {
       canonical.groupBy = [...canonical.select];
     }
     return canonical;
+  }
+
+  /**
+   * Compute the minimal set of columns to fetch from each JOIN leg (projection
+   * pushdown). Walks the whole query — `select`, every join `on`, `where`,
+   * `orderBy`, `groupBy`, `having` — and attributes each `alias.column`
+   * reference to its leg. A leg's fetched columns are the ones it contributes to
+   * the final result PLUS its join keys (needed for the in-fabric hash/bind
+   * join). Correctness rule: the moment a reference can't be unambiguously tied
+   * to one known alias — an unqualified column in a multi-table join, a `*`, a
+   * raw expression / window / full-text predicate — this bails and returns
+   * `null`, meaning "fetch `*` from every leg". Better to over-fetch than to
+   * drop a column the join or projection needs.
+   * @param ast the SELECT AST (with `from` + `joins`).
+   * @param legMetas the resolved legs (alias/source/resource + `on`).
+   * @returns a map `alias -> column names` (a `null` entry = fetch `*` for that
+   *   leg), or `null` to disable projection pushdown entirely.
+   */
+  private static joinLegProjections(ast: any, legMetas: LegMeta[]): Record<string, string[] | null> | null {
+    const aliases = new Set(legMetas.map((l) => l.alias));
+    const need: Record<string, Set<string> | null> = {};
+    for (const l of legMetas) need[l.alias] = new Set<string>();
+
+    let bail = false;
+    const addRef = (path: any): void => {
+      if (bail) return;
+      if (!path || typeof path !== 'string' || path === '*') { bail = true; return; }
+      const dot = path.indexOf('.');
+      if (dot < 0) { bail = true; return; }                 // unqualified in a multi-table join → ambiguous
+      const alias = path.slice(0, dot);
+      const col = path.slice(dot + 1);
+      if (!aliases.has(alias)) { bail = true; return; }      // unknown alias → be safe
+      if (col === '*') { need[alias] = null; return; }        // alias.* → all columns of that leg
+      if (need[alias] !== null) need[alias]!.add(baseColumn(col));
+    };
+
+    // Final projection.
+    if (!Array.isArray(ast.select) || ast.select.length === 0) return null;  // implicit * → fetch all
+    for (const c of ast.select) {
+      if (bail) break;
+      if (typeof c === 'string') addRef(c);
+      else if (c && typeof c === 'object') {
+        if (c.aggregate) { if (c.column && c.column !== '*') addRef(c.column); }   // COUNT(*) needs no column
+        else if (c.column && !c.window && !c.expression) addRef(c.column);
+        else { bail = true; }                                                     // expression / window → unknown cols
+      } else bail = true;
+    }
+    // Join keys — always needed to perform the in-fabric join and extract bind keys.
+    for (const j of ast.joins || []) { if (j.on) { addRef(j.on.left); addRef(j.on.right); } }
+    // Predicates / ordering / grouping that reference specific columns.
+    for (const w of ast.where || []) { if (w && w.column) addRef(w.column); else if (w && (w.expression || w.search)) { bail = true; } }
+    for (const o of ast.orderBy || []) addRef(o.column);
+    for (const g of ast.groupBy || []) addRef(typeof g === 'string' ? g : g?.field);
+    for (const h of ast.having || []) { if (h && h.column) addRef(h.column); else if (h && (h.expression || h.search)) { bail = true; } }
+
+    if (bail) return null;
+    const out: Record<string, string[] | null> = {};
+    for (const alias of aliases) {
+      const s = need[alias];
+      out[alias] = s == null ? null : Array.from(s);
+    }
+    return out;
+  }
+
+  /**
+   * Estimate a leg's POST-FILTER row count by pushing a `COUNT(*)` (with the
+   * leg's already-resolved predicate) to its source — the fabric's live
+   * cardinality signal for cost-based driving-side selection. The count runs
+   * through the same (@link fetchLegDirect) path so it respects GRANTs and the
+   * Policy Engine's row predicate (we estimate only rows the caller may see).
+   * Probe warnings/traces are discarded (throwaway arrays) so the estimate
+   * doesn't pollute the query's audit trail. Returns `null` on any failure
+   * (grant denial, unreachable source, non-numeric result), which makes the
+   * caller fall back to FROM-side driving.
+   * @param tenantId tenant identifier.
+   * @param lm the leg to size (`alias`/`source`/`resource`).
+   * @param filter the leg's pushed predicate (may be empty/undefined).
+   * @param plan the query plan (leg resolution cache + session/policy).
+   * @param tenantSchema physical tenant schema for local/synced legs.
+   * @returns the estimated visible row count, or `null` if it couldn't be probed.
+   */
+  private static async estimateLegRows(
+    tenantId: string, lm: LegMeta, filter: Record<string, any> | undefined, plan: QueryPlan, tenantSchema: string
+  ): Promise<number | null> {
+    try {
+      const rows = await this.fetchLegDirect(
+        tenantId,
+        { source: lm.source, resource: lm.resource, canonical: { filter: filter || {}, aggregates: [{ func: 'COUNT', column: null, alias: '__cnt' }] } },
+        plan, tenantSchema, [], [], 'card-probe'
+      );
+      if (!rows || !rows[0]) return null;
+      const v = Object.values(rows[0])[0];   // COUNT-only row → single value, casing-proof (Oracle uppercases aliases)
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * In-memory join of two already-alias-qualified row sets on `on`. Equijoins
+   * build a hash index on the RIGHT side and probe with the LEFT (O(L+R));
+   * non-equi joins fall back to a bounded nested loop. `keepUnmatchedLeft`
+   * preserves unmatched left rows (LEFT JOIN semantics). Shared by both the
+   * broadcast-hash and bind-join paths so the merge logic lives in one place.
+   * @param left the driving/probe row set (qualified).
+   * @param right the build row set (qualified).
+   * @param on the `(left, operator, right)` join clause (columns alias-qualified).
+   * @param keepUnmatchedLeft keep left rows with no match (LEFT JOIN).
+   * @param isEquiJoin whether `on.operator` is equality (hash) vs other (nested loop).
+   * @returns the merged rows (`{...l, ...r}` per match).
+   */
+  private static mergeJoin(left: any[], right: any[], on: any, keepUnmatchedLeft: boolean, isEquiJoin: boolean): any[] {
+    const merged: any[] = [];
+    if (isEquiJoin) {
+      const index = new Map<any, any[]>();
+      for (const r of right) { const k = r[on.right]; const b = index.get(k); if (b) b.push(r); else index.set(k, [r]); }
+      for (const l of left) {
+        const matches = index.get(l[on.left]) || [];
+        if (matches.length === 0) { if (keepUnmatchedLeft) merged.push({ ...l }); }
+        else for (const r of matches) merged.push({ ...l, ...r });
+      }
+    } else {
+      for (const l of left) {
+        let matched = false;
+        for (const r of right) {
+          if (this.evalOn(l[on.left], on.operator, r[on.right])) { merged.push({ ...l, ...r }); matched = true; }
+        }
+        if (!matched && keepUnmatchedLeft) merged.push({ ...l });
+      }
+    }
+    return merged;
   }
 
   /**
@@ -319,7 +475,7 @@ export class FederationExecutor {
       if (eng === 'ELASTICSEARCH' || eng === 'ELASTIC' || eng === 'ES') {
         return { text: ElasticsearchConnector.previewBody(input, input.table) };
       }
-      const dialect = eng === 'MYSQL' ? 'mysql' : eng === 'SNOWFLAKE' ? 'snowflake' : 'postgres';
+      const dialect = eng === 'MYSQL' ? 'mysql' : eng === 'SNOWFLAKE' ? 'snowflake' : eng === 'ORACLE' ? 'oracle' : 'postgres';
       const compiled = PushdownCompiler.toSql({ ...input, dialect });
       return { text: compiled.text, params: compiled.params };
     } catch {
@@ -565,12 +721,80 @@ export class FederationExecutor {
     const legFilters = this.buildLegFilters(legMetas, ast.where || []);
     const bindMax = bindMaxKeys();
 
+    // COST-BASED DRIVING-SIDE SELECTION (Trino/Denodo/Spark all pick the smaller,
+    // more-selective side as the build/broadcast side; we were always driving from
+    // the FROM leg). For a single INNER equijoin, probe each side's POST-FILTER
+    // cardinality with a pushed COUNT(*) and drive from the smaller side — fewer
+    // bind keys shipped and a smaller in-fabric build. Only INNER is reordered
+    // (swapping a LEFT/RIGHT/FULL side would change results). Probe failures fall
+    // back to FROM-side driving. (A persisted stats cache would remove the probe
+    // round-trip — that's the CBO roadmap item.)
+    const cards: Record<string, number | null> = {};
+    const twoLegInnerEqui = legMetas.length === 2 && legMetas[1]!.joinType === 'INNER'
+      && ['EQ', '='].includes(String(legMetas[1]!.on?.operator || 'EQ').toUpperCase());
+    if (costProbeEnabled() && twoLegInnerEqui) {
+      const L = legMetas[0]!, R = legMetas[1]!;
+      const [cl, cr] = await Promise.all([
+        this.estimateLegRows(tenantId, L, legFilters[L.alias], plan, tenantSchema),
+        this.estimateLegRows(tenantId, R, legFilters[R.alias], plan, tenantSchema),
+      ]);
+      cards[L.alias] = cl; cards[R.alias] = cr;
+      if (cl != null && cr != null) {
+        pushed.push(`cost probe: ${L.alias}~${cl} rows, ${R.alias}~${cr} rows`);
+        if (cr < cl) {
+          const on = R.on!;
+          legMetas[0] = { ...R, joinType: null, on: null };
+          legMetas[1] = { ...L, joinType: 'INNER', on: { left: on.right, operator: on.operator, right: on.left } };
+          pushed.push(`cost-based driving side: "${R.alias}" (~${cr}) drives; "${L.alias}" (~${cl}) is the bind/probe side`);
+        } else {
+          pushed.push(`cost-based driving side: "${L.alias}" (~${cl}) drives (FROM side already the smaller)`);
+        }
+      }
+    }
+
+    // PROJECTION PUSHDOWN: fetch only the columns each leg actually contributes
+    // (final projection + its join keys + referenced predicates/order/group), so
+    // a wide table isn't dragged across the network as SELECT *. Falls back to
+    // SELECT * for any leg whose columns can't be unambiguously attributed —
+    // correctness before cleverness.
+    const proj = this.joinLegProjections(ast, legMetas);
+    const selectFor = (alias: string): string[] | undefined => {
+      if (!proj) return undefined;                 // ambiguous somewhere → * everywhere
+      const s = proj[alias];
+      return s && s.length ? s : undefined;        // null / empty → * for this leg
+    };
+    if (proj) {
+      const shown = legMetas.map((l) => `${l.alias}:{${(proj[l.alias] || ['*']).join(',')}}`).join(' ');
+      pushed.push(`projection pushdown → ${shown}`);
+    }
+
+    // BROADCAST HASH JOIN (both sides small): fetch both legs in PARALLEL and
+    // hash-join in-fabric — ONE round-trip of latency instead of the two sequential
+    // ones a bind-join needs (driving fetch → then probe fetch). Only for a 2-leg
+    // INNER equijoin where both post-filter counts are known and ≤ the broadcast
+    // ceiling, so neither side is ever dragged in full unless it's already small.
+    // Everything else uses the driving + bind-join loop below.
+    if (twoLegInnerEqui) {
+      const bMax = broadcastMaxRows();
+      const a0 = legMetas[0]!, a1 = legMetas[1]!;
+      const c0 = cards[a0.alias], c1 = cards[a1.alias];
+      if (c0 != null && c1 != null && c0 <= bMax && c1 <= bMax) {
+        pushed.push(`broadcast hash join: both sides small (${a0.alias}~${c0}, ${a1.alias}~${c1}) → fetched in parallel, joined in-fabric`);
+        const [r0, r1] = await Promise.all([
+          this.fetchLegDirect(tenantId, { source: a0.source, resource: a0.resource, canonical: { filter: legFilters[a0.alias] || {}, select: selectFor(a0.alias) } }, plan, tenantSchema, warnings, trace, 'broadcast-build'),
+          this.fetchLegDirect(tenantId, { source: a1.source, resource: a1.resource, canonical: { filter: legFilters[a1.alias] || {}, select: selectFor(a1.alias) } }, plan, tenantSchema, warnings, trace, 'broadcast-build'),
+        ]);
+        const joined = this.mergeJoin(this.qualify(r0, a0.alias), this.qualify(r1, a1.alias), a1.on, false, true);
+        return this.applyWhere(joined, ast.where);
+      }
+    }
+
     // Driving leg: fetch with its (possibly propagated) predicate, then qualify columns.
     const driving = legMetas[0]!;
     const drivingFilter = legFilters[driving.alias];
     if (drivingFilter && Object.keys(drivingFilter).length) pushed.push(`pushed ${Object.keys(drivingFilter).length} predicate(s) to ${driving.source}.${driving.resource}`);
     let acc = this.qualify(
-      await this.fetchLegDirect(tenantId, { source: driving.source, resource: driving.resource, canonical: { filter: drivingFilter } }, plan, tenantSchema, warnings, trace, 'join-driving'),
+      await this.fetchLegDirect(tenantId, { source: driving.source, resource: driving.resource, canonical: { filter: drivingFilter, select: selectFor(driving.alias) } }, plan, tenantSchema, warnings, trace, 'join-driving'),
       driving.alias
     );
 
@@ -579,7 +803,7 @@ export class FederationExecutor {
       const on = lm.on!;
       const rightBaseCol = baseColumn(on.right);
       const isEquiJoin = ['EQ', '='].includes(String(on.operator || 'EQ').toUpperCase());
-      const filter: Record<string, any> = { ...(legFilters[lm.alias] || {}) };
+      const legFilter: Record<string, any> = { ...(legFilters[lm.alias] || {}) };
 
       // Cross-engine RIGHT/FULL cannot be reproduced by this left-driven hash join.
       if (lm.joinType === 'RIGHT' || lm.joinType === 'FULL') {
@@ -589,6 +813,7 @@ export class FederationExecutor {
       // Bind join: only valid for an equijoin that keeps left rows driven (INNER/LEFT).
       const canBind = isEquiJoin && (lm.joinType === 'INNER' || lm.joinType === 'LEFT' || lm.joinType === 'RIGHT' || lm.joinType === 'FULL');
       let skipFetch = false;
+      let bindBatches: any[][] | null = null;   // null → single fetch with legFilter only
       if (canBind) {
         const leftVals = Array.from(new Set(acc.map((r) => readColumn(r, on.left)).filter((v) => v !== undefined && v !== null)));
         if (leftVals.length === 0) {
@@ -596,45 +821,47 @@ export class FederationExecutor {
           skipFetch = true;
           pushed.push(`bind-join: driving side has no keys, skipped fetch of ${lm.source}.${lm.resource}`);
         } else if (leftVals.length <= bindMax) {
-          filter[rightBaseCol] = { $in: leftVals };
+          bindBatches = [leftVals];
           pushed.push(`bind-join: pushed ${leftVals.length} key(s) as ${rightBaseCol} IN (...) to ${lm.source}.${lm.resource}`);
         } else {
-          warnings.push(`Bind-join to "${lm.source}.${lm.resource}" skipped: ${leftVals.length} join keys exceed the ${bindMax} limit; leg fetched with a bounded full scan.`);
+          // Large key set: CHUNK the IN-list into bindMax-sized batches (a bounded
+          // fan-out) instead of abandoning the filter and scanning the whole probe
+          // table. Only give up (single bounded scan) if it would take too many batches.
+          const batches = chunk(leftVals, bindMax);
+          if (batches.length <= maxBindBatches()) {
+            bindBatches = batches;
+            pushed.push(`batched bind-join: ${leftVals.length} keys → ${batches.length} chunk(s) of ≤${bindMax} to ${lm.source}.${lm.resource}`);
+          } else {
+            warnings.push(`Bind-join to "${lm.source}.${lm.resource}" skipped: ${leftVals.length} keys need ${batches.length} batches (> ${maxBindBatches()}); leg fetched with a bounded scan.`);
+          }
         }
       } else if (!isEquiJoin) {
         pushed.push(`non-equi join to ${lm.source}.${lm.resource}: bind-join not applicable, bounded fetch`);
       }
 
-      const didBind = !!(filter[rightBaseCol] && typeof filter[rightBaseCol] === 'object' && '$in' in filter[rightBaseCol]);
-      const right = skipFetch ? [] : this.qualify(
-        await this.fetchLegDirect(tenantId, { source: lm.source, resource: lm.resource, canonical: { filter } }, plan, tenantSchema, warnings, trace, didBind ? 'bind-join' : 'join-probe'),
-        lm.alias
-      );
-
-      // In-memory hash join on the (qualified) ON keys.
-      const keepUnmatchedLeft = lm.joinType === 'LEFT';
-      if (isEquiJoin) {
-        const index = new Map<any, any[]>();
-        for (const r of right) { const k = r[on.right]; const b = index.get(k); if (b) b.push(r); else index.set(k, [r]); }
-        const merged: any[] = [];
-        for (const l of acc) {
-          const matches = index.get(l[on.left]) || [];
-          if (matches.length === 0) { if (keepUnmatchedLeft) merged.push({ ...l }); }
-          else for (const r of matches) merged.push({ ...l, ...r });
-        }
-        acc = merged;
+      let right: any[];
+      if (skipFetch) {
+        right = [];
+      } else if (bindBatches) {
+        // One fetch per key-batch (parallel), each pushing its own IN(...) filter.
+        const label = bindBatches.length > 1 ? 'bind-join-batch' : 'bind-join';
+        const parts = await Promise.all(bindBatches.map((keys) =>
+          this.fetchLegDirect(
+            tenantId,
+            { source: lm.source, resource: lm.resource, canonical: { filter: { ...legFilter, [rightBaseCol]: { $in: keys } }, select: selectFor(lm.alias) } },
+            plan, tenantSchema, warnings, trace, label
+          )
+        ));
+        right = this.qualify(parts.flat(), lm.alias);
       } else {
-        // Non-equi join: nested-loop evaluate the ON predicate in memory (bounded inputs).
-        const merged: any[] = [];
-        for (const l of acc) {
-          let matched = false;
-          for (const r of right) {
-            if (this.evalOn(l[on.left], on.operator, r[on.right])) { merged.push({ ...l, ...r }); matched = true; }
-          }
-          if (!matched && keepUnmatchedLeft) merged.push({ ...l });
-        }
-        acc = merged;
+        // No bind (non-equi, or key set too large): single bounded fetch with the leg's own predicate.
+        right = this.qualify(
+          await this.fetchLegDirect(tenantId, { source: lm.source, resource: lm.resource, canonical: { filter: legFilter, select: selectFor(lm.alias) } }, plan, tenantSchema, warnings, trace, 'join-probe'),
+          lm.alias
+        );
       }
+
+      acc = this.mergeJoin(acc, right, on, lm.joinType === 'LEFT', isEquiJoin);
     }
 
     // Return post-WHERE joined rows; projection / aggregation / order+limit are

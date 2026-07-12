@@ -20,7 +20,7 @@
  */
 import { Pool } from 'pg';
 import * as mysql from 'mysql2/promise';
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 import { PushdownCompiler, CanonicalQuery } from '../../query-engine/pushdown';
 
 /**
@@ -548,6 +548,32 @@ export class MongoDBConnector implements IConnector {
      * @param config Canonical query config (`select`/`filter`/`orderBy`/`limit`/`offset`/`groupBy`/`aggregates`).
      * @returns The matching documents (or aggregation result documents).
      */
+    /**
+     * Coerce `_id` filter values that are 24-hex-char strings back into `ObjectId`.
+     * Needed so a resumed copy — whose keyset cursor was persisted as a hex string —
+     * still matches Mongo's native ObjectId `_id` (a string `$gt` would silently match
+     * nothing across BSON types). Native ObjectId values pass through unchanged, and
+     * non-`_id` fields are never touched. Recurses into `$and`/`$or`.
+     */
+    private static coerceIds(filter: any): any {
+        if (!filter || typeof filter !== 'object') return filter;
+        const isHex24 = (x: any) => typeof x === 'string' && /^[0-9a-fA-F]{24}$/.test(x);
+        const conv = (x: any) => (isHex24(x) ? new ObjectId(x) : x);
+        const coerceVal = (v: any): any => {
+            if (v instanceof ObjectId) return v;
+            if (Array.isArray(v)) return v.map(conv);
+            if (v && typeof v === 'object') { const o: any = {}; for (const [op, val] of Object.entries(v)) o[op] = Array.isArray(val) ? val.map(conv) : conv(val); return o; }
+            return conv(v);
+        };
+        const out: any = Array.isArray(filter) ? [] : {};
+        for (const [k, v] of Object.entries(filter)) {
+            if (k === '_id') out[k] = coerceVal(v);
+            else if (v && typeof v === 'object') out[k] = this.coerceIds(v);   // $and/$or / nested
+            else out[k] = v;
+        }
+        return out;
+    }
+
     async query(schema: string, table: string, config: any): Promise<any[]> {
         await this.client.connect();
         const db = this.client.db(schema);
@@ -564,9 +590,10 @@ export class MongoDBConnector implements IConnector {
 
         // Push filter / projection / sort / limit / skip down to MongoDB.
         const spec = PushdownCompiler.toMongo(canonical);
-        console.log(`[MongoDBConnector] Pushdown find: ${JSON.stringify(spec.filter)} proj=${JSON.stringify(spec.projection || {})}`);
+        const filter = MongoDBConnector.coerceIds(spec.filter);   // resume-safe _id (hex string → ObjectId)
+        console.log(`[MongoDBConnector] Pushdown find: ${JSON.stringify(filter)} proj=${JSON.stringify(spec.projection || {})}`);
 
-        let cursor = collection.find(spec.filter, spec.projection ? { projection: spec.projection } : {});
+        let cursor = collection.find(filter, spec.projection ? { projection: spec.projection } : {});
         if (spec.sort) cursor = cursor.sort(spec.sort);
         if (typeof spec.skip === 'number') cursor = cursor.skip(spec.skip);
         if (typeof spec.limit === 'number') cursor = cursor.limit(spec.limit);
@@ -591,8 +618,9 @@ export class MongoDBConnector implements IConnector {
         await this.client.connect();
         const canonical = toCanonical(config);
         const spec = PushdownCompiler.toMongo(canonical);
+        const filter = MongoDBConnector.coerceIds(spec.filter);   // resume-safe _id (hex string → ObjectId)
         let cursor = this.client.db(schema).collection(table)
-            .find(spec.filter, spec.projection ? { projection: spec.projection } : {})
+            .find(filter, spec.projection ? { projection: spec.projection } : {})
             .batchSize(Math.max(1, batchSize));
         if (spec.sort) cursor = cursor.sort(spec.sort);
         if (typeof spec.skip === 'number') cursor = cursor.skip(spec.skip);
@@ -602,6 +630,45 @@ export class MongoDBConnector implements IConnector {
         } finally {
             await cursor.close().catch(() => { /* already closed */ });
         }
+    }
+
+    /**
+     * NATIVE CDC via MongoDB **change streams** (`collection.watch`) — reads the oplog, so it
+     * captures full CRUD (insert/update/replace → 'I'/'U', delete → 'D') with **no triggers**.
+     * Batch-drain model: opens the stream at `resumeToken` (or "now" on first call), pulls up to
+     * `limit` available events non-blockingly, and returns them plus the new resume token to
+     * persist. Requires the Mongo deployment to be a replica set (change-stream prerequisite).
+     * @returns `{ changes:[{op,pk,doc}], token }` — `token` is the JSON resume token to store.
+     */
+    async drainChanges(schema: string, table: string, resumeToken: any, limit = 500): Promise<{ changes: { op: 'I' | 'U' | 'D'; pk: string; doc: any }[]; token: any }> {
+        await this.client.connect();
+        const coll = this.client.db(schema).collection(table);
+        const opts: any = { fullDocument: 'updateLookup' };
+        if (resumeToken) opts.resumeAfter = resumeToken;
+        const stream = coll.watch([], opts);
+        const changes: { op: 'I' | 'U' | 'D'; pk: string; doc: any }[] = [];
+        let token = resumeToken;
+        try {
+            for (let i = 0; i < limit; i++) {
+                const ev: any = await stream.tryNext();     // non-blocking; null when caught up
+                if (!ev) break;
+                token = ev._id;                             // advance the resume token
+                const pk = String(ev.documentKey?._id);
+                if (ev.operationType === 'insert' || ev.operationType === 'replace') changes.push({ op: 'I', pk, doc: ev.fullDocument });
+                else if (ev.operationType === 'update') changes.push({ op: 'U', pk, doc: ev.fullDocument });
+                else if (ev.operationType === 'delete') changes.push({ op: 'D', pk, doc: null });
+            }
+            if (token === resumeToken) token = stream.resumeToken ?? resumeToken;   // no events → current position
+        } finally { await stream.close().catch(() => {}); }
+        return { changes, token };
+    }
+
+    /** Get the current change-stream position ("now") to baseline after an initial snapshot. */
+    async currentChangeToken(schema: string, table: string): Promise<any> {
+        await this.client.connect();
+        const stream = this.client.db(schema).collection(table).watch([]);
+        try { await stream.tryNext(); return stream.resumeToken; }
+        finally { await stream.close().catch(() => {}); }
     }
 
     // --- write support (used by the /api/data CRUD endpoints) ---
@@ -616,6 +683,28 @@ export class MongoDBConnector implements IConnector {
         await this.client.connect();
         const r = await this.client.db(schema).collection(table).insertMany(docs);
         return { insertedCount: r.insertedCount };
+    }
+    /**
+     * Idempotent bulk **upsert by `_id`** (replication destination write): each doc replaces
+     * or inserts the doc with the same `_id`, so re-applying a batch never duplicates. `_id`
+     * carries the source primary key. Used for Mongo-as-destination replication/DR + CDC apply.
+     */
+    async upsertDocs(schema: string, table: string, docs: any[]): Promise<any> {
+        await this.client.connect();
+        const ops = docs.map((d) => ({ replaceOne: { filter: { _id: d._id }, replacement: d, upsert: true } }));
+        if (!ops.length) return { upserted: 0 };
+        const r = await this.client.db(schema).collection(table).bulkWrite(ops, { ordered: false });
+        return { upserted: (r.upsertedCount || 0) + (r.modifiedCount || 0) + (r.insertedCount || 0) };
+    }
+    /** Delete one document by `_id` (apply a CDC delete to a Mongo destination). */
+    async deleteById(schema: string, table: string, id: any): Promise<void> {
+        await this.client.connect();
+        await this.client.db(schema).collection(table).deleteOne({ _id: id });
+    }
+    /** Empty a collection (clean slate for a FULL destination reload). */
+    async clearCollection(schema: string, table: string): Promise<void> {
+        await this.client.connect();
+        await this.client.db(schema).collection(table).deleteMany({});
     }
     /**
      * Applies a `$set` update to every document matching a canonical filter.
@@ -1126,6 +1215,17 @@ export class ElasticsearchConnector implements IConnector {
         const items = res.items || [];
         return { insertedCount: items.filter((i: any) => i.index && i.index.status < 300).length };
     }
+
+    /** Delete an entire index (used for a clean FULL reload). No-op if it doesn't exist. */
+    async dropIndex(index: string): Promise<void> {
+        try { await this.req('DELETE', `/${encodeURIComponent(index)}`); } catch { /* absent → fine */ }
+    }
+    /** Delete a single document by id (used to apply CDC DELETEs). No-op if it's already gone. */
+    async deleteDoc(index: string, id: string): Promise<void> {
+        try { await this.req('DELETE', `/${encodeURIComponent(index)}/_doc/${encodeURIComponent(String(id))}?refresh=true`); } catch { /* 404 → already deleted */ }
+    }
+    /** Lightweight reachability check (cluster health) — used as a destination handshake. */
+    async ping(): Promise<void> { await this.req('GET', `/_cluster/health`); }
     /**
      * Updates every document matching a canonical filter via `_update_by_query`,
      * using a Painless script that sets each field from `set` (refreshed immediately).
@@ -1191,6 +1291,140 @@ export class ElasticsearchConnector implements IConnector {
 }
 
 /**
+ * `IConnector` implementation for an Oracle Database source. Catalog
+ * introspection via the `ALL_*` data-dictionary views (`ALL_TABLES`,
+ * `ALL_VIEWS`, `ALL_TAB_COLUMNS`, `ALL_CONSTRAINTS`), and filtered queries
+ * compiled to Oracle SQL (row-limiting `OFFSET .. FETCH`, `:n` binds) by
+ * `PushdownCompiler`. The `oracledb` driver is lazy-required so the build never
+ * hard-depends on it.
+ */
+export class OracleConnector implements IConnector {
+    private config: any;
+    private conn: any = null;
+    /** Oracle's built-in schemas, excluded from discovery. */
+    private static SYSTEM_OWNERS = new Set(['SYS', 'SYSTEM', 'XDB', 'GSMADMIN_INTERNAL', 'OUTLN', 'DBSNMP', 'APPQOSSYS',
+        'CTXSYS', 'MDSYS', 'OLAPSYS', 'ORDDATA', 'ORDSYS', 'WMSYS', 'LBACSYS', 'DVSYS', 'AUDSYS', 'DBSFWUSER',
+        'REMOTE_SCHEDULER_AGENT', 'SYS$UMF', 'GGSYS', 'ANONYMOUS', 'ORACLE_OCM', 'DIP', 'PDBADMIN']);
+
+    constructor(config: any) { this.config = config; }
+
+    /** Lazily require the optional `oracledb` dependency. */
+    private driver(): any {
+        try { return require('oracledb'); }
+        catch { throw new Error("Oracle support requires the 'oracledb' package. Run: npm i oracledb"); }
+    }
+
+    /** Build an Oracle EZConnect string `host:port/service` from config. */
+    private connectString(): string {
+        const c = this.config;
+        if (c.connectString || c.connectionString) return String(c.connectString || c.connectionString);
+        const svc = c.serviceName || c.service || c.dbName || c.database || c.sid || 'FREEPDB1';
+        return `${c.host || 'localhost'}:${c.port || 1521}/${svc}`;
+    }
+
+    /** Open (once) an oracledb connection; rows come back as UPPERCASE-keyed objects. */
+    private async connect(): Promise<any> {
+        if (this.conn) return this.conn;
+        const oracledb = this.driver();
+        oracledb.outFormat = oracledb.OUT_FORMAT_OBJECT;
+        oracledb.fetchAsString = [oracledb.CLOB];   // read CLOBs as strings (bounded rows only)
+        this.conn = await oracledb.getConnection({
+            user: this.config.user || this.config.username,
+            password: this.config.pass || this.config.password,
+            connectString: this.connectString(),
+        });
+        return this.conn;
+    }
+
+    /** Execute SQL with positional (`:n`) binds and return rows. */
+    private async exec(sql: string, binds: any[] = []): Promise<any[]> {
+        const conn = await this.connect();
+        // autoCommit so DML (INSERT/MERGE/DELETE used by replication/CDC as a destination) persists —
+        // oracledb does NOT autocommit by default, so writes would otherwise roll back on close.
+        const r = await conn.execute(sql, binds, { outFormat: this.driver().OUT_FORMAT_OBJECT, autoCommit: true });
+        return r.rows || [];
+    }
+
+    /** List non-system schemas (table/view owners). */
+    async discoverSchemas(): Promise<any[]> {
+        const rows = await this.exec(`SELECT DISTINCT owner AS "name" FROM all_tables ORDER BY owner`);
+        return rows
+            .map((r: any) => r.name || r.NAME)
+            .filter((o: string) => !OracleConnector.SYSTEM_OWNERS.has(String(o).toUpperCase()))
+            .map((o: string) => ({ name: o, physicalName: o }));
+    }
+
+    /** List tables, views, sequences, functions/procedures owned by a schema. */
+    async discoverTables(schema: string): Promise<any[]> {
+        const owner = String(schema).toUpperCase();
+        const out: any[] = [];
+        const tables = await this.exec(`SELECT table_name AS "name" FROM all_tables WHERE owner = :1`, [owner]);
+        tables.forEach((r: any) => { const n = r.name || r.NAME; out.push({ name: n, physicalName: n, rowCount: 0, resourceType: 'TABLE' }); });
+        try { (await this.exec(`SELECT view_name AS "name" FROM all_views WHERE owner = :1`, [owner])).forEach((r: any) => { const n = r.name || r.NAME; out.push({ name: n, physicalName: n, rowCount: 0, resourceType: 'VIEW' }); }); } catch { /* optional */ }
+        try { (await this.exec(`SELECT sequence_name AS "name" FROM all_sequences WHERE sequence_owner = :1`, [owner])).forEach((r: any) => { const n = r.name || r.NAME; out.push({ name: n, physicalName: n, rowCount: 0, resourceType: 'SEQUENCE' }); }); } catch { /* optional */ }
+        try { (await this.exec(`SELECT object_name AS "name", object_type AS "type" FROM all_objects WHERE owner = :1 AND object_type IN ('FUNCTION','PROCEDURE')`, [owner])).forEach((r: any) => { const n = r.name || r.NAME; const t = String(r.type || r.TYPE).toUpperCase(); out.push({ name: n, physicalName: n, rowCount: 0, resourceType: t }); }); } catch { /* optional */ }
+        return out;
+    }
+
+    /** Column metadata incl. primary-key flag (via `ALL_CONSTRAINTS`/`ALL_CONS_COLUMNS`). */
+    async discoverColumns(schema: string, table: string): Promise<any[]> {
+        const owner = String(schema).toUpperCase();
+        const tbl = String(table).toUpperCase();
+        const cols = await this.exec(
+            `SELECT column_name AS "name", data_type AS "type", nullable AS "nullable", data_default AS "def"
+             FROM all_tab_columns WHERE owner = :1 AND table_name = :2 ORDER BY column_id`, [owner, tbl]);
+        let pkSet = new Set<string>();
+        try {
+            const pks = await this.exec(
+                `SELECT cc.column_name AS "name" FROM all_constraints c JOIN all_cons_columns cc
+                   ON c.constraint_name = cc.constraint_name AND c.owner = cc.owner
+                 WHERE c.owner = :1 AND c.table_name = :2 AND c.constraint_type = 'P'`, [owner, tbl]);
+            pkSet = new Set(pks.map((r: any) => String(r.name || r.NAME)));
+        } catch { /* PK optional */ }
+        return cols.map((r: any) => {
+            const name = r.name || r.NAME;
+            return {
+                name, type: r.type || r.TYPE,
+                nullable: String(r.nullable ?? r.NULLABLE ?? 'Y').toUpperCase() !== 'N',
+                default: r.def ?? r.DEF ?? null,
+                primaryKey: pkSet.has(String(name)),
+            };
+        });
+    }
+
+    /** Run a canonical (filter/projection/sort/limit/aggregate) query, compiled to Oracle SQL. */
+    async query(schema: string, table: string, config: any): Promise<any[]> {
+        const compiled = PushdownCompiler.toSql({ ...toCanonical(config), schema: String(schema).toUpperCase(), table, dialect: 'oracle' });
+        console.log(`[OracleConnector] Pushdown SQL: ${compiled.text}`);
+        return await this.exec(compiled.text, compiled.params);
+    }
+
+    /**
+     * STREAMING variant of `query` — uses oracledb's `resultSet` + `getRows` to
+     * read in windows without buffering the whole result. Pass-through only.
+     */
+    async *queryStream(schema: string, table: string, config: any, batchSize = 500): AsyncGenerator<any> {
+        const compiled = PushdownCompiler.toSql({ ...toCanonical(config), schema: String(schema).toUpperCase(), table, dialect: 'oracle' });
+        const conn = await this.connect();
+        const result = await conn.execute(compiled.text, compiled.params, { resultSet: true, outFormat: this.driver().OUT_FORMAT_OBJECT });
+        const rs = result.resultSet;
+        try {
+            for (;;) {
+                const rows = await rs.getRows(Math.max(1, batchSize));
+                if (!rows.length) break;
+                for (const row of rows) yield row;
+            }
+        } finally { await rs.close().catch(() => {}); }
+    }
+
+    /** Execute arbitrary SQL (catalog introspection / counts). */
+    async rawQuery(sql: string, params: any[] = []): Promise<any[]> { return this.exec(sql, params); }
+
+    /** Close the connection, if opened. */
+    async close(): Promise<void> { if (this.conn) { try { await this.conn.close(); } catch { /* ignore */ } this.conn = null; } }
+}
+
+/**
  * Single entry point for obtaining an `IConnector` instance for a data
  * source's registered engine type.
  * @class
@@ -1220,6 +1454,9 @@ export class ConnectorFactory {
             case 'ELASTIC':
             case 'ES':
                 return new ElasticsearchConnector(config);
+            case 'ORACLE':
+            case 'ORACLEDB':
+                return new OracleConnector(config);
             default:
                 throw new Error(`Unsupported connector type: ${type}`);
         }

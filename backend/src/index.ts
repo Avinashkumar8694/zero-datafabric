@@ -19,6 +19,7 @@ import constraintRoutes from './routes/constraintRoutes';
 import grantRoutes from './routes/grantRoutes';
 import savedAnalyticsRoutes from './routes/savedAnalyticsRoutes';
 import queryLogRoutes from './routes/queryLogRoutes';
+import replicationRoutes from './routes/replicationRoutes';
 import dataRoutes from './routes/dataRoutes';
 import * as metadataController from './controllers/metadataController';
 import { ElasticsearchMutationWorker } from './modules/metadata/es_mutation_worker';
@@ -118,6 +119,7 @@ app.use('/api/constraints', requireAuth, constraintRoutes);
 app.use('/api/grants', requireAuth, grantRoutes);
 app.use('/api/saved-analytics', requireAuth, savedAnalyticsRoutes);
 app.use('/api/query-logs', requireAuth, queryLogRoutes);
+app.use('/api/replication', requireAuth, replicationRoutes);
 
 // Shared Global Events API
 app.get('/api/events', requireAuth, metadataController.getEvents);
@@ -133,6 +135,15 @@ if (process.env.NODE_ENV !== 'test') {
         ElasticsearchMutationWorker.start();
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         require('./modules/sync/physical_sync.service').PhysicalSync.startCdcPoller();
+        require('./modules/sync/physical_sync.service').PhysicalSync.startSyncScheduler();
+        require('./modules/replication/replication.service').ReplicationService.startScheduler();
+        // Embedded copy-job worker. Set REPLICATION_ENGINE_EXTERNAL=true to disable
+        // it and run the dedicated `npm run start:replication-engine` microservice instead.
+        if (process.env.REPLICATION_ENGINE_EXTERNAL !== 'true') {
+          require('./modules/jobs/copy_job_engine').CopyJobEngine.startWorker();
+          // Kafka CDC→ES consumers (no-op unless FABRIC_CDC_VIA_KAFKA=true).
+          require('./modules/replication/replication.service').ReplicationService.startCdcConsumers().catch(() => {});
+        }
         initCache();
       });
     } catch (err: any) {

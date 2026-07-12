@@ -161,7 +161,7 @@ export async function tryStream(tenantId: string, config: any, session?: any): P
     }
 
     // Document/search/other SQL engines expose queryStream(schema, table, canonical, batch).
-    if (['MONGODB', 'ELASTICSEARCH', 'MYSQL', 'SNOWFLAKE'].includes(leg.engine)) {
+    if (['MONGODB', 'ELASTICSEARCH', 'MYSQL', 'SNOWFLAKE', 'ORACLE', 'ORACLEDB'].includes(leg.engine)) {
       const label: Record<string, string> = {
         MONGODB: `db.${table}.find(${JSON.stringify(canonical.filter || {})}).stream()`,
         ELASTICSEARCH: `POST /${table}/_search?scroll (cursor)`,

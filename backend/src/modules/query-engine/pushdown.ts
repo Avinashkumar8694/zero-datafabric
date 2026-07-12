@@ -14,7 +14,7 @@
  * where $op is one of $eq $ne $gt $gte $lt $lte $like $ilike $in.
  */
 
-export type SqlDialect = 'postgres' | 'mysql' | 'snowflake';
+export type SqlDialect = 'postgres' | 'mysql' | 'snowflake' | 'oracle';
 
 export type AggFunc = 'COUNT' | 'SUM' | 'MIN' | 'MAX' | 'AVG' | 'COUNT_DISTINCT' | 'PERCENTILE';
 
@@ -100,7 +100,12 @@ export class PushdownCompiler {
    */
   private static quoteIdent(name: string, dialect: SqlDialect): string {
     const safe = this.ident(name);
-    return dialect === 'mysql' ? `\`${safe}\`` : `"${safe}"`;
+    if (dialect === 'mysql') return `\`${safe}\``;
+    // Oracle folds unquoted identifiers to UPPERCASE (its canonical stored form).
+    // Uppercase before double-quoting so lowercase/mixed-case query identifiers
+    // still match the physical columns (which the catalog also stores uppercase).
+    if (dialect === 'oracle') return `"${safe.toUpperCase()}"`;
+    return `"${safe}"`;
   }
 
   /**
@@ -167,10 +172,12 @@ export class PushdownCompiler {
     const { schema, table, dialect, select, filter, orderBy, limit, offset, groupBy, aggregates } = input;
     const params: any[] = [];
 
-    // Placeholder generator per dialect (postgres: $n, mysql/snowflake: ?).
+    // Placeholder generator per dialect (postgres: $n, oracle: :n, mysql/snowflake: ?).
     const placeholder = (val: any): string => {
       params.push(val);
-      return dialect === 'postgres' ? `$${params.length}` : '?';
+      if (dialect === 'postgres') return `$${params.length}`;
+      if (dialect === 'oracle') return `:${params.length}`;
+      return '?';
     };
 
     const hasAgg = Array.isArray(aggregates) && aggregates.length > 0;
@@ -232,10 +239,225 @@ export class PushdownCompiler {
       text += ` ORDER BY ${orders}`;
     }
 
-    if (typeof limit === 'number' && limit >= 0) text += ` LIMIT ${Math.floor(limit)}`;
-    if (typeof offset === 'number' && offset > 0) text += ` OFFSET ${Math.floor(offset)}`;
+    if (dialect === 'oracle') {
+      // Oracle 12c+ row-limiting clause (requires ORDER BY for OFFSET to be deterministic).
+      if (typeof offset === 'number' && offset > 0) text += ` OFFSET ${Math.floor(offset)} ROWS`;
+      if (typeof limit === 'number' && limit >= 0) text += ` FETCH ${offset && offset > 0 ? 'NEXT' : 'FIRST'} ${Math.floor(limit)} ROWS ONLY`;
+    } else {
+      if (typeof limit === 'number' && limit >= 0) text += ` LIMIT ${Math.floor(limit)}`;
+      if (typeof offset === 'number' && offset > 0) text += ` OFFSET ${Math.floor(offset)}`;
+    }
 
     return { text, params };
+  }
+
+  // Canonical AST comparison tokens → SQL operators. Anything outside this map
+  // is rejected (never emitted raw) so a hostile AST can't inject an operator.
+  private static readonly AST_OPERATORS: Record<string, string> = {
+    EQ: '=', NE: '!=', GT: '>', LT: '<', GTE: '>=', LTE: '<=',
+    LIKE: 'LIKE', ILIKE: 'ILIKE', IN: 'IN', NIN: 'NOT IN',
+    IS_NULL: 'IS NULL', IS_NOT_NULL: 'IS NOT NULL',
+  };
+
+  // Aggregate function names we allow in a pushed-down SELECT list.
+  private static readonly AGG_WHITELIST = new Set(['COUNT', 'SUM', 'MIN', 'MAX', 'AVG', 'COUNT_DISTINCT']);
+
+  /** Quote an alias-qualified column path, allowing a trailing `.*` (e.g. `a.*`). */
+  private static quoteColumnPath(path: string, dialect: SqlDialect): string {
+    if (!path || path === '*') return '*';
+    const p = String(path);
+    if (/\.\*$/.test(p)) {
+      const prefix = p.slice(0, -2);
+      return `${this.quoteColumn(prefix, dialect)}.*`;
+    }
+    return this.quoteColumn(p, dialect);
+  }
+
+  /** Reject any path that isn't a bare or alias-qualified identifier (or `*`/`a.*`). */
+  private static assertIdentPath(path: string): void {
+    if (!/^(\*|[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*(\.\*)?)$/.test(String(path))) {
+      throw new Error(`co-located pushdown: unsupported column expression "${path}"`);
+    }
+  }
+
+  /**
+   * Compile a WHOLE co-located AST (FROM + JOINs + WHERE + GROUP BY + HAVING +
+   * ORDER BY + LIMIT/OFFSET, and UNION/INTERSECT/EXCEPT) into ONE native,
+   * parameterized SQL statement for a single physical SQL database, so the
+   * source engine's own optimizer executes the join/aggregate instead of the
+   * fabric fanning out into per-leg bind-joins. Every value is parameterized;
+   * every identifier is whitelist-quoted; every operator is mapped from a fixed
+   * table. Any construct we can't prove safe (raw expressions, full-text search,
+   * window functions, CTEs, unknown operators) THROWS — the caller catches and
+   * falls back to the federation executor, so co-location never changes results,
+   * only speed.
+   * @param input `ast` (the query node), target `dialect`, and a `resolve(source,
+   *   resource)` that returns the physical `{ schema, table }` for each leg.
+   * @returns `(text, params)` — one parameterized statement.
+   * @throws when the AST contains a construct not safe to push down whole.
+   */
+  static toJoinSql(input: {
+    ast: any;
+    dialect: SqlDialect;
+    resolve: (source: string | undefined, resource: string) => { schema: string | null; table: string };
+  }): CompiledSql {
+    const { ast, dialect, resolve } = input;
+    const params: any[] = [];
+
+    // Collect every declared CTE name in the tree so a FROM/JOIN reference to a
+    // CTE is emitted as a bare (schema-less) name instead of being resolved to a
+    // physical table. (Lexical shadowing of a real table by a CTE of the same
+    // name is a rare over-approximation we accept.)
+    const cteNames = new Set<string>();
+    const collectCtes = (n: any): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n.with)) for (const c of n.with) { if (c?.name) cteNames.add(c.name); collectCtes(c.base); if (c.unionAll) collectCtes(c.unionAll); }
+      for (const k of ['union', 'intersect', 'except'] as const) if (Array.isArray(n[k])) n[k].forEach(collectCtes);
+    };
+    collectCtes(ast);
+
+    const placeholder = (val: any): string => {
+      params.push(val);
+      if (dialect === 'postgres') return `$${params.length}`;
+      if (dialect === 'oracle') return `:${params.length}`;
+      return '?';
+    };
+
+    const col = (path: string): string => {
+      this.assertIdentPath(path);
+      return this.quoteColumnPath(path, dialect);
+    };
+
+    // A physical table reference with its (aliased) name. No `AS` keyword — Oracle
+    // rejects `FROM t AS a`; `FROM t a` is valid on every dialect here.
+    const tableRef = (ref: any): string => {
+      if (!ref || !ref.resource) throw new Error('co-located pushdown: missing FROM/JOIN resource');
+      // A reference to a CTE name is a logical (schema-less) name, not a physical table.
+      if (cteNames.has(ref.resource)) {
+        const base = this.quoteIdent(ref.resource, dialect);
+        return ref.alias ? `${base} ${this.quoteIdent(ref.alias, dialect)}` : base;
+      }
+      const { schema, table } = resolve(ref.source, ref.resource);
+      const base = schema
+        ? `${this.quoteIdent(schema, dialect)}.${this.quoteIdent(table, dialect)}`
+        : this.quoteIdent(table, dialect);
+      return ref.alias ? `${base} ${this.quoteIdent(ref.alias, dialect)}` : base;
+    };
+
+    // Compile a (non-recursive) WITH clause into `WITH a AS (...), b AS (...) `.
+    // Recursive CTEs (a `unionAll` leg) are left to the in-fabric recursive
+    // executor — throw so the caller falls back.
+    const withPrefix = (node: any): string => {
+      if (!Array.isArray(node.with) || node.with.length === 0) return '';
+      const parts = node.with.map((c: any) => {
+        if (c.unionAll) throw new Error('co-located pushdown: recursive CTE not supported');
+        const cols = Array.isArray(c.columns) && c.columns.length
+          ? `(${c.columns.map((x: string) => this.quoteIdent(x, dialect)).join(', ')})` : '';
+        return `${this.quoteIdent(c.name, dialect)}${cols} AS (${compile(c.base)})`;
+      });
+      return `WITH ${parts.join(', ')} `;
+    };
+
+    const selectSql = (c: any): string => {
+      if (typeof c === 'string') return col(c);
+      if (c && typeof c === 'object') {
+        if (c.aggregate) {
+          const fn = String(c.aggregate).toUpperCase();
+          if (!this.AGG_WHITELIST.has(fn)) throw new Error(`co-located pushdown: unsupported aggregate "${c.aggregate}"`);
+          const inner = !c.column || c.column === '*' ? '*' : col(c.column);
+          const expr = fn === 'COUNT_DISTINCT' ? `COUNT(DISTINCT ${inner})` : `${fn}(${inner})`;
+          return c.alias ? `${expr} AS ${this.quoteIdent(c.alias, dialect)}` : expr;
+        }
+        if (c.column) return col(c.column) + (c.alias ? ` AS ${this.quoteIdent(c.alias, dialect)}` : '');
+      }
+      // Raw expressions / window functions / anything else: not safe to push down whole.
+      throw new Error('co-located pushdown: unsupported SELECT item');
+    };
+
+    const predSql = (w: any): string => {
+      if (!w || typeof w !== 'object' || w.expression || w.search) {
+        throw new Error('co-located pushdown: unsupported predicate (raw expression / full-text search)');
+      }
+      const token = String(w.operator || 'EQ').toUpperCase();
+      const sqlOp = this.AST_OPERATORS[token];
+      if (!sqlOp) throw new Error(`co-located pushdown: unsupported operator "${w.operator}"`);
+      const c = col(w.column);
+      if (token === 'IS_NULL' || token === 'IS_NOT_NULL') return `${c} ${sqlOp}`;
+      if (token === 'IN' || token === 'NIN') {
+        const arr = Array.isArray(w.value) ? w.value : [w.value];
+        if (arr.length === 0) return token === 'IN' ? '1 = 0' : '1 = 1';
+        return `${c} ${sqlOp} (${arr.map((v: any) => placeholder(v)).join(', ')})`;
+      }
+      if (w.value === null && (token === 'EQ' || token === 'NE')) {
+        return `${c} IS ${token === 'NE' ? 'NOT ' : ''}NULL`;
+      }
+      if (token === 'ILIKE' && dialect !== 'postgres') {
+        // ILIKE is Postgres-only; emulate case-insensitive match elsewhere.
+        return `LOWER(${c}) LIKE LOWER(${placeholder(w.value)})`;
+      }
+      return `${c} ${sqlOp} ${placeholder(w.value)}`;
+    };
+
+    const limitOffset = (node: any): string => {
+      let s = '';
+      const lim = node.limit, off = node.offset;
+      if (dialect === 'oracle') {
+        if (typeof off === 'number' && off > 0) s += ` OFFSET ${Math.floor(off)} ROWS`;
+        if (typeof lim === 'number' && lim >= 0) s += ` FETCH ${off && off > 0 ? 'NEXT' : 'FIRST'} ${Math.floor(lim)} ROWS ONLY`;
+      } else {
+        if (typeof lim === 'number' && lim >= 0) s += ` LIMIT ${Math.floor(lim)}`;
+        if (typeof off === 'number' && off > 0) s += ` OFFSET ${Math.floor(off)}`;
+      }
+      return s;
+    };
+
+    const compile = (node: any): string => {
+      if (!node || typeof node !== 'object') throw new Error('co-located pushdown: empty query node');
+      const pre = withPrefix(node);   // '' when no WITH clause
+      // Set operations — every leg is on the same physical DB, so recurse and combine.
+      for (const [key, op] of [['union', 'UNION'], ['intersect', 'INTERSECT'], ['except', 'EXCEPT']] as const) {
+        if (Array.isArray(node[key])) {
+          if (node[key].length < 2) throw new Error(`co-located pushdown: ${op} needs >= 2 legs`);
+          const body = node[key].map((leg: any) => `(${compile(leg)})`).join(` ${op} `);
+          return pre + body + (node.orderBy?.length ? ` ORDER BY ${node.orderBy.map((o: any) => `${col(o.column || o.field)} ${(o.direction || o.dir) === 'DESC' ? 'DESC' : 'ASC'}`).join(', ')}` : '') + limitOffset(node);
+        }
+      }
+      if (!node.from) throw new Error('co-located pushdown: missing FROM');
+
+      const distinct = node.distinct ? 'DISTINCT ' : '';
+      const cols = Array.isArray(node.select) && node.select.length > 0
+        ? node.select.map(selectSql).join(', ')
+        : '*';
+      let text = `${pre}SELECT ${distinct}${cols} FROM ${tableRef(node.from)}`;
+
+      if (Array.isArray(node.joins)) {
+        for (const j of node.joins) {
+          const jt = String(j.type || 'INNER').toUpperCase();
+          if (!['INNER', 'LEFT', 'RIGHT', 'FULL'].includes(jt)) throw new Error(`co-located pushdown: unsupported join type "${j.type}"`);
+          if (!j.on || !j.on.left || !j.on.right) throw new Error('co-located pushdown: JOIN missing ON');
+          const onOp = this.AST_OPERATORS[String(j.on.operator || 'EQ').toUpperCase()];
+          if (!onOp) throw new Error(`co-located pushdown: unsupported join operator "${j.on.operator}"`);
+          text += ` ${jt}${jt === 'FULL' ? ' OUTER' : ''} JOIN ${tableRef(j)} ON ${col(j.on.left)} ${onOp} ${col(j.on.right)}`;
+        }
+      }
+
+      if (Array.isArray(node.where) && node.where.length > 0) {
+        text += ` WHERE ${node.where.map(predSql).join(' AND ')}`;
+      }
+      if (Array.isArray(node.groupBy) && node.groupBy.length > 0) {
+        text += ` GROUP BY ${node.groupBy.map((g: any) => col(String(g))).join(', ')}`;
+      }
+      if (Array.isArray(node.having) && node.having.length > 0) {
+        text += ` HAVING ${node.having.map(predSql).join(' AND ')}`;
+      }
+      if (Array.isArray(node.orderBy) && node.orderBy.length > 0) {
+        text += ` ORDER BY ${node.orderBy.map((o: any) => `${col(o.column || o.field)} ${(o.direction || o.dir) === 'DESC' ? 'DESC' : 'ASC'}`).join(', ')}`;
+      }
+      text += limitOffset(node);
+      return text;
+    };
+
+    return { text: compile(ast), params };
   }
 
   /**
@@ -316,7 +538,9 @@ export class PushdownCompiler {
   private static groupBySql(g: GroupBy, dialect: SqlDialect): string {
     if (g && typeof g === 'object' && g.dateInterval) {
       const col = this.quoteColumn(g.field, dialect);
-      return dialect === 'mysql' ? `DATE(${col})` : `date_trunc('${g.dateInterval}', ${col})`;
+      if (dialect === 'mysql') return `DATE(${col})`;
+      if (dialect === 'oracle') return `TRUNC(${col})`;   // Oracle has no date_trunc
+      return `date_trunc('${g.dateInterval}', ${col})`;
     }
     return this.quoteColumn(g as string, dialect);
   }

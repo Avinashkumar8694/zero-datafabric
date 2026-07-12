@@ -64,6 +64,7 @@
                             <option value="mongodb">MongoDB</option>
                             <option value="snowflake">Snowflake</option>
                             <option value="elasticsearch">Elasticsearch</option>
+                            <option value="oracle">Oracle Database</option>
                         </select>
                     </div>
                 </div>
@@ -89,11 +90,19 @@
                     </div>
                     <div style="font-size:0.72rem; color:var(--text-muted); align-self:end;">CDC pulls rows where <b>watermark &gt; last</b> on each poll and upserts them into the hub replica.</div>
                 </div>
+                <div id="syncSchedRow" style="display:none; grid-template-columns:1fr 2fr; gap:0.9rem; margin-bottom:0.9rem;">
+                    <div>
+                        <label style="display:block; font-size:0.7rem; color:var(--text-muted); margin-bottom:0.3rem;">Scheduled full re-sync (ms, optional)</label>
+                        <input id="syncSchedule" class="context-select" style="width:100%" placeholder="e.g. 3600000 (1h) — blank = manual only" />
+                    </div>
+                    <div style="font-size:0.72rem; color:var(--text-muted); align-self:end;">Leave blank for on-demand only. Set an interval to periodically re-copy the full source into the hub (keeps a SYNC replica fresh without CDC).</div>
+                </div>
                 <script>
                     function applySyncFieldConfig() {
-                        var isCdc = document.getElementById('syncType').value === 'CDC';
-                        document.getElementById('cdcCol').style.display = isCdc ? 'block' : 'none';
-                        document.getElementById('cdcRow').style.display = isCdc ? 'grid' : 'none';
+                        var v = document.getElementById('syncType').value;
+                        document.getElementById('cdcCol').style.display = v === 'CDC' ? 'block' : 'none';
+                        document.getElementById('cdcRow').style.display = v === 'CDC' ? 'grid' : 'none';
+                        document.getElementById('syncSchedRow').style.display = v === 'SYNC' ? 'grid' : 'none';
                     }
                 </script>
 
@@ -180,7 +189,7 @@
 
     function updateDefaultPort() {
         const type = document.getElementById('connType').value;
-        const portMap = { postgres: 5432, mysql: 3306, mongodb: 27017, snowflake: 443, elasticsearch: 9200 };
+        const portMap = { postgres: 5432, mysql: 3306, mongodb: 27017, snowflake: 443, elasticsearch: 9200, oracle: 1521 };
         document.getElementById('connPort').value = portMap[type] || 5432;
     }
     function setRequired(id, required) {
@@ -208,9 +217,9 @@
         setRequired('connPass', false);
         setRequired('connAccount', false);
 
-        if (type === 'postgres' || type === 'mysql') {
+        if (type === 'postgres' || type === 'mysql' || type === 'oracle') {
             setRequired('connHost', true);
-            setRequired('connDB', true);
+            setRequired('connDB', true);   // Oracle: service name (e.g. FREEPDB1)
             setRequired('connUser', true);
         } else if (type === 'mongodb') {
             setRequired('connHost', true);
@@ -282,6 +291,10 @@
                             <button onclick="toggleConnectionStatus('${escapeJs(c.id)}', '${nextStatus}')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
                                 <i class="fas fa-power-off"></i> ${connected ? 'Disconnect' : 'Connect'}
                             </button>
+                            ${(String(syncType).toUpperCase() === 'SYNC' || String(syncType).toUpperCase() === 'CDC') ? `
+                            <button onclick="runSync('${escapeJs(c.name)}','full')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" title="Full backfill from source into hub"><i class="fas fa-sync"></i> Sync</button>` : ''}
+                            ${String(syncType).toUpperCase() === 'CDC' ? `
+                            <button onclick="runSync('${escapeJs(c.name)}','cdc')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" title="Incremental CDC refresh (watermark)"><i class="fas fa-bolt"></i> CDC</button>` : ''}
                             <button onclick="removeConnection('${escapeJs(c.id)}', '${escapeJs(c.name)}')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; color: var(--danger); border-color: #FEE2E2;"><i class="fas fa-trash-alt"></i></button>
                         </div>
                     </td>
@@ -314,6 +327,41 @@
         } catch (e) {
             showModal('Error', `Status update failed: ${e.message || 'API unreachable'}`);
         }
+    }
+
+    // Manually trigger a physical SYNC/CDC replication of a source into the hub.
+    async function runSync(source, mode) {
+        showModal('Queuing…', `Assigning ${mode === 'cdc' ? 'CDC refresh' : 'full sync'} of "${source}" to the replication worker…`);
+        try {
+            const res = await fetch(`${API_BASE}/metadata/sync`, {
+                method: 'POST', headers: getAuthHeaders(),
+                body: JSON.stringify({ source, mode: mode === 'cdc' ? 'cdc' : 'full' })
+            });
+            const d = await res.json();
+            if (!res.ok) return showModal('Sync failed', d.error || 'Unknown error');
+            pollSyncRun(d.runId, mode === 'cdc' ? 'CDC refresh' : 'Full sync', source);
+        } catch (e) {
+            showModal('Error', `Sync failed: ${e.message || 'API unreachable'}`);
+        }
+    }
+
+    // Poll a queued SYNC/CDC copy-job run to completion and summarize.
+    async function pollSyncRun(runId, title, source) {
+        for (let i = 0; i < 200; i++) {
+            let run;
+            try { run = await (await fetch(`${API_BASE}/replication/runs/${runId}`, { headers: getAuthHeaders() })).json(); }
+            catch { await new Promise(r => setTimeout(r, 1500)); continue; }
+            if (run.status === 'COMPLETED' || run.status === 'FAILED') {
+                if (run.status === 'FAILED') return showModal(`${title} failed`, `<span style="color:var(--danger)">${escapeHtml(run.error || 'failed')}</span>`);
+                const r = run.result || {};
+                const total = (r.tables || []).reduce((n, t) => n + (t.rows || 0), 0);
+                const detail = (r.tables || []).map(t => `${escapeHtml(t.schema||'')}.${escapeHtml(t.table||'')}: ${t.rows} rows (${escapeHtml(t.mode||'')})`).join('<br>') || 'no tables';
+                return showModal(`${title} complete — "${escapeHtml(source)}"`, `<b>${total}</b> rows across ${(r.tables || []).length} table(s):<br>${detail}${(r.errors || []).length ? '<br><span style="color:var(--danger)">' + r.errors.join('<br>') + '</span>' : ''}`);
+            }
+            showModal(`${title}…`, `Worker status: <b>${escapeHtml(run.status)}</b> (attempt ${run.attempts||0})…`);
+            await new Promise(r => setTimeout(r, 1500));
+        }
+        showModal(title, 'Still running — check the Replication page → Copy-job runs.');
     }
 
     async function removeConnection(id, name) {
@@ -358,9 +406,17 @@
             const col = document.getElementById('cdcColumn').value.trim();
             if (col) common.cdc = { column: col, intervalMs: parseInt(document.getElementById('cdcInterval').value) || 15000 };
         }
+        // SYNC config: optional scheduled full re-sync interval.
+        if (common.syncType === 'SYNC') {
+            const sched = parseInt(document.getElementById('syncSchedule').value);
+            if (sched > 0) common.sync = { scheduleMs: sched };
+        }
         let config = { ...common };
         if (type === 'postgres' || type === 'mysql' || type === 'mongodb') {
             config = { ...common, dbName: document.getElementById('connDB').value || undefined };
+        } else if (type === 'oracle') {
+            // Oracle: the "Database" field is the service name (e.g. FREEPDB1).
+            config = { ...common, dbName: document.getElementById('connDB').value || undefined, serviceName: document.getElementById('connDB').value || undefined };
         } else if (type === 'snowflake') {
             config = {
                 ...common,

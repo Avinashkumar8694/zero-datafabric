@@ -39,6 +39,10 @@ app.get('/connections', (req, res) => {
   res.render('connections', { title: 'Zero Data Fabric - Connections' });
 });
 
+app.get('/replication', (req, res) => {
+  res.render('replication', { title: 'Zero Data Fabric - Replication' });
+});
+
 app.get('/workbench', (req, res) => {
   res.render('workbench', { title: 'Zero Data Fabric - Workbench' });
 });

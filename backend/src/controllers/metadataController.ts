@@ -20,6 +20,7 @@ import { cached, invalidateTenant } from '../config/cache';
 import { ConnectorFactory } from '../modules/metadata/connectors/factory';
 import { renderFabricDdl, renderFabricAst } from '../modules/metadata/ddl_render';
 import { PhysicalSync } from '../modules/sync/physical_sync.service';
+import { CopyJobEngine } from '../modules/jobs/copy_job_engine';
 
 const orchestrator = new MetadataOrchestrator();
 // Catalog reads change ONLY on sync (crawl/apply/register/remove), and every such
@@ -783,11 +784,14 @@ export const syncSource = async (req: Request, res: Response) => {
         const tenantId = user?.internal_role === 'ADMIN' && req.body.tenantId ? req.body.tenantId : user.tenant_id;
         const source = req.body.source as string;
         if (!source) return res.status(400).json({ error: 'source is required' });
-        const result = req.body.mode === 'cdc'
-            ? await PhysicalSync.refreshCdc(tenantId, source)
-            : await PhysicalSync.backfill(tenantId, source);
-        invalidateTenant(tenantId).catch(() => {});
-        res.json(result);
+        const config = {
+            pageSize: req.body.pageSize ? Number(req.body.pageSize) : undefined,
+            memCeilingMb: req.body.memCeilingMb ? Number(req.body.memCeilingMb) : undefined,
+            maxRows: req.body.maxRows ? Number(req.body.maxRows) : undefined,
+        };
+        // Enqueue a copy job for the replication microservice/worker (non-blocking).
+        const run = await CopyJobEngine.enqueue(tenantId, req.body.mode === 'cdc' ? 'CDC' : 'SYNC', { jobRef: source, config });
+        res.status(202).json({ status: 'QUEUED', runId: run.id, run });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }

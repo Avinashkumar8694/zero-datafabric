@@ -74,6 +74,25 @@ Driver `snowflake-sdk` is lazy-loaded (install only if you use Snowflake).
 | bind-join | ✓ |
 | native SQL / writes | ✓ (`rawQuery`) |
 
+## Oracle Database
+
+**config**: `{ type:"oracle", host, port:1521, dbName|serviceName:"FREEPDB1", user, password }`.
+Driver `oracledb` is lazy-loaded (install only if you use Oracle). Discovery reads the
+`ALL_TABLES`/`ALL_VIEWS`/`ALL_TAB_COLUMNS`/`ALL_CONSTRAINTS` dictionary views (system
+schemas excluded).
+
+| Capability | Support |
+|-----------|---------|
+| filter / projection / sort / limit | ✓ (`OFFSET .. FETCH FIRST n ROWS ONLY`) |
+| `GROUP BY` aggregates | ✓ |
+| bind-join | ✓ (`:n` binds) |
+| native SQL | ✓ (`rawQuery`) |
+| cursor streaming | ✓ (`resultSet.getRows`) |
+
+Oracle folds unquoted identifiers to UPPERCASE; the compiler uppercases + double-quotes
+identifiers so lowercase/mixed-case query columns still resolve. As a federated **source**
+Oracle is fully supported; the replication **destination** remains PostgreSQL.
+
 ## Elasticsearch
 
 **config**: `{ type:"elasticsearch", node|uri:"http://host:9200", username?, password? }`.

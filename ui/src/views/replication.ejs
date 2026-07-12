@@ -1,0 +1,307 @@
+<%- include('partials/header') %>
+
+<style>
+  #replModal, #restoreModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:1000; align-items:center; justify-content:center; }
+  #replModal .glass-card, #restoreModal .glass-card { max-width: 640px; width: 92%; max-height: 88vh; overflow:auto; }
+  .rf-field { margin-bottom:0.8rem; }
+  .rf-field label { display:block; font-size:0.72rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:0.35rem; }
+  .rf-field select, .rf-field input { width:100%; padding:0.5rem 0.6rem; border:1px solid var(--border,#e2e8f0); border-radius:8px; font-size:0.85rem; background:var(--bg); }
+  .badge { font-size:0.7rem; padding:0.15rem 0.5rem; border-radius:6px; }
+</style>
+
+<div class="fade-in">
+  <div class="glass-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+      <div>
+        <h2 style="margin:0;">Replication</h2>
+        <p class="text-muted" style="margin:0.2rem 0 0;">Copy a data source into another source (destination = PostgreSQL). One-way today; disaster-recovery restore replays a replica back into a chosen source. Distinct from the fabric's inbound SYNC/CDC (which loads a source into the hub for querying).</p>
+      </div>
+      <button class="btn-primary" onclick="openRepl()"><i class="fas fa-plus"></i> Create Replication</button>
+    </div>
+    <div class="table-wrapper" style="max-width:100%; overflow:auto;">
+      <table>
+        <thead><tr><th>Job</th><th>Source → Destination</th><th>Strategy</th><th>Schedule</th><th>Last run</th><th></th></tr></thead>
+        <tbody id="replBody"><tr><td colspan="6">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="glass-card" style="margin-top:1rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
+      <div>
+        <h3 style="margin:0;">Replication analytics</h3>
+        <p class="text-muted" style="margin:0.2rem 0 0; font-size:0.8rem;">Live copy-job throughput, success rate, and per-job % completion — the fabric assigns jobs; the replication microservice executes and reports progress here.</p>
+      </div>
+    </div>
+    <div id="analyticsCards" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:0.7rem;"></div>
+    <div id="activeJobs" style="margin-top:0.9rem;"></div>
+  </div>
+
+  <div class="glass-card" style="margin-top:1rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+      <div>
+        <h3 style="margin:0;">Copy-job runs</h3>
+        <p class="text-muted" style="margin:0.2rem 0 0; font-size:0.8rem;">Every SYNC / CDC / REPLICATE / RESTORE is assigned to the replication microservice as a job. This is the queue the worker processes.</p>
+      </div>
+      <button class="btn-outline" onclick="loadRuns(); loadAnalytics();"><i class="fas fa-sync"></i> Refresh</button>
+    </div>
+    <div class="table-wrapper" style="max-width:100%; overflow:auto;">
+      <table>
+        <thead><tr><th>Kind</th><th>Target</th><th>Status</th><th>Progress</th><th>Config</th><th>Attempts</th><th>Updated</th><th></th></tr></thead>
+        <tbody id="runsBody"><tr><td colspan="8">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Create job modal -->
+<div id="replModal"><div class="glass-card">
+  <div style="display:flex; justify-content:space-between; align-items:center;"><h3 style="margin:0;">New replication job</h3><button class="btn-outline" onclick="closeRepl()">Close</button></div>
+  <div style="margin-top:0.8rem;">
+    <div class="rf-field"><label>Job name</label><input id="rfName" placeholder="e.g. mysql_to_warehouse" /></div>
+    <div class="rf-field"><label>Source (read from)</label><select id="rfSource"></select></div>
+    <div class="rf-field"><label>Destination — same engine as source for <b>DR</b> (PG/MySQL/Mongo→same), or <b>Elasticsearch</b> for fast search</label><select id="rfDest"></select></div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.8rem;">
+      <div class="rf-field"><label>Strategy</label><select id="rfStrategy" onchange="rfToggle()"><option value="FULL">FULL (copy all, reload)</option><option value="INCREMENTAL">INCREMENTAL (watermark; inserts/updates)</option><option value="CDC">CDC (snapshot + full CRUD incl. deletes)</option></select></div>
+      <div class="rf-field"><label>Target schema/db (blank = mirror all source schemas)</label><input id="rfDestSchema" placeholder="blank = full replica, mirror source structure" /></div>
+    </div>
+    <div id="rfCdcHint" style="display:none; font-size:0.72rem; color:var(--text-muted); background:#EEF2FF; border-radius:8px; padding:0.5rem 0.7rem; margin-bottom:0.6rem;">
+      <b>CDC</b> captures full CRUD incl. <b>deletes</b> (snapshot + change stream). Native per engine: <b>PostgreSQL/MySQL</b> (trigger+outbox), <b>MongoDB</b> (change streams — needs a replica set). Oracle/Snowflake/Elasticsearch: use FULL (scheduled reload) or INCREMENTAL (watermark) for now.
+    </div>
+    <div id="rfCdcField" class="rf-field" style="display:none;"><label>Watermark column (blank = auto-detect)</label><input id="rfCdc" placeholder="blank = smart auto-detect (e.g. updated_at / id)" /></div>
+    <div id="rfInitField" class="rf-field" style="display:none;"><label>Initial load (first run)</label>
+      <select id="rfInitialLoad">
+        <option value="FULL">FULL — load all existing rows now, then track deltas</option>
+        <option value="NONE">ONLY NEW — copy nothing now; capture only new/changed rows from now</option>
+      </select></div>
+    <div class="rf-field"><label>Schedule (ms, optional)</label><input id="rfSchedule" placeholder="blank = manual only; e.g. 300000 = every 5 min" /></div>
+    <div style="border-top:1px solid var(--border,#e2e8f0); margin:0.4rem 0 0.8rem; padding-top:0.6rem;">
+      <div style="font-size:0.72rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:0.5rem;">Copy configuration (worker)</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.8rem;">
+        <div class="rf-field"><label>Page size (rows/batch)</label><input id="rfPageSize" type="number" min="1" placeholder="default 1000" /></div>
+        <div class="rf-field"><label>Memory ceiling (MB)</label><input id="rfMemCeil" type="number" min="64" placeholder="default 1024" /></div>
+        <div class="rf-field"><label>Max rows (cap)</label><input id="rfMaxRows" type="number" min="1" placeholder="default 5000000" /></div>
+      </div>
+    </div>
+    <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.5rem;">
+      <button class="btn-outline" onclick="closeRepl()">Cancel</button>
+      <button class="btn-primary" onclick="saveRepl()">Create</button>
+    </div>
+  </div>
+</div></div>
+
+<!-- Restore (DR) modal -->
+<div id="restoreModal"><div class="glass-card">
+  <div style="display:flex; justify-content:space-between; align-items:center;"><h3 style="margin:0;">Disaster recovery — restore replica</h3><button class="btn-outline" onclick="document.getElementById('restoreModal').style.display='none'">Close</button></div>
+  <p class="text-muted" style="font-size:0.8rem;">Replays the destination replica back into the chosen source. The target source must be writable (PostgreSQL).</p>
+  <div class="rf-field"><label>Restore INTO source</label><select id="rsTarget"></select></div>
+  <div style="display:flex; justify-content:flex-end; gap:0.5rem;"><button class="btn-primary" onclick="doRestore()" style="background:var(--danger,#dc2626);">Restore</button></div>
+</div></div>
+
+<script>
+  let SOURCES = [];
+  async function loadSources() {
+    try { SOURCES = await (await fetch(`${API_BASE}/admin/connections`, { headers: getAuthHeaders() })).json(); }
+    catch { SOURCES = []; }
+    if (!Array.isArray(SOURCES)) SOURCES = [];
+  }
+  function opts(list) { return list.map(s => `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)} (${escapeHtml((s.type||'').toUpperCase())})</option>`).join(''); }
+  function rfToggle() {
+    const s = document.getElementById('rfStrategy').value; const inc = s === 'INCREMENTAL';
+    document.getElementById('rfCdcField').style.display = inc ? 'block' : 'none';
+    document.getElementById('rfInitField').style.display = inc ? 'block' : 'none';
+    document.getElementById('rfCdcHint').style.display = s === 'CDC' ? 'block' : 'none';
+  }
+  // Guard: CDC requires a Postgres/MySQL source (trigger-based capture).
+  function cdcSourceOk() {
+    const s = SOURCES.find(x => x.name === document.getElementById('rfSource').value);
+    return !s || ['POSTGRES','POSTGRESQL','MYSQL','MONGODB','MONGO'].includes((s.type||'').toUpperCase());
+  }
+
+  async function loadJobs() {
+    const body = document.getElementById('replBody');
+    body.innerHTML = '<tr><td colspan="6">Loading…</td></tr>';
+    try {
+      const jobs = await (await fetch(`${API_BASE}/replication`, { headers: getAuthHeaders() })).json();
+      if (!Array.isArray(jobs) || !jobs.length) { body.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted); text-align:center; padding:2rem;">No replication jobs yet.</td></tr>'; return; }
+      body.innerHTML = jobs.map(j => `
+        <tr class="fade-in">
+          <td><b>${escapeHtml(j.name)}</b></td>
+          <td><code>${escapeHtml(j.source_name)}</code> → <code>${escapeHtml(j.dest_name)}</code> <span class="text-muted" style="font-size:0.7rem;">${escapeHtml(j.dest_schema||'public')}</span></td>
+          <td><span class="badge" style="background:#EEF2FF;color:var(--primary);">${escapeHtml(j.strategy)}</span>${j.cdc_column?` <span class="text-muted" style="font-size:0.7rem;">on ${escapeHtml(j.cdc_column)}</span>`:''}</td>
+          <td>${j.schedule_ms?escapeHtml(j.schedule_ms+'ms'):'<span class="text-muted">manual</span>'}</td>
+          <td>${j.last_run_at?`<span class="badge" style="background:${j.last_status==='SUCCESS'?'#DCFCE7':'#FEF3C7'};">${escapeHtml(j.last_status||'')}</span><div class="text-muted" style="font-size:0.68rem;">${escapeHtml(new Date(j.last_run_at).toLocaleString())}</div>`:'<span class="text-muted">never</span>'}</td>
+          <td><div style="display:flex; gap:0.4rem;">
+            <button class="btn-outline" style="font-size:0.72rem;" onclick="runRepl('${escapeJs(j.id)}')" title="Run now (incremental delta, or first-run per initial-load)"><i class="fas fa-play"></i> Run</button>
+            <button class="btn-outline" style="font-size:0.72rem;" onclick="runRepl('${escapeJs(j.id)}', true)" title="Full sync now — reload all rows"><i class="fas fa-database"></i> Full sync</button>
+            <button class="btn-outline" style="font-size:0.72rem;" onclick="openRestore('${escapeJs(j.id)}')"><i class="fas fa-life-ring"></i> Restore</button>
+            <button class="btn-outline" style="font-size:0.72rem; color:var(--danger);" onclick="delRepl('${escapeJs(j.id)}')"><i class="fas fa-trash-alt"></i></button>
+          </div></td>
+        </tr>`).join('');
+    } catch (e) { body.innerHTML = '<tr><td colspan="6">Failed to load jobs</td></tr>'; }
+  }
+
+  function openRepl() {
+    document.getElementById('rfSource').innerHTML = opts(SOURCES);
+    document.getElementById('rfDest').innerHTML = opts(SOURCES.filter(s => ['POSTGRES','POSTGRESQL','ELASTICSEARCH','ELASTIC','ES','MONGODB','MONGO','MYSQL'].includes((s.type||'').toUpperCase())));
+    rfToggle();
+    document.getElementById('replModal').style.display = 'flex';
+  }
+  function closeRepl() { document.getElementById('replModal').style.display = 'none'; }
+
+  async function saveRepl() {
+    const body = {
+      name: document.getElementById('rfName').value.trim(),
+      sourceName: document.getElementById('rfSource').value,
+      destName: document.getElementById('rfDest').value,
+      strategy: document.getElementById('rfStrategy').value,
+      destSchema: document.getElementById('rfDestSchema').value.trim() || undefined,   // blank = mirror all source schemas
+      cdcColumn: document.getElementById('rfCdc').value.trim() || undefined,
+      initialLoad: document.getElementById('rfInitialLoad').value,
+      scheduleMs: parseInt(document.getElementById('rfSchedule').value) || undefined,
+      pageSize: parseInt(document.getElementById('rfPageSize').value) || undefined,
+      memCeilingMb: parseInt(document.getElementById('rfMemCeil').value) || undefined,
+      maxRows: parseInt(document.getElementById('rfMaxRows').value) || undefined,
+    };
+    if (!body.name || !body.sourceName || !body.destName) return showModal('Missing', 'Name, source and destination are required.');
+    if (body.strategy === 'CDC' && !cdcSourceOk()) return showModal('CDC not supported for this source', 'CDC (trigger-based full-CRUD capture) currently requires a PostgreSQL or MySQL source. For other engines use FULL (scheduled reload) or INCREMENTAL (watermark).');
+    const res = await fetch(`${API_BASE}/replication`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(body) });
+    const d = await res.json();
+    if (!res.ok) return showModal('Create failed', d.error);
+    closeRepl(); loadJobs();
+  }
+
+  const STATUS_COLOR = { QUEUED:'#E0E7FF', RUNNING:'#FEF3C7', COMPLETED:'#DCFCE7', FAILED:'#FEE2E2' };
+
+  // Poll a queued copy-job run until it reaches a terminal state, then summarize.
+  async function pollRun(runId, title) {
+    for (let i = 0; i < 150; i++) {
+      let run;
+      try { run = await (await fetch(`${API_BASE}/replication/runs/${runId}`, { headers: getAuthHeaders() })).json(); }
+      catch { await new Promise(r => setTimeout(r, 1500)); continue; }
+      loadRuns();
+      if (run.status === 'COMPLETED' || run.status === 'FAILED') {
+        const r = run.result || {};
+        const total = (r.tables||[]).reduce((n,t)=>n+(t.rows||0),0);
+        const body = run.status === 'COMPLETED'
+          ? `<b>${total}</b> rows across ${(r.tables||[]).length} table(s):<br>${(r.tables||[]).map(t=>`${escapeHtml(t.table||'')}: ${t.rows}`).join('<br>')}`
+          : `<span style="color:var(--danger)">${escapeHtml(run.error || 'failed')}</span>`;
+        return showModal(`${title} — ${run.status}`, body);
+      }
+      showModal(`${title}…`, `Worker status: <b>${escapeHtml(run.status)}</b> (attempt ${run.attempts||0})…`);
+      await new Promise(r => setTimeout(r, 1500));
+    }
+    showModal(title, 'Still running — check the Copy-job runs panel.');
+  }
+
+  async function runRepl(id, full) {
+    showModal('Queuing…', full ? 'Assigning a FULL sync to the worker…' : 'Assigning the replication job to the worker…');
+    const res = await fetch(`${API_BASE}/replication/${id}/run`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ full: !!full }) });
+    const d = await res.json();
+    if (!res.ok) return showModal('Run failed', d.error);
+    loadRuns(); loadJobs();
+    pollRun(d.runId, 'Replication');
+  }
+
+  let restoreId = null;
+  function openRestore(id) {
+    restoreId = id;
+    document.getElementById('rsTarget').innerHTML = opts(SOURCES.filter(s => ['POSTGRES','POSTGRESQL','MONGODB','MONGO','MYSQL'].includes((s.type||'').toUpperCase())));
+    document.getElementById('restoreModal').style.display = 'flex';
+  }
+  async function doRestore() {
+    const target = document.getElementById('rsTarget').value;
+    document.getElementById('restoreModal').style.display = 'none';
+    showModal('Queuing restore…', `Assigning the restore job (replica → <code>${escapeHtml(target)}</code>) to the worker…`);
+    const res = await fetch(`${API_BASE}/replication/${restoreId}/restore`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ targetSource: target }) });
+    const d = await res.json();
+    if (!res.ok) return showModal('Restore failed', d.error);
+    loadRuns(); loadJobs();
+    pollRun(d.runId, 'Disaster-recovery restore');
+  }
+
+  function progressBar(pct, label) {
+    const p = Math.max(0, Math.min(100, Number(pct)||0));
+    return `<div style="min-width:120px;"><div style="height:8px; background:var(--border,#e2e8f0); border-radius:6px; overflow:hidden;"><div style="height:100%; width:${p}%; background:var(--primary); transition:width .4s;"></div></div><div class="text-muted" style="font-size:0.66rem; margin-top:2px;">${label}</div></div>`;
+  }
+  function fmtRows(n){ n=Number(n||0); return n>=1000? (n/1000).toFixed(n>=100000?0:1)+'k' : String(n); }
+
+  async function loadRuns() {
+    const body = document.getElementById('runsBody');
+    try {
+      const runs = await (await fetch(`${API_BASE}/replication/runs`, { headers: getAuthHeaders() })).json();
+      if (!Array.isArray(runs) || !runs.length) { body.innerHTML = '<tr><td colspan="8" style="color:var(--text-muted); text-align:center; padding:1.5rem;">No runs yet.</td></tr>'; return; }
+      body.innerHTML = runs.map(r => {
+        const cfg = r.config || {};
+        const cfgStr = [cfg.pageSize && `page ${cfg.pageSize}`, cfg.memCeilingMb && `${cfg.memCeilingMb}MB`, cfg.maxRows && `cap ${cfg.maxRows}`].filter(Boolean).join(', ') || '<span class="text-muted">defaults</span>';
+        const pctLabel = `${fmtRows(r.rows_copied)}${r.rows_total>0?'/'+fmtRows(r.rows_total):''} rows · ${r.tables_done||0}/${r.tables_total||0} tbl`;
+        const prog = ['RUNNING','PAUSED','QUEUED'].includes(r.status) || r.status==='COMPLETED'
+          ? progressBar(r.status==='COMPLETED'?100:r.progress_pct, pctLabel)
+          : (r.status==='FAILED' ? `<span style="color:var(--danger); font-size:0.7rem;">${escapeHtml((r.error||'').slice(0,80))}</span>` : '');
+        let actions = '';
+        if (r.status === 'RUNNING' || r.status === 'QUEUED') actions = `<button class="btn-outline" style="font-size:0.7rem;" onclick="pauseRun('${escapeJs(r.id)}')"><i class="fas fa-pause"></i></button>`;
+        else if (r.status === 'PAUSED' || r.status === 'FAILED') actions = `<button class="btn-outline" style="font-size:0.7rem;" onclick="resumeRun('${escapeJs(r.id)}')"><i class="fas fa-play"></i> Resume</button>`;
+        return `<tr class="fade-in">
+          <td><span class="badge" style="background:#EEF2FF;color:var(--primary);">${escapeHtml(r.kind)}</span></td>
+          <td><code>${escapeHtml(r.job_ref)}</code>${r.target_source?` → <code>${escapeHtml(r.target_source)}</code>`:''}</td>
+          <td><span class="badge" style="background:${STATUS_COLOR[r.status]||'#eee'};">${escapeHtml(r.status)}</span></td>
+          <td>${prog}</td>
+          <td style="font-size:0.72rem;">${cfgStr}</td>
+          <td>${r.attempts||0}/${r.max_attempts||3}</td>
+          <td class="text-muted" style="font-size:0.68rem;">${r.updated_at?escapeHtml(new Date(r.updated_at).toLocaleString()):''}</td>
+          <td>${actions}</td>
+        </tr>`;
+      }).join('');
+    } catch { body.innerHTML = '<tr><td colspan="8">Failed to load runs</td></tr>'; }
+  }
+
+  function card(label, value, sub) {
+    return `<div style="border:1px solid var(--border,#e2e8f0); border-radius:10px; padding:0.7rem 0.9rem;"><div style="font-size:1.5rem; font-weight:800;">${value}</div><div class="text-muted" style="font-size:0.72rem; text-transform:uppercase; font-weight:700;">${escapeHtml(label)}</div>${sub?`<div class="text-muted" style="font-size:0.68rem;">${escapeHtml(sub)}</div>`:''}</div>`;
+  }
+  async function loadAnalytics() {
+    try {
+      const a = await (await fetch(`${API_BASE}/replication/analytics`, { headers: getAuthHeaders() })).json();
+      const s = a.byStatus || {};
+      document.getElementById('analyticsCards').innerHTML =
+        card('Total rows copied', fmtRows(a.totalRowsCopied)) +
+        card('Success rate', a.successRate==null?'—':a.successRate+'%', `${(s.COMPLETED?.jobs)||0} ok / ${(s.FAILED?.jobs)||0} failed`) +
+        card('Running', (s.RUNNING?.jobs)||0) +
+        card('Queued', (s.QUEUED?.jobs)||0) +
+        card('Paused', (s.PAUSED?.jobs)||0) +
+        card('Completed', (s.COMPLETED?.jobs)||0);
+      const active = a.active || [];
+      document.getElementById('activeJobs').innerHTML = active.length ? active.map(j => {
+        const eta = j.eta_seconds!=null ? ` · ETA ${j.eta_seconds}s` : '';
+        const rps = j.throughput_rps ? ` · ${fmtRows(j.throughput_rps)}/s` : '';
+        return `<div style="display:flex; align-items:center; gap:0.8rem; padding:0.4rem 0;">
+          <span class="badge" style="background:#EEF2FF; color:var(--primary);">${escapeHtml(j.kind)}</span>
+          <code style="font-size:0.75rem;">${escapeHtml(j.job_ref)}</code>
+          <div style="flex:1;">${progressBar(j.status==='RUNNING'||j.status==='PAUSED'?j.progress_pct:0, `${escapeHtml(j.status)} · ${fmtRows(j.rows_copied)}${j.rows_total>0?'/'+fmtRows(j.rows_total):''} rows · ${j.tables_done||0}/${j.tables_total||0} tbl${rps}${eta}`)}</div>
+          ${j.status==='RUNNING'||j.status==='QUEUED'?`<button class="btn-outline" style="font-size:0.7rem;" onclick="pauseRun('${escapeJs(j.id)}')"><i class="fas fa-pause"></i></button>`:''}
+          ${j.status==='PAUSED'?`<button class="btn-outline" style="font-size:0.7rem;" onclick="resumeRun('${escapeJs(j.id)}')"><i class="fas fa-play"></i></button>`:''}
+        </div>`;
+      }).join('') : '<div class="text-muted" style="font-size:0.8rem;">No active jobs.</div>';
+    } catch { /* best-effort */ }
+  }
+
+  async function pauseRun(id) {
+    await fetch(`${API_BASE}/replication/runs/${id}/pause`, { method:'POST', headers: getAuthHeaders() });
+    loadRuns(); loadAnalytics();
+  }
+  async function resumeRun(id) {
+    await fetch(`${API_BASE}/replication/runs/${id}/resume`, { method:'POST', headers: getAuthHeaders() });
+    loadRuns(); loadAnalytics();
+  }
+
+  async function delRepl(id) {
+    if (!confirm('Delete this replication job?')) return;
+    await fetch(`${API_BASE}/replication/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+    loadJobs();
+  }
+
+  (async () => { await loadSources(); loadJobs(); loadRuns(); loadAnalytics(); })();
+  // Live refresh of runs + analytics every 3s (progress bars, active jobs).
+  setInterval(() => { loadRuns(); loadAnalytics(); }, 3000);
+</script>
+
+<%- include('partials/footer') %>

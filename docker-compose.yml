@@ -96,6 +96,18 @@ services:
     command: --default-authentication-plugin=mysql_native_password
     restart: unless-stopped
 
+  # Oracle Database source (Oracle Free 23c). Service name: FREEPDB1
+  oracle:
+    image: gvenzl/oracle-free:23-slim
+    container_name: datafabric-oracle
+    environment:
+      ORACLE_PASSWORD: oracle_password        # SYS/SYSTEM password
+      APP_USER: retail                         # app schema/user the fabric connects as
+      APP_USER_PASSWORD: retail_password
+    ports:
+      - "1521:1521"
+    restart: unless-stopped
+
   # Search Engine for Downstream Provisioning
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4

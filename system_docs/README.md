@@ -26,6 +26,7 @@ System-level design docs. Each feature has its own page with architecture
 | [15-security-and-governance-architecture.md](15-security-and-governance-architecture.md) | Auth/JWT, schema-per-tenant isolation, the Policy/Grant/Constraint engines, injection defenses, and the industrial safety shield |
 | [16-observability-and-query-log.md](16-observability-and-query-log.md) | The QueryLogService audit trail (`fabric_system.query_logs`), captured telemetry, the execution trace, and the audit UI |
 | [17-concepts-and-glossary.md](17-concepts-and-glossary.md) | Every key concept and term defined — fabric, federation, virtualization, compensation, connectors, catalog, sync types, bind-join, control/data plane, and more |
+| [18-federated-search-and-streaming.md](18-federated-search-and-streaming.md) | Research: the multi-source search model (bottom-up but flat), a recursive bottom-up plan-tree design, and node-to-node + response **streaming** (`stream: true`) — evidenced by live leg traces |
 
 ## System context
 

@@ -34,18 +34,18 @@
  *             type: object
  *             required: [resource]
  *             properties:
- *               source: { type: string, example: Retail_Core, description: 'Datasource name; omit for the hub.' }
- *               schema: { type: string, example: public }
- *               resource: { type: string, example: customers }
- *               columns: { type: array, items: { type: string }, example: [id, name, region] }
- *               where: { type: object, example: { region: EU, lifetime_value: { $gt: 45000 } } }
- *               orderBy: { type: array, items: { type: object }, example: [{ column: lifetime_value, direction: DESC }] }
+ *               source: { type: string, example: An_Lab, description: 'Datasource name; omit for the hub.' }
+ *               schema: { type: string, example: an_lab }
+ *               resource: { type: string, example: employees }
+ *               columns: { type: array, items: { type: string }, example: [id, name, dept_id] }
+ *               where: { type: object, example: { dept_id: 10, salary: { $gt: 200 } } }
+ *               orderBy: { type: array, items: { type: object }, example: [{ column: salary, direction: DESC }] }
  *               limit: { type: integer, example: 25 }
  *               offset: { type: integer, example: 0 }
  *           examples:
- *             simple: { summary: Equality filter, value: { source: Retail_Core, resource: customers, columns: [id, name, region], where: { region: EU }, limit: 3 } }
- *             operators: { summary: Operator filter + sort, value: { source: Retail_Core, resource: customers, where: { lifetime_value: { $gt: 45000 } }, orderBy: [{ column: lifetime_value, direction: DESC }], limit: 3 } }
- *             mongo: { summary: Mongo source, value: { source: Web_Analytics, resource: web_events, where: { event_type: checkout }, limit: 5 } }
+ *             simple: { summary: Equality filter, value: { source: An_Lab, schema: an_lab, resource: employees, columns: [id, name, dept_id], where: { dept_id: 10 }, limit: 5 } }
+ *             operators: { summary: Operator filter + sort, value: { source: An_Lab, schema: an_lab, resource: employees, where: { salary: { $gt: 200 } }, orderBy: [{ column: salary, direction: DESC }], limit: 5 } }
+ *             mongo: { summary: Another collection (departments), value: { source: An_Lab, schema: an_lab, resource: departments, where: { id: 10 }, limit: 5 } }
  *     responses:
  *       200:
  *         description: Result rows + execution plan/trace
@@ -67,16 +67,16 @@
  *             type: object
  *             required: [resource, data]
  *             properties:
- *               source: { type: string, example: Retail_Core }
- *               schema: { type: string, example: public }
- *               resource: { type: string, example: customers }
+ *               source: { type: string, example: An_Lab }
+ *               schema: { type: string, example: an_lab }
+ *               resource: { type: string, example: employees }
  *               data:
  *                 description: A single object or an array of objects.
  *                 oneOf: [{ type: object }, { type: array, items: { type: object } }]
  *           examples:
- *             single: { summary: Single row, value: { source: Retail_Core, resource: customers, data: { id: 900001, name: Acme, region: NA, segment: SMB, signup_date: '2026-01-01', lifetime_value: 100 } } }
- *             batch: { summary: Batch insert, value: { source: Retail_Core, resource: customers, data: [{ id: 900002, name: B, region: EU, segment: GOV, signup_date: '2026-01-02', lifetime_value: 200 }] } }
- *             mongo: { summary: Mongo document, value: { source: Web_Analytics, resource: web_events, data: { event_id: 900001, customer_id: 1, event_type: checkout, revenue: 42 } } }
+ *             single: { summary: Single row, value: { source: An_Lab, schema: an_lab, resource: employees, data: { id: 9001, name: New Hire, manager_id: 2, dept_id: 10, salary: 120 } } }
+ *             batch: { summary: Batch insert, value: { source: An_Lab, schema: an_lab, resource: employees, data: [{ id: 9002, name: Hire B, manager_id: 2, dept_id: 10, salary: 110 }, { id: 9003, name: Hire C, manager_id: 3, dept_id: 20, salary: 115 }] } }
+ *             mongo: { summary: Another collection (departments), value: { source: An_Lab, schema: an_lab, resource: departments, data: { id: 90, name: Research } } }
  *     responses:
  *       200:
  *         description: Insert result + plan/trace
@@ -99,12 +99,12 @@
  *             type: object
  *             required: [resource, where, data]
  *             properties:
- *               source: { type: string, example: Retail_Core }
- *               schema: { type: string }
- *               resource: { type: string, example: customers }
- *               where: { type: object, example: { id: 900001 } }
- *               data: { type: object, example: { lifetime_value: 9999, segment: ENTERPRISE } }
- *           example: { source: Retail_Core, resource: customers, where: { id: 900001 }, data: { lifetime_value: 9999 } }
+ *               source: { type: string, example: An_Lab }
+ *               schema: { type: string, example: an_lab }
+ *               resource: { type: string, example: employees }
+ *               where: { type: object, example: { id: 9001 } }
+ *               data: { type: object, example: { salary: 150, dept_id: 20 } }
+ *           example: { source: An_Lab, schema: an_lab, resource: employees, where: { id: 9001 }, data: { salary: 150 } }
  *     responses:
  *       200: { description: 'Update result + plan/trace', content: { application/json: { schema: { $ref: '#/components/schemas/WriteEnvelope' } } } }
  *       400: { description: 'Missing where (safety) / data', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
@@ -123,11 +123,11 @@
  *             type: object
  *             required: [resource, where]
  *             properties:
- *               source: { type: string, example: Web_Analytics }
- *               schema: { type: string }
- *               resource: { type: string, example: web_events }
- *               where: { type: object, example: { event_id: 900001 } }
- *           example: { source: Web_Analytics, resource: web_events, where: { event_id: 900001 } }
+ *               source: { type: string, example: An_Lab }
+ *               schema: { type: string, example: an_lab }
+ *               resource: { type: string, example: employees }
+ *               where: { type: object, example: { id: 9001 } }
+ *           example: { source: An_Lab, schema: an_lab, resource: employees, where: { id: 9001 } }
  *     responses:
  *       200: { description: 'Delete result + plan/trace', content: { application/json: { schema: { $ref: '#/components/schemas/WriteEnvelope' } } } }
  *       400: { description: 'Missing where (safety)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }

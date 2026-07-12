@@ -392,8 +392,12 @@ export class QueryEngineService {
       };
     }
 
-    // INDUSTRIAL SAFETY SHIELD: Guard against unrestricted operations
-    if (['SELECT', 'UPDATE', 'DELETE'].includes(config.type)) {
+    // INDUSTRIAL SAFETY SHIELD: Guard against unrestricted operations.
+    // Applies to the LEGACY config shape (top-level select/filter/table). Manifest-
+    // style queries (config.query present) are exempt here and handled by the
+    // shape-aware shield in the AST branch below (which understands GROUP BY,
+    // aggregates, recursion, set-ops and per-leg filters).
+    if (['SELECT', 'UPDATE', 'DELETE'].includes(config.type) && !(config as any).query) {
         const hasLimit = config.limit !== undefined;
         const hasFilter = config.filter && Object.keys(config.filter).length > 0;
         const isAggregate = config.select && (config.select.some(s => s.toLowerCase().includes('count(')) || config.select.some(s => s.toLowerCase().includes('sum(')));
@@ -417,11 +421,28 @@ export class QueryEngineService {
       const schemaName = this.toTenantSchemaName(tenantId, config.schema);
       const ast = JSON.parse(JSON.stringify((config as any).query || {}));
 
-      const hasWhere = Array.isArray(ast.where) && ast.where.length > 0;
+      const hasWhere = (Array.isArray(ast.where) && ast.where.length > 0)
+        // per-leg filters on a set-op or a join also count as "bounded by a filter"
+        || (Array.isArray(ast.union || ast.intersect || ast.except) && (ast.union || ast.intersect || ast.except).some((l: any) => Array.isArray(l.where) && l.where.length))
+        || (Array.isArray(ast.joins) && Array.isArray(ast.where) && ast.where.length > 0);
       const hasLimit = typeof config.limit === 'number' && config.limit > 0;
       const hasSetOps = Array.isArray(ast.union) || Array.isArray(ast.intersect) || Array.isArray(ast.except);
-      if (!hasWhere && !hasLimit && !hasSetOps) {
-        throw new Error('INDUSTRIAL SAFETY: Manifest-style SELECT requires either query.where or limit.');
+      // A query is "bounded by shape" if it aggregates/traverses to a small result
+      // rather than streaming rows: GROUP BY, aggregates, or a recursive traversal.
+      const isAggregate = (Array.isArray(ast.groupBy) && ast.groupBy.length > 0)
+        || (Array.isArray(ast.select) && ast.select.some((s: any) => s && typeof s === 'object' && (s.aggregate || s.window)))
+        || !!ast.recursive;
+
+      // SAFETY: a plain SELECT must be BOUNDED — by a WHERE filter, a LIMIT, an
+      // aggregate/recursive shape, or (for set-ops) per-leg filters — so it can
+      // never stream an unbounded scan and exhaust memory. Set FABRIC_REQUIRE_SELECT_FILTER=true
+      // to enforce the stricter rule that every non-aggregate scan MUST carry a WHERE filter.
+      const requireFilter = /^(1|true|yes)$/i.test(process.env.FABRIC_REQUIRE_SELECT_FILTER || '');
+      if (requireFilter && !hasWhere && !isAggregate) {
+        throw new Error('INDUSTRIAL SAFETY: a WHERE filter is required for SELECT scans (FABRIC_REQUIRE_SELECT_FILTER). Add query.where, or use an aggregate/GROUP BY.');
+      }
+      if (!hasWhere && !hasLimit && !hasSetOps && !isAggregate) {
+        throw new Error('INDUSTRIAL SAFETY: an unbounded SELECT is blocked — add a WHERE filter (query.where) or a LIMIT to prevent a full-table scan.');
       }
 
       // Carry the top-level limit into the AST so pushdown / federation can honour it.

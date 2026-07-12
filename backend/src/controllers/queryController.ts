@@ -11,6 +11,8 @@
 import { Request, Response } from 'express';
 import { QueryEngineService } from '../modules/query-engine/query-engine.service';
 import { QueryLogService } from '../modules/query-engine/query-log.service';
+import { wantsStream, streamNdjson, pipeRowStream } from '../modules/query-engine/stream';
+import { tryStream } from '../modules/query-engine/stream_source';
 import { queryWithContext } from '../config/database';
 
 /**
@@ -121,10 +123,21 @@ export const executeRawSql = async (req: Request, res: Response) => {
         if (isAsync) {
             const jobId = QueryEngineService.executeAsyncRawSql(user.tenant_id, user.username || 'unknown', sql, params);
             return res.status(202).json({ queryId: jobId, status: 'ACCEPTED' });
-        } else {
+        }
+        // INTERNAL streaming: stream a read-only hub statement via a server-side cursor
+        // (bounded memory) instead of buffering the whole result set.
+        if (wantsStream(req)) {
+            const rs = await tryStream(user.tenant_id, { rawSql: sql, params }, { username: user.username });
+            if (rs) { await pipeRowStream(req, res, rs, logMeta); return; }
+        }
+        {
             const results = await QueryLogService.capture(logMeta,
                 () => QueryEngineService.executeRawSql(user.tenant_id, user.username || 'unknown', sql, params)
                     .then((r: any) => ({ results: r, rowCount: Array.isArray(r?.results) ? r.results.length : undefined, plan: { strategy: 'RAW_SQL' } })));
+            // Opt-in response streaming: NDJSON rows + a {__meta__} trailer.
+            const rows = Array.isArray(results.results?.results) ? results.results.results
+                : Array.isArray(results.results) ? results.results : [];
+            if (wantsStream(req)) return streamNdjson(res, rows, { rowCount: rows.length, strategy: 'RAW_SQL' });
             return res.json({ results: results.results });
         }
     } catch (err: any) {

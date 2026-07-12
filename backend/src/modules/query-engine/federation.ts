@@ -389,11 +389,24 @@ export class FederationExecutor {
     const op = ast.union ? 'UNION' : ast.intersect ? 'INTERSECT' : 'EXCEPT';
     const legs: any[] = ast.union || ast.intersect || ast.except;
 
+    // LIMIT PUSHDOWN for set-ops: for a UNION with an outer LIMIT n, each leg needs
+    // at most n rows — the union of the per-leg top-n always contains the global
+    // top-n (with ORDER BY we push the sort too, for a correct top-n per leg;
+    // without it any n rows per leg suffice). This turns a "fetch up to the cap
+    // then trim in memory" plan into a bounded per-source pushdown. INTERSECT/EXCEPT
+    // are NOT bounded this way — they need the full leg sets to be correct.
+    const outerLimit = typeof ast.limit === 'number' && ast.limit > 0 ? ast.limit : undefined;
+    const pushLegLimit = op === 'UNION' ? outerLimit : undefined;
+
     const legResults: any[][] = [];
     for (const leg of legs) {
       if (Array.isArray(leg.joins) && leg.joins.length) throw new Error('FederationExecutor: nested JOIN inside a set-op leg is not supported');
       const canonical = this.astLegToCanonical(leg);
-      pushed.push(`${op} leg ${leg.from?.source || LOCAL_SOURCE}.${leg.from?.resource}: pushed ${Object.keys(canonical.filter || {}).length} predicate(s)`);
+      if (pushLegLimit != null) {
+        canonical.limit = Math.min(canonical.limit ?? Infinity, pushLegLimit);
+        if (Array.isArray(ast.orderBy) && ast.orderBy.length && !canonical.orderBy) canonical.orderBy = ast.orderBy;
+      }
+      pushed.push(`${op} leg ${leg.from?.source || LOCAL_SOURCE}.${leg.from?.resource}: pushed ${Object.keys(canonical.filter || {}).length} predicate(s)${pushLegLimit != null ? `, LIMIT ${canonical.limit} pushed to source` : ''}`);
       legResults.push(await this.fetchLegDirect(tenantId, { source: leg.from?.source || LOCAL_SOURCE, resource: leg.from?.resource, canonical }, plan, tenantSchema, warnings, trace, `${op.toLowerCase()}-leg`));
     }
 

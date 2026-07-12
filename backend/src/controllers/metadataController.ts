@@ -18,6 +18,7 @@ import { ManifestParser } from '../modules/metadata/manifest_parser';
 import { pool, queryWithContext } from '../config/database';
 import { cached, invalidateTenant } from '../config/cache';
 import { ConnectorFactory } from '../modules/metadata/connectors/factory';
+import { renderFabricDdl, renderFabricAst } from '../modules/metadata/ddl_render';
 
 const orchestrator = new MetadataOrchestrator();
 // Catalog reads change ONLY on sync (crawl/apply/register/remove), and every such
@@ -46,6 +47,57 @@ function normalizeAstColumn(c: any) {
 }
 
 /**
+ * Resolve the columns + constraints for a catalog resource, preferring the
+ * manifest `definition_ast` (richest: PK/strategy/constraints) and falling back
+ * to LIVE discovery from the real source (local hub `information_schema` or the
+ * source connector's `discoverColumns`). Shared by (@link getColumns) and
+ * (@link getResourceDetails) so both surface identical column metadata.
+ *
+ * @param tableId - the catalog table id.
+ * @param tenantId - tenant for RLS/context.
+ * @param username - username for query context.
+ * @returns `(source, columns, constraints)` or null when the id is unknown.
+ */
+async function resolveColumns(tableId: string, tenantId: string, username: string):
+    Promise<{ source: string; columns: any[]; constraints: any[] } | null> {
+    const { rows } = await queryWithContext(`
+        SELECT ct.physical_name AS t, cs.physical_name AS s, ct.definition_ast AS ast,
+               ds.type AS engine, ds.config AS cfg, ds.name AS src
+        FROM public.catalog_tables ct
+        JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+        LEFT JOIN public.data_sources ds ON cs.source_id = ds.id
+        WHERE ct.id = $1
+    `, [tableId], { tenantId, username });
+    if (rows.length === 0) return null;
+    const row = rows[0];
+
+    // 1. Manifest AST columns (richest).
+    const ast = row.ast && typeof row.ast === 'object' ? row.ast : null;
+    if (ast && Array.isArray(ast.columns) && ast.columns.length) {
+        return { source: 'manifest', columns: ast.columns.map(normalizeAstColumn), constraints: ast.constraints || [] };
+    }
+
+    // 2. Live discovery from the source.
+    const engine = String(row.engine || 'POSTGRES').toUpperCase();
+    const cfg = row.cfg || {};
+    const isLocalHub = cfg.local === true || row.src === 'Fabric_Hub_Postgres' || !row.engine;
+    if (isLocalHub || (engine === 'POSTGRES' && !cfg.host && !cfg.connectionString)) {
+        const cols = await queryWithContext(`
+            SELECT column_name AS name, data_type AS type, (is_nullable = 'YES') AS nullable, column_default AS "default"
+            FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position
+        `, [row.s, row.t], { tenantId, username });
+        return { source: 'live', columns: cols.rows, constraints: [] };
+    }
+    const connector = ConnectorFactory.getConnector(engine, cfg);
+    try {
+        const cols = connector.discoverColumns ? await connector.discoverColumns(row.s, row.t) : [];
+        return { source: 'live', columns: cols, constraints: [] };
+    } finally {
+        await connector.close();
+    }
+}
+
+/**
  * Export the current catalog (all sources, or one named source) as a
  * datafabric manifest — the reverse operation of (@link applyMetadata), useful
  * for round-tripping the live catalog back into a manifest file.
@@ -69,6 +121,82 @@ export const exportMetadata = async (req: Request, res: Response) => {
         res.status(500).json({ error: err.message });
     }
 };
+
+/**
+ * Live-introspect the real definition of a non-table Postgres object (view,
+ * materialized view, function, procedure, sequence, enum, trigger) from the
+ * source's system catalogs — the crawler stores only type+name, so the actual
+ * body/query/values must be fetched on demand. Runs against the local hub
+ * (queryWithContext) or a remote Postgres source (connector.rawQuery). Returns a
+ * partial `(definitionSql?, definitionAst?)` to feed the fabric DDL/AST renderers;
+ * returns `{}` for engines/types that have no such catalog concept.
+ *
+ * @param tableId - the catalog resource id.
+ * @param tenantId - tenant for query context.
+ * @param username - username for query context.
+ * @returns `(definitionSql?, definitionAst?)` (possibly empty).
+ */
+async function resolveDefinition(tableId: string, tenantId: string, username: string):
+    Promise<{ definitionSql?: string; definitionAst?: any }> {
+    const { rows } = await queryWithContext(`
+        SELECT ct.physical_name AS t, cs.physical_name AS s, ct.resource_type AS rtype,
+               ds.type AS engine, ds.config AS cfg, ds.name AS src
+        FROM public.catalog_tables ct
+        JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+        LEFT JOIN public.data_sources ds ON cs.source_id = ds.id
+        WHERE ct.id = $1
+    `, [tableId], { tenantId, username });
+    if (!rows.length) return {};
+    const row = rows[0];
+    const rtype = String(row.rtype || '').toUpperCase();
+    const engine = String(row.engine || 'POSTGRES').toUpperCase();
+    if (engine !== 'POSTGRES') return {}; // only Postgres has these catalog objects
+    const cfg = row.cfg || {};
+    const isLocalHub = cfg.local === true || row.src === 'Fabric_Hub_Postgres' || !row.engine
+        || (engine === 'POSTGRES' && !cfg.host && !cfg.connectionString);
+
+    // Run an introspection query either on the hub (with tenant context) or the remote source.
+    let connector: any = null;
+    const run = async (sql: string, params: any[]): Promise<any[]> => {
+        if (isLocalHub) return (await queryWithContext(sql, params, { tenantId, username })).rows;
+        connector = connector || ConnectorFactory.getConnector(engine, cfg);
+        return connector.rawQuery ? connector.rawQuery(sql, params) : [];
+    };
+
+    try {
+        if (rtype === 'VIEW' || rtype === 'MATERIALIZED_VIEW') {
+            // Portable catalog lookup (avoids a ::regclass cast that can fail across search_paths).
+            const cat = rtype.includes('MATERIALIZED')
+                ? `SELECT definition AS def FROM pg_matviews WHERE schemaname = $1 AND matviewname = $2`
+                : `SELECT definition AS def FROM pg_views WHERE schemaname = $1 AND viewname = $2`;
+            const r = await run(cat, [row.s, row.t]);
+            const def = r[0]?.def?.trim();
+            if (def) return { definitionAst: { query: def, materialized: rtype.includes('MATERIALIZED') } };
+        } else if (rtype === 'FUNCTION' || rtype === 'PROCEDURE') {
+            const r = await run(`
+                SELECT pg_get_function_arguments(p.oid) AS args, pg_get_function_result(p.oid) AS ret,
+                       l.lanname AS lang, p.prosrc AS body,
+                       CASE p.prokind WHEN 'p' THEN 'PROCEDURE' ELSE 'FUNCTION' END AS kind
+                FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                JOIN pg_language l ON l.oid = p.prolang
+                WHERE n.nspname = $1 AND p.proname = $2 LIMIT 1`, [row.s, row.t]);
+            const f = r[0];
+            if (f) return { definitionAst: { type: f.kind, argsText: f.args || '', returnType: f.ret, body: (f.body || '').trim(), language: f.lang } };
+        } else if (rtype === 'SEQUENCE') {
+            const r = await run(`SELECT start_value AS start, increment_by AS increment, min_value AS "minValue", max_value AS "maxValue", cache_size AS cache FROM pg_sequences WHERE schemaname = $1 AND sequencename = $2`, [row.s, row.t]);
+            if (r[0]) return { definitionAst: r[0] };
+        } else if (rtype === 'ENUM') {
+            const r = await run(`SELECT e.enumlabel AS v FROM pg_type t JOIN pg_enum e ON e.enumtypid = t.oid JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = $1 AND t.typname = $2 ORDER BY e.enumsortorder`, [row.s, row.t]);
+            if (r.length) return { definitionAst: { values: r.map((x: any) => x.v) } };
+        } else if (rtype === 'TRIGGER') {
+            const r = await run(`SELECT pg_get_triggerdef(tr.oid, true) AS def, c.relname AS tbl FROM pg_trigger tr JOIN pg_class c ON c.oid = tr.tgrelid JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = $1 AND tr.tgname = $2 AND NOT tr.tgisinternal LIMIT 1`, [row.s, row.t]);
+            const d = r[0];
+            if (d?.def) return { definitionSql: d.def, definitionAst: { table: d.tbl, triggerDef: d.def } };
+        }
+    } catch { /* best-effort; renderer falls back to a labelled note */ }
+    finally { if (connector) { try { await connector.close(); } catch { /* ignore */ } } }
+    return {};
+}
 
 /**
  * Column-level metadata for a catalog resource (table/collection/index).
@@ -107,43 +235,7 @@ export const getColumns = async (req: Request, res: Response) => {
         }
         if (!tableId) return res.status(400).json({ error: 'tableId (or source+resource) is required' });
         const key = `meta:${user.tenant_id}:columns:${tableId}`;
-        const payload = await cached(key, META_TTL, async () => {
-            const { rows } = await queryWithContext(`
-                SELECT ct.physical_name AS t, cs.physical_name AS s, ct.definition_ast AS ast,
-                       ds.type AS engine, ds.config AS cfg, ds.name AS src
-                FROM public.catalog_tables ct
-                JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
-                LEFT JOIN public.data_sources ds ON cs.source_id = ds.id
-                WHERE ct.id = $1
-            `, [tableId], { tenantId: user.tenant_id, username: user.username });
-            if (rows.length === 0) return null;
-            const row = rows[0];
-
-            // 1. Manifest AST columns (richest).
-            const ast = row.ast && typeof row.ast === 'object' ? row.ast : null;
-            if (ast && Array.isArray(ast.columns) && ast.columns.length) {
-                return { source: 'manifest', columns: ast.columns.map(normalizeAstColumn), constraints: ast.constraints || [] };
-            }
-
-            // 2. Live discovery from the source.
-            const engine = String(row.engine || 'POSTGRES').toUpperCase();
-            const cfg = row.cfg || {};
-            const isLocalHub = cfg.local === true || row.src === 'Fabric_Hub_Postgres' || !row.engine;
-            if (isLocalHub || (engine === 'POSTGRES' && !cfg.host && !cfg.connectionString)) {
-                const cols = await queryWithContext(`
-                    SELECT column_name AS name, data_type AS type, (is_nullable = 'YES') AS nullable, column_default AS "default"
-                    FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position
-                `, [row.s, row.t], { tenantId: user.tenant_id, username: user.username });
-                return { source: 'live', columns: cols.rows, constraints: [] };
-            }
-            const connector = ConnectorFactory.getConnector(engine, cfg);
-            try {
-                const cols = connector.discoverColumns ? await connector.discoverColumns(row.s, row.t) : [];
-                return { source: 'live', columns: cols, constraints: [] };
-            } finally {
-                await connector.close();
-            }
-        });
+        const payload = await cached(key, META_TTL, async () => resolveColumns(tableId, user.tenant_id, user.username));
         if (payload === null) return res.status(404).json({ error: 'Resource not found' });
         res.json(payload);
     } catch (err: any) {
@@ -668,14 +760,15 @@ export const getResourceDetails = async (req: Request, res: Response) => {
         const user = (req as any).user;
         
         const { rows } = await queryWithContext(`
-            SELECT 
-                ct.id as "tableId", 
-                ct.name, 
-                ct.physical_name as "physicalName", 
-                ct.resource_type as "resourceType", 
-                ct.definition_sql as "definitionSql", 
+            SELECT
+                ct.id as "tableId",
+                ct.name,
+                ct.physical_name as "physicalName",
+                ct.resource_type as "resourceType",
+                ct.definition_sql as "definitionSql",
                 ct.definition_ast as "definitionAst",
                 ct.row_count as "rowCount",
+                cs.name as "schemaName",
                 ds.type as "sourceType",
                 ds.name as "sourceName"
             FROM public.catalog_tables ct
@@ -688,7 +781,46 @@ export const getResourceDetails = async (req: Request, res: Response) => {
             return res.status(404).json({ error: 'Resource not found' });
         }
 
-        res.json(rows[0]);
+        const row = rows[0];
+        const rtype = String(row.resourceType || '').toUpperCase();
+
+        // Resolve columns (manifest AST or live discovery) so the fabric DDL/AST
+        // can be reconstructed for crawled resources that carry no manifest.
+        let columns: any[] = [];
+        try {
+            const colTypes = ['TABLE', 'VIEW', 'MATERIALIZED_VIEW', 'FOREIGN_TABLE'];
+            if (colTypes.includes(rtype)) {
+                const resolved = await resolveColumns(String(resourceId), user.tenant_id, user.username);
+                columns = resolved?.columns || [];
+            } else if (row.definitionAst && Array.isArray(row.definitionAst.columns)) {
+                columns = row.definitionAst.columns.map(normalizeAstColumn);
+            }
+        } catch { /* column discovery is best-effort; DDL/AST still render */ }
+
+        // For non-table objects (view/function/procedure/sequence/enum/trigger)
+        // with no stored definition, live-introspect the real DDL from the source
+        // catalog so the fabric shows the true definition, not a placeholder.
+        let effectiveSql = row.definitionSql;
+        let effectiveAst = row.definitionAst;
+        const introspectable = ['VIEW', 'MATERIALIZED_VIEW', 'FUNCTION', 'PROCEDURE', 'SEQUENCE', 'ENUM', 'TRIGGER'];
+        if (introspectable.includes(rtype) && !effectiveAst && !effectiveSql) {
+            try {
+                const def = await resolveDefinition(String(resourceId), user.tenant_id, user.username);
+                if (def.definitionSql) effectiveSql = def.definitionSql;
+                if (def.definitionAst) effectiveAst = def.definitionAst;
+            } catch { /* best-effort */ }
+        }
+
+        // Always return datafabric-format SQL DDL + Fabric AST — never a
+        // `SELECT * FROM x` placeholder or a raw dump. Both are reconstructed in a
+        // consistent fabric shape from the (stored or live-introspected) definition.
+        // Raw `definitionAst` is kept untouched for the Properties cards; the
+        // rendered canonical descriptor is exposed as `fabricAst`.
+        const input = { ...row, columns, definitionSql: effectiveSql, definitionAst: effectiveAst };
+        const definitionSql = renderFabricDdl(input);
+        const fabricAst = renderFabricAst(input);
+
+        res.json({ ...row, columns, definitionSql, fabricAst });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }

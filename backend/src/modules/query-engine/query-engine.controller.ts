@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { QueryEngineService, QueryConfig } from './query-engine.service';
 import { QueryLogService } from './query-log.service';
+import { wantsStream, streamNdjson, pipeRowStream } from './stream';
+import { tryStream } from './stream_source';
 const { randomUUID } = require('crypto');
 
 /**
@@ -97,14 +99,27 @@ export class QueryEngineController {
         : qc?.query?.recursive ? 'RECURSIVE'
         : qc?.type === 'SELECT' ? 'SELECT_AST'
         : (qc?.type || 'QUERY');
-      const result = await QueryLogService.capture(
-        { tenantId, username: u.username, role: session.role, mode, api: '/api/analytics/query', queryText: JSON.stringify(queryConfig), source: qc?.query?.from?.source },
+      const logMeta = { tenantId, username: u.username, role: session.role, mode, api: '/api/analytics/query', queryText: JSON.stringify(queryConfig), source: qc?.query?.from?.source };
+
+      // INTERNAL streaming: for a pass-through scan, pull rows from the source with a
+      // cursor (bounded memory) and pipe them straight to the client — no full
+      // materialization. Falls back to buffered/compute-then-stream for blocking shapes.
+      if (wantsStream(req)) {
+        const rs = await tryStream(tenantId, queryConfig, session);
+        if (rs) { await pipeRowStream(req, res, rs, logMeta); return; }
+      }
+
+      const result = await QueryLogService.capture(logMeta,
         () => QueryEngineService.executeQuery(tenantId, queryConfig as QueryConfig, session)
       );
       // The service returns an enveloped object ({ data, rowCount, plan?, warnings? }) for
       // SELECT-family queries; pass it through so plan/warnings reach the client. Wrap only
       // bare arrays (defensive — legacy callers) to preserve the { data } contract.
       const payload = Array.isArray(result) ? { data: result } : result;
+      // Opt-in response streaming: NDJSON rows + a {__meta__} trailer (plan/legs).
+      if (wantsStream(req)) {
+        return streamNdjson(res, payload.data || [], { rowCount: payload.rowCount, strategy: payload.plan?.strategy, plan: payload.plan, warnings: payload.warnings });
+      }
       return res.status(200).json(payload);
     } catch (err: any) {
       if (err.message.toLowerCase().includes('suspended')) return res.status(403).json({ error: err.message });

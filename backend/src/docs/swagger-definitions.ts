@@ -488,23 +488,23 @@
  *               params: { type: array, items: {} }
  *               async: { type: boolean, default: false }
  *           examples:
+ *             rawSqlHub:
+ *               summary: Raw SQL on hub
+ *               value:
+ *                 sql: "SELECT now() AS server_time, current_user AS db_role"
+ *             sqlAtSource:
+ *               summary: SQL at a source (hub Postgres)
+ *               value:
+ *                 source: Fabric_Hub_Postgres
+ *                 sql: "SELECT now() AS server_time, current_user AS db_role"
  *             windowFunction:
- *               summary: Window function at an external Postgres source
+ *               summary: Window function (RANK)
  *               value:
- *                 source: Retail_Core
- *                 schema: public
- *                 sql: "SELECT region, total_amount, RANK() OVER (PARTITION BY region ORDER BY total_amount DESC) rnk FROM orders LIMIT 10"
+ *                 sql: "SELECT region, amount, RANK() OVER (PARTITION BY region ORDER BY amount DESC) AS rnk FROM (VALUES ('EU',300),('EU',150),('NA',200)) AS t(region, amount)"
  *             recursiveCte:
- *               summary: Recursive CTE (referral / hierarchy traversal)
+ *               summary: Recursive CTE (generate a series)
  *               value:
- *                 source: Retail_Core
- *                 schema: public
- *                 sql: "WITH RECURSIVE tree AS (SELECT id, referred_by, 1 depth FROM customers WHERE referred_by IS NULL UNION ALL SELECT c.id, c.referred_by, t.depth+1 FROM customers c JOIN tree t ON c.referred_by=t.id) SELECT depth, count(*) FROM tree GROUP BY depth ORDER BY depth"
- *             materializedView:
- *               summary: Materialized-view read
- *               value:
- *                 source: Retail_Core
- *                 sql: "SELECT sales_day, region, revenue FROM mv_daily_region_sales ORDER BY revenue DESC LIMIT 10"
+ *                 sql: "WITH RECURSIVE nums(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM nums WHERE n < 5) SELECT n FROM nums"
  *     responses:
  *       200:
  *         description: Result rows + execution plan/trace
@@ -556,48 +556,48 @@
  *             properties:
  *               queryConfig: { $ref: '#/components/schemas/QueryConfig' }
  *           examples:
- *             filterProjection:
- *               summary: Filter + projection pushdown (single source)
+ *             astFilter:
+ *               summary: AST — filter + projection pushdown (single source)
  *               value:
  *                 queryConfig:
  *                   type: SELECT
- *                   schema: public
- *                   limit: 25
+ *                   schema: an_lab
+ *                   limit: 10
  *                   query:
- *                     from: { resource: customers, source: Retail_Core }
- *                     select: [id, name, region]
- *                     where: [{ column: region, operator: EQ, value: EU }]
- *             aggregate:
- *               summary: GROUP BY aggregate pushed to the source
+ *                     from: { resource: employees, source: An_Lab }
+ *                     select: [id, name, dept_id]
+ *                     where: [{ column: dept_id, operator: EQ, value: 10 }]
+ *             astAggregate:
+ *               summary: AST — aggregate + GROUP BY pushed to the source
  *               value:
  *                 queryConfig:
  *                   type: SELECT
- *                   schema: public
+ *                   schema: an_lab
+ *                   limit: 10
  *                   query:
- *                     from: { resource: orders, source: Retail_Core }
- *                     groupBy: [status]
- *                     select: [status, { aggregate: SUM, column: total_amount, alias: revenue }]
- *             crossSourceJoin:
- *               summary: Cross-engine join (Postgres ⋈ Mongo) with bind-join
+ *                     from: { resource: employees, source: An_Lab }
+ *                     groupBy: [dept_id]
+ *                     select: [dept_id, { aggregate: COUNT, column: '*', alias: n }]
+ *             astRecursive:
+ *               summary: AST — recursive hierarchy traversal (connect-by)
  *               value:
  *                 queryConfig:
  *                   type: SELECT
- *                   schema: public
- *                   limit: 20
+ *                   schema: an_lab
  *                   query:
- *                     from: { resource: orders, source: Retail_Core, alias: o }
- *                     joins: [{ type: INNER, resource: web_events, source: Web_Analytics, alias: w, on: { left: o.customer_id, operator: EQ, right: w.customer_id } }]
- *                     where: [{ column: o.customer_id, operator: EQ, value: 42 }]
- *             setOperation:
- *               summary: Cross-engine INTERSECT (customers who ordered AND browsed)
+ *                     recursive:
+ *                       source: An_Lab
+ *                       resource: employees
+ *                       connectBy: { parent: manager_id, child: id }
+ *                       anchor: [{ column: manager_id, operator: IS_NULL }]
+ *                       select: [id, name, manager_id]
+ *                       maxDepth: 10
+ *             callFunction:
+ *               summary: CALL (function-as-a-service)
  *               value:
  *                 queryConfig:
- *                   type: SELECT
- *                   schema: public
- *                   query:
- *                     intersect:
- *                       - { select: [customer_id], from: { resource: orders, source: Retail_Core } }
- *                       - { select: [customer_id], from: { resource: web_events, source: Web_Analytics } }
+ *                   type: CALL
+ *                   function: current_user_id
  *     responses:
  *       200:
  *         description: Result rows + execution plan/trace
@@ -619,6 +619,29 @@
  *             required: [queryConfig]
  *             properties:
  *               queryConfig: { type: object }
+ *           examples:
+ *             astFilter:
+ *               summary: AST — filter + projection (single source)
+ *               value:
+ *                 queryConfig:
+ *                   type: SELECT
+ *                   schema: an_lab
+ *                   limit: 10
+ *                   query:
+ *                     from: { resource: employees, source: An_Lab }
+ *                     select: [id, name, dept_id]
+ *                     where: [{ column: dept_id, operator: EQ, value: 10 }]
+ *             astAggregate:
+ *               summary: AST — aggregate + GROUP BY
+ *               value:
+ *                 queryConfig:
+ *                   type: SELECT
+ *                   schema: an_lab
+ *                   limit: 10
+ *                   query:
+ *                     from: { resource: employees, source: An_Lab }
+ *                     groupBy: [dept_id]
+ *                     select: [dept_id, { aggregate: COUNT, column: '*', alias: n }]
  *     responses:
  *       202:
  *         description: Job Accepted
@@ -883,8 +906,8 @@
  *         description: { type: string, example: "Total revenue grouped by region, filtered by segment" }
  *         mode: { type: string, enum: [AST, SQL], example: AST }
  *         config: { $ref: '#/components/schemas/QueryConfig' }
- *         sql: { type: string, description: "SQL mode only.", example: "SELECT region, SUM(total_amount) revenue FROM orders WHERE segment = {{segment}} GROUP BY region" }
- *         source: { type: string, example: Retail_Core }
+ *         sql: { type: string, description: "SQL mode only.", example: "SELECT now() AS server_time, current_user AS db_role" }
+ *         source: { type: string, example: Fabric_Hub_Postgres }
  *         variables: { type: array, items: { $ref: '#/components/schemas/AnalyticVariable' } }
  *         run_count: { type: integer, readOnly: true, example: 12 }
  *         last_run_at: { type: string, format: date-time, readOnly: true }
@@ -1018,7 +1041,7 @@
  *         role: { type: string }
  *         mode: { type: string, example: SELECT_AST, description: "SELECT_AST | SELECT_SQL | SQL_ON_SOURCE | CALL | RECURSIVE | CRUD_CREATE | CRUD_UPDATE | CRUD_DELETE | FETCH | SEQUENCE | SAVED_ANALYTIC | ..." }
  *         api: { type: string, example: /api/analytics/query }
- *         source: { type: string, nullable: true, example: Retail_Core }
+ *         source: { type: string, nullable: true, example: An_Lab }
  *         status: { type: string, enum: [SUCCESS, ERROR], example: SUCCESS }
  *         query_text: { type: string }
  *         row_count: { type: integer, example: 42 }
@@ -1136,9 +1159,19 @@
  *             type: object
  *             required: [sql]
  *             properties:
- *               sql: { type: string, example: "SELECT NOW() AS ts" }
- *               source: { type: string, example: Retail_Core }
+ *               sql: { type: string, example: "SELECT 1 AS one, 2 AS two" }
+ *               source: { type: string, example: Fabric_Hub_Postgres }
  *               schema: { type: string, example: public }
+ *           examples:
+ *             rawSqlHub:
+ *               summary: Raw SQL on hub
+ *               value:
+ *                 sql: "SELECT 1 AS one, 2 AS two"
+ *             sqlAtSource:
+ *               summary: SQL at a source (hub Postgres)
+ *               value:
+ *                 source: Fabric_Hub_Postgres
+ *                 sql: "SELECT NOW() AS ts"
  *     responses:
  *       200: { description: Result rows, content: { application/json: { schema: { type: object, properties: { results: { type: array, items: { type: object } }, rowCount: { type: integer } } } } } }
  *       401: { description: Not authenticated, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
@@ -1163,15 +1196,29 @@
  *             type: object
  *             properties:
  *               config: { $ref: '#/components/schemas/QueryConfig' }
- *           example:
- *             config:
- *               type: SELECT
- *               schema: public
- *               limit: 25
- *               query:
- *                 from: { resource: customers, source: Retail_Core }
- *                 select: [id, name, region]
- *                 where: [{ column: region, operator: EQ, value: EU }]
+ *           examples:
+ *             astFilter:
+ *               summary: AST — filter + projection
+ *               value:
+ *                 config:
+ *                   type: SELECT
+ *                   schema: an_lab
+ *                   limit: 10
+ *                   query:
+ *                     from: { resource: employees, source: An_Lab }
+ *                     select: [id, name, dept_id]
+ *                     where: [{ column: dept_id, operator: EQ, value: 10 }]
+ *             astAggregate:
+ *               summary: AST — aggregate + GROUP BY
+ *               value:
+ *                 config:
+ *                   type: SELECT
+ *                   schema: an_lab
+ *                   limit: 10
+ *                   query:
+ *                     from: { resource: employees, source: An_Lab }
+ *                     select: [dept_id, { aggregate: COUNT, column: '*', alias: n }]
+ *                     groupBy: [dept_id]
  *     responses:
  *       200:
  *         description: Generated SQL (or a note if it could not transpile)
@@ -1509,12 +1556,12 @@
  *         application/json:
  *           schema: { $ref: '#/components/schemas/Policy' }
  *           example:
- *             name: eu_analyst_rows
- *             schema: public
- *             table: customers
+ *             name: eng_analyst_rows
+ *             schema: an_lab
+ *             table: employees
  *             roles: [ANALYST]
- *             rowFilter: [{ column: region, operator: EQ, value: { session: region } }]
- *             masking: [{ column: email, roles: [ANALYST], strategy: PARTIAL }]
+ *             rowFilter: [{ column: dept_id, operator: EQ, value: 10 }]
+ *             masking: [{ column: salary, roles: [ANALYST], strategy: REDACT }]
  *     responses:
  *       201: { description: Policy saved, content: { application/json: { schema: { $ref: '#/components/schemas/Policy' } } } }
  *       400: { description: 'Validation error', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' }, examples: { fields: { value: { error: "name, schema and table are required" } }, rule: { value: { error: "a policy needs at least a rowFilter or masking rule" } } } } } }
@@ -1557,10 +1604,10 @@
  *         application/json:
  *           schema: { $ref: '#/components/schemas/ConstraintSpec' }
  *           example:
- *             schema: public
- *             table: orders
- *             columns: [{ name: status, notNull: true, enum: [PENDING, SHIPPED, DELIVERED] }]
- *             checks: [{ name: amount_positive, column: total_amount, op: GT, value: 0 }]
+ *             schema: an_lab
+ *             table: employees
+ *             columns: [{ name: name, notNull: true }, { name: dept_id, notNull: true }]
+ *             checks: [{ name: salary_positive, column: salary, op: GT, value: 0 }]
  *     responses:
  *       201: { description: Constraints saved, content: { application/json: { schema: { $ref: '#/components/schemas/ConstraintSpec' } } } }
  *       400: { description: 'Validation error', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' }, examples: { fields: { value: { error: "schema and table are required" } }, empty: { value: { error: "provide at least one column rule or check" } } } } } }
@@ -1587,8 +1634,8 @@
  *         application/json:
  *           schema: { $ref: '#/components/schemas/Grant' }
  *           example:
- *             schema: public
- *             table: customers
+ *             schema: an_lab
+ *             table: employees
  *             grants: [{ role: ANALYST, privileges: [SELECT] }, { role: EDITOR, privileges: [SELECT, INSERT, UPDATE] }]
  *     responses:
  *       201: { description: Grants saved, content: { application/json: { schema: { $ref: '#/components/schemas/Grant' } } } }
@@ -1618,12 +1665,30 @@
  *       content:
  *         application/json:
  *           schema: { $ref: '#/components/schemas/SavedAnalytic' }
- *           example:
- *             name: Revenue by region
- *             mode: SQL
- *             source: Retail_Core
- *             sql: "SELECT region, SUM(total_amount) revenue FROM orders WHERE segment = {{segment}} GROUP BY region"
- *             variables: [{ name: segment, type: string, required: true, default: SMB }]
+ *           examples:
+ *             astMode:
+ *               summary: AST mode (queryConfig in `config`)
+ *               value:
+ *                 name: headcount_by_dept
+ *                 description: Headcount per department
+ *                 mode: AST
+ *                 config:
+ *                   type: SELECT
+ *                   schema: an_lab
+ *                   limit: 10
+ *                   query:
+ *                     from: { resource: employees, source: An_Lab }
+ *                     select: ['*']
+ *                     where: [{ column: dept_id, operator: EQ, value: "{{dept}}" }]
+ *                 variables: [{ name: dept, type: number, default: 10 }]
+ *             sqlMode:
+ *               summary: SQL mode (`sql` is top-level, not inside config)
+ *               value:
+ *                 name: server_time
+ *                 description: Hub server time
+ *                 mode: SQL
+ *                 sql: "SELECT now() AS server_time"
+ *                 variables: []
  *     responses:
  *       201: { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/SavedAnalytic' } } } }
  *       400: { description: 'Validation error (name required / mode body missing)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' }, example: { error: "name is required" } } } }
@@ -1697,7 +1762,7 @@
  *             type: object
  *             properties:
  *               variables: { type: object, additionalProperties: true }
- *           example: { variables: { segment: ENTERPRISE } }
+ *           example: { variables: { dept: 20 } }
  *     responses:
  *       200: { description: Result rows + execution plan/trace, content: { application/json: { schema: { $ref: '#/components/schemas/QueryEnvelope' } } } }
  *       400: { description: 'Missing required variable', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' }, example: { error: "missing required variable: segment" } } } }
@@ -1795,13 +1860,13 @@
  *         application/json:
  *           schema: { $ref: '#/components/schemas/Trigger' }
  *           example:
- *             triggerName: notify_new_order
- *             schemaName: public
- *             tableName: orders
+ *             triggerName: notify_new_employee
+ *             schemaName: an_lab
+ *             tableName: employees
  *             definition:
  *               event: INSERT
  *               timing: AFTER
- *               execute: { type: WEBHOOK, url: "https://hooks.example.com/orders" }
+ *               execute: { type: WEBHOOK, url: "https://hooks.example.com/employees" }
  *     responses:
  *       201: { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Trigger' } } } }
  *       400: { description: 'Validation error', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' }, examples: { fields: { value: { error: "triggerName and definition are required" } }, exec: { value: { error: "definition.execute.type is required" } }, event: { value: { error: "definition.event is required for row-based triggers" } } } } } }

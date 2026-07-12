@@ -260,6 +260,28 @@ export class PostgresConnector implements IConnector {
     }
 
     /**
+     * STREAMING variant of `rawQuery` — yields rows from a server-side cursor
+     * (via `pg-query-stream`) in bounded batches instead of buffering the whole
+     * result set. The dedicated client is released (and the cursor closed) on
+     * completion or when the consumer stops early (the generator's `finally`).
+     * @param sql The SQL statement (a read query).
+     * @param params Positional parameters.
+     * @param batchSize Rows fetched per cursor round-trip.
+     * @returns An async iterable of result rows.
+     */
+    async *queryStream(sql: string, params: any[] = [], batchSize = 500): AsyncGenerator<any> {
+        const QueryStream = require('pg-query-stream');
+        const client = await this.pool.connect();
+        const stream = client.query(new QueryStream(sql, params, { batchSize: Math.max(1, batchSize) }));
+        try {
+            for await (const row of stream) yield row;
+        } finally {
+            stream.destroy();
+            client.release();
+        }
+    }
+
+    /**
      * Sets this connection's `search_path` so subsequent unqualified `rawQuery`
      * calls resolve names against `schema` first, falling back to `public`.
      * @param schema Schema name to prepend to the search path; sanitized to a safe identifier charset.
@@ -509,6 +531,36 @@ export class MongoDBConnector implements IConnector {
         if (typeof spec.limit === 'number') cursor = cursor.limit(spec.limit);
 
         return await cursor.toArray();
+    }
+
+    /**
+     * STREAMING variant of a plain `find` — returns an async generator that yields
+     * documents from the cursor in bounded batches (`batchSize`) instead of
+     * buffering the whole result with `.toArray()`. Only valid for a pass-through
+     * find (no aggregate/GROUP BY). The cursor is closed on completion or when the
+     * consumer stops early (the generator's `finally` runs on `return()`), so early
+     * termination (LIMIT reached, client disconnect) releases the source cursor.
+     * @param schema Database name.
+     * @param table Collection name.
+     * @param config Canonical query config (filter/projection/sort/limit/skip).
+     * @param batchSize Documents fetched per network round-trip.
+     * @returns An async iterable of documents.
+     */
+    async *queryStream(schema: string, table: string, config: any, batchSize = 500): AsyncGenerator<any> {
+        await this.client.connect();
+        const canonical = toCanonical(config);
+        const spec = PushdownCompiler.toMongo(canonical);
+        let cursor = this.client.db(schema).collection(table)
+            .find(spec.filter, spec.projection ? { projection: spec.projection } : {})
+            .batchSize(Math.max(1, batchSize));
+        if (spec.sort) cursor = cursor.sort(spec.sort);
+        if (typeof spec.skip === 'number') cursor = cursor.skip(spec.skip);
+        if (typeof spec.limit === 'number') cursor = cursor.limit(spec.limit);
+        try {
+            for await (const doc of cursor) yield doc;
+        } finally {
+            await cursor.close().catch(() => { /* already closed */ });
+        }
     }
 
     // --- write support (used by the /api/data CRUD endpoints) ---

@@ -116,7 +116,7 @@ interface LegMeta {
 
 /**
  * Executes CROSS_ENGINE / SINGLE_CONNECTOR queries produced by
- * {@link QueryPlanner.classify}: joins, set operations, and aggregates that
+ * (@link QueryPlanner.classify): joins, set operations, and aggregates that
  * span more than one source (or a single connector-only source). See the
  * file-level overview for the pushdown/bind-join/transitive-propagation
  * strategy this class implements. All methods are static; the class is never instantiated.
@@ -129,9 +129,9 @@ export class FederationExecutor {
    * expression/search) — anything else is left off the canonical query so it
    * falls through to in-fabric post-processing instead of being silently
    * mistranslated. Multiple predicates on the same column are merged into one
-   * `{ $op: value, ... }` sub-document (e.g. a range) rather than overwriting.
-   * @param legAst one leg of the AST: `{ select?, where?, orderBy?, limit?, offset?, distinct? }`.
-   * @returns the canonical `{ select?, filter?, orderBy?, limit?, offset?, groupBy? }` pushdown shape.
+   * `($op: value, ...)` sub-document (e.g. a range) rather than overwriting.
+   * @param legAst one leg of the AST: `(select?, where?, orderBy?, limit?, offset?, distinct?)`.
+   * @returns the canonical `(select?, filter?, orderBy?, limit?, offset?, groupBy?)` pushdown shape.
    */
   private static astLegToCanonical(legAst: any): CanonicalQuery {
     const canonical: CanonicalQuery = {};
@@ -187,12 +187,12 @@ export class FederationExecutor {
    * recorded into `trace` (source/engine/mode/operation/target/query/params/
    * rowsReturned/ms) — the audit evidence of what actually ran where.
    * @param tenantId tenant identifier.
-   * @param ref the leg to fetch: `{ source, resource, canonical }` (pushdown already computed).
+   * @param ref the leg to fetch: `(source, resource, canonical)` (pushdown already computed).
    * @param plan the query plan (supplies `resolveMap`/`session`; legs not
-   *   already resolved are resolved on demand via {@link QueryPlanner.resolveLeg}).
+   *   already resolved are resolved on demand via (@link QueryPlanner.resolveLeg)).
    * @param tenantSchema physical tenant schema used for local/synced legs.
    * @param warnings output array; a truncation or policy-resolution warning is pushed here (mutated).
-   * @param trace output array; one {@link LegTrace} entry is pushed per call (mutated).
+   * @param trace output array; one (@link LegTrace) entry is pushed per call (mutated).
    * @param operation label recorded in the trace describing this leg's role
    *   (e.g. `'scan'`, `'join-driving'`, `'bind-join'`, `'partial-aggregate'`).
    * @returns the rows returned by the source, bounded by `maxRowsPerLeg()`.
@@ -299,7 +299,7 @@ export class FederationExecutor {
    * `schema.table [filter]` string if compiling the preview throws.
    * @param engine uppercase engine name (`MONGODB`, `ELASTICSEARCH`/`ELASTIC`/`ES`, or a SQL dialect name).
    * @param input the canonical query plus its physical `schema`/`table`.
-   * @returns `{ text, params? }`, matching {@link CompiledSql}'s shape for SQL engines.
+   * @returns `(text, params?)`, matching (@link CompiledSql)'s shape for SQL engines.
    */
   private static previewConnectorQuery(
     engine: string, input: CanonicalQuery & { schema: string; table: string }
@@ -368,7 +368,7 @@ export class FederationExecutor {
   /**
    * Execute a UNION / INTERSECT / EXCEPT across its legs (each leg its own
    * source, fetched independently with its own pushdown via
-   * {@link fetchLegDirect}), then combine in-memory using {@link serialize} for
+   * (@link fetchLegDirect)), then combine in-memory using (@link serialize) for
    * row identity: UNION dedupes across all legs; INTERSECT keeps rows from the
    * first leg present in every other leg; EXCEPT keeps rows from the first leg
    * absent from every other leg. Nested joins inside a set-op leg are rejected
@@ -379,7 +379,7 @@ export class FederationExecutor {
    * @param tenantSchema physical tenant schema for local/synced legs.
    * @param warnings output array (mutated) for truncation/policy warnings from each leg fetch.
    * @param pushed output array (mutated) with human-readable pushdown notes per leg.
-   * @param trace output array (mutated) with one {@link LegTrace} entry per leg.
+   * @param trace output array (mutated) with one (@link LegTrace) entry per leg.
    * @returns the combined, ordered/limited result rows.
    * @throws if a set-op leg itself declares JOINs.
    */
@@ -433,7 +433,7 @@ export class FederationExecutor {
    * before any rows are fetched.
    * @param legMetas the join's legs (driving leg first, then each joined leg with its `on` clause).
    * @param where the query's top-level WHERE conjuncts.
-   * @returns a map from leg alias to its pushdown filter (`{ column: { $op: value, ... } }`).
+   * @returns a map from leg alias to its pushdown filter (`(column: ( $op: value, ... ))`).
    */
   private static buildLegFilters(legMetas: LegMeta[], where: any[]): Record<string, Record<string, any>> {
     const aliasSet = new Set(legMetas.map((l) => l.alias));
@@ -508,7 +508,7 @@ export class FederationExecutor {
   /**
    * Execute a cross-source JOIN via bind join (semi-join), the core of the
    * federation strategy: fetch the driving (first) leg with its own predicate
-   * (plus any transitively-propagated constants from {@link buildLegFilters}),
+   * (plus any transitively-propagated constants from (@link buildLegFilters)),
    * then for each subsequent leg, collect the driving side's join-key values
    * and push them down as `key IN (...)` so the other source returns only rows
    * that CAN match — never a full scan.
@@ -522,22 +522,22 @@ export class FederationExecutor {
    * nested-loop against `evalOn`. RIGHT/FULL joins are not reproducible by this
    * left-driven hash join and are executed as INNER with a warning (right-only
    * rows are dropped). Each leg's rows are qualified by alias
-   * ({@link qualify}) before the in-memory hash join merges them into the
+   * ((@link qualify)) before the in-memory hash join merges them into the
    * running accumulator, so same-named columns across legs never collide.
    *
    * Returns rows AFTER the top-level WHERE is re-applied in-memory
-   * ({@link applyWhere}) — this catches predicates that reference columns from
+   * ((@link applyWhere)) — this catches predicates that reference columns from
    * legs joined after the one they were pushed to, or expressions that
    * couldn't be pushed down at all. Projection/aggregation/order+limit are
    * intentionally NOT applied here; they're applied centrally by
-   * {@link execute} so an outer aggregate sees the full raw joined rows.
+   * (@link execute) so an outer aggregate sees the full raw joined rows.
    * @param tenantId tenant identifier.
    * @param ast the AST node with `from`, `joins[]`, `where`, `select`.
    * @param plan the query plan (leg resolution cache + session).
    * @param tenantSchema physical tenant schema for local/synced legs.
    * @param warnings output array (mutated) for bind-join fallback / unsupported-join-type warnings.
    * @param pushed output array (mutated) with human-readable pushdown notes (predicates, bind-join key counts).
-   * @param trace output array (mutated) with one {@link LegTrace} entry per leg fetch.
+   * @param trace output array (mutated) with one (@link LegTrace) entry per leg fetch.
    * @returns the joined rows (qualified by alias), filtered by the WHERE clause.
    */
   private static async executeJoin(
@@ -651,7 +651,7 @@ export class FederationExecutor {
   }
 
   /**
-   * Evaluate a non-equi join ON predicate for the in-memory nested-loop path in {@link executeJoin}.
+   * Evaluate a non-equi join ON predicate for the in-memory nested-loop path in (@link executeJoin).
    * @param left the driving row's join-key value.
    * @param operator the ON clause operator (`NE`/`!=`/`<>`/`GT`/`>`/`GTE`/`>=`/`LT`/`<`/`LTE`/`<=`; default `EQ`).
    * @param right the other leg's row join-key value.
@@ -670,7 +670,7 @@ export class FederationExecutor {
 
   /**
    * Apply the top-level WHERE conjuncts in-memory over already-joined rows.
-   * This is a correctness backstop for {@link executeJoin}: predicates that
+   * This is a correctness backstop for (@link executeJoin): predicates that
    * couldn't be (or weren't) pushed to a leg — e.g. they reference a column
    * from a leg joined after the one they targeted — are still enforced here.
    * @param rows joined/qualified rows to filter.
@@ -702,7 +702,7 @@ export class FederationExecutor {
 
   /**
    * Project qualified rows to the requested SELECT columns (pass through on `*`).
-   * Applied by {@link execute} after a non-aggregated join so the caller only
+   * Applied by (@link execute) after a non-aggregated join so the caller only
    * sees the requested columns, not every alias-qualified column from every leg.
    * @param rows joined (alias-qualified) rows.
    * @param select the query's select list; `*` or empty means pass rows through unchanged.
@@ -729,24 +729,24 @@ export class FederationExecutor {
    * return its data plus a full pushdown/trace record. Dispatches on AST shape:
    *
    *   - **set operation** (`union`/`intersect`/`except`): if it's a UNION where
-   *     every leg is a full aggregate query, uses {@link fanAggregate} (push a
+   *     every leg is a full aggregate query, uses (@link fanAggregate) (push a
    *     PARTIAL aggregate to each source, merge in-fabric — the
    *     resource-efficient "fan aggregate" path); otherwise
-   *     {@link executeSetOp} (fetch each leg, combine as UNION/INTERSECT/EXCEPT).
-   *   - **join** (`joins` present): {@link executeJoin} (bind-join across legs),
+   *     (@link executeSetOp) (fetch each leg, combine as UNION/INTERSECT/EXCEPT).
+   *   - **join** (`joins` present): (@link executeJoin) (bind-join across legs),
    *     then if the query also has an outer GROUP BY/aggregate, aggregates the
    *     raw joined rows via `aggregateRaw` (join+aggregate can't use the
    *     partial/merge path since the aggregate is over the JOINED result, not
    *     any single source); otherwise just projects + orders/limits.
    *   - **single leg**: pushes the full aggregate (if any) directly to the one
-   *     source via {@link fetchLegDirect}, else pushes filter/projection/sort/limit.
+   *     source via (@link fetchLegDirect), else pushes filter/projection/sort/limit.
    *
    * @param tenantId tenant identifier.
    * @param ast the classified query AST (from/joins/union/intersect/except, where, select, groupBy, having, orderBy, limit).
-   * @param plan the {@link QueryPlan} from {@link QueryPlanner.classify} (leg resolution cache); `session` is attached onto it here if not already present.
+   * @param plan the (@link QueryPlan) from (@link QueryPlanner.classify) (leg resolution cache); `session` is attached onto it here if not already present.
    * @param tenantSchema physical tenant schema for local/synced legs.
-   * @param session caller session for the Policy Engine (row predicates + column masking); defaults to `{ tenantId }` if omitted and not already on `plan`.
-   * @returns `{ data, warnings, pushed, trace }` — the result rows plus the full audit trail of what ran where.
+   * @param session caller session for the Policy Engine (row predicates + column masking); defaults to `(tenantId)` if omitted and not already on `plan`.
+   * @returns `(data, warnings, pushed, trace)` — the result rows plus the full audit trail of what ran where.
    */
   static async execute(tenantId: string, ast: any, plan: QueryPlan, tenantSchema: string, session?: QueryPlan['session']): Promise<FederationResult> {
     // Carry the session onto the plan so fetchLegDirect can resolve access policies.

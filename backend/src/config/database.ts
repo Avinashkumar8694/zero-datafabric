@@ -9,7 +9,7 @@ import dotenv from 'dotenv';
  * any query that must be scoped to a tenant: it switches to the low-privilege
  * `fabric_user` role, injects `app.tenant_id`/`app.user_name`/`app.current_region`
  * session GUCs (read by RLS policies and audit triggers, and by
- * {@link SecurityService}'s `current_setting('request.jwt.claims', ...)`-style
+ * (@link SecurityService)'s `current_setting('request.jwt.claims', ...)`-style
  * policies), and sets `search_path` to the tenant's schema(s) — all inside one
  * transaction so the context and the query are atomic.
  */
@@ -31,7 +31,7 @@ const pool = new Pool({
  * role and releases the client back to the pool.
  * @param sql - The SQL statement to execute.
  * @param params - Positional parameters for the statement.
- * @param context - `{ tenantId, username }` — identity to inject into the session.
+ * @param context - `(tenantId, username)` — identity to inject into the session.
  * @returns The `pg` query result for `sql`.
  * @throws Re-throws any error from setting context or running `sql`, after rolling back the transaction.
  */

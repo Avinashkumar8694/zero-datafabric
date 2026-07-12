@@ -186,7 +186,7 @@ export class ElasticsearchMutationWorker {
   /**
    * Looks up the tenant's active/connected Elasticsearch data source.
    * @param tenantId Tenant scope.
-   * @returns The data source's `{ config }`, or `null` if none is ACTIVE/CONNECTED.
+   * @returns The data source's `(config)`, or `null` if none is ACTIVE/CONNECTED.
    */
   private static async getElasticConnector(tenantId: string) {
     const { rows } = await pool.query(

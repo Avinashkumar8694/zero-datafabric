@@ -7,14 +7,14 @@ const { randomUUID } = require('crypto');
  * QueryEngineController — HTTP entry point into the federation pipeline.
  * -----------------------------------------------------------------------
  * Thin Express layer that turns a request into a `QueryConfig`/session, hands it
- * to {@link QueryEngineService}, and shapes the HTTP response. It owns none of
+ * to (@link QueryEngineService), and shapes the HTTP response. It owns none of
  * the query logic itself (planning, pushdown, federation) — its job is:
  *
  *   - resolve the caller's tenant/session (tenant id, effective role incl.
  *     admin "act as", region, username) from the authenticated request,
  *   - dispatch to `QueryEngineService.executeQuery` (sync), `executeAsyncQuery`
  *     (fire-and-forget job) or `refreshMaterializedView` (background refresh),
- *   - wrap every query in {@link QueryLogService.capture} so it lands in the
+ *   - wrap every query in (@link QueryLogService.capture) so it lands in the
  *     audit trail regardless of which strategy the planner picked,
  *   - translate service-layer errors into HTTP status codes (403 for a
  *     suspended tenant, 500 otherwise).
@@ -24,14 +24,14 @@ export class QueryEngineController {
   /**
    * POST handler: refresh a materialized view in the background.
    *
-   * Kicks off {@link QueryEngineService.refreshMaterializedView} without
+   * Kicks off (@link QueryEngineService.refreshMaterializedView) without
    * awaiting it and immediately returns 202 with a job id — refreshing a view
    * (especially non-concurrently) can take a long time, so the HTTP request
    * must not block on it. Failures are only logged server-side since the
    * response has already been sent.
-   * @param req Express request; body: `{ viewName, schema?, concurrent? }`, tenant from `req.user` or body.
+   * @param req Express request; body: `(viewName, schema?, concurrent?)`, tenant from `req.user` or body.
    * @param res Express response.
-   * @returns 202 with `{ status, message, jobId }`, 400 if tenantId/viewName missing, 403 if tenant suspended, 500 on other errors.
+   * @returns 202 with `(status, message, jobId)`, 400 if tenantId/viewName missing, 403 if tenant suspended, 500 on other errors.
    */
   static async refreshView(req: Request, res: Response) {
     try {
@@ -68,11 +68,11 @@ export class QueryEngineController {
    * and derives a coarse `mode` label for the audit log (CALL / RECURSIVE /
    * SELECT_AST / the raw config type) purely for logging purposes — it does not
    * affect how the query is executed. The actual execution is wrapped in
-   * {@link QueryLogService.capture} so timing/plan/trace are recorded whether
+   * (@link QueryLogService.capture) so timing/plan/trace are recorded whether
    * the query succeeds or fails.
-   * @param req Express request; body: `{ queryConfig }`, tenant from `req.user` or body.
+   * @param req Express request; body: `(queryConfig)`, tenant from `req.user` or body.
    * @param res Express response.
-   * @returns 200 with the service's result envelope (`{ data, rowCount, plan?, warnings? }`,
+   * @returns 200 with the service's result envelope (`(data, rowCount, plan?, warnings?)`,
    *   bare arrays are wrapped defensively), 400 if tenantId/queryConfig missing,
    *   403 if the tenant is suspended, 500 on other errors.
    */
@@ -116,14 +116,14 @@ export class QueryEngineController {
   /**
    * POST handler: enqueue a query config for asynchronous execution.
    *
-   * Unlike {@link executeQuery}, this does not await the result or route
+   * Unlike (@link executeQuery), this does not await the result or route
    * through the audit log directly — it registers a job with
-   * {@link QueryEngineService.executeAsyncQuery} (which runs the same
+   * (@link QueryEngineService.executeAsyncQuery) (which runs the same
    * `executeQuery` path in the background) and returns its id immediately so
-   * the caller can poll {@link getJobStatus}.
-   * @param req Express request; body: `{ queryConfig }`, tenant from `req.user` or body.
+   * the caller can poll (@link getJobStatus).
+   * @param req Express request; body: `(queryConfig)`, tenant from `req.user` or body.
    * @param res Express response.
-   * @returns 202 with `{ jobId, status: 'PENDING' }`, 400 if tenantId/queryConfig missing, 500 on error.
+   * @returns 202 with `(jobId, status: 'PENDING')`, 400 if tenantId/queryConfig missing, 500 on error.
    */
   static async executeAsyncQuery(req: Request, res: Response) {
     const { queryConfig } = req.body;
@@ -145,7 +145,7 @@ export class QueryEngineController {
    * GET handler: poll the status of an async job (query or raw-SQL execution).
    * @param req Express request; `req.params.jobId` identifies the job.
    * @param res Express response.
-   * @returns 200 with `{ jobId, status, result?, error? }`, 404 if the job id is unknown, 500 on error.
+   * @returns 200 with `(jobId, status, result?, error?)`, 404 if the job id is unknown, 500 on error.
    */
   static async getJobStatus(req: Request, res: Response) {
     try {

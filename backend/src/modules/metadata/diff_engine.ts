@@ -9,7 +9,7 @@
  * extension provisioning, downstream target sync, and quarantine of tables
  * that exist physically but are no longer declared in the manifest.
  *
- * Each diff entry is a plain object carrying at minimum `{ action, risk }`
+ * Each diff entry is a plain object carrying at minimum `(action, risk)`
  * plus action-specific fields; `Transpiler.toSql`/`toMongo` later compiles
  * these diffs into engine-native DDL/operations, and `MetadataOrchestrator`
  * decides whether high-risk diffs require an explicit `force` to apply.
@@ -30,7 +30,7 @@ export class DiffEngine {
      * (schema existence, then resources in dependency order, then retired
      * tables), followed by manifest-wide relationship, extension and
      * downstream-target checks.
-     * @param tenantId Tenant scope; physical schema names are derived as `tenant_{tenantId}_{schema.name}`.
+     * @param tenantId Tenant scope; physical schema names are derived as `tenant_{tenantId}_(schema.name)`.
      * @param manifest The declarative manifest to diff against the live catalog.
      * @param client An open Postgres client/pool connection used for catalog introspection queries.
      * @returns A flat array of diff objects (each with at least `action` and `risk`) in the order they should be applied.

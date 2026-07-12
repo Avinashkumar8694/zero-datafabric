@@ -7,9 +7,9 @@
  *   - name: Data
  *     description: >
  *       Simple REST-style CRUD over federated sources. Each endpoint takes an
- *       ergonomic JSON body ({ source?, schema?, resource, where?, data?, ... }).
- *       `fetch` reads through the full planner/federation path (cross-source +
- *       pushdown + trace). `create`/`update`/`delete` run at the owning source —
+ *       ergonomic JSON body {{ source?, schema?, resource, where?, data?, ... }}.
+ *       `fetch` reads through the full planner/federation path {cross-source +
+ *       pushdown + trace}. `create`/`update`/`delete` run at the owning source —
  *       remote Postgres via parameterized SQL, MongoDB via native document ops.
  *       `update` and `delete` require a `where` (unrestricted mutations are blocked).
  *   - name: Metadata Orchestration
@@ -20,8 +20,8 @@
  *     summary: Read rows from a resource (any source)
  *     tags: [Data]
  *     description: >
- *       Reads a single resource. `where` accepts `{ col: value }` (equality) or
- *       `{ col: { $op: value } }` with $eq $ne $gt $gte $lt $lte $like $ilike $in.
+ *       Reads a single resource. `where` accepts `(col: value)` (equality) or
+ *       `{col: { $op: value }}` with $eq $ne $gt $gte $lt $lte $like $ilike $in.
  *       Runs through the planner so it works on hub, remote Postgres, or Mongo, with
  *       predicate/projection/sort/limit pushed to the source. Response includes the
  *       execution trace.
@@ -187,8 +187,8 @@
  *     description: >
  *       Reverse of apply. Exports the current schemas, tables (with columns) and
  *       relationships as a datafabric manifest. Omit `source` for a multi-source
- *       manifest; pass `source` to export a single self-contained source (a
- *       `warnings` array flags any resource that depends on another datasource).
+ *       manifest; pass `source` to export a single self-contained source {a
+ *       `warnings` array flags any resource that depends on another datasource}.
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: query

@@ -81,13 +81,13 @@ export class TriggerService {
    * Register (or re-register) a control-plane trigger definition. Validates
    * the payload, upserts the registry row (keyed on tenant/schema/table/name)
    * with status forced back to ACTIVE, and writes an audit log entry. Does
-   * NOT deploy the trigger to Postgres — call {@link TriggerService.deployTrigger}
+   * NOT deploy the trigger to Postgres — call (@link TriggerService.deployTrigger)
    * to enqueue that.
    * @param tenantId - Owning tenant.
    * @param username - Actor performing the change (for audit logging).
-   * @param payload - `{ triggerName, definition, schemaName?, tableName? }`; `schemaName`/`tableName` default to `'__SYSTEM__'` for generic (schedule-only) triggers.
+   * @param payload - `(triggerName, definition, schemaName?, tableName?)`; `schemaName`/`tableName` default to `'__SYSTEM__'` for generic (schedule-only) triggers.
    * @returns The persisted trigger_registry row.
-   * @throws {Error} If the payload fails {@link TriggerService.validate}.
+   * @throws {Error} If the payload fails (@link TriggerService.validate).
    */
   static async createTrigger(tenantId: string, username: string, payload: any) {
     this.validate(payload);
@@ -109,13 +109,13 @@ export class TriggerService {
 
   /**
    * Update an existing trigger registry row in place by id. Like
-   * {@link TriggerService.createTrigger}, this only updates the registry
+   * (@link TriggerService.createTrigger), this only updates the registry
    * record and audit log — it does not redeploy the DDL; call
-   * {@link TriggerService.deployTrigger} afterward to push the change live.
+   * (@link TriggerService.deployTrigger) afterward to push the change live.
    * @param tenantId - Owning tenant (also used for the audit log context).
    * @param username - Actor performing the change (for audit logging).
    * @param id - The trigger_registry row id to update.
-   * @param payload - `{ triggerName, definition, schemaName?, tableName? }`.
+   * @param payload - `(triggerName, definition, schemaName?, tableName?)`.
    * @returns The updated trigger_registry row.
    * @throws {Error} If the payload fails validation, or if `id` does not exist ('Trigger not found').
    */
@@ -199,11 +199,11 @@ export class TriggerService {
    * in Postgres. Marks the registry row `PENDING_DEPLOY`, then picks the job
    * type: a schedule-only definition with no bound schema/table becomes a
    * recurring `SCHEDULE_TRIGGER` job; anything bound to a table becomes a
-   * one-shot `DEPLOY_TRIGGER` job that runs {@link TriggerActionCompiler} DDL.
+   * one-shot `DEPLOY_TRIGGER` job that runs (@link TriggerActionCompiler) DDL.
    * @param tenantId - Owning tenant.
    * @param username - Actor performing the change (for audit logging).
    * @param id - The trigger_registry row id to deploy.
-   * @returns `{ status: 'ENQUEUED', jobId }`.
+   * @returns `(status: 'ENQUEUED', jobId)`.
    * @throws {Error} 'Trigger not found' if `id` does not exist.
    */
   static async deployTrigger(tenantId: string, username: string, id: string) {
@@ -258,7 +258,7 @@ export class TriggerService {
    * @param tenantId - Owning tenant (audit log context).
    * @param username - Actor performing the retry (for audit logging).
    * @param jobId - The trigger_jobs row id to retry.
-   * @returns `{ status: 'ENQUEUED', jobId }`.
+   * @returns `(status: 'ENQUEUED', jobId)`.
    */
   static async retryJob(tenantId: string, username: string, jobId: string) {
     await queryWithContext(

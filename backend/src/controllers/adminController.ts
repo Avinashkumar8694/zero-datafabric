@@ -24,7 +24,7 @@ import { invalidateTenant } from '../config/cache';
  * @param req - Express request (admin-only; no tenant scoping — this is a global list).
  * @param res - Express response.
  * @returns 200 with all rows from `public.tenants`, newest first.
- * @throws Responds 500 `{ error }` on a database failure.
+ * @throws Responds 500 `(error)` on a database failure.
  */
 export const getTenants = async (req: Request, res: Response) => {
   try {
@@ -39,11 +39,11 @@ export const getTenants = async (req: Request, res: Response) => {
 /**
  * Provision a new tenant.
  *
- * @param req - Express request. Body: `{ id: string (required), name: string (required) }`.
+ * @param req - Express request. Body: `(id: string (required), name: string (required))`.
  * @param res - Express response.
  * @returns 201 with the created tenant record from `TenantService.createTenant`.
- * @throws Responds 400 `{ error: 'id and name are required' }` when either field is
- *   missing; 500 `{ error }` on failure (e.g. duplicate id).
+ * @throws Responds 400 `(error: 'id and name are required')` when either field is
+ *   missing; 500 `(error)` on failure (e.g. duplicate id).
  */
 export const createTenant = async (req: Request, res: Response) => {
   const { id, name } = req.body;
@@ -61,10 +61,10 @@ export const createTenant = async (req: Request, res: Response) => {
  * Update a tenant's name and/or lifecycle status (e.g. suspend/archive).
  *
  * @param req - Express request. `req.params.id` is the tenant id. Body:
- *   `{ name?: string, status?: 'ACTIVE' | 'SUSPENDED' | 'ARCHIVED' }`.
+ *   `(name?: string, status?: 'ACTIVE' | 'SUSPENDED' | 'ARCHIVED')`.
  * @param res - Express response.
  * @returns 200 with the updated tenant record from `TenantService.updateTenant`.
- * @throws Responds 500 `{ error }` on failure (e.g. unknown tenant id).
+ * @throws Responds 500 `(error)` on failure (e.g. unknown tenant id).
  */
 export const updateTenant = async (req: Request, res: Response) => {
   try {
@@ -84,7 +84,7 @@ export const updateTenant = async (req: Request, res: Response) => {
  * @param req - Express request. `req.params.id` is the tenant id to delete.
  * @param res - Express response.
  * @returns 200 with the result of `TenantService.deleteTenant`.
- * @throws Responds 500 `{ error }` on failure (e.g. unknown tenant id).
+ * @throws Responds 500 `(error)` on failure (e.g. unknown tenant id).
  */
 export const deleteTenant = async (req: Request, res: Response) => {
   try {
@@ -109,7 +109,7 @@ export const deleteTenant = async (req: Request, res: Response) => {
  *   `'OFFLINE'` when the source is marked `DISCONNECTED`, `'LIVE'` when the
  *   connectivity probe (`IntegrationService.testConnection`) succeeds within
  *   1.5s, otherwise `'UNREACHABLE'`.
- * @throws Responds 500 `{ error }` on failure to read `data_sources`.
+ * @throws Responds 500 `(error)` on failure to read `data_sources`.
  */
 export const getConnections = async (req: Request, res: Response) => {
   const user = (req as any).user;
@@ -149,14 +149,14 @@ export const getConnections = async (req: Request, res: Response) => {
  * connection for the caller's tenant, then bust that tenant's cache.
  *
  * @param req - Express request. Requires `(req as any).user` (tenant_id, username).
- *   Body: `{ name: string (required), config: object (required) }` — `config`
+ *   Body: `(name: string (required), config: object (required))` — `config`
  *   holds the engine type and connection details consumed by
  *   `IntegrationService.registerRemoteSource`.
  * @param res - Express response.
  * @returns 201 with the new source record, or 200 when the service reports
  *   `status: 'RE-INTEGRATED'` (an existing/soft-deleted source was revived).
- * @throws Responds 400 `{ error: 'name and config are required' }` when either
- *   field is missing; 500 `{ error }` on connection/registration failure.
+ * @throws Responds 400 `(error: 'name and config are required')` when either
+ *   field is missing; 500 `(error)` on connection/registration failure.
  */
 export const createConnection = async (req: Request, res: Response) => {
   const { name, config } = req.body;
@@ -178,11 +178,11 @@ export const createConnection = async (req: Request, res: Response) => {
  * without removing its catalog entries), then bust that tenant's cache.
  *
  * @param req - Express request. Requires `(req as any).user`. Body:
- *   `{ sourceId: string (required), status: string (required) }`.
+ *   `(sourceId: string (required), status: string (required))`.
  * @param res - Express response.
  * @returns 200 with the result of `adminService.disconnectSource`.
- * @throws Responds 400 `{ error: 'sourceId and status are required' }` when
- *   either field is missing; 500 `{ error }` on failure.
+ * @throws Responds 400 `(error: 'sourceId and status are required')` when
+ *   either field is missing; 500 `(error)` on failure.
  */
 export const updateConnectionStatus = async (req: Request, res: Response) => {
   const { sourceId, status } = req.body;
@@ -206,8 +206,8 @@ export const updateConnectionStatus = async (req: Request, res: Response) => {
  *   `req.params.id` is the source id to remove (required).
  * @param res - Express response.
  * @returns 200 with the result of `IntegrationService.removeSource`.
- * @throws Responds 400 `{ error: 'sourceId is required' }` when `req.params.id`
- *   is missing; 500 `{ error }` on failure.
+ * @throws Responds 400 `(error: 'sourceId is required')` when `req.params.id`
+ *   is missing; 500 `(error)` on failure.
  */
 export const removeConnection = async (req: Request, res: Response) => {
   const sourceId = req.params.id;
@@ -231,7 +231,7 @@ export const removeConnection = async (req: Request, res: Response) => {
  * @param req - Express request (admin-only; global list, not tenant-scoped).
  * @param res - Express response.
  * @returns 200 with the rows from `public.users`.
- * @throws Responds 500 `{ error }` on a database failure.
+ * @throws Responds 500 `(error)` on a database failure.
  */
 export const getUsers = async (req: Request, res: Response) => {
   try {
@@ -246,11 +246,11 @@ export const getUsers = async (req: Request, res: Response) => {
 /**
  * Create a new platform user assigned to a tenant with a given role.
  *
- * @param req - Express request. Body: `{ username: string, password: string,
- *   tenantId: string, role: string }`.
+ * @param req - Express request. Body: `(username: string, password: string,
+ *   tenantId: string, role: string)`.
  * @param res - Express response.
  * @returns 201 with the created user record from `AuthService.createUser`.
- * @throws Responds 500 `{ error }` on failure (e.g. duplicate username, unknown tenant).
+ * @throws Responds 500 `(error)` on failure (e.g. duplicate username, unknown tenant).
  */
 export const createUser = async (req: Request, res: Response) => {
   const { username, password, tenantId, role } = req.body;
@@ -267,10 +267,10 @@ export const createUser = async (req: Request, res: Response) => {
  * Update a platform user's username, password, tenant assignment, and/or role.
  *
  * @param req - Express request. `req.params.id` is the user id. Body:
- *   `{ username?: string, password?: string, tenantId?: string, role?: string }`.
+ *   `(username?: string, password?: string, tenantId?: string, role?: string)`.
  * @param res - Express response.
  * @returns 200 with the updated user record from `AuthService.updateUser`.
- * @throws Responds 500 `{ error }` on failure (e.g. unknown user id).
+ * @throws Responds 500 `(error)` on failure (e.g. unknown user id).
  */
 export const updateUser = async (req: Request, res: Response) => {
   const { username, password, tenantId, role } = req.body;
@@ -289,7 +289,7 @@ export const updateUser = async (req: Request, res: Response) => {
  * @param req - Express request. `req.params.id` is the user id to delete.
  * @param res - Express response.
  * @returns 200 with the result of `AuthService.deleteUser`.
- * @throws Responds 500 `{ error }` on failure (e.g. unknown user id).
+ * @throws Responds 500 `(error)` on failure (e.g. unknown user id).
  */
 export const deleteUser = async (req: Request, res: Response) => {
   try {
@@ -309,8 +309,8 @@ export const deleteUser = async (req: Request, res: Response) => {
  *
  * @param req - Express request (admin-only; global counts across all tenants).
  * @param res - Express response.
- * @returns 200 `{ tenants: number, connections: number, audits: number }`.
- * @throws Responds 500 `{ error }` on a database failure.
+ * @returns 200 `(tenants: number, connections: number, audits: number)`.
+ * @throws Responds 500 `(error)` on a database failure.
  */
 export const getDashboardStats = async (req: Request, res: Response) => {
   try {
@@ -338,7 +338,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
  * @param req - Express request (admin-only; global, not tenant-scoped).
  * @param res - Express response.
  * @returns 200 with up to 50 most recent rows from `public.audit_logs`.
- * @throws Responds 500 `{ error }` on a database failure.
+ * @throws Responds 500 `(error)` on a database failure.
  */
 export const getAuditLogs = async (req: Request, res: Response) => {
   try {
@@ -357,8 +357,8 @@ export const getAuditLogs = async (req: Request, res: Response) => {
  *
  * @param req - Express request. Requires `(req as any).user` (tenant_id, username).
  * @param res - Express response.
- * @returns 200 with an array of `{ schema_name, table_name, row_count, last_crawled_at }`.
- * @throws Responds 500 `{ error }` on a database failure.
+ * @returns 200 with an array of `(schema_name, table_name, row_count, last_crawled_at)`.
+ * @throws Responds 500 `(error)` on a database failure.
  */
 export const getCatalogSummary = async (req: Request, res: Response) => {
   try {
@@ -389,9 +389,9 @@ export const getCatalogSummary = async (req: Request, res: Response) => {
  *
  * @param req - Express request. Requires `(req as any).user` (tenant_id, username).
  * @param res - Express response.
- * @returns 200 with rows `{ id, channelType, name, config, isDefault, status, updatedAt }`
+ * @returns 200 with rows `(id, channelType, name, config, isDefault, status, updatedAt)`
  *   from `public.notification_channels`.
- * @throws Responds 500 `{ error }` on a database failure.
+ * @throws Responds 500 `(error)` on a database failure.
  */
 export const listNotificationChannels = async (req: Request, res: Response) => {
   try {
@@ -415,14 +415,14 @@ export const listNotificationChannels = async (req: Request, res: Response) => {
  * first, so at most one default exists per type.
  *
  * @param req - Express request. Requires `(req as any).user` (tenant_id, username).
- *   Body: `{ channelType: string (required), name: string (required),
+ *   Body: `(channelType: string (required), name: string (required),
  *   config: object (required), isDefault?: boolean (default false),
- *   status?: string (default 'ACTIVE') }`.
+ *   status?: string (default 'ACTIVE'))`.
  * @param res - Express response.
- * @returns 200 with the upserted channel row `{ id, channelType, name, config,
- *   isDefault, status }` (upsert keyed on tenant + channelType + name).
- * @throws Responds 400 `{ error: 'channelType, name, config required' }` when any
- *   are missing; 500 `{ error }` on a database failure.
+ * @returns 200 with the upserted channel row `(id, channelType, name, config,
+ *   isDefault, status)` (upsert keyed on tenant + channelType + name).
+ * @throws Responds 400 `(error: 'channelType, name, config required')` when any
+ *   are missing; 500 `(error)` on a database failure.
  */
 export const upsertNotificationChannel = async (req: Request, res: Response) => {
   try {
@@ -459,9 +459,9 @@ export const upsertNotificationChannel = async (req: Request, res: Response) => 
  * @param req - Express request. Requires `(req as any).user` (tenant_id, username).
  *   `req.params.id` is the channel id to delete.
  * @param res - Express response.
- * @returns 200 `{ status: 'SUCCESS' }` (idempotent — succeeds even if the id
+ * @returns 200 `(status: 'SUCCESS')` (idempotent — succeeds even if the id
  *   didn't match any row).
- * @throws Responds 500 `{ error }` on a database failure.
+ * @throws Responds 500 `(error)` on a database failure.
  */
 export const deleteNotificationChannel = async (req: Request, res: Response) => {
   try {
@@ -483,14 +483,14 @@ export const deleteNotificationChannel = async (req: Request, res: Response) => 
  * requiring an actual trigger or row mutation.
  *
  * @param req - Express request. Requires `(req as any).user` (tenant_id, username).
- *   Body: `{ channelType: string (required), name?: string, sample?: object }` —
+ *   Body: `(channelType: string (required), name?: string, sample?: object)` —
  *   `sample` is merged into the synthetic action's `execute` config (e.g.
  *   channel-specific overrides).
  * @param res - Express response.
- * @returns 200 `{ status: 'ENQUEUED', jobId }` once the test job is queued
+ * @returns 200 `(status: 'ENQUEUED', jobId)` once the test job is queued
  *   (delivery itself happens asynchronously via the trigger job worker).
- * @throws Responds 400 `{ error: 'channelType required' }` when missing;
- *   500 `{ error }` on a database failure while enqueuing.
+ * @throws Responds 400 `(error: 'channelType required')` when missing;
+ *   500 `(error)` on a database failure while enqueuing.
  */
 export const testNotificationChannel = async (req: Request, res: Response) => {
   try {

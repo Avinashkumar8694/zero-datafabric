@@ -14,7 +14,7 @@ import { PolicyService, AccessPolicy } from '../modules/security/policy.service'
  * @param req - Express request. Reads tenant from `(req as any).user?.tenant_id`.
  * @param res - Express response.
  * @returns 200 with the array of policy records from `PolicyService.listPolicies`.
- * @throws Responds 500 `{ error }` if the lookup fails.
+ * @throws Responds 500 `(error)` if the lookup fails.
  */
 export const listPolicies = async (req: Request, res: Response) => {
   try {
@@ -36,8 +36,8 @@ export const listPolicies = async (req: Request, res: Response) => {
  * @param res - Express response.
  * @returns 201 with the upserted policy record from `PolicyService.upsertPolicy`
  *   (recorded with source `'API'`).
- * @throws Responds 400 `{ error }` when `name`/`schema`/`table` are missing, or when
- *   neither `rowFilter` nor `masking` has any entries; 500 `{ error }` on unexpected failures.
+ * @throws Responds 400 `(error)` when `name`/`schema`/`table` are missing, or when
+ *   neither `rowFilter` nor `masking` has any entries; 500 `(error)` on unexpected failures.
  */
 export const createPolicy = async (req: Request, res: Response) => {
   try {
@@ -61,9 +61,9 @@ export const createPolicy = async (req: Request, res: Response) => {
  * @param req - Express request. Reads tenant from `(req as any).user?.tenant_id`.
  *   `req.params.id` is the policy id to delete.
  * @param res - Express response.
- * @returns 200 `{ status: 'DELETED', id }` when the policy existed and was removed.
- * @throws Responds 404 `{ error: 'policy not found' }` when no matching policy exists
- *   for the tenant; 500 `{ error }` on unexpected failures.
+ * @returns 200 `(status: 'DELETED', id)` when the policy existed and was removed.
+ * @throws Responds 404 `(error: 'policy not found')` when no matching policy exists
+ *   for the tenant; 500 `(error)` on unexpected failures.
  */
 export const deletePolicy = async (req: Request, res: Response) => {
   try {

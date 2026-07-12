@@ -103,7 +103,7 @@ export class QueryTranspiler {
     /**
      * Compiles a single SELECT-list entry: a bare column name/path, a raw
      * `expression`, a window function call, an aggregate call, or a
-     * `{ column, alias }` reference.
+     * `(column, alias)` reference.
      * @param c The select-list entry (string, or one of the object shapes above).
      * @param schemaPrefix Physical schema used to qualify bare column references.
      * @returns The compiled column expression, including an `AS "alias"` suffix when an alias is given.
@@ -134,7 +134,7 @@ export class QueryTranspiler {
     /**
      * Compiles a single WHERE-clause predicate: a raw `expression`, a
      * full-text `search` predicate (`to_tsvector`/`plainto_tsquery`), or a
-     * `{ column, operator, value }` comparison.
+     * `(column, operator, value)` comparison.
      * @param w The predicate entry.
      * @param schemaPrefix Physical schema used to qualify bare column references.
      * @returns The compiled boolean SQL condition (without surrounding `AND`/`WHERE`).

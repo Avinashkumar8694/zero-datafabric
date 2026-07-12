@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 
 /**
  * Secondary/standalone Postgres connection pool. Separate from
- * {@link "./database.ts"}'s pool (which carries session-context/RLS
+ * (@link "./database.ts")'s pool (which carries session-context/RLS
  * helpers) — this one exposes a bare `pg.Pool` for callers that just need a
  * raw connection without tenant-context plumbing. Any error on an idle
  * client is treated as fatal and crashes the process, since a poisoned pool

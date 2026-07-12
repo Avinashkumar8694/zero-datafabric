@@ -49,7 +49,7 @@ export class Transpiler {
      * `PROVISION_DOWNSTREAM` (emitted as a comment; actual work is done by
      * `DownstreamService`). Unrecognized actions produce no statements.
      * @param diff A single diff entry to compile (shape varies by `action`).
-     * @param tenantId Tenant scope; used to derive the physical schema name `tenant_{tenantId}_{diff.schema||diff.name}`.
+     * @param tenantId Tenant scope; used to derive the physical schema name `tenant_{tenantId}_(diff.schema||diff.name)`.
      * @param manifest Full manifest, consulted for custom enum type names (table column typing), relationship column type lookup, and function/procedure resource context.
      * @returns The ordered SQL statements to execute for this diff (may be empty).
      */

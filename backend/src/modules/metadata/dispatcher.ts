@@ -26,7 +26,7 @@ export class HeterogeneousDispatcher {
      * matching engine (Postgres, MySQL, or MongoDB) and closing it afterward.
      * @param tenantId Tenant scope used to resolve the data source.
      * @param targetSourceName Name of the data source, as registered in `public.data_sources`.
-     * @param commands For SQL engines: an array of SQL statement strings. For MongoDB: an array of op descriptors (`{ action, name/collection, keys?, options? }`).
+     * @param commands For SQL engines: an array of SQL statement strings. For MongoDB: an array of op descriptors (`(action, name/collection, keys?, options?)`).
      * @throws {Error} If no data source named `targetSourceName` is registered for the tenant, or if its engine `type` is not one of POSTGRES/MYSQL/MONGODB.
      */
     static async execute(tenantId: string, targetSourceName: string, commands: any[]): Promise<void> {
@@ -136,7 +136,7 @@ export class HeterogeneousDispatcher {
      * "already exists" / "already dropped" races so re-application stays
      * idempotent.
      * @param config Data source connection config (`uri`, or `user`/`pass`/`host`/`port`/`dbName`).
-     * @param ops Op descriptors: `{ action: 'createCollection'|'dropCollection', name }` or `{ action: 'createIndex', collection, keys, options }`.
+     * @param ops Op descriptors: `(action: 'createCollection'|'dropCollection', name)` or `(action: 'createIndex', collection, keys, options)`.
      * @throws Propagates any connection error, or a collection-creation error other than "NamespaceExists" (code 48).
      */
     private static async executeMongo(config: any, ops: any[]) {

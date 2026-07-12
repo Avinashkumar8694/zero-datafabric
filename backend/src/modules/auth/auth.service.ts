@@ -10,7 +10,7 @@ import { pool } from '../../config/database';
  * Postgres role `fabric_user` (the role PostgREST authenticates the DB
  * connection as), while the caller's real application role travels
  * separately as `internal_role` for app-level authorization decisions (e.g.
- * {@link GrantService}, {@link PolicyService}) and `x-act-as-role`
+ * (@link GrantService), (@link PolicyService)) and `x-act-as-role`
  * impersonation. `tenant_id` and `username` are embedded so downstream
  * requests can be scoped without an extra lookup.
  */
@@ -23,10 +23,10 @@ export class AuthService {
    * Authenticate a username/password pair against `public.users`.
    * Runs the user lookup with a 5-second timeout to avoid hanging requests
    * if the database is unresponsive, then verifies the password with bcrypt
-   * and, on success, mints a JWT via {@link AuthService.generateToken}.
+   * and, on success, mints a JWT via (@link AuthService.generateToken).
    * @param username - The username to authenticate.
    * @param password_raw - The plaintext password to verify against the stored bcrypt hash.
-   * @returns `{ token, user: { id, username, tenant_id } }` on success, or
+   * @returns `(token, user: ( id, username, tenant_id ))` on success, or
    *   `null` if the username is missing/unknown or the password does not match.
    * @throws {Error} 'Database Query Timeout' if the user lookup takes longer than 5 seconds.
    */
@@ -86,7 +86,7 @@ export class AuthService {
   }
 
   /**
-   * Verify and decode a JWT issued by {@link AuthService.generateToken}.
+   * Verify and decode a JWT issued by (@link AuthService.generateToken).
    * @param token - The JWT to verify.
    * @returns The decoded payload if the token is valid and unexpired, or `null` if verification fails.
    */
@@ -147,7 +147,7 @@ export class AuthService {
   /**
    * Permanently delete a user record.
    * @param id - The user's id.
-   * @returns `{ id, status: 'DELETED' }` regardless of whether a matching row existed.
+   * @returns `(id, status: 'DELETED')` regardless of whether a matching row existed.
    */
   static async deleteUser(id: string) {
     await pool.query('DELETE FROM public.users WHERE id = $1', [id]);

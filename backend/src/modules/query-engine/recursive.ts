@@ -85,7 +85,7 @@ export class RecursiveExecutor {
    * level — this traversal never bypasses either.
    * @param spec the traversal spec: connect-by keys, direction, seed predicate, depth/row caps, optional path column.
    * @param fetch callback that runs a single-source query for a given WHERE and returns its rows.
-   * @returns `{ rows, levels, trace, truncatedByDepth, truncatedByRows }` — the
+   * @returns `(rows, levels, trace, truncatedByDepth, truncatedByRows)` — the
    *   transitive closure (each row annotated with `depth` and optionally
    *   `path`), how many levels ran, a per-level timing/count trace, and
    *   whether depth or row caps cut the traversal short.

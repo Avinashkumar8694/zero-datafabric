@@ -31,7 +31,7 @@ export class MetadataService {
    * inside a transaction so a partial crawl doesn't leave the catalog
    * half-updated.
    * @param sourceId `public.data_sources` row id to crawl.
-   * @returns `{ sourceId, status: 'CRAWLED', schemaCount, tableCount }`.
+   * @returns `(sourceId, status: 'CRAWLED', schemaCount, tableCount)`.
    * @throws {Error} If the source doesn't exist, or if schema/table discovery or catalog upserts fail (transaction is rolled back first).
    */
   static async crawlSource(sourceId: string) {
@@ -122,7 +122,7 @@ export class MetadataService {
   /**
    * Returns all discovered schemas for a data source.
    * @param sourceId `public.data_sources` row id.
-   * @returns Rows of `{ schemaId, name, physicalName, createdAt }`, ordered by name.
+   * @returns Rows of `(schemaId, name, physicalName, createdAt)`, ordered by name.
    */
   static async getSchemas(sourceId: string) {
     const { rows } = await pool.query(`
@@ -137,7 +137,7 @@ export class MetadataService {
   /**
    * Returns all discovered tables for a specific schema UUID.
    * @param schemaId `public.catalog_schemas` row id.
-   * @returns Rows of `{ tableId, name, physicalName, rowCount, lastCrawledAt }`, ordered by name.
+   * @returns Rows of `(tableId, name, physicalName, rowCount, lastCrawledAt)`, ordered by name.
    */
   static async getTables(schemaId: string) {
     const { rows } = await pool.query(`
@@ -157,7 +157,7 @@ export class MetadataService {
    * materialized views/foreign tables/sequences/functions/procedures/enums
    * into the catalog with best-effort row counts.
    * @param tenantId Tenant scope; local schemas are matched by the `tenant_{tenantId}%` name pattern.
-   * @returns `{ tenantId, tableCount, sourceResults, localTableCount }` where `tableCount` is the combined total across sources and local schemas.
+   * @returns `(tenantId, tableCount, sourceResults, localTableCount)` where `tableCount` is the combined total across sources and local schemas.
    * @throws Rethrows any error from the local-schema crawl phase (per-source crawl failures are caught individually and do not throw).
    */
   static async crawlTenant(tenantId: string) {
@@ -258,14 +258,14 @@ export class MetadataService {
 
   /**
    * Legacy manifest diff routine (superseded by `DiffEngine.compare` for the
-   * v4.0 manifest spec, but retained for the older `{ schema.tables/views/functions }`
+   * v4.0 manifest spec, but retained for the older `(schema.tables/views/functions)`
    * shape). Checks schema existence, per-table existence and per-column drift,
    * and view existence, emitting `CREATE_SCHEMA`/`CREATE_TABLE`/`ADD_COLUMN`/
    * `CREATE_VIEW`/`CREATE_FUNCTION` diffs. Functions are diffed first since
    * tables may reference them (e.g. via triggers).
-   * @param tenantId Tenant scope; physical schema names are derived as `tenant_{tenantId}_{schema.name}`.
-   * @param manifest Legacy-shaped manifest (`{ schemas: [{ name, tables, views?, functions? }] }`).
-   * @returns `{ status: 'PLAN_GENERATED', diffs }`.
+   * @param tenantId Tenant scope; physical schema names are derived as `tenant_{tenantId}_(schema.name)`.
+   * @param manifest Legacy-shaped manifest (`(schemas: [( name, tables, views?, functions? )])`).
+   * @returns `(status: 'PLAN_GENERATED', diffs)`.
    */
   static async diffMetadata(tenantId: string, manifest: any) {
     const diffs = [];
@@ -360,7 +360,7 @@ export class MetadataService {
    * transaction; any failure rolls back all diffs together.
    * @param tenantId Tenant scope; physical schema names are derived as `tenant_{tenantId}[_{diff.schema}]`.
    * @param diffs Diff entries as produced by `diffMetadata`.
-   * @returns One result entry per diff (`{ action, status, ... }`).
+   * @returns One result entry per diff (`(action, status, ...)`).
    * @throws Rethrows any DDL/query error after rolling back the transaction.
    */
   static async migrateMetadata(tenantId: string, diffs: any[]) {
@@ -611,10 +611,10 @@ export class MetadataService {
    * is always closed afterward). Any introspection failure is swallowed and
    * reported as no columns, so a single unreachable/misconfigured source
    * doesn't block the rest of the export.
-   * @param source The `public.data_sources` row (`{ type, config, name }`) the table belongs to.
+   * @param source The `public.data_sources` row (`(type, config, name)`) the table belongs to.
    * @param physicalSchema Physical schema name containing the table.
    * @param physicalTable Physical table name to introspect.
-   * @returns Manifest-shaped column definitions (`{ name, type, nullable?, primaryKey? }`); empty if introspection fails.
+   * @returns Manifest-shaped column definitions (`(name, type, nullable?, primaryKey?)`); empty if introspection fails.
    */
   private static async introspectColumns(source: any, physicalSchema: string, physicalTable: string): Promise<any[]> {
     const engine = String(source.type || 'POSTGRES').toUpperCase();

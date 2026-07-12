@@ -18,7 +18,7 @@ import { QueryLogService } from '../modules/query-engine/query-log.service';
  *   `FETCH`/`CRUD_CREATE`/`SELECT_SQL`/`SAVED_ANALYTIC`).
  * @param res - Express response.
  * @returns 200 with the array of log entries from `QueryLogService.list`.
- * @throws Responds 500 `{ error }` if the lookup fails.
+ * @throws Responds 500 `(error)` if the lookup fails.
  */
 export const listQueryLogs = async (req: Request, res: Response) => {
   try {
@@ -37,8 +37,8 @@ export const listQueryLogs = async (req: Request, res: Response) => {
  *   `req.params.id` is the log entry id.
  * @param res - Express response.
  * @returns 200 with the full log record from `QueryLogService.get`.
- * @throws Responds 404 `{ error: 'query log not found' }` when no matching entry
- *   exists for the tenant; 500 `{ error }` on unexpected failures.
+ * @throws Responds 404 `(error: 'query log not found')` when no matching entry
+ *   exists for the tenant; 500 `(error)` on unexpected failures.
  */
 export const getQueryLog = async (req: Request, res: Response) => {
   try {

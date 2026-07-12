@@ -14,7 +14,7 @@ export class QualityService {
    * against the live table, then writes NULL_RATE and UNIQUENESS rows to
    * `fabric_catalog.quality_metrics`.
    * @param metadataId - The `fabric_catalog.metadata` row id identifying the target column.
-   * @returns `{ metadataId, nullRate, uniqueness }` — `nullRate` is a percentage (0-100).
+   * @returns `(metadataId, nullRate, uniqueness)` — `nullRate` is a percentage (0-100).
    * @throws {Error} 'Metadata entry not found' if `metadataId` does not exist.
    */
   static async runQualityCheck(metadataId: string) {

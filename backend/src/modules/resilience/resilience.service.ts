@@ -13,8 +13,8 @@ export class ResilienceService {
    * coarse replication-lag signal (compares receive vs. replay WAL LSNs — a
    * replica's real lag "duration" is not computed, only whether the two LSNs
    * currently match), and the count of connected replicas (leader only).
-   * @returns On success: `{ status: 'HEALTHY', role, replicationLag, activeReplicas }`.
-   *   On failure: `{ status: 'UNHEALTHY', error }` — errors are caught and
+   * @returns On success: `(status: 'HEALTHY', role, replicationLag, activeReplicas)`.
+   *   On failure: `(status: 'UNHEALTHY', error)` — errors are caught and
    *   returned rather than thrown, so this is always safe to call from a
    *   health-check endpoint.
    */

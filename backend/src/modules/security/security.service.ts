@@ -3,7 +3,7 @@ import { pool } from '../../config/database';
 /**
  * SecurityService — native Postgres row-level-security (RLS) and PII helpers.
  *
- * Unlike {@link PolicyService} (which compensates for engines that have no
+ * Unlike (@link PolicyService) (which compensates for engines that have no
  * native RLS by injecting predicates and masking result rows), this service
  * drives Postgres's own `ROW LEVEL SECURITY` feature directly: it issues
  * `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` and `CREATE POLICY` DDL so the
@@ -22,7 +22,7 @@ export class SecurityService {
    * constrained by `tenant_id = claim.tenant_id` on both read (`USING`) and
    * write (`WITH CHECK`).
    * @param tableName - Fully-qualified table name (e.g. `"schema"."table"`) to enable RLS on.
-   * @returns `{ status: 'RLS_APPLIED', table }` once the policy is created.
+   * @returns `(status: 'RLS_APPLIED', table)` once the policy is created.
    * @throws Re-throws any DDL error after logging it (e.g. missing `tenant_id` column).
    */
   static async applyAdvancedRLS(tableName: string) {
@@ -60,7 +60,7 @@ export class SecurityService {
    * `tenant_isolation_policy` on a table before recreating it.
    * @param schemaName - The Postgres schema whose tables should get RLS.
    * @param tenantId - The tenant id the isolation policy binds to (`tenant_id = tenantId`).
-   * @returns `{ status: 'RLS_SCHEMA_APPLIED', schema, tableCount }` — the number of tables processed.
+   * @returns `(status: 'RLS_SCHEMA_APPLIED', schema, tableCount)` — the number of tables processed.
    */
   static async applyRLSToSchema(schemaName: string, tenantId: string) {
     const client = await pool.connect();

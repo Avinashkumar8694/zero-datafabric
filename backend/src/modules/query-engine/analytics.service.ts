@@ -7,13 +7,13 @@ import { QueryEngineService } from './query-engine.service';
  *
  * An analytic captures a query (AST-mode `config`, or a raw `sql` string) plus a
  * set of declared **variables**. The query body references a variable with a
- * `{{name}}` placeholder. At run time the caller supplies values (from the UI or
+ * `({name})` placeholder. At run time the caller supplies values (from the UI or
  * an API call) which are bound into the query:
  *
- *   • AST mode  — `{{name}}` tokens are replaced with the TYPED value in a deep
+ *   • AST mode  — `({name})` tokens are replaced with the TYPED value in a deep
  *                 clone of the config; the value then flows through the normal
  *                 parameterized pushdown path (injection-safe).
- *   • SQL mode  — `{{name}}` tokens are replaced with a safely-escaped SQL literal
+ *   • SQL mode  — `({name})` tokens are replaced with a safely-escaped SQL literal
  *                 (numbers/booleans bare, strings single-quote-escaped).
  *
  * This is the fabric's "saved query / scheduled report" primitive: define once,
@@ -43,7 +43,7 @@ export interface SavedAnalytic {
 const VAR_TOKEN = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g;
 
 /**
- * Persists reusable, parameterized analytics (AST or SQL, with `{{variable}}`
+ * Persists reusable, parameterized analytics (AST or SQL, with `({variable})`
  * bindings) and runs/triggers them on demand with supplied variable values.
  * @class
  * @hideconstructor
@@ -82,8 +82,8 @@ export class SavedAnalyticsService {
    * Create or update (upsert, by tenant + name) a saved analytic.
    * @param tenantId tenant identifier.
    * @param username the creating/updating user, recorded as `created_by`.
-   * @param a the analytic definition (see {@link SavedAnalytic}).
-   * @returns the stored row: `{ id, name, description, mode, definition, variables, createdAt }`.
+   * @param a the analytic definition (see (@link SavedAnalytic)).
+   * @returns the stored row: `(id, name, description, mode, definition, variables, createdAt)`.
    * @throws if AST mode is missing `config`, or SQL mode is missing `sql`.
    */
   static async create(tenantId: string, username: string, a: SavedAnalytic): Promise<any> {
@@ -158,8 +158,8 @@ export class SavedAnalyticsService {
   /**
    * Resolve declared variables against supplied values (applying defaults + required checks).
    * @param variables the analytic's declared variable schema.
-   * @param provided caller-supplied `{ name: value }` values.
-   * @returns a `{ name: typedValue }` map with defaults applied and values coerced to their declared type.
+   * @param provided caller-supplied `(name: value)` values.
+   * @returns a `(name: typedValue)` map with defaults applied and values coerced to their declared type.
    * @throws if a required variable has no provided value and no default.
    */
   static resolveValues(variables: AnalyticVariable[], provided: Record<string, any>): Record<string, any> {
@@ -179,14 +179,14 @@ export class SavedAnalyticsService {
   }
 
   /**
-   * Deep-replace `{{name}}` tokens in an AST config with typed values.
-   * A string that is ENTIRELY a `{{name}}` token is replaced with the typed
+   * Deep-replace `({name})` tokens in an AST config with typed values.
+   * A string that is ENTIRELY a `({name})` token is replaced with the typed
    * value itself (so a numeric/boolean variable stays numeric/boolean through
    * the normal parameterized pushdown path); a token embedded within a larger
    * string is replaced with its stringified form. Recurses through arrays and
    * plain objects, returning a deep clone.
    * @param node the AST node (or subtree) to bind; a deep clone is returned.
-   * @param values resolved variable values (see {@link resolveValues}).
+   * @param values resolved variable values (see (@link resolveValues)).
    * @returns a new AST node/subtree with every token replaced.
    */
   static bindAst(node: any, values: Record<string, any>): any {
@@ -206,13 +206,13 @@ export class SavedAnalyticsService {
   }
 
   /**
-   * Bind `{{name}}` tokens in a SQL string with safely-escaped literals.
+   * Bind `({name})` tokens in a SQL string with safely-escaped literals.
    * Numbers/booleans are inlined bare; strings are single-quote-escaped;
    * `null`/`undefined` become SQL `NULL` — this is the injection-safe
    * substitution used for SQL-mode analytics (AST mode instead flows values
-   * through the normal parameterized pushdown path via {@link bindAst}).
-   * @param sql the raw SQL text containing `{{name}}` tokens.
-   * @param values resolved variable values (see {@link resolveValues}).
+   * through the normal parameterized pushdown path via (@link bindAst)).
+   * @param sql the raw SQL text containing `({name})` tokens.
+   * @param values resolved variable values (see (@link resolveValues)).
    * @returns the SQL text with every recognized token replaced by its literal; unrecognized tokens are left as-is.
    */
   static bindSql(sql: string, values: Record<string, any>): string {
@@ -228,20 +228,20 @@ export class SavedAnalyticsService {
 
   /**
    * Run a saved analytic with the supplied variable values. Returns the standard
-   * query envelope ({ data, rowCount, plan, warnings }) plus the bound variables.
+   * query envelope (( data, rowCount, plan, warnings )) plus the bound variables.
    * SQL-mode analytics targeting a named external source run through
-   * {@link QueryEngineService.executeSqlOnSource}; SQL-mode analytics with no
+   * (@link QueryEngineService.executeSqlOnSource); SQL-mode analytics with no
    * source (or the hub) run directly via `queryWithContext`; AST-mode
    * analytics bind their config and run through the full
-   * {@link QueryEngineService.executeQuery} pipeline. Usage counters
+   * (@link QueryEngineService.executeQuery) pipeline. Usage counters
    * (`run_count`/`last_run_at`) are bumped fire-and-forget after the result is
    * ready, so a logging failure never affects the query result.
    * @param tenantId tenant identifier.
    * @param id the analytic's id.
    * @param provided caller-supplied variable values.
    * @param session caller session, passed through to AST-mode execution / the hub SQL context.
-   * @returns `{ analytic: { id, name, mode }, boundVariables, ...queryResult }`.
-   * @throws if the analytic doesn't exist, or a required variable is missing (see {@link resolveValues}).
+   * @returns `(analytic: ( id, name, mode ), boundVariables, ...queryResult)`.
+   * @throws if the analytic doesn't exist, or a required variable is missing (see (@link resolveValues)).
    */
   static async run(tenantId: string, id: string, provided: Record<string, any>, session?: any): Promise<any> {
     const a = await this.get(tenantId, id);

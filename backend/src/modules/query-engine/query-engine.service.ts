@@ -8,21 +8,21 @@
  *
  *   1. Tenant lifecycle guard      — refuses to run anything for a SUSPENDED tenant.
  *   2. Capability routing          — dispatches special query shapes before the
- *      generic path: `query.recursive` (see {@link RecursiveExecutor}),
+ *      generic path: `query.recursive` (see (@link RecursiveExecutor)),
  *      `type: 'CALL'` (function/procedure-as-a-service on the hub), and the
  *      manifest-style AST (`config.query`) which itself branches on:
- *        - WINDOW functions   → base fetch + {@link applyWindows} compensation,
- *        - {@link QueryPlanner.classify} strategy:
+ *        - WINDOW functions   → base fetch + (@link applyWindows) compensation,
+ *        - (@link QueryPlanner.classify) strategy:
  *            SINGLE_LOCAL      → one Postgres/Citus/FDW-optimized SQL statement,
- *            SINGLE_CONNECTOR / CROSS_ENGINE → {@link FederationExecutor.execute}
+ *            SINGLE_CONNECTOR / CROSS_ENGINE → (@link FederationExecutor.execute)
  *              (pushdown + bind-join + partial-aggregate merge), with in-fabric
  *              HAVING compensation applied to the result.
- *   3. Legacy `{table, filter, data}` config path — resolves the physical
+ *   3. Legacy `(table, filter, data)` config path — resolves the physical
  *      target (catalog lookup or tenant-schema convention), routes VIRTUAL
  *      (connector-only) sources directly to their connector, otherwise
- *      generates parameterized SQL ({@link generateSql}) and runs it on the hub,
+ *      generates parameterized SQL ((@link generateSql)) and runs it on the hub,
  *      firing mutation events + Elasticsearch sync for INSERT/UPDATE/DELETE.
- *   4. A simple CRUD façade ({@link fetch} / {@link mutate}) used by the
+ *   4. A simple CRUD façade ((@link fetch) / (@link mutate)) used by the
  *      `/api/data` REST endpoints, which reuses the full AST path for reads and
  *      adds write-time compensations (ID generation, constraint validation,
  *      grants) for writes to non-relational engines.
@@ -52,15 +52,15 @@ import { ConstraintService } from './constraint.service';
 import { GrantService, Privilege } from '../security/grant.service';
 
 /**
- * Unified query/DML/DDL request shape accepted by {@link QueryEngineService.executeQuery}.
+ * Unified query/DML/DDL request shape accepted by (@link QueryEngineService.executeQuery).
  *
  * Two execution "modes" share this one interface:
  *   - Legacy/simple mode: `type` + `table`/`resource` + `filter`/`data`/`joins`
- *     (flat, resolved via {@link QueryEngineService.resolveTarget} and compiled
- *     by {@link QueryEngineService.generateSql}).
+ *     (flat, resolved via (@link QueryEngineService.resolveTarget) and compiled
+ *     by (@link QueryEngineService.generateSql)).
  *   - Manifest/AST mode: `type: 'SELECT'` with a `query` AST (`from`/`where`/
  *     `select`/`joins`/`union`/`recursive`/...), which is classified by
- *     {@link QueryPlanner} and may run locally, through a single connector, or
+ *     (@link QueryPlanner) and may run locally, through a single connector, or
  *     federated across engines.
  * DDL variants (`CREATE_*`/`ALTER_TABLE`/`DROP_TABLE`) reuse the `schemaDef` /
  * `indexDef` / `alterDef` / `foreignDef` / `viewDef` / `sequenceDef` payloads.
@@ -178,16 +178,16 @@ export class QueryEngineService {
   }
 
   /**
-   * Resolve the physical `{schemaName, tableName}` a legacy-mode config targets.
+   * Resolve the physical `(schemaName, tableName)` a legacy-mode config targets.
    * Prefers catalog identity (`tableId`/`schemaId`) over the name-based
    * convention so callers referencing a catalog row always hit the correct
    * physical object, even if it was renamed or lives outside the standard
    * `tenant_<id>[_<schema>]` naming (handles legacy `physical_name` values that
-   * embed `"<schema>.<table>"`). Falls back to {@link toTenantSchemaName} plus a
+   * embed `"<schema>.<table>"`). Falls back to (@link toTenantSchemaName) plus a
    * sanitized `table`/`resource` name when no catalog id is given.
    * @param tenantId tenant identifier.
    * @param cfg partial config carrying optional `tableId`/`schemaId` and/or `schema`/`table`/`resource`.
-   * @returns the resolved `{ schemaName, tableName }`.
+   * @returns the resolved `(schemaName, tableName)`.
    */
   private static async resolveTarget(
     tenantId: string,
@@ -224,21 +224,21 @@ export class QueryEngineService {
   private static jobs = new Map<string, { status: string; result?: any; error?: string }>();
 
   /**
-   * Orchestrates the execution of a {@link QueryConfig} across the whole
+   * Orchestrates the execution of a (@link QueryConfig) across the whole
    * federation pipeline. This is the single entry point almost every other
-   * method in the fabric funnels through (directly, or via {@link fetch} /
-   * {@link mutate} / {@link executeSqlOnSource}).
+   * method in the fabric funnels through (directly, or via (@link fetch) /
+   * (@link mutate) / (@link executeSqlOnSource)).
    *
    * Execution is a chain of early-return branches, tried in this order:
    *   1. **Tenant lifecycle guard** — throws if the tenant is SUSPENDED
    *      (best-effort: a missing `tenants` table or connection issue in
    *      dev/test does not block execution).
    *   2. **RECURSIVE** (`config.query.recursive` present) — delegates level-by-
-   *      level traversal to {@link RecursiveExecutor.run}, using a `fetch`
+   *      level traversal to (@link RecursiveExecutor.run), using a `fetch`
    *      closure that recurses into `executeQuery` for each level (so pushdown
    *      + the Policy Engine apply per level on ANY engine). If the outer query
    *      also declares `groupBy`/aggregates, the traversal result is aggregated
-   *      in-fabric via {@link aggregateRaw} (strategy becomes
+   *      in-fabric via (@link aggregateRaw) (strategy becomes
    *      `RECURSIVE_IN_FABRIC+AGGREGATE`), and if it further declares `having`,
    *      that is applied on the aggregated groups too (`+HAVING`) before the
    *      final ORDER BY/LIMIT — i.e. recursion → aggregate → having → order all
@@ -254,29 +254,29 @@ export class QueryEngineService {
    *        a. requires a `where` or `limit` (or a set-op) per the safety shield;
    *        b. if the select carries WINDOW functions, fetches the unaggregated
    *           base rows (recursing into `executeQuery`) and computes windows
-   *           in-fabric via {@link applyWindows} (strategy suffixed `+WINDOW`);
-   *        c. otherwise classifies the query with {@link QueryPlanner.classify}
+   *           in-fabric via (@link applyWindows) (strategy suffixed `+WINDOW`);
+   *        c. otherwise classifies the query with (@link QueryPlanner.classify)
    *           and either runs it as one federated fetch via
-   *           {@link FederationExecutor.execute} (SINGLE_CONNECTOR/CROSS_ENGINE,
+   *           (@link FederationExecutor.execute) (SINGLE_CONNECTOR/CROSS_ENGINE,
    *           with in-fabric HAVING compensation on the result) or strips
    *           `source` labels and runs one SQL statement locally (SINGLE_LOCAL).
    *   6. **CREATE_SCHEMA** shortcut — provisions a bare tenant namespace via the
    *      `fabric_admin.create_tenant_namespace` stored procedure.
-   *   7. **Legacy `{table/resource, filter, data}` config** — resolves the
+   *   7. **Legacy `(table/resource, filter, data)` config** — resolves the
    *      physical target via the catalog; a VIRTUAL (connector-only) table is
    *      queried directly through its connector (with Policy Engine row/column
    *      compensation applied here too, since this path bypasses federation);
-   *      otherwise SQL is generated via {@link generateSql} and run on the hub,
+   *      otherwise SQL is generated via (@link generateSql) and run on the hub,
    *      firing an EventService mutation event and an Elasticsearch sync
    *      enqueue for INSERT/UPDATE/DELETE.
    *
    * @param tenantId tenant identifier — every physical name and safety check is scoped to it.
-   * @param config the query/DML/DDL request (see {@link QueryConfig}).
+   * @param config the query/DML/DDL request (see (@link QueryConfig)).
    * @param session caller session (role/region/username) used by the Policy Engine
    *   for row-predicate injection and column masking; defaults to a system session.
    * @returns for SELECT-family and RECURSIVE/CALL paths, an envelope
-   *   `{ data, rowCount, plan?, warnings? }`; for DDL, `{ status: 'SUCCESS', target, type }`;
-   *   for legacy INSERT/UPDATE/DELETE, `{ rowCount, returning, status }`.
+   *   `(data, rowCount, plan?, warnings?)`; for DDL, `(status: 'SUCCESS', target, type)`;
+   *   for legacy INSERT/UPDATE/DELETE, `(rowCount, returning, status)`.
    * @throws when the tenant is suspended, when the safety shield rejects an
    *   unrestricted operation, or when the underlying source/connector call fails.
    */
@@ -626,8 +626,8 @@ export class QueryEngineService {
   /**
    * Specialized method for DDL execution during migration (bypass event emitting).
    * Runs a raw parameterized SQL string directly on the hub Postgres connection
-   * (tenant-scoped via {@link queryWithContext}), after the same suspended-tenant
-   * guard as {@link executeQuery}. Unlike the main path, it does NOT emit
+   * (tenant-scoped via (@link queryWithContext)), after the same suspended-tenant
+   * guard as (@link executeQuery). Unlike the main path, it does NOT emit
    * mutation events or enqueue Elasticsearch sync — intended for schema
    * migrations and other maintenance operations where those side effects are
    * undesirable or handled separately.
@@ -635,7 +635,7 @@ export class QueryEngineService {
    * @param username acting user, recorded for the DB session context.
    * @param sql raw SQL text to execute.
    * @param params positional parameters for the SQL (default none).
-   * @returns `{ results, safetyApplied }` where `safetyApplied` flags whether the
+   * @returns `(results, safetyApplied)` where `safetyApplied` flags whether the
    *   SQL contains a destructive keyword (DROP/TRUNCATE/ALTER/GRANT/REVOKE) —
    *   informational only, execution is not blocked.
    * @throws if the tenant is suspended.
@@ -677,8 +677,8 @@ export class QueryEngineService {
    * @returns for SQL-native engines (Postgres/MySQL/Snowflake/Elasticsearch), an
    *   envelope with `results`/`data`/`rowCount` and a `plan` trace of the raw SQL
    *   executed at the source; for non-SQL engines (e.g. MongoDB), the SQL is
-   *   translated via {@link sqlToAst} and re-dispatched through
-   *   {@link executeQuery} (so the result carries that path's own plan, annotated
+   *   translated via (@link sqlToAst) and re-dispatched through
+   *   (@link executeQuery) (so the result carries that path's own plan, annotated
    *   with `translatedFrom: 'SQL'`).
    * @throws if the named source does not exist for the tenant, or if a
    *   SQL-native connector has no `rawQuery` support.
@@ -758,7 +758,7 @@ export class QueryEngineService {
    * No connector expresses HAVING natively for a federated/aggregated result,
    * so the fabric evaluates it in-fabric over the (already small, per-group)
    * merged/aggregated rows — see the RECURSIVE_IN_FABRIC+AGGREGATE+HAVING and
-   * federation HAVING-compensation call sites in {@link executeQuery}.
+   * federation HAVING-compensation call sites in (@link executeQuery).
    * @param rows grouped/aggregated rows to filter.
    * @param having predicates keyed by result column (select alias), ANDed together; no-op if omitted/empty.
    * @returns the rows that satisfy every predicate.
@@ -805,9 +805,9 @@ export class QueryEngineService {
   }
 
   /**
-   * Build a parameterized WHERE clause from a {col: val | {$op: val}} map.
-   * Used by {@link buildMutationSql} for remote-Postgres UPDATE/DELETE.
-   * @param where filter map; a bare value means equality, `{ $op: value }` picks an operator
+   * Build a parameterized WHERE clause from a (col: val | ($op: val)) map.
+   * Used by (@link buildMutationSql) for remote-Postgres UPDATE/DELETE.
+   * @param where filter map; a bare value means equality, `($op: value)` picks an operator
    *   ($eq/$ne/$gt/$gte/$lt/$lte/$like/$ilike/$in/$match).
    * @param params output array that generated placeholders' values are pushed onto (mutated).
    * @returns the ` WHERE ...` clause text (empty string if `where` has no keys).
@@ -834,13 +834,13 @@ export class QueryEngineService {
 
   /**
    * Simple fetch: builds an AST SELECT and runs it through the full engine.
-   * Ergonomic `{source, resource, where, ...}` wrapper used by `/api/data`
+   * Ergonomic `(source, resource, where, ...)` wrapper used by `/api/data`
    * endpoints — translates the flat body into a manifest-style AST `query` and
-   * delegates to {@link executeQuery}, so it gets the full planner/federation
+   * delegates to (@link executeQuery), so it gets the full planner/federation
    * path (cross-source pushdown, bind-join, trace) for free.
    * @param tenantId tenant identifier.
-   * @param body `{ source?, schema?, resource, columns?, where?, orderBy?, limit?, offset? }`;
-   *   `where` values may be bare (equality) or `{ $op: value }`.
+   * @param body `(source?, schema?, resource, columns?, where?, orderBy?, limit?, offset?)`;
+   *   `where` values may be bare (equality) or `($op: value)`.
    * @param session caller session for the Policy Engine.
    * @returns the `executeQuery` result envelope.
    * @throws if `resource` is missing or a `where` key is unsafe.
@@ -868,28 +868,28 @@ export class QueryEngineService {
 
   /**
    * Simple create/update/delete against the hub or an external source.
-   * Ergonomic `{source, resource, where, data, generate}` wrapper used by
+   * Ergonomic `(source, resource, where, data, generate)` wrapper used by
    * `/api/data` endpoints. Behaviour depends on `source`:
-   *   - hub (no `source` or `LOCAL_SOURCE`): delegates to {@link executeQuery}
+   *   - hub (no `source` or `LOCAL_SOURCE`): delegates to (@link executeQuery)
    *     with a legacy INSERT/UPDATE/DELETE config, so it keeps event emission,
    *     Elasticsearch sync and RLS.
    *   - external source: resolves the connector + physical schema from the
    *     catalog, enforces GRANTs for the operation, then either runs
-   *     parameterized SQL (Postgres) via {@link buildMutationSql} or the
+   *     parameterized SQL (Postgres) via (@link buildMutationSql) or the
    *     connector's `insertDocs`/`updateDocs`/`deleteDocs` (MongoDB/
-   *     Elasticsearch) — validating {@link ConstraintService} rules first for
+   *     Elasticsearch) — validating (@link ConstraintService) rules first for
    *     create/update on those non-SQL engines (capability compensation, since
    *     they don't enforce NOT NULL/UNIQUE/CHECK/FK natively).
-   * Also applies write-time value generation ({@link FabricWriteGenerators}) for
+   * Also applies write-time value generation ((@link FabricWriteGenerators)) for
    * `create` when `generate` rules are supplied, so ID/default columns stay
    * consistent even on engines without column defaults.
    * @param tenantId tenant identifier.
    * @param op the mutation kind.
-   * @param body `{ source?, schema?, resource, where?, data?, generate? }`.
+   * @param body `(source?, schema?, resource, where?, data?, generate?)`.
    * @param session caller session; `session.role` is checked against GRANTs on external sources.
    * @returns a result envelope: hub path returns `executeQuery`'s envelope;
-   *   external path returns `{ rowCount/returning/status, plan }` (SQL) or
-   *   `{ status, result, rowCount, plan }` (document store).
+   *   external path returns `(rowCount/returning/status, plan)` (SQL) or
+   *   `(status, result, rowCount, plan)` (document store).
    * @throws if `resource` is missing, `where` is missing for update/delete,
    *   `data` is missing for create/update, the source/role lacks the required
    *   GRANT, a constraint violation is found (non-SQL engines), or the target
@@ -1020,9 +1020,9 @@ export class QueryEngineService {
    * @param schema physical schema on the remote source.
    * @param table physical table name.
    * @param data for create: a row or array of rows (columns taken from the first row);
-   *   for update: a `{col: value}` set map; unused for delete.
-   * @param where filter map (see {@link buildWhere}); unused for create.
-   * @returns `{ sql, params }` ready to run via the source's connector `rawQuery`.
+   *   for update: a `(col: value)` set map; unused for delete.
+   * @param where filter map (see (@link buildWhere)); unused for create.
+   * @returns `(sql, params)` ready to run via the source's connector `rawQuery`.
    */
   private static buildMutationSql(op: string, schema: string, table: string, data: any, where: any): { sql: string; params: any[] } {
     const t = `${this.qIdent(schema)}.${this.qIdent(table)}`;
@@ -1042,14 +1042,14 @@ export class QueryEngineService {
 
   /**
    * Asynchronous Query Execution Wrapper.
-   * Fire-and-forget variant of {@link executeRawSql}: registers a job entry,
+   * Fire-and-forget variant of (@link executeRawSql): registers a job entry,
    * runs the raw SQL in the background, and returns immediately with the job
-   * id so the caller can poll {@link getJobStatus}.
+   * id so the caller can poll (@link getJobStatus).
    * @param tenantId tenant identifier.
    * @param username acting user.
    * @param sql raw SQL text to execute.
    * @param params positional parameters (default none).
-   * @returns a job id to poll via {@link getJobStatus}.
+   * @returns a job id to poll via (@link getJobStatus).
    */
   static executeAsyncRawSql(tenantId: string, username: string, sql: string, params: any[] = []): string {
     const jobId = randomUUID();
@@ -1067,11 +1067,11 @@ export class QueryEngineService {
   }
 
   /**
-   * Look up the current status of a job started by {@link executeAsyncRawSql}
-   * or {@link executeAsyncQuery}.
+   * Look up the current status of a job started by (@link executeAsyncRawSql)
+   * or (@link executeAsyncQuery).
    * @param jobId job id returned by the async starter.
-   * @returns `{ jobId, status: 'NOT_FOUND' }` if unknown, otherwise
-   *   `{ jobId, status: 'PENDING'|'RUNNING'|'COMPLETED'|'FAILED', result?, error? }`.
+   * @returns `(jobId, status: 'NOT_FOUND')` if unknown, otherwise
+   *   `(jobId, status: 'PENDING'|'RUNNING'|'COMPLETED'|'FAILED', result?, error?)`.
    */
   static getJobStatus(jobId: string) {
     const job = this.jobs.get(jobId);
@@ -1084,21 +1084,21 @@ export class QueryEngineService {
    * Useful for CREATE VIEW or complex migration planning.
    *
    * This is the legacy/simple-mode compiler: it builds SQL directly from the
-   * flat `{table, select, filter, joins, groupBy, orderBy, limit, offset,
-   * withRecursive}` shape of {@link QueryConfig} (as opposed to the AST path,
-   * which goes through {@link QueryTranspiler}/{@link FederationExecutor}).
-   * Resolves the physical schema/table via {@link resolveTarget}, quotes every
+   * flat `(table, select, filter, joins, groupBy, orderBy, limit, offset,
+   * withRecursive)` shape of (@link QueryConfig) (as opposed to the AST path,
+   * which goes through (@link QueryTranspiler)/(@link FederationExecutor)).
+   * Resolves the physical schema/table via (@link resolveTarget), quotes every
    * identifier, and builds each DML/DDL statement type in turn (SELECT with
    * optional joins/CTE, INSERT/UPDATE/DELETE with a WHERE built from `filter`,
    * or the various DDL statements). When `inlineValues` is true, values are
-   * inlined as SQL literals (via {@link formatInline}) instead of parameterized
+   * inlined as SQL literals (via (@link formatInline)) instead of parameterized
    * — used for contexts like CREATE VIEW where a parameterized statement isn't
    * valid (the view body must be self-contained SQL text).
    * @param tenantId tenant identifier, used to resolve the physical schema.
-   * @param config the query config to compile (see {@link QueryConfig}).
+   * @param config the query config to compile (see (@link QueryConfig)).
    * @param inlineValues when true, embed literal values in the SQL text instead
    *   of using placeholders/params (default false — parameterized).
-   * @returns `{ sql, params }`; `params` is empty when `inlineValues` is true.
+   * @returns `(sql, params)`; `params` is empty when `inlineValues` is true.
    * @throws if `tenantId` is missing.
    */
   static async generateSql(tenantId: string, config: QueryConfig, inlineValues = false): Promise<{ sql: string, params: any[] }> {
@@ -1265,7 +1265,7 @@ export class QueryEngineService {
   }
 
   /**
-   * Render a JS value as a SQL literal for the `inlineValues` mode of {@link generateSql}.
+   * Render a JS value as a SQL literal for the `inlineValues` mode of (@link generateSql).
    * Strings are single-quote-escaped; used where a parameterized placeholder
    * isn't valid (e.g. inside a CREATE VIEW body).
    * @param val the value to render (`null`, string, boolean, or anything with a `toString`).
@@ -1280,7 +1280,7 @@ export class QueryEngineService {
 
   /**
    * Flag (informational only — does not block execution) whether a raw SQL
-   * string contains a destructive/DDL keyword. Used by {@link executeRawSql} to
+   * string contains a destructive/DDL keyword. Used by (@link executeRawSql) to
    * annotate its result with `safetyApplied`.
    * @param sql the SQL text to scan.
    * @returns true if the text contains DROP, TRUNCATE, ALTER, GRANT, or REVOKE (case-insensitive).
@@ -1295,7 +1295,7 @@ export class QueryEngineService {
    * Refreshes a materialized view in the background.
    * Fires a `REFRESH MATERIALIZED VIEW [CONCURRENTLY] "<schema>"."<view>"`
    * statement on the hub. Called fire-and-forget from
-   * {@link QueryEngineController.refreshView} so the HTTP request doesn't block
+   * (@link QueryEngineController.refreshView) so the HTTP request doesn't block
    * on what can be a long-running refresh.
    * @param tenantId tenant identifier, used to derive the physical schema.
    * @param viewName physical name of the materialized view.
@@ -1312,12 +1312,12 @@ export class QueryEngineService {
 
   /**
    * Async high-level query execution (QueryConfig based).
-   * Fire-and-forget variant of {@link executeQuery}: registers a job entry,
+   * Fire-and-forget variant of (@link executeQuery): registers a job entry,
    * runs the full query pipeline in the background, and returns immediately
-   * with the job id so the caller can poll {@link getJobStatus}.
+   * with the job id so the caller can poll (@link getJobStatus).
    * @param tenantId tenant identifier.
-   * @param config the query/DML/DDL request (see {@link QueryConfig}).
-   * @returns a job id to poll via {@link getJobStatus}.
+   * @param config the query/DML/DDL request (see (@link QueryConfig)).
+   * @returns a job id to poll via (@link getJobStatus).
    */
   static executeAsyncQuery(tenantId: string, config: QueryConfig): string {
     const jobId = randomUUID();
@@ -1337,7 +1337,7 @@ export class QueryEngineService {
    * Treats "already distributed" as a benign outcome rather than an error.
    * @param tableName physical (schema-qualified) table name to distribute.
    * @param distributionColumn column to shard on.
-   * @returns `{ status: 'DISTRIBUTED' | 'ALREADY_DISTRIBUTED', table }`.
+   * @returns `(status: 'DISTRIBUTED' | 'ALREADY_DISTRIBUTED', table)`.
    * @throws for any Citus error other than "already distributed".
    */
   static async distributeTable(tableName: string, distributionColumn: string) {

@@ -5,7 +5,7 @@ import swaggerJsdoc from 'swagger-jsdoc';
  * API. Builds a static `swagger-jsdoc` configuration (base OpenAPI 3.0
  * document, shared component schemas, and the source globs to scan for
  * `@swagger`/`@openapi` JSDoc annotations), then exports the compiled
- * {@link swaggerSpec} for mounting behind a docs route (e.g. `swagger-ui-express`).
+ * (@link swaggerSpec) for mounting behind a docs route (e.g. `swagger-ui-express`).
  */
 
 /** swagger-jsdoc options: base OpenAPI document (info/servers/components/schemas) plus the `apis` globs to scan for annotations. */

@@ -87,7 +87,7 @@ export class GrantService {
    * @param grants - The grant rules declared for the table (empty/undefined = ungoverned).
    * @param role - The session role requesting access (case-insensitive; may be undefined).
    * @param privilege - The privilege being requested.
-   * @returns `{ allowed, governed }` — `governed=false` means no grants are
+   * @returns `(allowed, governed)` — `governed=false` means no grants are
    *   declared for the table (default-allow); `allowed` reflects whether the
    *   role holds the requested privilege when governed.
    */
@@ -103,13 +103,13 @@ export class GrantService {
 
   /**
    * Look up the declared grants for a physical (schema, table) and resolve
-   * the allow/deny decision for `role` via {@link GrantService.decide}.
+   * the allow/deny decision for `role` via (@link GrantService.decide).
    * @param tenantId - Owning tenant.
    * @param physicalSchema - Physical (or connector-native) schema name.
    * @param table - Table name within the schema.
    * @param role - The session role requesting access.
    * @param privilege - The privilege being requested.
-   * @returns `{ allowed, governed }` for this table/role/privilege.
+   * @returns `(allowed, governed)` for this table/role/privilege.
    */
   static async check(tenantId: string, physicalSchema: string, table: string, role: string | undefined, privilege: Privilege): Promise<{ allowed: boolean; governed: boolean }> {
     await this.ensureTable();

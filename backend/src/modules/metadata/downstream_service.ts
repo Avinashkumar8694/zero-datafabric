@@ -30,7 +30,7 @@ export class DownstreamService {
      * as `ERROR` — it does not abort reconciliation of the remaining targets.
      * @param tenantId Tenant scope.
      * @param manifest The manifest whose `downstream` array (if any) is reconciled.
-     * @returns One result object per declared downstream target: `{ type, status, ...detail }`. Returns an empty array if the manifest declares no downstream targets.
+     * @returns One result object per declared downstream target: `(type, status, ...detail)`. Returns an empty array if the manifest declares no downstream targets.
      */
     static async provision(tenantId: string, manifest: MetadataManifest): Promise<any[]> {
         const results: any[] = [];
@@ -92,9 +92,9 @@ export class DownstreamService {
      * their row source isn't the local Postgres pool. Per-table indexing
      * errors are collected rather than aborting the whole provision.
      * @param tenantId Tenant scope.
-     * @param config The downstream target's manifest entry (`{ type, enabled, fallback, ... }`).
+     * @param config The downstream target's manifest entry (`(type, enabled, fallback, ...)`).
      * @param manifest Full manifest, walked for every TABLE resource to index.
-     * @returns Detail object: `{ type: 'ELASTICSEARCH', status, indicesCount, fallback, connector, indexedTables, skippedTables, errors }`, or a `NOT_CONFIGURED` status if the tenant has no active ELASTICSEARCH data source.
+     * @returns Detail object: `(type: 'ELASTICSEARCH', status, indicesCount, fallback, connector, indexedTables, skippedTables, errors)`, or a `NOT_CONFIGURED` status if the tenant has no active ELASTICSEARCH data source.
      */
     private static async provisionElasticsearch(tenantId: string, config: any, manifest: MetadataManifest) {
         const connector = await this.getConnectorConfig(tenantId, 'ELASTICSEARCH');
@@ -161,9 +161,9 @@ export class DownstreamService {
      * intended CDC schema/strategy; it does not yet create real Snowflake
      * Pipes/Streams.
      * @param tenantId Tenant scope.
-     * @param config The downstream target's manifest entry (`{ type, enabled, strategy, ... }`).
+     * @param config The downstream target's manifest entry (`(type, enabled, strategy, ...)`).
      * @param manifest Full manifest (currently unused beyond target lookup; reserved for future per-table CDC provisioning).
-     * @returns Detail object: `{ type: 'SNOWFLAKE', status: 'CDC_ENABLED', strategy, schema, connector }`, or a `NOT_CONFIGURED` status if the tenant has no active SNOWFLAKE data source.
+     * @returns Detail object: `(type: 'SNOWFLAKE', status: 'CDC_ENABLED', strategy, schema, connector)`, or a `NOT_CONFIGURED` status if the tenant has no active SNOWFLAKE data source.
      */
     private static async provisionSnowflake(tenantId: string, config: any, manifest: MetadataManifest) {
         const connector = await this.getConnectorConfig(tenantId, 'SNOWFLAKE');
@@ -191,7 +191,7 @@ export class DownstreamService {
      * type, used to obtain connection details for downstream provisioning.
      * @param tenantId Tenant scope.
      * @param type Engine type to match, case-insensitively (e.g. 'ELASTICSEARCH', 'SNOWFLAKE').
-     * @returns The matching `data_sources` row (`{ name, type, config, status }`), or `null` if none is ACTIVE/CONNECTED.
+     * @returns The matching `data_sources` row (`(name, type, config, status)`), or `null` if none is ACTIVE/CONNECTED.
      */
     private static async getConnectorConfig(tenantId: string, type: string) {
         const { rows } = await pool.query(
@@ -209,8 +209,8 @@ export class DownstreamService {
 
     /**
      * Infers Elasticsearch field mappings from manifest column type names.
-     * @param columns Table column definitions (`{ name, type, ... }`).
-     * @returns An ES index mapping body: `{ properties: { [columnName]: { type: ... } } }`, with unrecognized types defaulting to `keyword`.
+     * @param columns Table column definitions (`(name, type, ...)`).
+     * @returns An ES index mapping body: `(properties: ( [columnName]: ( type: ... ) ))`, with unrecognized types defaulting to `keyword`.
      */
     private static toElasticMappings(columns: any[]) {
         const props: Record<string, any> = {};

@@ -2,7 +2,7 @@
  * @module routes/dataRoutes
  * @description Simple REST-style CRUD router over federated sources, mounted
  * at `/api/data` behind `requireAuth`. Each route accepts an ergonomic JSON
- * body (`{ source?, schema?, resource, where?, data?, ... }`) rather than raw
+ * body (`(source?, schema?, resource, where?, data?, ...)`) rather than raw
  * SQL/AST, and is captured to the query log by `dataController`'s shared
  * `handle` wrapper.
  */

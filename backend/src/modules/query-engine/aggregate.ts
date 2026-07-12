@@ -37,7 +37,7 @@ function base(path: string): string {
 
 /**
  * Output column name for a group entry (date-bucket entries key by their field).
- * @param g a plain grouping column, or a `{ field, dateInterval }` date bucket.
+ * @param g a plain grouping column, or a `(field, dateInterval)` date bucket.
  * @returns the field name the group value is keyed under in a result row.
  */
 function gName(g: GroupBy): string {
@@ -46,14 +46,14 @@ function gName(g: GroupBy): string {
 
 /**
  * Parse an AST/QueryConfig `select` into grouping columns + aggregate specs.
- * Handles object specs `{aggregate, column, alias}` and string specs like
+ * Handles object specs `(aggregate, column, alias)` and string specs like
  * `count(*)`, `SUM(amount)`, `avg(price) as p`. Plain (non-aggregate) columns
  * found in an aggregate query are treated as implicit GROUP BY columns.
  * @param select the query's select list (object aggregate specs and/or plain/aggregate strings), if any.
  * @param groupBy explicit GROUP BY columns (plain fields or date buckets), if any.
  * @returns `null` when the select carries no aggregate AND no groupBy was given
  *   (i.e. this isn't an aggregate query); otherwise the parsed
- *   `{ groupCols, aggregates }` plan with de-duplicated group columns.
+ *   `(groupCols, aggregates)` plan with de-duplicated group columns.
  */
 export function parseAggregates(select: any[] | undefined, groupBy: GroupBy[] | undefined): AggregatePlan | null {
   if (!Array.isArray(select) || select.length === 0) {
@@ -112,10 +112,10 @@ export function parseAggregates(select: any[] | undefined, groupBy: GroupBy[] | 
  * The partial aggregates each source must compute so the fabric can merge them.
  * AVG is expanded to a hidden SUM + COUNT pair (the mean can't be summed
  * across sources directly — the running sum and count can, and are divided
- * back into a mean by {@link mergePartials}). Every other function's partial
+ * back into a mean by (@link mergePartials)). Every other function's partial
  * form matches its final form (COUNT/SUM/MIN/MAX/COUNT_DISTINCT).
  * @param plan the user-requested aggregate plan (grouping columns + aggregates).
- * @returns the `{ groupBy, aggregates }` spec to push down to each source.
+ * @returns the `(groupBy, aggregates)` spec to push down to each source.
  */
 export function partialSpec(plan: AggregatePlan): { groupBy: GroupBy[]; aggregates: AggregateSpec[] } {
   const aggregates: AggregateSpec[] = [];
@@ -151,7 +151,7 @@ function numeric(v: any): number {
  * values (`__set__<alias>`); otherwise per-source distinct counts are summed
  * as an upper-bound approximation (exact cross-source distinct counting needs
  * the raw values).
- * @param rows partial-aggregate rows collected from every source (see {@link partialSpec}).
+ * @param rows partial-aggregate rows collected from every source (see (@link partialSpec)).
  * @param plan the user-requested aggregate plan (grouping columns + aggregates)
  *   used to determine merge semantics per aggregate function.
  * @returns one row per distinct group, with final aggregate values under their aliases.
@@ -235,7 +235,7 @@ function readCol(row: any, name: string): any {
  * pre-aggregated, and after in-fabric recursive traversal). Computes final
  * COUNT/SUM/MIN/MAX/AVG/COUNT(DISTINCT) per group in a single pass, keeping a
  * running per-group state (sums/counts/min/max/distinct sets) rather than the
- * two-phase partial+merge approach {@link mergePartials} uses — appropriate
+ * two-phase partial+merge approach (@link mergePartials) uses — appropriate
  * here because the rows are already local (post-join or post-traversal), so
  * there's no per-source partial to push down.
  * @param rows raw (unaggregated) rows to group and aggregate.
@@ -288,7 +288,7 @@ export function aggregateRaw(rows: any[], plan: AggregatePlan): any[] {
  * True when a query requests grouping/aggregation.
  * @param select the query's select list.
  * @param groupBy explicit GROUP BY columns, if any.
- * @returns whether {@link parseAggregates} would produce a non-null plan.
+ * @returns whether (@link parseAggregates) would produce a non-null plan.
  */
 export function isAggregateQuery(select: any[] | undefined, groupBy: string[] | undefined): boolean {
   return parseAggregates(select, groupBy) !== null;

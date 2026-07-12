@@ -17,8 +17,8 @@ import { AuthService } from '../modules/auth/auth.service';
  *
  * @param req - Express request. `req.body.username` and `req.body.password` are required.
  * @param res - Express response.
- * @returns 200 with the `AuthService.login` result (typically `{ token, user }`) on success;
- *   401 `{ error: 'Invalid credentials' }` when the credentials don't match; 500 `{ error }`
+ * @returns 200 with the `AuthService.login` result (typically `(token, user)`) on success;
+ *   401 `(error: 'Invalid credentials')` when the credentials don't match; 500 `(error)`
  *   on unexpected failures (e.g. database errors).
  */
 export const login = async (req: Request, res: Response) => {
@@ -45,9 +45,9 @@ export const login = async (req: Request, res: Response) => {
  *   with `username` and `internal_role`). `req.body.tenantId` is required — the tenant
  *   to scope the new token to.
  * @param res - Express response.
- * @returns 200 `{ token }` with the newly minted, tenant-scoped bearer token.
- * @throws Responds 401 `{ error: 'Authentication required' }` when there is no
- *   authenticated user on the request; 400 `{ error: 'tenantId is required' }` when
+ * @returns 200 `(token)` with the newly minted, tenant-scoped bearer token.
+ * @throws Responds 401 `(error: 'Authentication required')` when there is no
+ *   authenticated user on the request; 400 `(error: 'tenantId is required')` when
  *   `tenantId` is missing from the body.
  */
 export const refreshToken = (req: Request, res: Response) => {

@@ -94,11 +94,11 @@ export class QueryLogService {
    * Pulls `plan.legs`/`plan.strategy`/`plan.pushed`/`plan.executionMs` off the
    * result envelope (when present) so the log captures the SAME per-leg trace
    * and pushdown evidence the caller received, alongside the wall-clock/memory
-   * telemetry captured by {@link capture}. Any failure here (including a
+   * telemetry captured by (@link capture). Any failure here (including a
    * missing table) is swallowed — audit logging must never break a query.
    * @param meta static call metadata (tenant/user/role/mode/query text/api/source).
-   * @param envelope the query result envelope (`{ data, rowCount, plan, warnings }`), or `null` on error.
-   * @param extra timing/memory/status captured by the caller: `{ tatMs, memDeltaKb, status, error? }`.
+   * @param envelope the query result envelope (`(data, rowCount, plan, warnings)`), or `null` on error.
+   * @param extra timing/memory/status captured by the caller: `(tatMs, memDeltaKb, status, error?)`.
    */
   static async record(
     meta: QueryLogMeta,

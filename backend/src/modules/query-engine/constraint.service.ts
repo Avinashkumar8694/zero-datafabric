@@ -17,8 +17,8 @@ import { pool } from '../../config/database';
  *
  * A constraint spec is deliberately simple + declarative so it maps to any engine
  * and is easy to author from a manifest or the API:
- *   columns : [{ name, notNull?, unique?, enum?: string[], fk?: {...} }]
- *   checks  : [{ name, column, op: 'REGEX'|'GT'|'GTE'|'LT'|'LTE'|'EQ'|'NEQ'|'IN'|'LEN_LTE'|'NOT_NULL', value? }]
+ *   columns : [( name, notNull?, unique?, enum?: string[], fk?: (...) )]
+ *   checks  : [( name, column, op: 'REGEX'|'GT'|'GTE'|'LT'|'LTE'|'EQ'|'NEQ'|'IN'|'LEN_LTE'|'NOT_NULL', value? )]
  * Existing Postgres-style `constraints[]` (CHECK expressions) are best-effort
  * parsed into this structured form (regex `~`, simple comparisons) so current
  * manifests keep working; anything unparseable is kept for Postgres only.
@@ -77,7 +77,7 @@ export class ConstraintService {
    * @param table physical table name.
    * @param spec the constraint spec (columns + checks) to store.
    * @param source provenance label (e.g. `'API'`, `'MANIFEST'`); default `'API'`.
-   * @returns the stored row: `{ id, schema, table, spec, source }`.
+   * @returns the stored row: `(id, schema, table, spec, source)`.
    */
   static async upsert(tenantId: string, schema: string, table: string, spec: ConstraintSpec, source = 'API'): Promise<any> {
     await this.ensureTable();
@@ -129,14 +129,14 @@ export class ConstraintService {
    * Column-level constraints (`notNull`/`unique`/`enum`/`fk`) are derived from
    * each column's `nullable`/`primaryKey`/`unique`/`type`/`ref` flags plus any
    * matching FK from `fks`. Table-level `CHECK` constraints are best-effort
-   * parsed via {@link parseCheckExpression}; anything else (e.g. `EXCLUDE ...
+   * parsed via (@link parseCheckExpression); anything else (e.g. `EXCLUDE ...
    * USING GIST`) is a Postgres-only construct and is deliberately left out
    * (reject-if-impossible — not modelled in-fabric). Structured `checks[]`
    * authored directly on the resource are passed through unchanged.
    * @param resource the manifest TABLE resource (`columns`, `constraints`, optional `checks`).
-   * @param enums a `{ enumRef: allowedValues[] }` map resolved from the manifest's ENUM definitions.
-   * @param fks relationship-derived foreign keys `{ column, ...fk }` for this table, if any.
-   * @returns the engine-agnostic `{ columns, checks }` spec.
+   * @param enums a `(enumRef: allowedValues[])` map resolved from the manifest's ENUM definitions.
+   * @param fks relationship-derived foreign keys `(column, ...fk)` for this table, if any.
+   * @returns the engine-agnostic `(columns, checks)` spec.
    */
   static specFromManifestTable(resource: any, enums: Record<string, string[]>, fks: any[] = []): ConstraintSpec {
     const columns: ConstraintColumn[] = [];
@@ -162,7 +162,15 @@ export class ConstraintService {
     return { columns, checks };
   }
 
-  /** Best-effort parse of a simple Postgres CHECK into a structured rule. */
+  /**
+   * Best-effort parse of a simple Postgres CHECK into a structured rule.
+   * Recognizes a regex match (`col ~ '...'` / `col ~* '...'`) and a numeric
+   * comparison (`col >|>=|<|<=|=|<> n`). Anything more complex is a
+   * Postgres-only expression left to native enforcement there.
+   * @param name the CHECK constraint's name.
+   * @param expr the raw CHECK expression text.
+   * @returns the structured (@link CheckRule), or `null` if the expression doesn't match a supported pattern.
+   */
   static parseCheckExpression(name: string, expr: string): CheckRule | null {
     const s = String(expr).trim();
     let m: RegExpMatchArray | null;
@@ -176,7 +184,14 @@ export class ConstraintService {
     return null; // Postgres-only expression; leave to native enforcement.
   }
 
-  /** Evaluate a single check rule against a value. Returns true when SATISFIED. */
+  /**
+   * Evaluate a single check rule against a value. Returns true when SATISFIED.
+   * `null`/`undefined` values pass every rule except `NOT_NULL`, matching SQL's
+   * CHECK semantics (a NULL value never fails a CHECK constraint).
+   * @param rule the check rule to evaluate.
+   * @param value the value to test.
+   * @returns whether `value` satisfies `rule`.
+   */
   private static evalCheck(rule: CheckRule, value: any): boolean {
     if (value === null || value === undefined) return rule.op !== 'NOT_NULL'; // null passes value-checks (SQL semantics); NOT_NULL fails
     switch (rule.op) {
@@ -198,6 +213,14 @@ export class ConstraintService {
    * Validate rows against a spec for a non-SQL-engine write. Returns all
    * violations found (empty = OK). NOT NULL / ENUM / CHECK are synchronous;
    * UNIQUE / FK use the supplied lookups (skipped if not provided).
+   * On `create`, NOT NULL is enforced unconditionally; on `update`, NOT NULL
+   * and CHECK are only evaluated for columns actually present in the row
+   * (partial updates shouldn't be penalized for columns they don't touch).
+   * @param rows the row(s) being written.
+   * @param spec the table's constraint spec (see (@link resolve)/(@link specFromManifestTable)).
+   * @param op whether this is a create (insert) or update, affecting NOT NULL/CHECK evaluation.
+   * @param lookups async source lookups for UNIQUE/FK checks; omitting either skips that check kind.
+   * @returns every violation found across all rows (empty array means the write may proceed).
    */
   static async validate(rows: any[], spec: ConstraintSpec, op: 'create' | 'update', lookups: ConstraintLookups = {}): Promise<Violation[]> {
     const violations: Violation[] = [];

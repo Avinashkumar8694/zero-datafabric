@@ -2,7 +2,7 @@
  * @module routes/savedAnalyticsRoutes
  * @description Saved-analytics control-plane router, mounted at
  * `/api/saved-analytics` behind `requireAuth`. Manages reusable, parameterized
- * analytics (AST or SQL with `{{variable}}` bindings) and runs them on demand.
+ * analytics (AST or SQL with `({variable})` bindings) and runs them on demand.
  * Note: `/top` and `/:id` are both GET routes — `/top` is registered first so
  * it is matched before the `:id` param route.
  */

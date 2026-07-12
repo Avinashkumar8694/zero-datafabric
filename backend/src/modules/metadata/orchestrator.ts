@@ -45,7 +45,7 @@ export class MetadataOrchestrator {
      * @param tenantId Tenant scope the manifest is applied for.
      * @param manifest The declarative manifest to apply.
      * @param options.force When true, skips the high-risk-change guard and ensures every declared schema has a `CREATE_SCHEMA` diff even if the plan didn't already include one.
-     * @returns `{ status: 'APPLIED', manifestVersion, appliedCount, plan, results, downstream }` describing what was executed.
+     * @returns `(status: 'APPLIED', manifestVersion, appliedCount, plan, results, downstream)` describing what was executed.
      * @throws {Error} If manifest validation fails, a referenced data source is missing/inactive, the plan contains high-risk changes without `force`, or Hub Postgres provisioning/catalog sync fails (transaction is rolled back first).
      */
     async apply(tenantId: string, manifest: MetadataManifest, options: { force?: boolean } = {}) {
@@ -186,7 +186,7 @@ export class MetadataOrchestrator {
      * schema's provisioning was itself skipped) and no-ops entirely if the
      * `fabric_user` role doesn't exist.
      * @param client Open transactional pool client (part of the apply transaction).
-     * @param tenantId Tenant scope; physical schema names are derived as `tenant_{tenantId}_{schema.name}`.
+     * @param tenantId Tenant scope; physical schema names are derived as `tenant_{tenantId}_(schema.name)`.
      * @param manifest The manifest whose schemas' privileges are ensured.
      */
     private async ensureTenantSchemaPrivileges(client: PoolClient, tenantId: string, manifest: MetadataManifest) {
@@ -355,7 +355,7 @@ export class MetadataOrchestrator {
      * delegates to `DiffEngine.compare`.
      * @param tenantId Tenant scope.
      * @param manifest The manifest to plan against current catalog state.
-     * @returns `{ status: 'PLAN_READY', summary: { total, highRisk, quarantine }, changes }` where `changes` is the ordered diff list.
+     * @returns `(status: 'PLAN_READY', summary: ( total, highRisk, quarantine ), changes)` where `changes` is the ordered diff list.
      */
     async plan(tenantId: string, manifest: MetadataManifest) {
         const client = await pool.connect();
@@ -397,8 +397,8 @@ export class MetadataOrchestrator {
      * @param client Open transactional pool client (part of the apply transaction).
      * @param tenantId Tenant scope.
      * @param manifest The manifest that was applied.
-     * @param summary The plan summary (`{ total, highRisk, quarantine }`) recorded alongside the manifest in history.
-     * @param definitions Map of `schema.resource` → `{ sql, ast }` compiled during apply, used to persist each resource's definition.
+     * @param summary The plan summary (`(total, highRisk, quarantine)`) recorded alongside the manifest in history.
+     * @param definitions Map of `schema.resource` → `(sql, ast)` compiled during apply, used to persist each resource's definition.
      * @param manifestResources Map of `schema.resource` → the manifest's resource object, used as the definitive AST when available.
      */
     private async persistMetadataState(
@@ -558,7 +558,7 @@ export class MetadataOrchestrator {
     /**
      * Lists a tenant's manifest apply history, most recent first.
      * @param tenantId Tenant scope.
-     * @returns Rows of `{ id, version_tag, summary, applied_at }` from `fabric_system.metadata_history`.
+     * @returns Rows of `(id, version_tag, summary, applied_at)` from `fabric_system.metadata_history`.
      */
     async getHistory(tenantId: string) {
         const { rows } = await pool.query(`SELECT id, version_tag, summary, applied_at FROM fabric_system.metadata_history WHERE tenant_id = $1 ORDER BY applied_at DESC`, [tenantId]);

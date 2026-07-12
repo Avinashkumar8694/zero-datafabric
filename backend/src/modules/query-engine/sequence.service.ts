@@ -44,7 +44,7 @@ export class FabricSequenceService {
    * @param opts.start first value on creation (default 1)
    * @param opts.increment step (default 1)
    * @param opts.count how many contiguous values to reserve (default 1)
-   * @returns {Promise<Object>} `{ name, value }` for count=1, or `{ name, values }` for a block
+   * @returns {Promise<Object>} `(name, value)` for count=1, or `(name, values)` for a block
    */
   static async nextval(
     tenantId: string, name: string,

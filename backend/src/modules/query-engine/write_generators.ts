@@ -15,8 +15,8 @@
  *   • function  → invoke a hub-hosted custom function as a value service
  *                 (e.g. generate_custom_id) — "function-as-a-service" compensation.
  *
- * A generator rule (per field): { strategy:'UUID_V7' } | { sequence:'name', start?, increment? }
- *                             | { function:'fn', args?:[...], schema?:'LogicalSchema' }
+ * A generator rule (per field): ( strategy:'UUID_V7' ) | ( sequence:'name', start?, increment? )
+ *                             | ( function:'fn', args?:[...], schema?:'LogicalSchema' )
  */
 import { pool } from '../../config/database';
 import { randomUUID } from 'crypto';
@@ -32,14 +32,14 @@ const ident = (s: string) => String(s).replace(/[^a-zA-Z0-9_]/g, '');
 export class FabricWriteGenerators {
   /**
    * Resolve one generator rule to a concrete value.
-   * Tries, in order: `{ strategy: 'UUID_V7' }`/`{ uuid: true }` (hub
+   * Tries, in order: `(strategy: 'UUID_V7')`/`(uuid: true)` (hub
    * `uuid_generate_v7()`, with a JS `randomUUID()` fallback if the Postgres
-   * primitive isn't installed), `{ sequence }` (delegates to
-   * {@link FabricSequenceService.nextval}), or `{ function }` (invokes a
+   * primitive isn't installed), `(sequence)` (delegates to
+   * (@link FabricSequenceService.nextval)), or `(function)` (invokes a
    * hub-hosted function as a value service, optionally under a tenant schema's
    * `search_path`).
    * @param tenantId tenant scope (for the sequence engine and schema resolution).
-   * @param rule the generator rule (`{ strategy | uuid | sequence | function, ... }`).
+   * @param rule the generator rule (`(strategy | uuid | sequence | function, ...)`).
    * @param fallbackSchema logical schema to run a `function` rule under, if the rule doesn't specify its own.
    * @returns the generated value.
    * @throws if `rule` is not an object, or specifies none of `strategy`/`sequence`/`function`.
@@ -78,10 +78,10 @@ export class FabricWriteGenerators {
   }
 
   /**
-   * Apply a { field: rule } map to a document, returning a new doc with generated fields set.
+   * Apply a ( field: rule ) map to a document, returning a new doc with generated fields set.
    * @param tenantId tenant scope.
    * @param doc the source document (not mutated).
-   * @param generate a `{ field: rule }` map of fields to generate (see {@link resolve}).
+   * @param generate a `(field: rule)` map of fields to generate (see (@link resolve)).
    * @param fallbackSchema logical schema fallback for `function` rules that don't specify their own.
    * @returns a shallow copy of `doc` with every field in `generate` set to its resolved value.
    */

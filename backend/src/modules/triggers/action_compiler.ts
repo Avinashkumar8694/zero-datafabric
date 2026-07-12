@@ -4,19 +4,19 @@
  *
  * A manifest/registry trigger may declare its behaviour in three ways:
  *
- *   1. procedure  — `{ procedure: 'audit_log_fn' }`
+ *   1. procedure  — `(procedure: 'audit_log_fn')`
  *                   EXECUTE an existing trigger function (advanced escape hatch).
  *
- *   2. execute    — `{ execute: { type: 'AUDIT' | 'WEBHOOK' | 'EMAIL' |
- *                                        'TELEGRAM' | 'FUNCTION' | 'EXCEPTION' } }`
+ *   2. execute    — `(execute: ( type: 'AUDIT' | 'WEBHOOK' | 'EMAIL' |
+ *                                        'TELEGRAM' | 'FUNCTION' | 'EXCEPTION' ))`
  *                   The same declarative action model the API/UI triggers use.
  *
  *   3. action     — a mini SQL/AST action DSL, e.g.
- *                   `{ action: { type: 'INSERT', into: 'audit',
- *                                values: { ref: 'NEW.id', op: 'TG_OP', at: 'NOW()' } } }`
- *                   `{ action: { type: 'RAISE', when: {left,operator,right}, message } }`
- *                   `{ action: { type: 'PERFORM', function: 'fn' } }`
- *                   `{ action: { sql: 'INSERT INTO audit(...) VALUES (NEW.id, TG_OP)' } }`
+ *                   `(action: ( type: 'INSERT', into: 'audit',
+ *                                values: ( ref: 'NEW.id', op: 'TG_OP', at: 'NOW()' ) ))`
+ *                   `(action: ( type: 'RAISE', when: (left,operator,right), message ))`
+ *                   `(action: ( type: 'PERFORM', function: 'fn' ))`
+ *                   `(action: ( sql: 'INSERT INTO audit(...) VALUES (NEW.id, TG_OP)' ))`
  *
  * All value expressions are compiled through a small whitelist (NEW./OLD. column
  * refs, TG_OP/TG_TABLE_NAME/NOW()/CURRENT_TIMESTAMP/boolean/null keywords, numeric
@@ -99,7 +99,7 @@ export class TriggerActionCompiler {
 
   /**
    * Compile a structured condition into a boolean SQL expression. Supports
-   * nested `and`/`or` groups and a single `{ left, operator, right }` leaf
+   * nested `and`/`or` groups and a single `(left, operator, right)` leaf
    * (including `IS_NULL`/`IS_NOT_NULL`, which take only `left`).
    * @param c - The condition node, or a falsy value for an always-true condition.
    * @returns A boolean SQL expression string.
@@ -132,7 +132,7 @@ export class TriggerActionCompiler {
    * surrounding BEGIN/END/RETURN) — the workhorse behind the `action` form
    * and the `EXCEPTION`/`FUNCTION` cases of `execute`. Supports a raw `sql`
    * escape hatch, plus `INSERT`/`UPDATE`/`DELETE`/`RAISE`(`EXCEPTION`)/`PERFORM`(`FUNCTION`).
-   * @param action - The action node (`{ sql }` or `{ type, ... }`).
+   * @param action - The action node (`(sql)` or `(type, ...)`).
    * @param ctx - Compilation context (used to qualify target tables/functions).
    * @returns One or more SQL statements as a single string, terminated with `;`.
    * @throws {Error} If a required field is missing (e.g. `values`/`set`/`where`)
@@ -244,7 +244,7 @@ export class TriggerActionCompiler {
    * (native EXECUTE FUNCTION) or a compiled function body.
    * @param trigger - The trigger definition; `trigger.execute.type` selects AUDIT/FUNCTION/EXCEPTION/WEBHOOK/EMAIL/TELEGRAM.
    * @param ctx - Compilation context passed through to the relevant compiler.
-   * @returns `{ procedure }` for AUDIT/FUNCTION, or `{ body, securityDefiner }` for EXCEPTION/WEBHOOK/EMAIL/TELEGRAM.
+   * @returns `(procedure)` for AUDIT/FUNCTION, or `(body, securityDefiner)` for EXCEPTION/WEBHOOK/EMAIL/TELEGRAM.
    * @throws {Error} If `trigger.execute.type` is not a supported type.
    */
   static compileExecute(trigger: any, ctx: CompileCtx): { procedure?: string; body?: string; securityDefiner?: boolean } {
@@ -275,7 +275,7 @@ export class TriggerActionCompiler {
    * DROP/CREATE TRIGGER statements ready to execute in order.
    * @param trigger - The full trigger definition (name, timing, event(s), action/execute/procedure).
    * @param ctx - Compilation context (schema, table, trigger name).
-   * @returns `{ statements }` — DDL statements to run in sequence.
+   * @returns `(statements)` — DDL statements to run in sequence.
    * @throws {Error} If the trigger declares none of `action`, `execute`, `procedure`, or `function`.
    */
   static toSql(trigger: any, ctx: CompileCtx): CompiledTrigger {

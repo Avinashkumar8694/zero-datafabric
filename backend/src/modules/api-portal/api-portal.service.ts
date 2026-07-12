@@ -13,7 +13,7 @@ export class ApiPortalService {
    * PostgREST serves it live from its own schema introspection; this just
    * returns the URLs, scoped to the tenant.
    * @param tenantId - The tenant to build portal URLs for.
-   * @returns `{ specUrl, tenantContext, docsUrl }`.
+   * @returns `(specUrl, tenantContext, docsUrl)`.
    */
   static async getTenantOpenApiSpec(tenantId: string) {
     // This logic usually involves a fetch against the PostgREST port (3000)
@@ -31,7 +31,7 @@ export class ApiPortalService {
    * it through the REST API.
    * @param tableName - Table to expose.
    * @param schemaName - Schema containing the table.
-   * @returns `{ status: 'EXPOSED', table }`.
+   * @returns `(status: 'EXPOSED', table)`.
    */
   static async exposeTableToApi(tableName: string, schemaName: string) {
     const client = await pool.connect();

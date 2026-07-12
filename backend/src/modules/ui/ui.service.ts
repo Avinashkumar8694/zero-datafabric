@@ -7,7 +7,7 @@ export class UiService {
   /**
    * Fetch top-line counts for the management dashboard's summary tiles:
    * total tenants, active data sources, and cataloged metadata entries.
-   * @returns `{ totalTenants, activeSources, metadataEntries, systemStatus: 'ONLINE' }`.
+   * @returns `(totalTenants, activeSources, metadataEntries, systemStatus: 'ONLINE')`.
    */
   static async getDashboardStats() {
     const client = await pool.connect();

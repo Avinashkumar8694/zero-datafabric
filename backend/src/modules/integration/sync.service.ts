@@ -5,13 +5,13 @@ import { ConnectorFactory } from '../metadata/connectors/factory';
  * SyncService (integration module) — physical ("SYNC"/CDC-style) data
  * ingestion: crawls every schema/table a connector exposes and copies rows
  * into tenant-local Hub tables, as opposed to the zero-copy FDW virtualization
- * path handled elsewhere in {@link IntegrationService}.
+ * path handled elsewhere in (@link IntegrationService).
  */
 export class SyncService {
     /**
      * Run a one-shot full sync of a data source: discovers every schema and
      * table the connector exposes, then copies each table's rows into the
-     * tenant's Hub schema via {@link SyncService.syncTable}. Always closes the
+     * tenant's Hub schema via (@link SyncService.syncTable). Always closes the
      * connector connection, even on failure.
      * @param tenantId - Owning tenant (target schema is `tenant_<tenantId>`).
      * @param sourceName - Name of the data source (used as a table-name prefix in the Hub).

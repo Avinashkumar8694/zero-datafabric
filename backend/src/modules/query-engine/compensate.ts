@@ -62,7 +62,7 @@ const num = (v: any) => { const n = typeof v === 'number' ? v : parseFloat(v); r
 /**
  * Extract window specs from an AST `select` list (entries carrying a `window` field).
  * @param select the query's select list; non-array input yields no windows.
- * @returns the parsed {@link WindowSpec} list, in select order.
+ * @returns the parsed (@link WindowSpec) list, in select order.
  */
 export function extractWindows(select: any[] | undefined): WindowSpec[] {
   if (!Array.isArray(select)) return [];
@@ -118,7 +118,7 @@ function partitionKey(row: any, cols: string[]): string {
 }
 /**
  * Build a row comparator implementing a window's ORDER BY (multi-column, ASC/DESC).
- * @param orderBy ordered list of `{ column, direction }` sort keys.
+ * @param orderBy ordered list of `(column, direction)` sort keys.
  * @returns a comparator suitable for `Array.prototype.sort`.
  */
 function comparator(orderBy: { column: string; direction: 'ASC' | 'DESC' }[]) {
@@ -143,7 +143,7 @@ function comparator(orderBy: { column: string; direction: 'ASC' | 'DESC' }[]) {
  * SQL's default framing when ORDER BY is present. Mutates and returns the same
  * row objects (multiple specs progressively add more alias fields).
  * @param rows the bounded base rows fetched via the normal pushdown path.
- * @param specs the window specs to compute (see {@link extractWindows}).
+ * @param specs the window specs to compute (see (@link extractWindows)).
  * @returns the same `rows` array, each row annotated with every spec's alias.
  */
 export function applyWindows(rows: any[], specs: WindowSpec[]): any[] {
@@ -193,7 +193,7 @@ export function applyWindows(rows: any[], specs: WindowSpec[]): any[] {
 /**
  * True when the select carries any window spec.
  * @param select the query's select list.
- * @returns whether {@link extractWindows} would return a non-empty list.
+ * @returns whether (@link extractWindows) would return a non-empty list.
  */
 export function hasWindows(select: any[] | undefined): boolean {
   return extractWindows(select).length > 0;
@@ -201,11 +201,11 @@ export function hasWindows(select: any[] | undefined): boolean {
 
 /**
  * Project rows to the final select: plain columns + window aliases (drops helper cols).
- * Runs after {@link applyWindows} to trim the base-fetch columns (which may
+ * Runs after (@link applyWindows) to trim the base-fetch columns (which may
  * include extra PARTITION BY/ORDER BY columns pulled in by
- * {@link windowBaseColumns} but not requested in the final output) down to
+ * (@link windowBaseColumns) but not requested in the final output) down to
  * exactly what the caller asked for.
- * @param rows rows already annotated by {@link applyWindows}.
+ * @param rows rows already annotated by (@link applyWindows).
  * @param select the query's select list (plain columns and/or window specs); `*` passes rows through unchanged.
  * @returns new row objects containing only the requested columns/aliases.
  */

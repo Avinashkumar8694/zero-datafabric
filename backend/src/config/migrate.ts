@@ -8,7 +8,7 @@ import dotenv from 'dotenv';
  * `db/init` (sorted lexically, so files are conventionally numbered) against
  * the configured database, in order, each inside its own transaction.
  * Intended to be run directly (e.g. `node migrate.js`), not imported: it
- * calls {@link migrate} and exits the process on completion or failure.
+ * calls (@link migrate) and exits the process on completion or failure.
  */
 
 dotenv.config();

@@ -9,8 +9,8 @@
  *
  * The filter convention matches the rest of the query engine
  * (see QueryEngineService.generateSql): a plain map of
- *   { column: value }                       -> column = value
- *   { column: { $op: value } }              -> column <op> value
+ *   ( column: value )                       -> column = value
+ *   ( column: ( $op: value ) )              -> column <op> value
  * where $op is one of $eq $ne $gt $gte $lt $lte $like $ilike $in.
  */
 
@@ -77,7 +77,7 @@ const SQL_OPERATORS: Record<string, string> = {
 const MONGO_OPERATORS = new Set(['$eq', '$ne', '$gt', '$gte', '$lt', '$lte', '$in']);
 
 /**
- * Single source of truth for compiling a {@link CanonicalQuery} into each
+ * Single source of truth for compiling a (@link CanonicalQuery) into each
  * engine's native, parameterized request (SQL for Postgres/MySQL/Snowflake,
  * a find()/aggregate() spec for MongoDB). See the file-level overview for the
  * canonical filter convention. All methods are static; the class is never instantiated.
@@ -118,8 +118,8 @@ export class PushdownCompiler {
 
   /**
    * Extract [operator, value] from a filter entry using the canonical convention.
-   * @param rawValue a filter entry: either a bare scalar (implies `$eq`) or a `{ $op: value }` object.
-   * @returns the single `{ op, value }` pair (only the first operator key if the object carries several — use {@link splitOps} for multi-operator entries).
+   * @param rawValue a filter entry: either a bare scalar (implies `$eq`) or a `($op: value)` object.
+   * @returns the single `(op, value)` pair (only the first operator key if the object carries several — use (@link splitOps) for multi-operator entries).
    */
   private static splitOp(rawValue: any): { op: string; value: any } {
     if (rawValue !== null && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
@@ -133,10 +133,10 @@ export class PushdownCompiler {
 
   /**
    * Extract ALL operators for a filter entry, so a column can carry multiple
-   * conditions (e.g. { $gte: x, $lte: y } for a range). Falls back to $eq for a
+   * conditions (e.g. ( $gte: x, $lte: y ) for a range). Falls back to $eq for a
    * bare scalar value.
    * @param rawValue a filter entry: either a bare scalar (implies `$eq`) or an all-`$op`-keyed object.
-   * @returns one `{ op, value }` pair per operator present.
+   * @returns one `(op, value)` pair per operator present.
    */
   private static splitOps(rawValue: any): { op: string; value: any }[] {
     if (rawValue !== null && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
@@ -153,13 +153,13 @@ export class PushdownCompiler {
    * Postgres uses `$1..$n` placeholders and "ident" quoting; MySQL uses `?` and `ident`.
    * When `aggregates`/`groupBy` are present, builds a `GROUP BY` select list of
    * grouping columns (date buckets rendered via `date_trunc`/`DATE()`) plus
-   * aggregate expressions ({@link aggExprSql}); otherwise builds a plain
+   * aggregate expressions ((@link aggExprSql)); otherwise builds a plain
    * projection. `NULL` equality/inequality compiles to `IS [NOT] NULL` since
    * `= NULL`/`!= NULL` are never true in SQL. `$match`/`$fuzzy` degrade to a
    * case-insensitive substring match (`ILIKE`/`LIKE`) since full-text search is
    * not a SQL-native concept for every dialect.
    * @param input the canonical query plus its physical `schema` (optional), `table`, and target `dialect`.
-   * @returns `{ text, params }` — the parameterized SQL and its positional parameter values.
+   * @returns `(text, params)` — the parameterized SQL and its positional parameter values.
    */
   static toSql(
     input: CanonicalQuery & { schema?: string; table: string; dialect: SqlDialect }
@@ -240,12 +240,12 @@ export class PushdownCompiler {
 
   /**
    * Compile a canonical SELECT into a MongoDB find() specification.
-   * Non-aggregate path only — use {@link toMongoAggregate} when the query has
+   * Non-aggregate path only — use (@link toMongoAggregate) when the query has
    * `groupBy`/`aggregates`. Excludes Mongo's implicit `_id` from the projection
    * (unless explicitly requested) so projected rows line up with relational
    * rows for set-ops/joins.
    * @param input the canonical query (select/filter/orderBy/limit/offset).
-   * @returns `{ filter, projection?, sort?, limit?, skip? }` for `collection.find()`.
+   * @returns `(filter, projection?, sort?, limit?, skip?)` for `collection.find()`.
    */
   static toMongo(input: CanonicalQuery): CompiledMongo {
     const { select, filter, orderBy, limit, offset } = input;
@@ -274,14 +274,14 @@ export class PushdownCompiler {
 
   /**
    * Translate a canonical filter map into a MongoDB match document.
-   * A single `$eq` collapses to Mongo's shorthand `{ key: value }`; multiple
+   * A single `$eq` collapses to Mongo's shorthand `(key: value)`; multiple
    * operators on one column merge into one sub-document (e.g. a range).
    * `$like`/`$ilike` compile to an anchored `$regex` (SQL wildcards `%`/`_`
    * translated to `.*`/`.`); `$match`/`$fuzzy` compile to an unanchored,
    * case-insensitive `$regex` substring match (Mongo has no native full-text
    * operator in a plain `find()`).
    * @param filter the canonical filter map, if any.
-   * @returns the Mongo match document (`{}` if `filter` is omitted).
+   * @returns the Mongo match document (`()` if `filter` is omitted).
    */
   private static mongoMatch(filter?: Record<string, any>): Record<string, any> {
     const match: Record<string, any> = {};
@@ -309,7 +309,7 @@ export class PushdownCompiler {
 
   /**
    * SQL for a group entry in the GROUP BY clause (plain col or date bucket).
-   * @param g a plain grouping column, or a `{ field, dateInterval }` date bucket.
+   * @param g a plain grouping column, or a `(field, dateInterval)` date bucket.
    * @param dialect target SQL dialect (MySQL uses `DATE()`; others use `date_trunc`).
    * @returns the SQL expression to group by.
    */
@@ -323,7 +323,7 @@ export class PushdownCompiler {
 
   /**
    * SQL for a group entry in the SELECT list (date buckets aliased to the field name).
-   * @param g a plain grouping column, or a `{ field, dateInterval }` date bucket.
+   * @param g a plain grouping column, or a `(field, dateInterval)` date bucket.
    * @param dialect target SQL dialect.
    * @returns the SELECT-list expression (date buckets are aliased back to their field name).
    */
@@ -365,7 +365,7 @@ export class PushdownCompiler {
   /**
    * Compile a canonical aggregate query into a MongoDB aggregation pipeline.
    * Produces flat rows keyed by group columns + aggregate aliases.
-   * Pipeline shape: `$match` (from {@link mongoMatch}) → `$group` (by
+   * Pipeline shape: `$match` (from (@link mongoMatch)) → `$group` (by
    * `groupBy` fields — a date-bucket entry degrades to grouping on its plain
    * field, since `date_histogram`/`date_trunc` bucketing is a SQL/ES-only
    * feature here) → `$project` (flattens `_id.<field>` back to top-level

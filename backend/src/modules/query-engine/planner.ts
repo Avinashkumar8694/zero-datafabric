@@ -68,12 +68,12 @@ const legKey = (source: string, resource: string) => `${source}::${resource}`;
  */
 export class QueryPlanner {
   /**
-   * Collect { source, resource } references from an AST (recurses set-ops / CTEs).
+   * Collect ( source, resource ) references from an AST (recurses set-ops / CTEs).
    * Walks `from`, `joins[]`, and recurses into `union`/`intersect`/`except`
    * legs and `with` (CTE) bases/`unionAll` bodies so every resource the query
    * touches — however deeply nested — is captured for resolution.
    * @param ast the query AST node to scan.
-   * @param acc output array that discovered `{ source, resource }` references are pushed onto (mutated); may contain duplicates.
+   * @param acc output array that discovered `(source, resource)` references are pushed onto (mutated); may contain duplicates.
    */
   private static collectRefs(ast: any, acc: { source: string; resource: string }[]) {
     if (!ast || typeof ast !== 'object') return;
@@ -110,9 +110,9 @@ export class QueryPlanner {
    * a VIRTUAL source (even Postgres) always goes through its connector, since
    * `postgres_fdw` doesn't cover every object type/engine uniformly.
    * @param tenantId tenant identifier.
-   * @param source logical source name, or {@link LOCAL_SOURCE} for the hub.
+   * @param source logical source name, or (@link LOCAL_SOURCE) for the hub.
    * @param resource logical resource/table/collection name.
-   * @returns the resolved {@link ResolvedLeg}.
+   * @returns the resolved (@link ResolvedLeg).
    * @throws if a named source has no catalog entry AND no `data_sources` row for the tenant.
    */
   static async resolveLeg(tenantId: string, source: string, resource: string): Promise<ResolvedLeg> {
@@ -179,10 +179,10 @@ export class QueryPlanner {
   }
 
   /**
-   * Classify a query AST into an execution {@link Strategy} and resolve every
+   * Classify a query AST into an execution (@link Strategy) and resolve every
    * leg it references. This is the planner's entry point:
-   *   1. {@link collectRefs} + {@link resolveLeg} every distinct `{source,
-   *      resource}` the query touches (deduplicated via `resolveMap`).
+   *   1. (@link collectRefs) + (@link resolveLeg) every distinct `(source,
+   *      resource)` the query touches (deduplicated via `resolveMap`).
    *   2. Partition legs into those reachable in Postgres vs. connector-only,
    *      and count distinct NAMED sources (excluding the hub).
    *   3. Decide the strategy:
@@ -195,12 +195,12 @@ export class QueryPlanner {
    *      - `CROSS_ENGINE` — anything else (multiple distinct sources, even if
    *        all Postgres, or any join/set-op crossing the local/connector
    *        boundary): each source is fetched independently with pushdown, then
-   *        combined in-memory by {@link FederationExecutor} — this avoids
+   *        combined in-memory by (@link FederationExecutor) — this avoids
    *        cross-source table-name collisions and full scans.
    * @param tenantId tenant identifier.
    * @param ast the query AST to classify.
-   * @returns the {@link QueryPlan}: `{ strategy, legs, resolveMap, pushed, warnings }`.
-   * @throws if any referenced source can't be resolved (see {@link resolveLeg}).
+   * @returns the (@link QueryPlan): `(strategy, legs, resolveMap, pushed, warnings)`.
+   * @throws if any referenced source can't be resolved (see (@link resolveLeg)).
    */
   static async classify(tenantId: string, ast: any): Promise<QueryPlan> {
     const refs: { source: string; resource: string }[] = [];

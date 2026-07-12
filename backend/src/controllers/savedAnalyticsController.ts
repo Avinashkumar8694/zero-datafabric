@@ -1,7 +1,7 @@
 /**
  * @module controllers/savedAnalyticsController
  * @description Saved-analytics control plane: define reusable, parameterized analytics
- * (AST or SQL, with `{{variable}}` bindings) and run/trigger them on demand. Every run
+ * (AST or SQL, with `({variable})` bindings) and run/trigger them on demand. Every run
  * is captured to the query log via `QueryLogService.capture` under mode `SAVED_ANALYTIC`.
  */
 
@@ -16,7 +16,7 @@ import { QueryLogService } from '../modules/query-engine/query-log.service';
  * @param req - Express request. Reads `(req as any).user` (tenant_id, internal_role,
  *   role, username) and headers `x-act-as-role` (ADMIN-only role override) and
  *   `x-region` (falls back to `DEFAULT_REGION` env var, then `'AP'`).
- * @returns Session object `{ tenantId, role, region, username }` passed through to
+ * @returns Session object `(tenantId, role, region, username)` passed through to
  *   `SavedAnalyticsService.run` and the query log.
  */
 function sessionOf(req: Request) {
@@ -36,7 +36,7 @@ function sessionOf(req: Request) {
  * @param req - Express request. Reads tenant from `(req as any).user?.tenant_id`.
  * @param res - Express response.
  * @returns 200 with the array of saved-analytic definitions from `SavedAnalyticsService.list`.
- * @throws Responds 500 `{ error }` if the lookup fails.
+ * @throws Responds 500 `(error)` if the lookup fails.
  */
 export const listAnalytics = async (req: Request, res: Response) => {
   try { res.json(await SavedAnalyticsService.list((req as any).user?.tenant_id)); }
@@ -51,7 +51,7 @@ export const listAnalytics = async (req: Request, res: Response) => {
  *   Query param `limit` (number, defaults to 8) caps the result count.
  * @param res - Express response.
  * @returns 200 with the array of top saved analytics from `SavedAnalyticsService.top`.
- * @throws Responds 500 `{ error }` if the lookup fails.
+ * @throws Responds 500 `(error)` if the lookup fails.
  */
 export const topAnalytics = async (req: Request, res: Response) => {
   try { res.json(await SavedAnalyticsService.top((req as any).user?.tenant_id, Number(req.query.limit) || 8)); }
@@ -65,8 +65,8 @@ export const topAnalytics = async (req: Request, res: Response) => {
  *   `req.params.id` is the analytic id.
  * @param res - Express response.
  * @returns 200 with the analytic definition from `SavedAnalyticsService.get`.
- * @throws Responds 404 `{ error: 'analytic not found' }` when no matching analytic
- *   exists for the tenant; 500 `{ error }` on unexpected failures.
+ * @throws Responds 404 `(error: 'analytic not found')` when no matching analytic
+ *   exists for the tenant; 500 `(error)` on unexpected failures.
  */
 export const getAnalytic = async (req: Request, res: Response) => {
   try {
@@ -78,15 +78,15 @@ export const getAnalytic = async (req: Request, res: Response) => {
 
 /**
  * Create a new saved analytic (a named, reusable AST or SQL query template
- * with optional `{{variable}}` placeholders) for the caller's tenant.
+ * with optional `({variable})` placeholders) for the caller's tenant.
  *
  * @param req - Express request. Reads tenant and username from `(req as any).user`
  *   (username defaults to `'system'`). Body is a `SavedAnalytic`: `name` (string,
  *   required) plus the query definition (AST or SQL) and variable bindings.
  * @param res - Express response.
  * @returns 201 with the created analytic record from `SavedAnalyticsService.create`.
- * @throws Responds 400 `{ error }` when `name` is missing or the service otherwise
- *   throws a "required"-style validation error; 500 `{ error }` on unexpected failures.
+ * @throws Responds 400 `(error)` when `name` is missing or the service otherwise
+ *   throws a "required"-style validation error; 500 `(error)` on unexpected failures.
  */
 export const createAnalytic = async (req: Request, res: Response) => {
   try {
@@ -106,9 +106,9 @@ export const createAnalytic = async (req: Request, res: Response) => {
  * @param req - Express request. Reads tenant from `(req as any).user?.tenant_id`.
  *   `req.params.id` is the analytic id to delete.
  * @param res - Express response.
- * @returns 200 `{ status: 'DELETED', id }` when the analytic existed and was removed.
- * @throws Responds 404 `{ error: 'analytic not found' }` when no matching analytic
- *   exists for the tenant; 500 `{ error }` on unexpected failures.
+ * @returns 200 `(status: 'DELETED', id)` when the analytic existed and was removed.
+ * @throws Responds 404 `(error: 'analytic not found')` when no matching analytic
+ *   exists for the tenant; 500 `(error)` on unexpected failures.
  */
 export const deleteAnalytic = async (req: Request, res: Response) => {
   try {
@@ -119,18 +119,18 @@ export const deleteAnalytic = async (req: Request, res: Response) => {
 };
 
 /**
- * Run a saved analytic, substituting `{{variable}}` placeholders with the
+ * Run a saved analytic, substituting `({variable})` placeholders with the
  * supplied values, and capture the execution to the query log under mode
  * `SAVED_ANALYTIC`. Honors ADMIN "view as" via `x-act-as-role` when building
- * the execution session (see {@link sessionOf}).
+ * the execution session (see (@link sessionOf)).
  *
  * @param req - Express request. `req.params.id` is the analytic id to run.
- *   Body: `{ variables: {...} }`, or the variables object directly as the body.
+ *   Body: `(variables: (...))`, or the variables object directly as the body.
  *   Headers: `x-act-as-role` (ADMIN-only role override), `x-region` (execution region).
  * @param res - Express response.
  * @returns 200 with the query result/plan envelope produced by `SavedAnalyticsService.run`.
- * @throws Responds 404 `{ error }` when the analytic id is not found; 400 `{ error }`
- *   when a required `{{variable}}` binding is missing from the request; 500 `{ error }`
+ * @throws Responds 404 `(error)` when the analytic id is not found; 400 `(error)`
+ *   when a required `({variable})` binding is missing from the request; 500 `(error)`
  *   on unexpected failures.
  */
 export const runAnalytic = async (req: Request, res: Response) => {

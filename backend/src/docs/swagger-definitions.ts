@@ -260,7 +260,7 @@
  *     description: >
  *       Updates the mutable fields of a tenant. Setting `status` to `SUSPENDED`
  *       causes all subsequent query/data requests for that tenant to be rejected
- *       (403) until it is reactivated. PUT and PATCH are equivalent here.
+ *       {403} until it is reactivated. PUT and PATCH are equivalent here.
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path
@@ -422,8 +422,8 @@
  *     summary: Change a data source's connection status (Admin only)
  *     tags: [Integration]
  *     description: >
- *       Connect or disconnect a registered source without deleting it (e.g. set to
- *       DISCONNECTED to take it offline). Invalidates the tenant metadata cache.
+ *       Connect or disconnect a registered source without deleting it {e.g. set to
+ *       DISCONNECTED to take it offline}. Invalidates the tenant metadata cache.
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       required: true
@@ -539,10 +539,10 @@
  *     tags: [Analytics]
  *     description: >
  *       Runs an engine-agnostic query described by an AST. The planner decides how
- *       to execute it: a single source is pushed down (filter / projection / sort /
- *       limit / GROUP-BY aggregate); a query spanning multiple sources is federated
- *       (per-source pushdown + bind-join for joins, partial-aggregate merge for
- *       aggregates, in-fabric merge for UNION/INTERSECT/EXCEPT). The response
+ *       to execute it: a single source is pushed down {filter / projection / sort /
+ *       limit / GROUP-BY aggregate}; a query spanning multiple sources is federated
+ *       {per-source pushdown + bind-join for joins, partial-aggregate merge for
+ *       aggregates, in-fabric merge for UNION/INTERSECT/EXCEPT}. The response
  *       includes `plan.legs` showing exactly which engine ran what and how many rows
  *       it returned. A SELECT must carry a `where`, a `limit`, or be a set-op.
  *     security: [{ bearerAuth: [] }]
@@ -890,7 +890,7 @@
  *         last_run_at: { type: string, format: date-time, readOnly: true }
  *     PolicyClause:
  *       type: object
- *       description: "A row-filter predicate. `value` is a literal, an array (for IN), or a session reference like { session: 'tenant_id' }."
+ *       description: "A row-filter predicate. `value` is a literal, an array (for IN), or a session reference like ( session: 'tenant_id' )."
  *       properties:
  *         column: { type: string, example: region }
  *         operator: { type: string, enum: [EQ, NEQ, GT, GTE, LT, LTE, IN, LIKE, IS_NULL, IS_NOT_NULL], example: EQ }
@@ -969,7 +969,7 @@
  *           properties:
  *             type: { type: string, enum: [AUDIT, WEBHOOK, EMAIL, TELEGRAM, FUNCTION, EXCEPTION], example: WEBHOOK }
  *             url: { type: string, example: "https://hooks.example.com/orders" }
- *             when: { type: object, description: "Optional guard { left, operator, right } for FUNCTION/EXCEPTION." }
+ *             when: { type: object, description: "Optional guard ( left, operator, right ) for FUNCTION/EXCEPTION." }
  *             message: { type: string }
  *     Trigger:
  *       type: object
@@ -1103,8 +1103,8 @@
  *     summary: Execute a structured AST query (raw engine passthrough)
  *     tags: [Analytics]
  *     description: >
- *       Runs a queryConfig directly through the query engine (accepts the config as
- *       the body, or wrapped in `{ config: ... }`). Same execution semantics as
+ *       Runs a queryConfig directly through the query engine {accepts the config as
+ *       the body, or wrapped in `(config: ...)`}. Same execution semantics as
  *       `/api/analytics/query` but without the log-capture wrapper.
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
@@ -1150,8 +1150,8 @@
  *     summary: Preview the SQL the fabric would generate for an AST (no execution)
  *     tags: [Analytics]
  *     description: >
- *       Powers the "see SQL" mode in the AST builder. Accepts `{ config }` (a
- *       queryConfig) or a bare AST `{ query }` and returns `{ sql }`. Never fails
+ *       Powers the "see SQL" mode in the AST builder. Accepts `(config)` {a
+ *       queryConfig} or a bare AST `(query)` and returns `(sql)`. Never fails
  *       hard — if it cannot transpile, it returns 200 with a commented SQL string
  *       and an `error` field. Recursive queries return a note (they run in-fabric).
  *     security: [{ bearerAuth: [] }]
@@ -1373,7 +1373,7 @@
  *   get:
  *     summary: Preview sample rows from a catalog resource
  *     tags: [Discovery]
- *     description: Runs a bounded SELECT * (default 50 rows) via the query engine and returns a flat row array.
+ *     description: Runs a bounded SELECT * {default 50 rows} via the query engine and returns a flat row array.
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: query
@@ -1424,7 +1424,7 @@
  *   post:
  *     summary: Roll the catalog back to a prior orchestration version
  *     tags: [Metadata]
- *     description: 'Re-applies the manifest captured at version {id}. Destructive relative to the current state.'
+ *     description: 'Re-applies the manifest captured at version (id). Destructive relative to the current state.'
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path
@@ -1681,7 +1681,7 @@
  *     tags: [Saved Analytics]
  *     description: >
  *       Executes the analytic, binding the supplied variable values into its query.
- *       Body may be `{ variables: {...} }` or a bare `{...}` of name→value. The run
+ *       Body may be `{variables: {...}}` or a bare `(...)` of name→value. The run
  *       is captured in the query log; the response is the standard query envelope.
  *     security: [{ bearerAuth: [] }]
  *     parameters:

@@ -4,9 +4,9 @@ import { pool } from '../../config/database';
  * SyncService — data-source synchronization strategy dispatcher.
  *
  * Two strategies are supported for bringing a remote source's data into the
- * fabric: {@link SyncType.VIRTUAL} (zero-copy, delegated to the FDW-based
+ * fabric: (@link SyncType.VIRTUAL) (zero-copy, delegated to the FDW-based
  * virtualization already handled by IntegrationService) and
- * {@link SyncType.CDC} (physical replication, where rows are captured into a
+ * (@link SyncType.CDC) (physical replication, where rows are captured into a
  * local "shadow" table for durable, tenant-local storage).
  */
 
@@ -23,7 +23,7 @@ export class SyncService {
    * Orchestrate the synchronization strategy for a data source: VIRTUAL is a
    * no-op here (zero-copy FDW access is already wired up by
    * IntegrationService); CDC provisions the local physical shadow table via
-   * {@link SyncService.setupPhysicalSync}.
+   * (@link SyncService.setupPhysicalSync).
    * @param tenantId - Owning tenant.
    * @param sourceName - Name of the data source being synced.
    * @param type - The sync strategy to apply.

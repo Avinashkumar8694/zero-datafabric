@@ -15,7 +15,7 @@ import { TriggerService } from '../modules/triggers/trigger.service';
  * @param req - Express request. Reads tenant from `(req as any).user.tenant_id`.
  * @param res - Express response.
  * @returns 200 with the array of trigger records from `TriggerService.listTriggers`.
- * @throws Responds 500 `{ error }` if the lookup fails.
+ * @throws Responds 500 `(error)` if the lookup fails.
  */
 export const listTriggers = async (req: Request, res: Response) => {
   try {
@@ -30,16 +30,16 @@ export const listTriggers = async (req: Request, res: Response) => {
 /**
  * Create a new trigger definition (event + schema/table match, plus a compiled
  * action) for the caller's tenant. The trigger is created but not necessarily
- * active until deployed — see {@link deployTrigger}.
+ * active until deployed — see (@link deployTrigger).
  *
  * @param req - Express request. Reads tenant/username from `(req as any).user`.
- *   Body is the trigger definition, e.g. `{ triggerName, event, schemaName,
- *   tableName, execute: { type, ... } }` — validated by `TriggerService.createTrigger`
+ *   Body is the trigger definition, e.g. `(triggerName, event, schemaName,
+ *   tableName, execute: ( type, ... ))` — validated by `TriggerService.createTrigger`
  *   (requires `triggerName`+`definition`, `definition.execute.type`, and for
  *   row-based triggers `definition.event` plus `schemaName`/`tableName`).
  * @param res - Express response.
  * @returns 201 with the created trigger record from `TriggerService.createTrigger`.
- * @throws Responds 400 `{ error }` for any validation/service error (e.g. missing
+ * @throws Responds 400 `(error)` for any validation/service error (e.g. missing
  *   required fields).
  */
 export const createTrigger = async (req: Request, res: Response) => {
@@ -57,11 +57,11 @@ export const createTrigger = async (req: Request, res: Response) => {
  *
  * @param req - Express request. Reads tenant/username from `(req as any).user`.
  *   `req.params.id` is the trigger id to update (required). Body is the partial/full
- *   trigger definition to apply — see {@link createTrigger} for shape.
+ *   trigger definition to apply — see (@link createTrigger) for shape.
  * @param res - Express response.
  * @returns 200 with the updated trigger record from `TriggerService.updateTrigger`.
- * @throws Responds 400 `{ error: 'id is required' }` when `req.params.id` is missing;
- *   400 `{ error }` for validation errors or when the trigger id does not exist
+ * @throws Responds 400 `(error: 'id is required')` when `req.params.id` is missing;
+ *   400 `(error)` for validation errors or when the trigger id does not exist
  *   (service throws `'Trigger not found'`).
  */
 export const updateTrigger = async (req: Request, res: Response) => {
@@ -82,9 +82,9 @@ export const updateTrigger = async (req: Request, res: Response) => {
  * @param req - Express request. Reads tenant/username from `(req as any).user`.
  *   `req.params.id` is the trigger id to delete (required).
  * @param res - Express response.
- * @returns 200 `{ status: 'SUCCESS' }` when the trigger was deleted.
- * @throws Responds 400 `{ error: 'id is required' }` when `req.params.id` is missing;
- *   400 `{ error }` when the trigger id does not exist (service throws `'Trigger not found'`).
+ * @returns 200 `(status: 'SUCCESS')` when the trigger was deleted.
+ * @throws Responds 400 `(error: 'id is required')` when `req.params.id` is missing;
+ *   400 `(error)` when the trigger id does not exist (service throws `'Trigger not found'`).
  */
 export const deleteTrigger = async (req: Request, res: Response) => {
   try {
@@ -105,8 +105,8 @@ export const deleteTrigger = async (req: Request, res: Response) => {
  *   `req.params.id` is the trigger id to deploy (required).
  * @param res - Express response.
  * @returns 200 with the deployment result from `TriggerService.deployTrigger`.
- * @throws Responds 400 `{ error: 'id is required' }` when `req.params.id` is missing;
- *   400 `{ error }` when the trigger id does not exist or fails to deploy/compile.
+ * @throws Responds 400 `(error: 'id is required')` when `req.params.id` is missing;
+ *   400 `(error)` when the trigger id does not exist or fails to deploy/compile.
  */
 export const deployTrigger = async (req: Request, res: Response) => {
   try {
@@ -129,7 +129,7 @@ export const deployTrigger = async (req: Request, res: Response) => {
  *   to 50), `offset` (number, defaults to 0).
  * @param res - Express response.
  * @returns 200 with the array of log entries from `TriggerService.listLogs`.
- * @throws Responds 500 `{ error }` if the lookup fails.
+ * @throws Responds 500 `(error)` if the lookup fails.
  */
 export const listTriggerLogs = async (req: Request, res: Response) => {
   try {
@@ -150,7 +150,7 @@ export const listTriggerLogs = async (req: Request, res: Response) => {
  * @param req - Express request. Reads tenant from `(req as any).user.tenant_id`.
  * @param res - Express response.
  * @returns 200 with the array of job records from `TriggerService.listJobs`.
- * @throws Responds 500 `{ error }` if the lookup fails.
+ * @throws Responds 500 `(error)` if the lookup fails.
  */
 export const listTriggerJobs = async (req: Request, res: Response) => {
   try {
@@ -169,8 +169,8 @@ export const listTriggerJobs = async (req: Request, res: Response) => {
  *   `req.params.id` is the job id to retry (required).
  * @param res - Express response.
  * @returns 200 with the retry result from `TriggerService.retryJob`.
- * @throws Responds 400 `{ error: 'id is required' }` when `req.params.id` is missing;
- *   400 `{ error }` when the job id does not exist or is not retryable.
+ * @throws Responds 400 `(error: 'id is required')` when `req.params.id` is missing;
+ *   400 `(error)` when the job id does not exist or is not retryable.
  */
 export const retryTriggerJob = async (req: Request, res: Response) => {
   try {

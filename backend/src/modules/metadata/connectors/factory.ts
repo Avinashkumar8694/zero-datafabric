@@ -102,7 +102,7 @@ export class PostgresConnector implements IConnector {
 
     /**
      * Lists user schemas, excluding `information_schema`/`pg_catalog` and any `pg_%` system schema.
-     * @returns Rows of `{ name, physicalName }` (identical, since Postgres schema names are already physical).
+     * @returns Rows of `(name, physicalName)` (identical, since Postgres schema names are already physical).
      */
     async discoverSchemas(): Promise<any[]> {
         const { rows } = await this.pool.query(`
@@ -122,7 +122,7 @@ export class PostgresConnector implements IConnector {
      * `pg_class`), plus functions/procedures (via `pg_proc`, ignored if
      * `prokind` isn't supported pre-PG11) and enum types (via `pg_type`).
      * @param schema Physical schema name to scan.
-     * @returns Combined rows of `{ name, physicalName, rowCount, resourceType }` across all object kinds.
+     * @returns Combined rows of `(name, physicalName, rowCount, resourceType)` across all object kinds.
      */
     async discoverTables(schema: string): Promise<any[]> {
         // Relations: tables, partitioned tables, views, materialized views,
@@ -159,7 +159,7 @@ export class PostgresConnector implements IConnector {
     /**
      * Foreign-key relationships within a schema (for ER diagrams).
      * @param schema Physical schema name to scan.
-     * @returns Rows of `{ name, sourceTable, sourceColumn, targetTable, targetColumn }`, one per FK constraint column.
+     * @returns Rows of `(name, sourceTable, sourceColumn, targetTable, targetColumn)`, one per FK constraint column.
      */
     async discoverRelationships(schema: string): Promise<any[]> {
         const { rows } = await this.pool.query(`
@@ -182,7 +182,7 @@ export class PostgresConnector implements IConnector {
      * the latter omits materialized views.
      * @param schema Physical schema name.
      * @param table Physical relation name.
-     * @returns Rows of `{ name, type, nullable, default, primaryKey }`, ordered by column position.
+     * @returns Rows of `(name, type, nullable, default, primaryKey)`, ordered by column position.
      */
     async discoverColumns(schema: string, table: string): Promise<any[]> {
         // pg_attribute covers tables, views, materialized views and foreign tables
@@ -316,7 +316,7 @@ export class MySQLConnector implements IConnector {
 
     /**
      * Lists databases as MySQL's logical schemas.
-     * @returns Rows of `{ name, physicalName }` (both equal to the database name).
+     * @returns Rows of `(name, physicalName)` (both equal to the database name).
      */
     async discoverSchemas(): Promise<any[]> {
         const conn = await this.connect();
@@ -329,7 +329,7 @@ export class MySQLConnector implements IConnector {
      * two) plus stored functions/procedures (via `information_schema.ROUTINES`,
      * best-effort) in a database.
      * @param schema Database name to scan; sanitized to a safe identifier charset before use in `USE`.
-     * @returns Combined rows of `{ name, physicalName, rowCount: 0, resourceType }`.
+     * @returns Combined rows of `(name, physicalName, rowCount: 0, resourceType)`.
      */
     async discoverTables(schema: string): Promise<any[]> {
         const conn = await this.connect();
@@ -356,7 +356,7 @@ export class MySQLConnector implements IConnector {
      * Column-level metadata for a table via `information_schema.COLUMNS`.
      * @param schema Database (schema) name.
      * @param table Table name.
-     * @returns Rows of `{ name, type, nullable, default, primaryKey }`, ordered by column position.
+     * @returns Rows of `(name, type, nullable, default, primaryKey)`, ordered by column position.
      */
     async discoverColumns(schema: string, table: string): Promise<any[]> {
         const conn = await this.connect();
@@ -421,6 +421,11 @@ export class MongoDBConnector implements IConnector {
         this.client = new MongoClient(url);
     }
 
+    /**
+     * Lists databases as Mongo's logical schemas, excluding the built-in
+     * `admin`/`config`/`local` system databases.
+     * @returns Rows of `(name, physicalName)` (both equal to the database name).
+     */
     async discoverSchemas(): Promise<any[]> {
         await this.client.connect();
         const dbs = await this.client.db().admin().listDatabases();
@@ -430,6 +435,11 @@ export class MongoDBConnector implements IConnector {
             .map((db: any) => ({ name: db.name, physicalName: db.name }));
     }
 
+    /**
+     * Lists collections (and views) in a database.
+     * @param schema Database name.
+     * @returns Rows of `(name, physicalName, rowCount: 0, resourceType)`, where `resourceType` is `'VIEW'` for Mongo views and `'TABLE'` for ordinary collections.
+     */
     async discoverTables(schema: string): Promise<any[]> {
         const db = this.client.db(schema);
         const collections = await db.listCollections().toArray();
@@ -442,6 +452,14 @@ export class MongoDBConnector implements IConnector {
         }));
     }
 
+    /**
+     * Infers a collection's fields by sampling up to 20 documents, since
+     * Mongo collections have no fixed schema. The `_id` field is always
+     * reported as the primary key.
+     * @param schema Database name.
+     * @param table Collection name.
+     * @returns Inferred columns as `(name, type, nullable: true, default: null, primaryKey)`, where `type` is a JS `typeof` result (or `'array'`/`'null'`).
+     */
     async discoverColumns(schema: string, table: string): Promise<any[]> {
         // Mongo is schemaless — infer fields by sampling a few documents.
         await this.client.connect();
@@ -455,6 +473,18 @@ export class MongoDBConnector implements IConnector {
         return Array.from(fields.entries()).map(([name, type]) => ({ name, type, nullable: true, default: null, primaryKey: name === '_id' }));
     }
 
+    /**
+     * Runs a canonical (filter/projection/sort/limit/offset, or grouped
+     * aggregate) query against a collection. Uses a `$group` aggregation
+     * pipeline (compiled by `PushdownCompiler.toMongoAggregate`) whenever
+     * aggregates or GROUP BY columns are requested (GROUP BY with no
+     * aggregates behaves as DISTINCT); otherwise compiles a plain `find`
+     * spec (filter/projection/sort/skip/limit) via `PushdownCompiler.toMongo`.
+     * @param schema Database name to query.
+     * @param table Collection name.
+     * @param config Canonical query config (`select`/`filter`/`orderBy`/`limit`/`offset`/`groupBy`/`aggregates`).
+     * @returns The matching documents (or aggregation result documents).
+     */
     async query(schema: string, table: string, config: any): Promise<any[]> {
         await this.client.connect();
         const db = this.client.db(schema);
@@ -482,17 +512,39 @@ export class MongoDBConnector implements IConnector {
     }
 
     // --- write support (used by the /api/data CRUD endpoints) ---
+    /**
+     * Bulk-inserts documents into a collection.
+     * @param schema Database name.
+     * @param table Collection name.
+     * @param docs Documents to insert.
+     * @returns `(insertedCount)`.
+     */
     async insertDocs(schema: string, table: string, docs: any[]): Promise<any> {
         await this.client.connect();
         const r = await this.client.db(schema).collection(table).insertMany(docs);
         return { insertedCount: r.insertedCount };
     }
+    /**
+     * Applies a `$set` update to every document matching a canonical filter.
+     * @param schema Database name.
+     * @param table Collection name.
+     * @param filter Canonical filter, compiled to a Mongo match via `PushdownCompiler.toMongo`.
+     * @param set Field/value pairs to `$set` on each matched document.
+     * @returns `(matchedCount, modifiedCount)`.
+     */
     async updateDocs(schema: string, table: string, filter: Record<string, any>, set: Record<string, any>): Promise<any> {
         await this.client.connect();
         const match = PushdownCompiler.toMongo({ filter }).filter;
         const r = await this.client.db(schema).collection(table).updateMany(match, { $set: set });
         return { matchedCount: r.matchedCount, modifiedCount: r.modifiedCount };
     }
+    /**
+     * Deletes every document matching a canonical filter.
+     * @param schema Database name.
+     * @param table Collection name.
+     * @param filter Canonical filter, compiled to a Mongo match via `PushdownCompiler.toMongo`.
+     * @returns `(deletedCount)`.
+     */
     async deleteDocs(schema: string, table: string, filter: Record<string, any>): Promise<any> {
         await this.client.connect();
         const match = PushdownCompiler.toMongo({ filter }).filter;
@@ -500,6 +552,7 @@ export class MongoDBConnector implements IConnector {
         return { deletedCount: r.deletedCount };
     }
 
+    /** Closes the underlying MongoDB client. */
     async close() {
         await this.client.close();
     }
@@ -514,13 +567,27 @@ export class MongoDBConnector implements IConnector {
 export class SnowflakeConnector implements IConnector {
     private config: any;
     private conn: any = null;
+    /**
+     * Stores the connection config; the actual Snowflake connection is opened lazily by `connect()`.
+     * @param config Connection config: `account`, `user`/`username`, `pass`/`password`, `warehouse`, `role`, `dbName`/`database`, `schema`.
+     */
     constructor(config: any) { this.config = config; }
 
+    /**
+     * Lazily requires the optional `snowflake-sdk` dependency.
+     * @returns The `snowflake-sdk` module.
+     * @throws {Error} If `snowflake-sdk` isn't installed.
+     */
     private sdk(): any {
         try { return require('snowflake-sdk'); }
         catch { throw new Error("Snowflake support requires the 'snowflake-sdk' package. Run: npm i snowflake-sdk"); }
     }
 
+    /**
+     * Returns the cached Snowflake connection, establishing one on first call.
+     * @returns The connected `snowflake-sdk` connection object.
+     * @throws Propagates any connection error from the driver.
+     */
     private async connect(): Promise<any> {
         if (this.conn) return this.conn;
         const snowflake = this.sdk();
@@ -539,6 +606,13 @@ export class SnowflakeConnector implements IConnector {
         return connection;
     }
 
+    /**
+     * Executes SQL against Snowflake and promisifies the driver's callback-based result.
+     * @param sqlText SQL text to execute, with `?` placeholders for `binds`.
+     * @param binds Positional bind values; defaults to none.
+     * @returns The result rows.
+     * @throws Propagates any error reported by the driver's `execute` callback.
+     */
     private async exec(sqlText: string, binds: any[] = []): Promise<any[]> {
         const conn = await this.connect();
         return new Promise<any[]>((resolve, reject) => {
@@ -546,10 +620,20 @@ export class SnowflakeConnector implements IConnector {
         });
     }
 
+    /**
+     * Lists schemas via `INFORMATION_SCHEMA.SCHEMATA`.
+     * @returns Rows of `(name, physicalName)` (both equal to the schema name).
+     */
     async discoverSchemas(): Promise<any[]> {
         const rows = await this.exec(`SELECT SCHEMA_NAME AS name FROM INFORMATION_SCHEMA.SCHEMATA`);
         return rows.map((r) => ({ name: r.NAME || r.name, physicalName: r.NAME || r.name }));
     }
+    /**
+     * Lists tables/views (via `INFORMATION_SCHEMA.TABLES`) plus sequences and
+     * functions (best-effort, each independently optional) in a schema.
+     * @param schema Schema name to scan.
+     * @returns Combined rows of `(name, physicalName, rowCount: 0, resourceType)`.
+     */
     async discoverTables(schema: string): Promise<any[]> {
         const tables = await this.exec(
             `SELECT TABLE_NAME AS name, TABLE_TYPE AS type FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ?`, [schema]);
@@ -564,12 +648,21 @@ export class SnowflakeConnector implements IConnector {
         return out;
     }
 
+    /**
+     * Runs a canonical (filter/projection/sort/limit/offset, or GROUP BY
+     * aggregate) query against a table, compiled to Snowflake SQL by `PushdownCompiler`.
+     * @param schema Schema name to query.
+     * @param table Table name.
+     * @param config Canonical query config (`select`/`filter`/`orderBy`/`limit`/`offset`/`groupBy`/`aggregates`).
+     * @returns The matching rows.
+     */
     async query(schema: string, table: string, config: any): Promise<any[]> {
         const compiled = PushdownCompiler.toSql({ ...toCanonical(config), schema, table, dialect: 'snowflake' });
         console.log(`[SnowflakeConnector] Pushdown SQL: ${compiled.text}`);
         return await this.exec(compiled.text, compiled.params);
     }
 
+    /** Destroys the underlying Snowflake connection, if one was ever opened. */
     async close(): Promise<void> {
         if (this.conn) await new Promise<void>((resolve) => this.conn.destroy(() => resolve()));
         this.conn = null;
@@ -584,6 +677,10 @@ export class SnowflakeConnector implements IConnector {
 export class ElasticsearchConnector implements IConnector {
     private base: string;
     private auth?: { username: string; password: string };
+    /**
+     * Builds the connector's base URL and optional basic-auth credentials.
+     * @param config Connection config: `uri`/`url`/`connectionString`, or `host`/`port`; optional `user|username`/`pass|password`.
+     */
     constructor(config: any) {
         const host = config.host || 'localhost';
         const port = config.port || 9200;
@@ -593,16 +690,35 @@ export class ElasticsearchConnector implements IConnector {
         if (user) this.auth = { username: String(user), password: String(pass || '') };
     }
 
+    /**
+     * Issues an HTTP request against the Elasticsearch REST API.
+     * @param method HTTP method (e.g. `GET`, `POST`, `PUT`, `DELETE`).
+     * @param path Request path, appended to the connector's base URL.
+     * @param body Optional request body.
+     * @param contentType Request `Content-Type` header; defaults to `application/json` (pass `application/x-ndjson` for `_bulk`).
+     * @returns The parsed response body.
+     * @throws Propagates any HTTP/network error from axios.
+     */
     private async req(method: string, path: string, body?: any, contentType = 'application/json'): Promise<any> {
         const axios = require('axios');
         const res = await axios({ method, url: `${this.base}${path}`, data: body, auth: this.auth, headers: { 'Content-Type': contentType }, timeout: 30000 });
         return res.data;
     }
 
+    /**
+     * Elasticsearch has no schema concept; exposes a single logical namespace
+     * so the rest of the fabric's schema-scoped APIs still work uniformly.
+     * @returns A single-element array: `[( name: 'default', physicalName: 'default' )]`.
+     */
     async discoverSchemas(): Promise<any[]> {
         // ES has no schemas; expose a single logical namespace.
         return [{ name: 'default', physicalName: 'default' }];
     }
+    /**
+     * Lists indices via `_cat/indices`, excluding hidden/system indices (those prefixed with `.`).
+     * @param _schema Unused (ES has no schema concept).
+     * @returns Rows of `(name, physicalName, rowCount, resourceType: 'TABLE')`, one per index.
+     */
     async discoverTables(_schema: string): Promise<any[]> {
         const data = await this.req('GET', `/_cat/indices?format=json`);
         return (data || [])
@@ -610,7 +726,12 @@ export class ElasticsearchConnector implements IConnector {
             .map((i: any) => ({ name: i.index, physicalName: i.index, rowCount: Number(i['docs.count']) || 0, resourceType: 'TABLE' }));
     }
 
-    /** Column metadata from the index mapping (field name + ES type). */
+    /**
+     * Column metadata from the index mapping (field name + ES type).
+     * @param _schema Unused (ES has no schema concept).
+     * @param table Index name whose mapping is inspected.
+     * @returns Rows of `(name, type, nullable: true, default: null, primaryKey: false)`, one per mapped field.
+     */
     async discoverColumns(_schema: string, table: string): Promise<any[]> {
         const data = await this.req('GET', `/${table}/_mapping`);
         // { <index>: { mappings: { properties: { field: { type, ... } } } } }
@@ -622,11 +743,21 @@ export class ElasticsearchConnector implements IConnector {
         }));
     }
 
+    /**
+     * Instance-level convenience wrapper around the static `filterClauses`.
+     * @param filter Canonical filter map (`(column: value | ( $op: value, ... ))`); defaults to no filter.
+     * @returns The compiled ES query-DSL clauses.
+     */
     private buildFilter(filter: Record<string, any> = {}): any[] {
         return ElasticsearchConnector.filterClauses(filter);
     }
 
-    /** Faithful preview of the _search body the connector would send (for the execution trace). */
+    /**
+     * Faithful preview of the _search body the connector would send (for the execution trace).
+     * @param canonical Canonical query config (`filter`/`select`/`limit`/`groupBy`/`aggregates`).
+     * @param index Target index name, used only to render the `POST /{index}/_search` line.
+     * @returns A human-readable string showing the HTTP method/path and (abbreviated, for aggregates) request body.
+     */
     static previewBody(canonical: any, index: string): string {
         const clauses = this.filterClauses(canonical.filter || {});
         const query = clauses.length ? { bool: { filter: clauses } } : { match_all: {} };
@@ -642,6 +773,14 @@ export class ElasticsearchConnector implements IConnector {
         return `POST /${index}/_search ${JSON.stringify(body)}`;
     }
 
+    /**
+     * Compiles a canonical filter map into Elasticsearch query-DSL clauses.
+     * Each column may carry a bare value (compiled to `term` equality) or an
+     * object of `$op` keys (e.g. `($gte: 5, $lte: 10)`) compiled to the
+     * matching `term`/`range`/`terms`/`wildcard`/`match` clause per operator.
+     * @param filter Canonical filter map (`(column: value | ( $eq|$ne|$gt|$gte|$lt|$lte|$in|$like|$ilike|$match|$fuzzy: value ))`); defaults to no filter.
+     * @returns The compiled ES query-DSL clauses (to be combined with `bool.filter`/`bool.must`).
+     */
     static filterClauses(filter: Record<string, any> = {}): any[] {
         const clauses: any[] = [];
         for (const key of Object.keys(filter)) {
@@ -676,7 +815,11 @@ export class ElasticsearchConnector implements IConnector {
         return clauses;
     }
 
-    /** Split canonical filter clauses into scoring (match/fuzzy → `must`) and non-scoring (`filter`). */
+    /**
+     * Split canonical filter clauses into scoring (match/fuzzy → `must`) and non-scoring (`filter`).
+     * @param filter Canonical filter map, as accepted by `filterClauses`; defaults to no filter.
+     * @returns An ES query object: `(match_all: ())` if there are no clauses, otherwise `(bool: ( filter?, must? ))`.
+     */
     static buildQuery(filter: Record<string, any> = {}): any {
         const all = ElasticsearchConnector.filterClauses(filter);
         const must = all.filter((c) => c.match || c.fuzzy);   // full-text / fuzzy → scored
@@ -685,7 +828,11 @@ export class ElasticsearchConnector implements IConnector {
         return { bool: { ...(filt.length ? { filter: filt } : {}), ...(must.length ? { must } : {}) } };
     }
 
-    /** One ES metric sub-agg for an aggregate spec (null for COUNT → use bucket doc_count). */
+    /**
+     * One ES metric sub-agg for an aggregate spec (null for COUNT → use bucket doc_count).
+     * @param a Aggregate spec (`(func, column, alias, percent?)`); `func` is one of SUM/MIN/MAX/AVG/COUNT/COUNT_DISTINCT/PERCENTILE.
+     * @returns The corresponding ES metric aggregation body (`sum`/`min`/`max`/`avg`/`cardinality`/`percentiles`), or `null` for `COUNT` (handled via bucket `doc_count` instead) or an unrecognized function.
+     */
     private static metricAgg(a: any): any | null {
         const field = a.column;
         switch (a.func) {
@@ -700,6 +847,19 @@ export class ElasticsearchConnector implements IConnector {
         }
     }
 
+    /**
+     * Runs a canonical query against an index, either as a grouped aggregate
+     * (`_search` with `size: 0` and `aggs`, flattened back into rows via
+     * `flattenAggs`) when aggregates or GROUP BY columns are requested
+     * (GROUP BY with no aggregates behaves as DISTINCT), or as a plain
+     * document search (`_search` with `query`/`_source`/`sort`/`from`/`size`)
+     * otherwise. Plain searches are capped so `from + size` never exceeds
+     * Elasticsearch's default `max_result_window` (10000).
+     * @param schema Unused (ES has no schema concept); the index name doubles as the table.
+     * @param table Index name to query.
+     * @param config Canonical query config (`select`/`filter`/`orderBy`/`limit`/`offset`/`groupBy`/`aggregates`).
+     * @returns For plain searches: hit documents plus `_id`/`_score`. For aggregates: one flattened row per bucket combination, with metric values under their aliases.
+     */
     async query(schema: string, table: string, config: any): Promise<any[]> {
         const canonical = toCanonical(config);
         const index = table;
@@ -750,6 +910,8 @@ export class ElasticsearchConnector implements IConnector {
      * Native SQL against Elasticsearch's `_sql` endpoint (SQL mode). Lets
      * /api/queries/exec run SELECT/WHERE/GROUP BY/aggregate SQL directly on ES.
      * ES SQL is a read-only subset: no JOINs; full-text via MATCH()/QUERY().
+     * @param sql SQL text understood by ES SQL mode.
+     * @returns Rows re-keyed from ES SQL's columnar `(columns, rows)` shape into plain objects.
      */
     async rawQuery(sql: string): Promise<any[]> {
         console.log(`[ElasticsearchConnector] _sql: ${String(sql).slice(0, 200)}`);
@@ -759,6 +921,15 @@ export class ElasticsearchConnector implements IConnector {
     }
 
     // --- write support (used by the /api/data CRUD endpoints) ---
+    /**
+     * Bulk-inserts documents into an index via `_bulk`, refreshing immediately
+     * so they're searchable right away. Uses each document's `_id` field (if
+     * present) as the ES document id, stripping it from the indexed `_source`.
+     * @param _schema Unused (ES has no schema concept).
+     * @param index Target index.
+     * @param docs Documents to index; a top-level `_id` field, if present, becomes the ES document id.
+     * @returns `(insertedCount)`, counting only bulk items that reported a successful (< 300) status.
+     */
     async insertDocs(_schema: string, index: string, docs: any[]): Promise<any> {
         const lines: string[] = [];
         for (const d of docs) {
@@ -770,18 +941,43 @@ export class ElasticsearchConnector implements IConnector {
         const items = res.items || [];
         return { insertedCount: items.filter((i: any) => i.index && i.index.status < 300).length };
     }
+    /**
+     * Updates every document matching a canonical filter via `_update_by_query`,
+     * using a Painless script that sets each field from `set` (refreshed immediately).
+     * @param _schema Unused (ES has no schema concept).
+     * @param index Target index.
+     * @param filter Canonical filter, compiled to ES query-DSL via `buildQuery`.
+     * @param set Field/value pairs applied to each matched document's `_source`.
+     * @returns `(modifiedCount)`.
+     */
     async updateDocs(_schema: string, index: string, filter: Record<string, any>, set: Record<string, any>): Promise<any> {
         const src = Object.keys(set).map((k) => `ctx._source["${k}"] = params["${k}"]`).join('; ');
         const body = { query: ElasticsearchConnector.buildQuery(filter), script: { source: src, params: set } };
         const res = await this.req('POST', `/${index}/_update_by_query?refresh=true`, body);
         return { modifiedCount: res.updated || 0 };
     }
+    /**
+     * Deletes every document matching a canonical filter via `_delete_by_query` (refreshed immediately).
+     * @param _schema Unused (ES has no schema concept).
+     * @param index Target index.
+     * @param filter Canonical filter, compiled to ES query-DSL via `buildQuery`.
+     * @returns `(deletedCount)`.
+     */
     async deleteDocs(_schema: string, index: string, filter: Record<string, any>): Promise<any> {
         const res = await this.req('POST', `/${index}/_delete_by_query?refresh=true`, { query: ElasticsearchConnector.buildQuery(filter) });
         return { deletedCount: res.deleted || 0 };
     }
 
-    /** Recursively flatten nested (terms | date_histogram) buckets into flat rows. */
+    /**
+     * Recursively flatten nested (terms | date_histogram) buckets into flat rows.
+     * @param node Current aggregation node (the top-level `aggregations` object at `depth: 0`).
+     * @param groupBy The GROUP BY column specs, in nesting order.
+     * @param aggregates The requested aggregate specs, read off each leaf bucket.
+     * @param countAlias Unused parameter kept for signature stability (COUNT is read from `aggregates` directly).
+     * @param depth Current recursion depth into `groupBy` (0 at the top level).
+     * @param carry Group-column values accumulated from enclosing bucket levels.
+     * @returns One flattened row per leaf bucket combination, each with the carried group values plus metric values keyed by alias.
+     */
     private flattenAggs(node: any, groupBy: any[], aggregates: any[], countAlias: string | undefined, depth: number, carry: Record<string, any>): any[] {
         if (depth < groupBy.length) {
             const bucketAgg = node[`g_${depth}`];
@@ -805,10 +1001,24 @@ export class ElasticsearchConnector implements IConnector {
         return [row];
     }
 
+    /** No-op: the connector is stateless HTTP, so there is no connection to release. */
     async close(): Promise<void> { /* stateless HTTP */ }
 }
 
+/**
+ * Single entry point for obtaining an `IConnector` instance for a data
+ * source's registered engine type.
+ * @class
+ * @hideconstructor
+ */
 export class ConnectorFactory {
+    /**
+     * Instantiates the `IConnector` implementation matching an engine type.
+     * @param type Engine type, matched case-insensitively; accepts common aliases (`POSTGRESQL`→Postgres, `MONGO`→MongoDB, `ELASTIC`/`ES`→Elasticsearch).
+     * @param config Engine-specific connection config, passed through to the connector's constructor.
+     * @returns A new connector instance for the requested engine.
+     * @throws {Error} If `type` doesn't match any supported engine.
+     */
     static getConnector(type: string, config: any): IConnector {
         switch (type.toUpperCase()) {
             case 'POSTGRES':

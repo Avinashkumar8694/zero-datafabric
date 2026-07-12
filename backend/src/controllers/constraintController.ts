@@ -13,7 +13,7 @@ import { ConstraintService, ConstraintSpec } from '../modules/query-engine/const
  * @param req - Express request. Reads the tenant from `(req as any).user?.tenant_id`.
  * @param res - Express response.
  * @returns 200 with the array of constraint records from `ConstraintService.list`.
- * @throws Responds 500 `{ error }` if the lookup fails.
+ * @throws Responds 500 `(error)` if the lookup fails.
  */
 export const listConstraints = async (req: Request, res: Response) => {
   try {
@@ -36,8 +36,8 @@ export const listConstraints = async (req: Request, res: Response) => {
  * @param res - Express response.
  * @returns 201 with the upserted constraint record from `ConstraintService.upsert`
  *   (recorded with source `'API'`).
- * @throws Responds 400 `{ error }` when `schema`/`table` are missing, or when both
- *   `columns` and `checks` are empty; 500 `{ error }` on unexpected failures.
+ * @throws Responds 400 `(error)` when `schema`/`table` are missing, or when both
+ *   `columns` and `checks` are empty; 500 `(error)` on unexpected failures.
  */
 export const createConstraint = async (req: Request, res: Response) => {
   try {

@@ -13,7 +13,7 @@ import { GrantService } from '../modules/security/grant.service';
  * @param req - Express request. Reads tenant from `(req as any).user?.tenant_id`.
  * @param res - Express response.
  * @returns 200 with the array of grant records from `GrantService.list`.
- * @throws Responds 500 `{ error }` if the lookup fails.
+ * @throws Responds 500 `(error)` if the lookup fails.
  */
 export const listGrants = async (req: Request, res: Response) => {
   try {
@@ -30,12 +30,12 @@ export const listGrants = async (req: Request, res: Response) => {
  *
  * @param req - Express request. Reads tenant from `(req as any).user?.tenant_id`.
  *   Body fields: `schema` (string, required), `table` (string, required),
- *   `grants` (non-empty array of `{ role, privilege }`-style entries, required).
+ *   `grants` (non-empty array of `(role, privilege)`-style entries, required).
  * @param res - Express response.
  * @returns 201 with the upserted grant record from `GrantService.upsert`
  *   (recorded with source `'API'`).
- * @throws Responds 400 `{ error }` when `schema`/`table` are missing or `grants` is
- *   missing/empty/not an array; 500 `{ error }` on unexpected failures.
+ * @throws Responds 400 `(error)` when `schema`/`table` are missing or `grants` is
+ *   missing/empty/not an array; 500 `(error)` on unexpected failures.
  */
 export const createGrant = async (req: Request, res: Response) => {
   try {

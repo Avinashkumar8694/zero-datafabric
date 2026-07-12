@@ -95,7 +95,7 @@ function splitTopLevel(input: string, delim: RegExp): string[] {
  * cross-engine mapping and is rejected rather than silently mistranslated.
  * @param list the raw SELECT list text (between `SELECT [DISTINCT]` and `FROM`).
  * @returns `['*']`, or a mixed array of plain column name strings and
- *   `{ aggregate, column, alias }` aggregate specs.
+ *   `(aggregate, column, alias)` aggregate specs.
  * @throws if an entry isn't a recognized plain column or aggregate expression.
  */
 function parseSelect(list: string): any[] {
@@ -155,7 +155,7 @@ function parseWhere(clause: string): { column: string; operator: string; value: 
  * HAVING is applied by the fabric as a post-aggregation filter (compensation),
  * so it works uniformly across engines.
  * @param clause the raw HAVING clause text.
- * @param selectSpecs the already-parsed SELECT list (see {@link parseSelect}), used to resolve aggregate-expression LHS to their alias.
+ * @param selectSpecs the already-parsed SELECT list (see (@link parseSelect)), used to resolve aggregate-expression LHS to their alias.
  * @returns one predicate per AND-combined condition, keyed by the resolved result-column alias.
  * @throws if a condition doesn't match a supported shape, or references an aggregate not present in the SELECT list.
  */
@@ -187,7 +187,7 @@ function parseHaving(clause: string, selectSpecs: any[]): { column: string; oper
  * to a GROUP BY on those columns (DISTINCT with aggregates, or `DISTINCT *`,
  * is rejected).
  * @param sqlRaw the raw SQL string (whitespace-normalized and trailing `;` stripped internally).
- * @returns the parsed {@link TranslatedQuery} AST fragment (`from`/`select`/`where`/`groupBy`/`having`/`orderBy`/`limit`/`offset`).
+ * @returns the parsed (@link TranslatedQuery) AST fragment (`from`/`select`/`where`/`groupBy`/`having`/`orderBy`/`limit`/`offset`).
  * @throws on unsupported constructs (JOIN / UNION / subquery / CTE) or a
  *   statement shape that doesn't match `SELECT [DISTINCT] ... FROM t [WHERE][GROUP BY][HAVING][ORDER BY][LIMIT][OFFSET]`.
  */

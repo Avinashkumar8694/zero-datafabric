@@ -17,7 +17,7 @@ let enabled = false;
  * Safe to call once at app startup. If `CACHE_DISABLED=true`, or if the
  * connection attempt fails/errors, caching is simply left/marked disabled —
  * this function never throws, so a missing Redis instance cannot crash startup.
- * @returns Nothing; connection success/failure is reflected asynchronously via {@link cacheEnabled}.
+ * @returns Nothing; connection success/failure is reflected asynchronously via (@link cacheEnabled).
  */
 export function initCache(): void {
   if (process.env.CACHE_DISABLED === 'true') {

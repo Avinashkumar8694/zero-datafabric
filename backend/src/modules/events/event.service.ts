@@ -15,7 +15,7 @@ export class EventService {
    * the NEW/OLD record and NOTIFYs the `fabric_events` channel).
    * @param schemaName - Schema containing the target table.
    * @param tableName - Table to attach the trigger to (also used to derive the trigger name `trg_notify_<tableName>`).
-   * @returns `{ status: 'TRIGGER_ATTACHED', table }`.
+   * @returns `(status: 'TRIGGER_ATTACHED', table)`.
    */
   static async attachEventTrigger(schemaName: string, tableName: string) {
     const client = await pool.connect();

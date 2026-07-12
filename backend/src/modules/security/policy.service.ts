@@ -16,8 +16,8 @@ import { pool } from '../../config/database';
  *
  * Policies are stored engine-agnostically in fabric_system.access_policies so the
  * SAME definition drives every engine. A policy predicate clause is
- * `{ column, operator, value }`, where `value` is a literal or a session
- * reference `{ session: 'tenant_id' | 'region' | 'role' | 'username' }` resolved
+ * `(column, operator, value)`, where `value` is a literal or a session
+ * reference `(session: 'tenant_id' | 'region' | 'role' | 'username')` resolved
  * per request — the analogue of a Postgres policy's `current_setting('app.*')`.
  */
 
@@ -159,8 +159,8 @@ export class PolicyService {
   }
 
   /**
-   * Resolve a session reference (`{ session: 'tenant_id' | 'region' | 'role' |
-   * 'username' }`) to its concrete value from `session`, or pass a literal
+   * Resolve a session reference (`(session: 'tenant_id' | 'region' | 'role' |
+   * 'username')`) to its concrete value from `session`, or pass a literal
    * value through unchanged.
    * @param value - A policy clause's literal value, or a session reference object.
    * @param session - The request's session context.

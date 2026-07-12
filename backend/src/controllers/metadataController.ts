@@ -4,7 +4,7 @@
  * (sources → schemas → tables/resources → columns/relationships), preview data,
  * crawl a tenant's connected sources, and manage the manifest-driven
  * provisioning lifecycle (diff/apply/history/rollback/migrate) via
- * `MetadataOrchestrator`. Catalog reads are cached in Redis (see {@link META_TTL})
+ * `MetadataOrchestrator`. Catalog reads are cached in Redis (see (@link META_TTL))
  * because they only change on an explicit sync (crawl/apply/register/remove) —
  * every such path calls `invalidateTenant` to bust the cache, so correctness
  * comes from invalidation rather than a short TTL.
@@ -30,9 +30,9 @@ const META_TTL = 3600; // 1h; correctness comes from invalidation, not expiry
  * expects, folding `length` into a SQL-style type string (e.g. `VARCHAR(255)`)
  * and deriving `nullable` from `nullable !== false && !primaryKey`.
  *
- * @param c - Raw AST column definition (`{ name, type, length?, nullable?,
- *   default?, primaryKey?, strategy? }`).
- * @returns Normalized column `{ name, type, nullable, default, primaryKey, strategy }`.
+ * @param c - Raw AST column definition (`(name, type, length?, nullable?,
+ *   default?, primaryKey?, strategy?)`).
+ * @returns Normalized column `(name, type, nullable, default, primaryKey, strategy)`.
  */
 function normalizeAstColumn(c: any) {
     return {
@@ -47,7 +47,7 @@ function normalizeAstColumn(c: any) {
 
 /**
  * Export the current catalog (all sources, or one named source) as a
- * datafabric manifest — the reverse operation of {@link applyMetadata}, useful
+ * datafabric manifest — the reverse operation of (@link applyMetadata), useful
  * for round-tripping the live catalog back into a manifest file.
  *
  * @param req - Express request. Requires `(req as any).user` (tenant_id).
@@ -55,7 +55,7 @@ function normalizeAstColumn(c: any) {
  * @param res - Express response. Sets `Content-Disposition: attachment` with a
  *   generated filename `fabric-manifest-<source|all>-<tenantId>.json` to hint a download.
  * @returns 200 with the manifest JSON from `MetadataService.exportManifest`.
- * @throws Responds 500 `{ error }` on failure.
+ * @throws Responds 500 `(error)` on failure.
  */
 export const exportMetadata = async (req: Request, res: Response) => {
     try {
@@ -82,10 +82,10 @@ export const exportMetadata = async (req: Request, res: Response) => {
  *   `source` + `resource` (strings) as a convenience pair that gets resolved to
  *   a `tableId` via a join across `data_sources`/`catalog_schemas`/`catalog_tables`.
  * @param res - Express response.
- * @returns 200 with `{ source: 'manifest' | 'live', columns: [...], constraints: [...] }`.
- * @throws Responds 400 `{ error: 'tableId (or source+resource) is required' }` when
- *   neither is resolvable; 404 `{ error: 'Resource not found' }` when the table id
- *   doesn't exist; 500 `{ error }` on failure (e.g. connector discovery error).
+ * @returns 200 with `(source: 'manifest' | 'live', columns: [...], constraints: [...])`.
+ * @throws Responds 400 `(error: 'tableId (or source+resource) is required')` when
+ *   neither is resolvable; 404 `(error: 'Resource not found')` when the table id
+ *   doesn't exist; 500 `(error)` on failure (e.g. connector discovery error).
  */
 export const getColumns = async (req: Request, res: Response) => {
     try {
@@ -159,9 +159,9 @@ export const getColumns = async (req: Request, res: Response) => {
  *   Query param `schema` (string, optional) filters to relationships whose
  *   source or target schema matches; omitted returns all relationships for the tenant.
  * @param res - Express response.
- * @returns 200 with rows `{ name, sourceSchema, sourceTable, sourceColumn,
- *   targetSchema, targetTable, targetColumn, cardinality }` from `fabric_catalog.relationships`.
- * @throws Responds 500 `{ error }` on failure.
+ * @returns 200 with rows `(name, sourceSchema, sourceTable, sourceColumn,
+ *   targetSchema, targetTable, targetColumn, cardinality)` from `fabric_catalog.relationships`.
+ * @throws Responds 500 `(error)` on failure.
  */
 export const getRelationships = async (req: Request, res: Response) => {
     try {
@@ -190,10 +190,10 @@ export const getRelationships = async (req: Request, res: Response) => {
  * @param req - Express request. Requires `(req as any).user` (tenant_id).
  *   `req.params.name` is the table name to look up.
  * @param res - Express response.
- * @returns 200 `{ table, columns }` where `columns` is the array of matching
- *   `{ schema_name, column_name, data_type, description }` rows (may be empty
+ * @returns 200 `(table, columns)` where `columns` is the array of matching
+ *   `(schema_name, column_name, data_type, description)` rows (may be empty
  *   if no match; this endpoint does not 404).
- * @throws Responds 500 `{ error }` on a database failure.
+ * @throws Responds 500 `(error)` on a database failure.
  */
 export const getTableDetails = async (req: Request, res: Response) => {
     try {
@@ -220,8 +220,8 @@ export const getTableDetails = async (req: Request, res: Response) => {
  *   crawl); for any other caller, it's forced to their own `tenant_id`.
  * @param res - Express response.
  * @returns 200 with the crawl result summary from `MetadataService.crawlTenant`.
- * @throws Responds 400 `{ error: 'tenantId is required' }` when an ADMIN caller
- *   omits `tenantId`; 500 `{ error }` on a crawl failure.
+ * @throws Responds 400 `(error: 'tenantId is required')` when an ADMIN caller
+ *   omits `tenantId`; 500 `(error)` on a crawl failure.
  */
 export const crawlTenant = async (req: Request, res: Response) => {
     try {
@@ -243,7 +243,7 @@ export const crawlTenant = async (req: Request, res: Response) => {
  * @param req - Express request. Requires `(req as any).user` (tenant_id, username).
  * @param res - Express response.
  * @returns 200 with rows from `public.data_sources`.
- * @throws Responds 500 `{ error }` on failure.
+ * @throws Responds 500 `(error)` on failure.
  */
 export const getSources = async (req: Request, res: Response) => {
     try {
@@ -263,9 +263,9 @@ export const getSources = async (req: Request, res: Response) => {
  * @param req - Express request. Requires `(req as any).user` (tenant_id, username).
  *   Query param `sourceId` (string, required) is the owning source's id.
  * @param res - Express response.
- * @returns 200 with rows `{ schemaId, name, physicalName }` from `public.catalog_schemas`.
- * @throws Responds 400 `{ error: 'sourceId is required' }` when missing;
- *   500 `{ error }` on failure.
+ * @returns 200 with rows `(schemaId, name, physicalName)` from `public.catalog_schemas`.
+ * @throws Responds 400 `(error: 'sourceId is required')` when missing;
+ *   500 `(error)` on failure.
  */
 export const getSchemas = async (req: Request, res: Response) => {
     try {
@@ -287,10 +287,10 @@ export const getSchemas = async (req: Request, res: Response) => {
  * @param req - Express request. Requires `(req as any).user` (tenant_id, username).
  *   Query param `schemaId` (string, required) is the owning schema's id.
  * @param res - Express response.
- * @returns 200 with rows `{ tableId, name, physicalName, rowCount, resourceType }`
+ * @returns 200 with rows `(tableId, name, physicalName, rowCount, resourceType)`
  *   from `public.catalog_tables`.
- * @throws Responds 400 `{ error: 'schemaId is required' }` when missing;
- *   500 `{ error }` on failure.
+ * @throws Responds 400 `(error: 'schemaId is required')` when missing;
+ *   500 `(error)` on failure.
  */
 export const getTables = async (req: Request, res: Response) => {
     try {
@@ -313,10 +313,10 @@ export const getTables = async (req: Request, res: Response) => {
  *   Query params: `tableId` (string, required), `limit` (number, defaults to 50).
  * @param res - Express response.
  * @returns 200 with a plain array of preview rows, normalized regardless of
- *   whether the underlying connector returns a bare array, `{ data: [...] }`,
- *   or `{ results: [...] }`.
- * @throws Responds 400 `{ error: 'tableId is required' }` when missing;
- *   500 `{ error }` on failure (e.g. unknown tableId or source error).
+ *   whether the underlying connector returns a bare array, `(data: [...])`,
+ *   or `(results: [...])`.
+ * @throws Responds 400 `(error: 'tableId is required')` when missing;
+ *   500 `(error)` on failure (e.g. unknown tableId or source error).
  */
 export const getPreviewData = async (req: Request, res: Response) => {
     try {
@@ -399,8 +399,8 @@ export const getTemplate = (req: Request, res: Response) => {
  *   (string or object, stringified before parsing).
  * @param res - Express response.
  * @returns 200 with the drift plan from `MetadataOrchestrator.plan` (e.g.
- *   `{ status: 'PLAN_READY', changes: [...] }`).
- * @throws Responds 500 `{ error }` when the manifest fails to parse or the
+ *   `(status: 'PLAN_READY', changes: [...])`).
+ * @throws Responds 500 `(error)` when the manifest fails to parse or the
  *   diff computation fails.
  */
 export const diffMetadata = async (req: Request, res: Response) => {
@@ -433,11 +433,11 @@ export const diffMetadata = async (req: Request, res: Response) => {
  *   that would otherwise block a risky apply.
  * @param res - Express response.
  * @returns 200 with the orchestration result from `MetadataOrchestrator.apply`.
- * @throws Responds 401 `{ error: 'Authentication required' }` when there is no
- *   authenticated user; 400 `{ error: 'Industrial Guardrail Violation', message }`
+ * @throws Responds 401 `(error: 'Authentication required')` when there is no
+ *   authenticated user; 400 `(error: 'Industrial Guardrail Violation', message)`
  *   when the orchestrator rejects the manifest for safety reasons (message
  *   contains `CRITICAL`/`Validation`/`High-Risk`/`Integrity`); 500
- *   `{ error: 'Orchestration Failed', message }` for any other failure.
+ *   `(error: 'Orchestration Failed', message)` for any other failure.
  */
 export const applyMetadata = async (req: Request, res: Response) => {
     try {
@@ -479,7 +479,7 @@ export const applyMetadata = async (req: Request, res: Response) => {
  * @param req - Express request. Requires `(req as any).user` (tenant_id).
  * @param res - Express response.
  * @returns 200 with the history array from `MetadataOrchestrator.getHistory`.
- * @throws Responds 500 `{ error }` on failure.
+ * @throws Responds 500 `(error)` on failure.
  */
 export const getMetadataHistory = async (req: Request, res: Response) => {
     try {
@@ -499,7 +499,7 @@ export const getMetadataHistory = async (req: Request, res: Response) => {
  *   `req.params.id` is the manifest history/version id to roll back to.
  * @param res - Express response.
  * @returns 200 with the rollback result from `MetadataOrchestrator.rollback`.
- * @throws Responds 500 `{ error }` on failure (e.g. unknown version id).
+ * @throws Responds 500 `(error)` on failure (e.g. unknown version id).
  */
 export const rollbackMetadata = async (req: Request, res: Response) => {
     try {
@@ -517,11 +517,11 @@ export const rollbackMetadata = async (req: Request, res: Response) => {
  * tied to a full manifest apply.
  *
  * @param req - Express request. Requires `(req as any).user` (tenant_id).
- *   Body: `{ migrationPlan }` — the list/spec of migration steps to run,
+ *   Body: `(migrationPlan)` — the list/spec of migration steps to run,
  *   passed through to `MetadataService.migrateMetadata`.
  * @param res - Express response.
- * @returns 200 `{ results }` with the per-step migration results.
- * @throws Responds 500 `{ error }` on failure.
+ * @returns 200 `(results)` with the per-step migration results.
+ * @throws Responds 500 `(error)` on failure.
  */
 export const migrateMetadata = async (req: Request, res: Response) => {
     try {
@@ -540,8 +540,8 @@ export const migrateMetadata = async (req: Request, res: Response) => {
  *
  * @param req - Express request. Requires `(req as any).user` (tenant_id).
  * @param res - Express response.
- * @returns 200 with rows `{ id, action, tableName, createdAt, details }` from `public.audit_logs`.
- * @throws Responds 500 `{ error }` on failure.
+ * @returns 200 with rows `(id, action, tableName, createdAt, details)` from `public.audit_logs`.
+ * @throws Responds 500 `(error)` on failure.
  */
 export const getEvents = async (req: Request, res: Response) => {
   try {
@@ -568,11 +568,11 @@ const CANONICAL_DOWNSTREAMS = ['ELASTICSEARCH', 'SNOWFLAKE'];
  *
  * @param req - Express request. Requires `(req as any).user` (tenant_id).
  * @param res - Express response.
- * @returns 200 with an array covering every {@link CANONICAL_DOWNSTREAMS} target
- *   plus any extra registry entries: `{ target_type, status, config, connected,
- *   updated_at }`, where `status` is the registry status if present, else
+ * @returns 200 with an array covering every (@link CANONICAL_DOWNSTREAMS) target
+ *   plus any extra registry entries: `(target_type, status, config, connected,
+ *   updated_at)`, where `status` is the registry status if present, else
  *   `'AVAILABLE'` (connection exists but not registered) or `'NOT_CONFIGURED'`.
- * @throws Responds 500 `{ error }` on failure.
+ * @throws Responds 500 `(error)` on failure.
  */
 export const getDownstreamStatus = async (req: Request, res: Response) => {
     try {
@@ -613,11 +613,11 @@ export const getDownstreamStatus = async (req: Request, res: Response) => {
  * it with `force: true`) when one exists.
  *
  * @param req - Express request. Requires `(req as any).user` (tenant_id).
- *   Body: `{ targetType: string (required), enabled: boolean }`.
+ *   Body: `(targetType: string (required), enabled: boolean)`.
  * @param res - Express response.
- * @returns 200 `{ status: 'SUCCESS', targetType, enabled }`.
- * @throws Responds 400 `{ error: 'targetType is required' }` when missing;
- *   500 `{ error }` on a registry-update failure. Failures while re-applying
+ * @returns 200 `(status: 'SUCCESS', targetType, enabled)`.
+ * @throws Responds 400 `(error: 'targetType is required')` when missing;
+ *   500 `(error)` on a registry-update failure. Failures while re-applying
  *   the manifest mirror are caught and logged, not surfaced to the caller.
  */
 export const toggleDownstream = async (req: Request, res: Response) => {
@@ -657,10 +657,10 @@ export const toggleDownstream = async (req: Request, res: Response) => {
  * @param req - Express request. Requires `(req as any).user` (tenant_id, username).
  *   `req.params.id` is the catalog table id.
  * @param res - Express response.
- * @returns 200 with `{ tableId, name, physicalName, resourceType, definitionSql,
- *   definitionAst, rowCount, sourceType, sourceName }`.
- * @throws Responds 404 `{ error: 'Resource not found' }` when the id doesn't
- *   match any catalog table; 500 `{ error }` on failure.
+ * @returns 200 with `(tableId, name, physicalName, resourceType, definitionSql,
+ *   definitionAst, rowCount, sourceType, sourceName)`.
+ * @throws Responds 404 `(error: 'Resource not found')` when the id doesn't
+ *   match any catalog table; 500 `(error)` on failure.
  */
 export const getResourceDetails = async (req: Request, res: Response) => {
     try {

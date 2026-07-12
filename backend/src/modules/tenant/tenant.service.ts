@@ -78,7 +78,7 @@ export class TenantService {
    * Runs in a single transaction so the schema and registry entry are removed
    * atomically.
    * @param id - The tenant id to delete.
-   * @returns `{ id, status: 'DELETED' }`.
+   * @returns `(id, status: 'DELETED')`.
    * @throws Re-throws any error after rolling back the transaction.
    */
   static async deleteTenant(id: string) {

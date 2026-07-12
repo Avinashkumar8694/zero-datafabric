@@ -7,12 +7,12 @@ import axios from 'axios';
  * IntegrationService — remote data-source registration and lifecycle.
  *
  * Owns the full "connect a source" flow: validating reachability
- * ({@link IntegrationService.testConnection}), persisting the source config,
+ * ((@link IntegrationService.testConnection)), persisting the source config,
  * then orchestrating either zero-copy virtualization (Postgres FDW via
  * `fabric_admin.register_remote_source`) or physical sync (delegating to
- * {@link SyncService}) depending on the declared {@link SyncType}, followed by
+ * (@link SyncService)) depending on the declared (@link SyncType), followed by
  * an initial metadata catalog crawl. Also handles clean decommissioning
- * ({@link IntegrationService.removeSource}). Includes Docker-networking
+ * ((@link IntegrationService.removeSource)). Includes Docker-networking
  * normalization so the same host/port values work whether the caller is
  * validating from the host machine or the containers are talking to each other.
  */
@@ -193,16 +193,16 @@ export class IntegrationService {
    * foreign server via `fabric_admin.register_remote_source` (with Docker
    * host/port normalization and connection-string decomposition to avoid FDW
    * URI issues); for any other sync type it delegates to
-   * {@link SyncService.initializeSync}. Finally triggers a best-effort initial
-   * metadata catalog crawl via {@link MetadataService.crawlSource} (failure to
+   * (@link SyncService.initializeSync). Finally triggers a best-effort initial
+   * metadata catalog crawl via (@link MetadataService.crawlSource) (failure to
    * crawl does not fail the registration — e.g. the source may be offline).
    * @param tenantId - Owning tenant.
    * @param name - Unique (per tenant) name for the source.
    * @param config - The source's connection + sync configuration. Mutated in place to normalize `type`/`syncType`.
    * @param context - Request context; `context.username` is used for audit/session scoping (defaults to `'system'`).
-   * @returns `{ sourceId, status: 'INTEGRATED' | 'RE-INTEGRATED', syncType }`.
+   * @returns `(sourceId, status: 'INTEGRATED' | 'RE-INTEGRATED', syncType)`.
    * @throws {Error} If `config.type`/`config.syncType` is missing, if
-   *   {@link IntegrationService.testConnection} fails, or on any persistence/orchestration error (logged and re-thrown).
+   *   (@link IntegrationService.testConnection) fails, or on any persistence/orchestration error (logged and re-thrown).
    */
   static async registerRemoteSource(tenantId: string, name: string, config: RemoteSourceConfig, context: any) {
     // INDUSTRIAL DEFENSE: Ensure type and syncType are correctly extracted
@@ -341,7 +341,7 @@ export class IntegrationService {
    * transaction.
    * @param sourceId - The `data_sources` row id to remove.
    * @param tenantId - Owning tenant (guards against removing another tenant's source).
-   * @returns `{ status: 'DECOMMISSIONED', source, tracePurged: true }`.
+   * @returns `(status: 'DECOMMISSIONED', source, tracePurged: true)`.
    * @throws {Error} 'Source not found or unauthorized' if no matching row
    *   exists for this tenant; re-throws (after rollback) any other error.
    */

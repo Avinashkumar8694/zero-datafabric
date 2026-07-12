@@ -128,12 +128,16 @@ export class QueryPlanner {
   private static collectRefs(ast: any, acc: { source: string; resource: string }[]) {
     if (!ast || typeof ast !== 'object') return;
 
-    if (ast.from && ast.from.resource) {
-      acc.push({ source: ast.from.source || LOCAL_SOURCE, resource: ast.from.resource });
+    if (ast.from) {
+      // A FROM entry is either a table reference or a derived-table subquery
+      // (`from.query`) — recurse into the subquery to find its real table refs.
+      if (ast.from.query) this.collectRefs(ast.from.query, acc);
+      else if (ast.from.resource) acc.push({ source: ast.from.source || LOCAL_SOURCE, resource: ast.from.resource });
     }
     if (Array.isArray(ast.joins)) {
       for (const j of ast.joins) {
-        if (j && j.resource) acc.push({ source: j.source || LOCAL_SOURCE, resource: j.resource });
+        if (j && j.query) this.collectRefs(j.query, acc);
+        else if (j && j.resource) acc.push({ source: j.source || LOCAL_SOURCE, resource: j.resource });
       }
     }
     for (const key of ['union', 'intersect', 'except'] as const) {
@@ -287,6 +291,10 @@ export class QueryPlanner {
     // A non-recursive WITH whose base tables all live in one connector can be
     // pushed whole; recursive CTEs stay on the in-fabric recursive executor.
     const hasWith = Array.isArray(ast.with) && ast.with.length > 0 && !hasRecursiveCte;
+    // A derived-table subquery in FROM/JOIN (`{ query: {...} }`) is a nested query
+    // pushed whole when co-located.
+    const hasDerivedFrom = !!(ast.from && ast.from.query)
+      || (Array.isArray(ast.joins) && ast.joins.some((j: any) => j && j.query));
 
     const pushed: string[] = [];
     const warnings: string[] = [];
@@ -305,8 +313,20 @@ export class QueryPlanner {
       engineTokens.size === 1 &&
       SQL_RELATIONAL.has(normEngine(firstEngine));
 
+    // Nested forms (CTE / derived-table subquery) execute either as ONE native
+    // statement pushed to a single co-located source, or — when every leg is the
+    // hub / synced — as one local SQL statement. A nested query that spans
+    // MULTIPLE distinct engines can't be pushed and isn't materialized in-fabric
+    // yet: fail with a clear message instead of a confusing "relation not found".
+    if ((hasWith || hasDerivedFrom) && connectorLegs.length > 0 && !coLocatable) {
+      throw new Error(
+        'QueryPlanner: a nested query (CTE / derived-table subquery) that spans multiple engines is not supported yet — ' +
+        'co-locate the referenced tables in one source, or pre-materialize a side via the replication engine.'
+      );
+    }
+
     let strategy: Strategy;
-    if (coLocatable && (hasJoins || hasSetOps || hasWith)) {
+    if (coLocatable && (hasJoins || hasSetOps || hasWith || hasDerivedFrom)) {
       // The whole statement (joins, set-ops, group-by, aggregates, order/limit)
       // compiles to ONE native parameterized query run by the remote engine.
       strategy = 'SINGLE_CONNECTOR';

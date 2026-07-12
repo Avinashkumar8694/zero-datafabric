@@ -186,6 +186,22 @@ describe('PushdownCompiler', () => {
       expect(() => PushdownCompiler.toJoinSql({ ast, dialect: 'postgres', resolve })).toThrow(/recursive CTE/i);
     });
 
+    it('compiles a derived-table subquery in FROM as (subselect) alias', () => {
+      const ast = {
+        from: { query: { from: { resource: 'remote_table', source: 'PG' }, select: ['id', 'value'], where: [{ column: 'id', operator: 'LTE', value: 4 }] }, alias: 'sub' },
+        select: ['id', 'value'],
+        limit: 10,
+      };
+      const { text, params } = PushdownCompiler.toJoinSql({ ast, dialect: 'postgres', resolve });
+      expect(text).toBe('SELECT "id", "value" FROM (SELECT "id", "value" FROM "public"."remote_table" WHERE "id" <= $1) "sub" LIMIT 10');
+      expect(params).toEqual([4]);
+    });
+
+    it('rejects a derived table with no alias', () => {
+      const ast = { from: { query: { from: { resource: 't', source: 'PG' }, select: ['id'] } }, select: ['id'], limit: 5 };
+      expect(() => PushdownCompiler.toJoinSql({ ast, dialect: 'postgres', resolve })).toThrow(/needs an alias/i);
+    });
+
     it('compiles a co-located UNION of two legs', () => {
       const ast = {
         union: [

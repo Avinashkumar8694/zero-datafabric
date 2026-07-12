@@ -246,13 +246,19 @@ export class FederationExecutor {
         else { bail = true; }                                                     // expression / window → unknown cols
       } else bail = true;
     }
+    // SELECT-list aliases (aggregate/computed outputs) are NOT table columns — an
+    // ORDER BY / HAVING that references one must not force a bail to SELECT *.
+    const selectAliases = new Set<string>();
+    for (const c of ast.select || []) if (c && typeof c === 'object' && c.alias) selectAliases.add(c.alias);
+    const addColRef = (col: any) => { if (typeof col === 'string' && !col.includes('.') && selectAliases.has(col)) return; addRef(col); };
+
     // Join keys — always needed to perform the in-fabric join and extract bind keys.
     for (const j of ast.joins || []) { if (j.on) { addRef(j.on.left); addRef(j.on.right); } }
-    // Predicates / ordering / grouping that reference specific columns.
-    for (const w of ast.where || []) { if (w && w.column) addRef(w.column); else if (w && (w.expression || w.search)) { bail = true; } }
-    for (const o of ast.orderBy || []) addRef(o.column);
-    for (const g of ast.groupBy || []) addRef(typeof g === 'string' ? g : g?.field);
-    for (const h of ast.having || []) { if (h && h.column) addRef(h.column); else if (h && (h.expression || h.search)) { bail = true; } }
+    // Predicates / ordering / grouping that reference specific columns (alias refs skipped).
+    for (const w of ast.where || []) { if (w && w.column) addColRef(w.column); else if (w && (w.expression || w.search)) { bail = true; } }
+    for (const o of ast.orderBy || []) addColRef(o.column);
+    for (const g of ast.groupBy || []) addColRef(typeof g === 'string' ? g : g?.field);
+    for (const h of ast.having || []) { if (h && h.column) addColRef(h.column); else if (h && (h.expression || h.search)) { bail = true; } }
 
     if (bail) return null;
     const out: Record<string, string[] | null> = {};
@@ -517,7 +523,19 @@ export class FederationExecutor {
         return 0;
       });
     }
-    if (typeof ast.limit === 'number' && ast.limit >= 0) out = out.slice(0, ast.limit);
+    // OFFSET then LIMIT (window = [offset, offset+limit)). OFFSET applies even
+    // without a LIMIT.
+    const off = typeof ast.offset === 'number' && ast.offset > 0 ? Math.floor(ast.offset) : 0;
+    if (typeof ast.limit === 'number' && ast.limit >= 0) out = out.slice(off, off + ast.limit);
+    else if (off > 0) out = out.slice(off);
+    return out;
+  }
+
+  /** Deduplicate whole rows (SQL DISTINCT) by structural equality of the projected row. */
+  private static distinctRows(rows: any[]): any[] {
+    const seen = new Set<string>();
+    const out: any[] = [];
+    for (const r of rows) { const k = JSON.stringify(r); if (!seen.has(k)) { seen.add(k); out.push(r); } }
     return out;
   }
 
@@ -1015,7 +1033,9 @@ export class FederationExecutor {
         pushed.push(`post-join aggregate: grouped ${joined.length} joined rows by [${outerPlan.groupCols.join(',')}]`);
         data = this.applyOrderLimit(aggregateRaw(joined, outerPlan), ast);
       } else {
-        data = this.applyOrderLimit(this.applyProjection(joined, ast.select), ast);
+        let rows = this.applyProjection(joined, ast.select);
+        if (ast.distinct) rows = this.distinctRows(rows);   // DISTINCT over a cross-engine join
+        data = this.applyOrderLimit(rows, ast);
       }
     } else {
       // Single connector leg. Push the FULL aggregate to the one source when present.
@@ -1031,7 +1051,9 @@ export class FederationExecutor {
         pushed.push(`pushed ${Object.keys(canonical.filter || {}).length} predicate(s) to ${ast.from?.source || LOCAL_SOURCE}.${ast.from?.resource}`);
       }
       data = await this.fetchLegDirect(tenantId, { source: ast.from?.source || LOCAL_SOURCE, resource: ast.from?.resource, canonical }, plan, tenantSchema, warnings, trace, op);
-      data = this.applyOrderLimit(data, ast);
+      // The source already applied ORDER BY / LIMIT / OFFSET (pushed via `canonical`).
+      // Re-sort defensively but DON'T re-slice, or offset/limit would be applied twice.
+      data = this.applyOrderLimit(data, { ...ast, limit: undefined, offset: undefined });
     }
 
     return { data, warnings, pushed, trace };

@@ -331,7 +331,13 @@ export class PushdownCompiler {
     // A physical table reference with its (aliased) name. No `AS` keyword — Oracle
     // rejects `FROM t AS a`; `FROM t a` is valid on every dialect here.
     const tableRef = (ref: any): string => {
-      if (!ref || !ref.resource) throw new Error('co-located pushdown: missing FROM/JOIN resource');
+      if (!ref) throw new Error('co-located pushdown: missing FROM/JOIN reference');
+      // A derived-table subquery: FROM (<subselect>) alias. An alias is required.
+      if (ref.query) {
+        if (!ref.alias) throw new Error('co-located pushdown: a derived-table subquery needs an alias');
+        return `(${compile(ref.query)}) ${this.quoteIdent(ref.alias, dialect)}`;
+      }
+      if (!ref.resource) throw new Error('co-located pushdown: missing FROM/JOIN resource');
       // A reference to a CTE name is a logical (schema-less) name, not a physical table.
       if (cteNames.has(ref.resource)) {
         const base = this.quoteIdent(ref.resource, dialect);

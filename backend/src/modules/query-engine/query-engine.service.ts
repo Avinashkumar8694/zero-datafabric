@@ -413,6 +413,8 @@ export class QueryEngineService {
       config.type === 'SELECT' &&
       (
         (config as any).query?.from?.resource ||
+        (config as any).query?.from?.query ||   // derived-table subquery in FROM
+        Array.isArray((config as any).query?.joins) ||
         Array.isArray((config as any).query?.union) ||
         Array.isArray((config as any).query?.intersect) ||
         Array.isArray((config as any).query?.except) ||
@@ -950,7 +952,10 @@ export class QueryEngineService {
     }
     if (Array.isArray(orderBy)) query.orderBy = orderBy;
     if (typeof offset === 'number') query.offset = offset;
-    const config: any = { type: 'SELECT', schema: schema || 'public', query, limit: typeof limit === 'number' ? limit : 100 };
+    // Default the schema to the tenant's own schema (undefined → tenant_<id>), matching
+    // `mutate`/CRUD — NOT literal 'public'. Otherwise fetch reads public.<table> while
+    // create/update/delete write to the tenant schema, so reads silently miss writes.
+    const config: any = { type: 'SELECT', schema: schema || undefined, query, limit: typeof limit === 'number' ? limit : 100 };
     return this.executeQuery(tenantId, config, session);
   }
 

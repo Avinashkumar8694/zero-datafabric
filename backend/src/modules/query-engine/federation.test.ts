@@ -292,6 +292,45 @@ describe('FederationExecutor', () => {
     expect(res.data).toHaveLength(5);
   });
 
+  it('DISTINCT dedupes a cross-engine join projection', async () => {
+    process.env.FABRIC_FED_COST_PROBE = '0';
+    const ast = {
+      from: { source: 'PG', resource: 'r', alias: 'a' },
+      joins: [{ type: 'INNER', source: 'MG', resource: 'd', alias: 'd', on: { left: 'a.id', operator: 'EQ', right: 'd.id' } }],
+      select: ['d.grade'], distinct: true, where: [{ column: 'a.id', operator: 'GT', value: 0 }], limit: 20,
+    };
+    const pg = { query: jest.fn().mockResolvedValue([{ id: 1 }, { id: 2 }]), close: jest.fn() };
+    const mg = { query: jest.fn().mockResolvedValue([{ id: 1, grade: 'gold' }, { id: 2, grade: 'gold' }]), close: jest.fn() };
+    getConnector.mockImplementation((e: string) => (e === 'MONGODB' ? mg : pg));
+    const plan = planFrom(
+      { source: 'PG', resource: 'r', engine: 'POSTGRES', syncType: 'VIRTUAL', reachableInPg: false, physicalSchema: 'public', physicalTable: 'r', config: { host: 'h1' } },
+      { source: 'MG', resource: 'd', engine: 'MONGODB', syncType: 'VIRTUAL', reachableInPg: false, physicalSchema: 'db', physicalTable: 'd', config: { host: 'h2' } },
+    );
+    const res = await FederationExecutor.execute('t', ast, plan, 'tenant_t');
+    expect(res.data).toEqual([{ 'd.grade': 'gold' }]); // 2 joined rows, both gold → 1 distinct
+  });
+
+  it('applies OFFSET+LIMIT on an in-fabric grouped cross-engine result', async () => {
+    process.env.FABRIC_FED_COST_PROBE = '0';
+    const ast = {
+      from: { source: 'PG', resource: 'r', alias: 'a' },
+      joins: [{ type: 'INNER', source: 'MG', resource: 'd', alias: 'd', on: { left: 'a.id', operator: 'EQ', right: 'd.id' } }],
+      select: ['d.grade', { aggregate: 'COUNT', column: '*', alias: 'n' }],
+      where: [{ column: 'a.id', operator: 'GT', value: 0 }], groupBy: ['d.grade'],
+      orderBy: [{ column: 'd.grade', direction: 'ASC' }], limit: 1, offset: 1,
+    };
+    const pg = { query: jest.fn().mockResolvedValue([{ id: 1 }, { id: 2 }, { id: 3 }]), close: jest.fn() };
+    const mg = { query: jest.fn().mockResolvedValue([{ id: 1, grade: 'a' }, { id: 2, grade: 'b' }, { id: 3, grade: 'c' }]), close: jest.fn() };
+    getConnector.mockImplementation((e: string) => (e === 'MONGODB' ? mg : pg));
+    const plan = planFrom(
+      { source: 'PG', resource: 'r', engine: 'POSTGRES', syncType: 'VIRTUAL', reachableInPg: false, physicalSchema: 'public', physicalTable: 'r', config: { host: 'h1' } },
+      { source: 'MG', resource: 'd', engine: 'MONGODB', syncType: 'VIRTUAL', reachableInPg: false, physicalSchema: 'db', physicalTable: 'd', config: { host: 'h2' } },
+    );
+    const res = await FederationExecutor.execute('t', ast, plan, 'tenant_t');
+    expect(res.data.length).toBe(1);           // groups a,b,c → offset 1, limit 1
+    expect(res.data[0]['d.grade']).toBe('b');  // the 2nd group after ORDER BY grade ASC
+  });
+
   describe('joinLegProjections (projection pushdown)', () => {
     const proj = (ast: any, legMetas: any[]) => (FederationExecutor as any).joinLegProjections(ast, legMetas);
     const metas = [

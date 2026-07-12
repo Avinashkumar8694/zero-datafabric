@@ -68,8 +68,8 @@
             const res = await fetch(`${API_BASE}/admin/stats`, {
                 headers: getAuthHeaders()
             });
-            const stats = await res.json();
-            
+            const stats = await res.json() || {};
+
             document.getElementById('stat-tenants').innerText = stats.tenants || '0';
             document.getElementById('stat-connections').innerText = stats.connections || '0';
             document.getElementById('stat-audits').innerText = stats.audits || '0';
@@ -101,21 +101,27 @@
 
     async function loadEvents() {
         const body = document.getElementById('activityBody');
+        body.innerHTML = '<tr><td colspan="4">Loading events…</td></tr>';
         try {
             const res = await fetch(`${API_BASE}/events`, {
                 headers: getAuthHeaders()
             });
             const events = await res.json();
-            
+
             if (Array.isArray(events) && events.length > 0) {
-                body.innerHTML = events.map(e => `
+                const capped = events.slice(0, 500);
+                const rows = capped.map(e => `
                     <tr>
-                        <td style="text-transform: uppercase; font-size: 0.7rem; font-weight: bold;">${e.action.split('.')[0] || 'ENGINE'}</td>
-                        <td>${e.action}</td>
-                        <td><span class="badge-sync">${e.tableName || 'N/A'}</span></td>
-                        <td class="text-muted">${new Date(e.createdAt).toLocaleTimeString()}</td>
+                        <td style="text-transform: uppercase; font-size: 0.7rem; font-weight: bold;">${escapeHtml((e.action || '').split('.')[0] || 'ENGINE')}</td>
+                        <td>${escapeHtml(e.action)}</td>
+                        <td><span class="badge-sync">${escapeHtml(e.tableName || 'N/A')}</span></td>
+                        <td class="text-muted">${escapeHtml(new Date(e.createdAt).toLocaleTimeString())}</td>
                     </tr>
                 `).join('');
+                const note = events.length > 500
+                    ? `<tr><td colspan="4" class="text-muted" style="text-align:center;">Showing 500 of ${escapeHtml(events.length)} events</td></tr>`
+                    : '';
+                body.innerHTML = rows + note;
             } else {
                 body.innerHTML = '<tr><td colspan="4">No recent activity detected</td></tr>';
             }

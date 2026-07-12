@@ -1,9 +1,24 @@
 import { pool } from '../../config/database';
 
+/**
+ * GitOpsService — versioned, transactional schema deployment for a tenant,
+ * modelling a GitOps-style "apply this migration script and record its
+ * outcome" workflow (analogous to the migration runner in
+ * (@link "../../config/migrate.ts") but scoped per-tenant and driven from the
+ * application layer rather than the startup migration script).
+ */
 export class GitOpsService {
   /**
-   * Industrial Grade Schema Deployment
-   * Executes transactional DDL and records the migration status
+   * Apply a DDL migration script to a tenant's schema and record the
+   * deployment in `public.schema_migrations`. Scopes `search_path` to the
+   * tenant's schema (falling back to `public`) for the duration of the
+   * transaction, then runs the script and the audit insert atomically — both
+   * succeed or both are rolled back.
+   * @param tenantId - Tenant the migration targets (schema `tenant_<tenantId>`).
+   * @param sqlScript - The raw DDL script to execute.
+   * @param version - Version label recorded alongside the migration outcome.
+   * @returns `(version, status: 'DEPLOYED')` on success.
+   * @throws Re-throws any error after rolling back the transaction and logging it (no `schema_migrations` row is written on failure).
    */
   static async deploySchema(tenantId: string, sqlScript: string, version: string) {
     const client = await pool.connect();

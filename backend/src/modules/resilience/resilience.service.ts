@@ -1,9 +1,22 @@
 import { pool } from '../../config/database';
 
+/**
+ * ResilienceService — database high-availability/health diagnostics: reports
+ * whether the connected Postgres instance is currently a replica or leader,
+ * a rough replication-lag indicator, and raw replication statistics for
+ * monitoring dashboards.
+ */
 export class ResilienceService {
   /**
-   * Deep Health Check
-   * Verifies DB connectivity, Leader/Replica status, and replication lag
+   * Deep health check: verifies DB connectivity and reports whether this
+   * instance is currently a leader or a replica (`pg_is_in_recovery()`), a
+   * coarse replication-lag signal (compares receive vs. replay WAL LSNs — a
+   * replica's real lag "duration" is not computed, only whether the two LSNs
+   * currently match), and the count of connected replicas (leader only).
+   * @returns On success: `(status: 'HEALTHY', role, replicationLag, activeReplicas)`.
+   *   On failure: `(status: 'UNHEALTHY', error)` — errors are caught and
+   *   returned rather than thrown, so this is always safe to call from a
+   *   health-check endpoint.
    */
   static async checkDatabaseHealth() {
     try {
@@ -31,7 +44,9 @@ export class ResilienceService {
   }
 
   /**
-   * Replication Monitoring API logic
+   * Fetch raw replication statistics for every connected standby, backing the
+   * replication-monitoring API/dashboard.
+   * @returns All rows from Postgres's `pg_stat_replication` view (empty on a replica or if no standbys are connected).
    */
   static async getReplicationStats() {
     const { rows } = await pool.query('SELECT * FROM pg_stat_replication');

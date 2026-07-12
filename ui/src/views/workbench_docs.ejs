@@ -1,0 +1,34 @@
+<%- include('partials/header') %>
+
+<div class="glass-card fade-in" style="max-width:1100px;">
+    <h2>Workbench Usage Guide</h2>
+    <p class="text-muted">This page mirrors the query workflow for SQL and AST users in Data Fabric.</p>
+
+    <h3 style="margin-top:1.25rem;">How To Use</h3>
+    <ol style="line-height:1.8;">
+        <li>Open Explorer and select a resource to auto-fill SQL and AST drafts.</li>
+        <li>Choose mode: SQL for direct queries, AST for structured engine queries.</li>
+        <li>Use Templates for federated union, recursive hierarchy, and join-builder examples.</li>
+        <li>Run Sync for immediate results or Run Async for heavy queries and poll job status.</li>
+    </ol>
+
+    <h3 style="margin-top:1.25rem;">Multi-Source Querying</h3>
+    <p>Use federated views/tables created during metadata apply. In AST mode, use Join Builder to generate cross-resource joins by source/schema/table names (no UUID required).</p>
+
+    <h3 style="margin-top:1.25rem;">Safety Behavior</h3>
+    <p>The query engine blocks unrestricted operations (for example SELECT/UPDATE/DELETE without filter or limit) to protect the fabric.</p>
+
+    <h3 style="margin-top:1.25rem;">Examples</h3>
+    <pre style="background:#0f172a;color:#e2e8f0;padding:1rem;border-radius:8px;overflow:auto;">SELECT * FROM "tenant_tenant_A_global_supply_chain"."shipments" LIMIT 50;</pre>
+    <pre style="background:#0f172a;color:#e2e8f0;padding:1rem;border-radius:8px;overflow:auto;">{
+  "type": "SELECT",
+  "schema": "Global_Supply_Chain",
+  "limit": 50,
+  "query": {
+    "select": ["*"],
+    "from": { "resource": "shipments", "source": "Fabric_Hub_Postgres" }
+  }
+}</pre>
+</div>
+
+<%- include('partials/footer') %>

@@ -1,9 +1,38 @@
+/**
+ * Metadata catalog crawling, legacy diff/migrate, and manifest export.
+ * ------------------------------------------------------------------
+ * Discovery-side counterpart to `MetadataOrchestrator`: instead of applying a
+ * declared manifest, this service introspects EXISTING physical stores
+ * (registered heterogeneous data sources via `ConnectorFactory`, or the local
+ * tenant Postgres schemas) and registers what it finds into the fabric
+ * catalog (`public.catalog_schemas` / `public.catalog_tables`) so the UI
+ * Explorer and query engine can see them. It also provides `exportManifest`,
+ * the reverse operation — reconstructing a portable `MetadataManifest` from
+ * the current catalog — and a static onboarding `getTemplate`. The
+ * `diffMetadata`/`migrateMetadata` pair is an earlier, simpler manifest
+ * apply path retained for backward compatibility; `MetadataOrchestrator`
+ * (plan/apply) is the current, richer implementation.
+ */
 import { pool } from '../../config/database';
 import { ConnectorFactory } from './connectors/factory';
 
+/**
+ * Catalog crawling, legacy manifest diff/migrate, and manifest export
+ * service for the metadata module.
+ * @class
+ * @hideconstructor
+ */
 export class MetadataService {
   /**
-   * Discovers and registers schemas and tables for a specific data source
+   * Discovers and registers a data source's schemas and tables into the
+   * fabric catalog. Skips known dummy/test hosts. Also opportunistically
+   * discovers foreign-key relationships (best-effort; failures are
+   * swallowed) when the connector supports `discoverRelationships`. Runs
+   * inside a transaction so a partial crawl doesn't leave the catalog
+   * half-updated.
+   * @param sourceId `public.data_sources` row id to crawl.
+   * @returns `(sourceId, status: 'CRAWLED', schemaCount, tableCount)`.
+   * @throws {Error} If the source doesn't exist, or if schema/table discovery or catalog upserts fail (transaction is rolled back first).
    */
   static async crawlSource(sourceId: string) {
     const client = await pool.connect();
@@ -46,16 +75,36 @@ export class MetadataService {
         const tables = await connector.discoverTables(schema.physicalName);
         totalTables += tables.length;
         for (const table of tables) {
-          // Upsert Table into Catalog
+          // Upsert Table into Catalog, PRESERVING the discovered object type
+          // (TABLE / VIEW / MATERIALIZED_VIEW / SEQUENCE / FUNCTION / ENUM / ...).
           await client.query(`
-            INSERT INTO public.catalog_tables (schema_id, name, physical_name, row_count, last_crawled_at)
-            VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+            INSERT INTO public.catalog_tables (schema_id, name, physical_name, row_count, resource_type, last_crawled_at)
+            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
             ON CONFLICT (schema_id, physical_name)
-            DO UPDATE SET 
+            DO UPDATE SET
               name = EXCLUDED.name,
               row_count = EXCLUDED.row_count,
+              resource_type = EXCLUDED.resource_type,
               last_crawled_at = CURRENT_TIMESTAMP
-          `, [schemaUuid, table.name, table.physicalName, table.rowCount || 0]);
+          `, [schemaUuid, table.name, table.physicalName, table.rowCount || 0, table.resourceType || 'TABLE']);
+        }
+
+        // Discover foreign-key relationships (for ER diagrams), if the connector supports it.
+        const anyConn = connector as any;
+        if (typeof anyConn.discoverRelationships === 'function') {
+          try {
+            const rels = await anyConn.discoverRelationships(schema.physicalName);
+            for (const rel of rels) {
+              const card = '1:M';
+              await client.query(`
+                INSERT INTO fabric_catalog.relationships
+                    (tenant_id, name, schema_name, source_schema, source_table, source_column, target_schema, target_table, target_column, cardinality)
+                VALUES ($1,$2,$3,$3,$4,$5,$3,$6,$7,$8)
+                ON CONFLICT ON CONSTRAINT relationships_full_identity_key DO NOTHING
+              `, [source.tenant_id, rel.name, schema.physicalName, rel.sourceTable, rel.sourceColumn, rel.targetTable, rel.targetColumn, card])
+                .catch(() => { /* relationship optional; ignore constraint/name mismatches */ });
+            }
+          } catch { /* FK discovery is best-effort */ }
         }
       }
 
@@ -71,7 +120,9 @@ export class MetadataService {
   }
 
   /**
-   * Returns all discovered schemas for a data source
+   * Returns all discovered schemas for a data source.
+   * @param sourceId `public.data_sources` row id.
+   * @returns Rows of `(schemaId, name, physicalName, createdAt)`, ordered by name.
    */
   static async getSchemas(sourceId: string) {
     const { rows } = await pool.query(`
@@ -84,7 +135,9 @@ export class MetadataService {
   }
 
   /**
-   * Returns all discovered tables for a specific schema UUID
+   * Returns all discovered tables for a specific schema UUID.
+   * @param schemaId `public.catalog_schemas` row id.
+   * @returns Rows of `(tableId, name, physicalName, rowCount, lastCrawledAt)`, ordered by name.
    */
   static async getTables(schemaId: string) {
     const { rows } = await pool.query(`
@@ -97,16 +150,32 @@ export class MetadataService {
   }
 
   /**
-   * Backward compatible crawl for a tenant (crawls all its sources + local schemas)
+   * Backward-compatible crawl for a tenant: crawls every registered external
+   * data source (`crawlSource`, resiliently — a failed source is recorded and
+   * skipped rather than aborting the rest) plus the tenant's local Postgres
+   * schemas (`tenant_{id}_*`), registering all discovered tables/views/
+   * materialized views/foreign tables/sequences/functions/procedures/enums
+   * into the catalog with best-effort row counts.
+   * @param tenantId Tenant scope; local schemas are matched by the `tenant_{tenantId}%` name pattern.
+   * @returns `(tenantId, tableCount, sourceResults, localTableCount)` where `tableCount` is the combined total across sources and local schemas.
+   * @throws Rethrows any error from the local-schema crawl phase (per-source crawl failures are caught individually and do not throw).
    */
   static async crawlTenant(tenantId: string) {
     const client = await pool.connect();
     try {
         // 1. Crawl External Data Sources
-        const { rows: sources } = await client.query('SELECT id FROM public.data_sources WHERE tenant_id = $1', [tenantId]);
+        const { rows: sources } = await client.query('SELECT id, name FROM public.data_sources WHERE tenant_id = $1', [tenantId]);
         const results = [];
+        // Resilient per-source crawl: an unreachable / misconfigured source (e.g. a
+        // missing password) is recorded as FAILED and skipped — it must not abort the
+        // crawl of every other source.
         for (const source of sources) {
-            results.push(await this.crawlSource(source.id));
+            try {
+                results.push(await this.crawlSource(source.id));
+            } catch (e: any) {
+                console.warn(`[Crawl] source ${source.name} (${source.id}) failed: ${e.message}`);
+                results.push({ sourceId: source.id, source: source.name, status: 'FAILED', error: e.message });
+            }
         }
 
         // 2. Crawl Local Tenant Schemas (tenant_{id}_*)
@@ -133,31 +202,51 @@ export class MetadataService {
                 schemaUuid = schemaRes.rows[0].id;
             }
 
-            // Discover Local Tables
-            const { rows: tables } = await client.query(`
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_schema = $1
+            // Discover Local Objects (tables, views, matviews, foreign, sequences)
+            // with their real object type — plus functions/procedures and enums.
+            const { rows: rels } = await client.query(`
+                SELECT c.relname AS name,
+                       CASE c.relkind
+                            WHEN 'r' THEN 'TABLE' WHEN 'p' THEN 'TABLE'
+                            WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED_VIEW'
+                            WHEN 'f' THEN 'FOREIGN_TABLE' WHEN 'S' THEN 'SEQUENCE'
+                       END AS resource_type
+                FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = $1 AND c.relkind IN ('r','p','v','m','f','S')
             `, [schema.schema_name]);
+            const { rows: funcs } = await client.query(`
+                SELECT p.proname AS name, CASE p.prokind WHEN 'p' THEN 'PROCEDURE' ELSE 'FUNCTION' END AS resource_type
+                FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                WHERE n.nspname = $1 AND p.prokind IN ('f','p')
+            `, [schema.schema_name]).catch(() => ({ rows: [] as any[] }));
+            const { rows: enums } = await client.query(`
+                SELECT t.typname AS name, 'ENUM' AS resource_type FROM pg_type t
+                JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = $1 AND t.typtype = 'e'
+            `, [schema.schema_name]).catch(() => ({ rows: [] as any[] }));
 
-            for (const table of tables) {
-                // Get real row count for local table
-                const countRes = await client.query(`SELECT count(*) FROM "${schema.schema_name}"."${table.table_name}"`);
-                const rowCount = parseInt(countRes.rows[0].count);
-
+            for (const obj of [...rels, ...funcs, ...enums]) {
+                // Row count only makes sense (and is safe) for relations you can count.
+                let rowCount = 0;
+                if (['TABLE', 'VIEW', 'MATERIALIZED_VIEW', 'FOREIGN_TABLE'].includes(obj.resource_type)) {
+                    try {
+                        const countRes = await client.query(`SELECT count(*) FROM "${schema.schema_name}"."${obj.name}"`);
+                        rowCount = parseInt(countRes.rows[0].count);
+                    } catch { rowCount = 0; }
+                }
                 await client.query(`
-                    INSERT INTO public.catalog_tables (schema_id, name, physical_name, row_count, last_crawled_at)
-                    VALUES ($1, $2, $2, $3, CURRENT_TIMESTAMP)
+                    INSERT INTO public.catalog_tables (schema_id, name, physical_name, row_count, resource_type, last_crawled_at)
+                    VALUES ($1, $2, $2, $3, $4, CURRENT_TIMESTAMP)
                     ON CONFLICT (schema_id, physical_name)
-                    DO UPDATE SET 
+                    DO UPDATE SET
                         row_count = EXCLUDED.row_count,
+                        resource_type = EXCLUDED.resource_type,
                         last_crawled_at = CURRENT_TIMESTAMP
-                `, [schemaUuid, table.table_name, rowCount]);
+                `, [schemaUuid, obj.name, rowCount, obj.resource_type || 'TABLE']);
                 localTableCount++;
             }
         }
 
-        const tableCount = results.reduce((acc, s) => acc + (s?.tableCount || 0), 0) + localTableCount;
+        const tableCount = results.reduce((acc, s: any) => acc + (s?.tableCount || 0), 0) + localTableCount;
         return { tenantId, tableCount, sourceResults: results, localTableCount };
     } catch (err: any) {
         console.error(`[Metadata] Local Crawl FAILED for ${tenantId}:`, err.message);
@@ -167,6 +256,17 @@ export class MetadataService {
     }
   }
 
+  /**
+   * Legacy manifest diff routine (superseded by `DiffEngine.compare` for the
+   * v4.0 manifest spec, but retained for the older `(schema.tables/views/functions)`
+   * shape). Checks schema existence, per-table existence and per-column drift,
+   * and view existence, emitting `CREATE_SCHEMA`/`CREATE_TABLE`/`ADD_COLUMN`/
+   * `CREATE_VIEW`/`CREATE_FUNCTION` diffs. Functions are diffed first since
+   * tables may reference them (e.g. via triggers).
+   * @param tenantId Tenant scope; physical schema names are derived as `tenant_{tenantId}_(schema.name)`.
+   * @param manifest Legacy-shaped manifest (`(schemas: [( name, tables, views?, functions? )])`).
+   * @returns `(status: 'PLAN_GENERATED', diffs)`.
+   */
   static async diffMetadata(tenantId: string, manifest: any) {
     const diffs = [];
     const client = await pool.connect();
@@ -249,6 +349,20 @@ export class MetadataService {
     }
   }
 
+  /**
+   * Legacy manifest apply routine that executes the diffs produced by
+   * `diffMetadata` (superseded by `MetadataOrchestrator.apply` for the v4.0
+   * spec). Ensures the tenant root schema exists, then for each diff runs the
+   * corresponding DDL (`CREATE_SCHEMA`/`CREATE_TABLE`/`ADD_COLUMN`/
+   * `CREATE_FUNCTION`/`CREATE_VIEW`/`SOFT_DELETE_TABLE`), applying a
+   * hard-coded tenant-isolation RLS policy to every created table and mirroring
+   * column metadata into `fabric_catalog.metadata`. Runs inside a single
+   * transaction; any failure rolls back all diffs together.
+   * @param tenantId Tenant scope; physical schema names are derived as `tenant_{tenantId}[_{diff.schema}]`.
+   * @param diffs Diff entries as produced by `diffMetadata`.
+   * @returns One result entry per diff (`(action, status, ...)`).
+   * @throws Rethrows any DDL/query error after rolling back the transaction.
+   */
   static async migrateMetadata(tenantId: string, diffs: any[]) {
     const results = [];
     const client = await pool.connect();
@@ -370,6 +484,171 @@ export class MetadataService {
     }
   }
   
+  /**
+   * Export the current catalog as a datafabric manifest (the reverse of apply).
+   * Prefers each resource's stored definition_ast (perfect round-trip for
+   * manifest-applied objects); for crawled objects it reconstructs columns via
+   * live introspection. Pass sourceName to export a single, self-contained source.
+   * System schemas (`pg_catalog`, `information_schema`, `pg_toast`, temp schemas)
+   * are always omitted. Relationships are included only when both endpoints are
+   * present in the export (self-contained when `sourceName` scopes to one source);
+   * a single-source export additionally flags resources that reference other
+   * data sources via `warnings`, since re-applying it alone wouldn't be sufficient.
+   * @param tenantId Tenant scope.
+   * @param sourceName When supplied, scopes the export to a single named data source instead of every source registered for the tenant.
+   * @returns A `MetadataManifest`-shaped object (`version: '1.0-export'`) plus `exportedAt`, and optionally `warnings` when `sourceName` resources depend on other sources.
+   */
+  static async exportManifest(tenantId: string, sourceName?: string): Promise<any> {
+    const cleanTenant = tenantId.replace(/[^a-zA-Z0-9_]/g, '');
+    const srcParams: any[] = [tenantId];
+    let srcSql = `SELECT id, name, type, config FROM public.data_sources WHERE tenant_id = $1`;
+    if (sourceName) { srcParams.push(sourceName); srcSql += ` AND name = $2`; }
+    const { rows: sources } = await pool.query(srcSql, srcParams);
+
+    const schemas: any[] = [];
+    const exportedTables = new Set<string>(); // schemaName.tableName present in this export
+
+    const SYSTEM_SCHEMAS = new Set(['pg_toast', 'pg_catalog', 'information_schema']);
+    const isSystemSchema = (n: string) => SYSTEM_SCHEMAS.has(n) || /^pg_(toast_)?temp/.test(n) || n.startsWith('pg_');
+    for (const source of sources) {
+      const { rows: cats } = await pool.query(
+        `SELECT id, name, physical_name FROM public.catalog_schemas WHERE source_id = $1`, [source.id]);
+      for (const cat of cats) {
+        if (isSystemSchema(cat.name)) continue; // omit Postgres system schemas from a portable manifest
+        const { rows: objs } = await pool.query(
+          `SELECT name, physical_name, resource_type, definition_ast, definition_sql
+           FROM public.catalog_tables WHERE schema_id = $1`, [cat.id]);
+        const resources: any[] = [];
+        for (const o of objs) {
+          // Child metadata rows (a table's policies/triggers) are folded into their table's AST.
+          if (o.resource_type === 'POLICY' || o.resource_type === 'TRIGGER' || String(o.name).includes('.')) continue;
+
+          if (o.definition_ast && typeof o.definition_ast === 'object') {
+            resources.push(o.definition_ast); // round-trip manifest-applied resource verbatim
+          } else if (['TABLE', 'VIEW', 'MATERIALIZED_VIEW', 'FOREIGN_TABLE'].includes(o.resource_type)) {
+            const columns = await this.introspectColumns(source, cat.physical_name, o.physical_name);
+            const type = o.resource_type === 'FOREIGN_TABLE' ? 'TABLE' : o.resource_type;
+            const res: any = { type, name: o.name };
+            if (columns.length) res.columns = columns;
+            if (o.definition_sql && type !== 'TABLE') res.definitionSql = o.definition_sql;
+            resources.push(res);
+          } else {
+            // SEQUENCE / FUNCTION / PROCEDURE / ENUM without an AST — name-level export.
+            resources.push({ type: o.resource_type, name: o.name });
+          }
+          exportedTables.add(`${cat.name}.${o.name}`);
+        }
+        schemas.push({ name: cat.name, targetSource: source.name, resources });
+      }
+    }
+
+    // Relationships. For a single-source export keep only those whose BOTH endpoints
+    // are present in this export (self-contained); cross-source relationships are dropped.
+    const { rows: rels } = await pool.query(
+      `SELECT name, cardinality, source_schema, source_table, source_column, target_schema, target_table, target_column
+       FROM fabric_catalog.relationships WHERE tenant_id = $1`, [tenantId]);
+    const contained = (schema: string, table: string) => !sourceName || exportedTables.has(`${schema}.${table}`);
+    const relationships = rels
+      .filter((r) => contained(r.source_schema, r.source_table) && contained(r.target_schema, r.target_table))
+      .map((r) => ({
+        name: r.name,
+        cardinality: r.cardinality === 'M:M' ? 'M:N' : r.cardinality,
+        ...(r.cardinality === 'M:M' ? { bridge: `${r.source_table}_${r.target_table}_link` } : {}),
+        from: { resource: r.source_table, field: r.source_column },
+        to: { resource: r.target_table, field: r.target_column },
+      }));
+
+    // For a single-source export, flag any resource whose definition references another
+    // datasource (e.g. a federated view) — such a source is not self-contained.
+    const warnings: string[] = [];
+    if (sourceName) {
+      const ownSources = new Set(sources.map((s) => s.name));
+      for (const sch of schemas) {
+        for (const r of sch.resources) {
+          const ext = this.collectExternalSources(r, ownSources);
+          if (ext.length) warnings.push(
+            `Resource "${sch.name}.${r.name}" depends on other datasource(s): ${ext.join(', ')}. ` +
+            `Re-applying this single-source manifest requires those sources.`);
+        }
+      }
+    }
+
+    return {
+      version: '1.0-export',
+      namespace: sourceName ? (schemas[0]?.name || sourceName) : 'Exported_Fabric',
+      targetSource: sourceName || 'Fabric_Hub_Postgres',
+      exportedAt: new Date().toISOString(),
+      schemas,
+      ...(relationships.length ? { relationships } : {}),
+      ...(warnings.length ? { warnings } : {}),
+    };
+  }
+
+  /**
+   * Walk a resource definition and collect any `source` values that aren't in ownSources.
+   * @param obj Resource definition (or nested fragment) to scan recursively.
+   * @param ownSources Data source names considered "local" to the current export; any other `source` value found is reported.
+   * @param acc Accumulator set used across the recursion; callers normally omit this.
+   * @returns The distinct external source names referenced anywhere within `obj`.
+   */
+  private static collectExternalSources(obj: any, ownSources: Set<string>, acc = new Set<string>()): string[] {
+    if (obj && typeof obj === 'object') {
+      if (Array.isArray(obj)) { obj.forEach((x) => this.collectExternalSources(x, ownSources, acc)); }
+      else {
+        for (const [k, v] of Object.entries(obj)) {
+          if (k === 'source' && typeof v === 'string' && !ownSources.has(v)) acc.add(v);
+          else this.collectExternalSources(v, ownSources, acc);
+        }
+      }
+    }
+    return [...acc];
+  }
+
+  /**
+   * Reconstruct column metadata for a crawled resource (no manifest AST), by
+   * introspecting either the local Hub's `information_schema.columns` or, for
+   * a remote source, a fresh connector obtained from `ConnectorFactory` (which
+   * is always closed afterward). Any introspection failure is swallowed and
+   * reported as no columns, so a single unreachable/misconfigured source
+   * doesn't block the rest of the export.
+   * @param source The `public.data_sources` row (`(type, config, name)`) the table belongs to.
+   * @param physicalSchema Physical schema name containing the table.
+   * @param physicalTable Physical table name to introspect.
+   * @returns Manifest-shaped column definitions (`(name, type, nullable?, primaryKey?)`); empty if introspection fails.
+   */
+  private static async introspectColumns(source: any, physicalSchema: string, physicalTable: string): Promise<any[]> {
+    const engine = String(source.type || 'POSTGRES').toUpperCase();
+    const cfg = source.config || {};
+    const isLocalHub = cfg.local === true || source.name === 'Fabric_Hub_Postgres' || (engine === 'POSTGRES' && !cfg.host && !cfg.connectionString);
+    const toManifestCol = (c: any) => ({
+      name: c.name, type: c.type, ...(c.nullable === false ? { nullable: false } : {}), ...(c.primaryKey ? { primaryKey: true } : {}),
+    });
+    try {
+      if (isLocalHub) {
+        const { rows } = await pool.query(`
+          SELECT column_name AS name, data_type AS type, (is_nullable='YES') AS nullable, false AS "primaryKey"
+          FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position
+        `, [physicalSchema, physicalTable]);
+        return rows.map(toManifestCol);
+      }
+      const connector = ConnectorFactory.getConnector(engine, cfg);
+      try {
+        const cols = connector.discoverColumns ? await connector.discoverColumns(physicalSchema, physicalTable) : [];
+        return cols.map(toManifestCol);
+      } finally { await connector.close(); }
+    } catch { return []; }
+  }
+
+  /**
+   * Returns a static, richly-annotated example v4.0 manifest demonstrating
+   * every supported resource kind and feature (enums, native/procedural
+   * sequences, partitioned tables with identity strategies/generated columns/
+   * constraints/triggers/RLS/masking/grants, functions/procedures, recursive
+   * and windowed/aggregate views, a federated view spanning sources,
+   * a materialized view, and 1:1/1:M/M:N relationships including
+   * cross-source ones). Used to seed the manifest editor UI/onboarding flow.
+   * @returns The example manifest object (not validated/parsed — for display/editing only).
+   */
   static getTemplate(): any {
     return {
       version: "4.0",

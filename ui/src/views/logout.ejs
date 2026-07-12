@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zero Data Fabric - Logout</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body style="display:flex; align-items:center; justify-content:center; min-height:100vh; background:#f8fafc;">
+    <div class="glass-card" style="max-width:520px; width:90%; text-align:center;">
+        <h2 style="margin-bottom:0.75rem;">Session Ended</h2>
+        <p class="text-muted" style="margin-bottom:1.25rem;">Your session has expired or you have been logged out.</p>
+        <a href="/login" class="btn-primary" style="display:inline-block; text-decoration:none; padding:0.7rem 1.2rem;">Go To Login</a>
+    </div>
+    <script>
+        localStorage.removeItem('token');
+        localStorage.removeItem('active_tenant');
+    </script>
+</body>
+</html>

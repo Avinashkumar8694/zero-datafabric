@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>backend/src/modules/metadata/connectors/factory.ts - Zero Data Fabric — API Reference</title>
+    
+    
+    
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="ApiPortalService.html">ApiPortalService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ApiPortalService.html#.exposeTableToApi">exposeTableToApi</a></li><li data-type='method' style='display: none;'><a href="ApiPortalService.html#.getTenantOpenApiSpec">getTenantOpenApiSpec</a></li></ul></li><li><a href="ConstraintService.html">ConstraintService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ConstraintService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.evalCheck">evalCheck</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.list">list</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.parseCheckExpression">parseCheckExpression</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.specFromManifestTable">specFromManifestTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.upsert">upsert</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.validate">validate</a></li></ul></li><li><a href="DiffEngine.html">DiffEngine</a><ul class='methods'><li data-type='method' style='display: none;'><a href="DiffEngine.html#.compare">compare</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.detectRetiredResources">detectRetiredResources</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffEnum">diffEnum</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffFunction">diffFunction</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffSequence">diffSequence</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffTable">diffTable</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffView">diffView</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.processResourceDiff">processResourceDiff</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.sortResources">sortResources</a></li></ul></li><li><a href="DownstreamService.html">DownstreamService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="DownstreamService.html#.bulkIndexRows">bulkIndexRows</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.ensureElasticIndex">ensureElasticIndex</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.fetchTableRows">fetchTableRows</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.getConnectorConfig">getConnectorConfig</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.provision">provision</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.provisionElasticsearch">provisionElasticsearch</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.provisionSnowflake">provisionSnowflake</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.toElasticMappings">toElasticMappings</a></li></ul></li><li><a href="ElasticsearchConnector.html">ElasticsearchConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#buildFilter">buildFilter</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#close">close</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#deleteDocs">deleteDocs</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#discoverColumns">discoverColumns</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#flattenAggs">flattenAggs</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#insertDocs">insertDocs</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#query">query</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#rawQuery">rawQuery</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#req">req</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#updateDocs">updateDocs</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#.buildQuery">buildQuery</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#.filterClauses">filterClauses</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#.metricAgg">metricAgg</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#.previewBody">previewBody</a></li></ul></li><li></li><li><a href="ElasticsearchMutationWorker.html">ElasticsearchMutationWorker</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.defer">defer</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.enqueueMutation">enqueueMutation</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.getElasticConnector">getElasticConnector</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.process">process</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.start">start</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.tick">tick</a></li></ul></li><li><a href="EventService.html">EventService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="EventService.html#.attachEventTrigger">attachEventTrigger</a></li><li data-type='method' style='display: none;'><a href="EventService.html#.dispatchWebhook">dispatchWebhook</a></li><li data-type='method' style='display: none;'><a href="EventService.html#.emit">emit</a></li></ul></li><li><a href="FabricSequenceService.html">FabricSequenceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.currval">currval</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.ensure">ensure</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.nextval">nextval</a></li></ul></li><li><a href="FabricWriteGenerators.html">FabricWriteGenerators</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricWriteGenerators.html#.apply">apply</a></li><li data-type='method' style='display: none;'><a href="FabricWriteGenerators.html#.resolve">resolve</a></li></ul></li><li><a href="FederationExecutor.html">FederationExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyOrderLimit">applyOrderLimit</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyProjection">applyProjection</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyWhere">applyWhere</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.astLegToCanonical">astLegToCanonical</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.buildLegFilters">buildLegFilters</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.evalOn">evalOn</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.execute">execute</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.executeJoin">executeJoin</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.executeSetOp">executeSetOp</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fanAggregate">fanAggregate</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fetchLegDirect">fetchLegDirect</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.previewConnectorQuery">previewConnectorQuery</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.serialize">serialize</a></li></ul></li><li><a href="GitOpsService.html">GitOpsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GitOpsService.html#.deploySchema">deploySchema</a></li></ul></li><li><a href="GrantService.html">GrantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GrantService.html#.check">check</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.decide">decide</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.enforce">enforce</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.list">list</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.upsert">upsert</a></li></ul></li><li><a href="HeterogeneousDispatcher.html">HeterogeneousDispatcher</a><ul class='methods'><li data-type='method' style='display: none;'><a href="HeterogeneousDispatcher.html#.execute">execute</a></li><li data-type='method' style='display: none;'><a href="HeterogeneousDispatcher.html#.executeMongo">executeMongo</a></li><li data-type='method' style='display: none;'><a href="HeterogeneousDispatcher.html#.executeMysql">executeMysql</a></li><li data-type='method' style='display: none;'><a href="HeterogeneousDispatcher.html#.executePostgres">executePostgres</a></li></ul></li><li><a href="IntegrationService.html">IntegrationService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="IntegrationService.html#.registerRemoteSource">registerRemoteSource</a></li><li data-type='method' style='display: none;'><a href="IntegrationService.html#.removeSource">removeSource</a></li><li data-type='method' style='display: none;'><a href="IntegrationService.html#.testConnection">testConnection</a></li></ul></li><li><a href="ManifestParser.html">ManifestParser</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ManifestParser.html#.parse">parse</a></li></ul></li><li><a href="MetadataOrchestrator.html">MetadataOrchestrator</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#apply">apply</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#ensureBaseInfrastructure">ensureBaseInfrastructure</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#ensureFabricPrimitives">ensureFabricPrimitives</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#ensureTenantSchemaPrivileges">ensureTenantSchemaPrivileges</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#findSourcesInQuery">findSourcesInQuery</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#getHistory">getHistory</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#persistMetadataState">persistMetadataState</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#plan">plan</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#rollback">rollback</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#validateDataSources">validateDataSources</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#validateManifest">validateManifest</a></li></ul></li><li><a href="MetadataService.html">MetadataService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MetadataService.html#.collectExternalSources">collectExternalSources</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.crawlSource">crawlSource</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.crawlTenant">crawlTenant</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.diffMetadata">diffMetadata</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.exportManifest">exportManifest</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.getSchemas">getSchemas</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.getTables">getTables</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.getTemplate">getTemplate</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.introspectColumns">introspectColumns</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.migrateMetadata">migrateMetadata</a></li></ul></li><li><a href="global.html#MongoDBConnector">MongoDBConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#close">close</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#deleteDocs">deleteDocs</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#discoverColumns">discoverColumns</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#insertDocs">insertDocs</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#query">query</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#updateDocs">updateDocs</a></li></ul></li><li><a href="global.html#MySQLConnector">MySQLConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#close">close</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#connect">connect</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#discoverColumns">discoverColumns</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#query">query</a></li></ul></li><li><a href="PolicyService.html">PolicyService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PolicyService.html#.applyMasks">applyMasks</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.cheapHash">cheapHash</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.compileFilter">compileFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.deletePolicy">deletePolicy</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.listPolicies">listPolicies</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.maskValue">maskValue</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.mergeIntoFilter">mergeIntoFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.physicalSchema">physicalSchema</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolveValue">resolveValue</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.roleMatches">roleMatches</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.upsertPolicy">upsertPolicy</a></li></ul></li><li><a href="global.html#PostgresConnector">PostgresConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#close">close</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#discoverColumns">discoverColumns</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#discoverRelationships">discoverRelationships</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#query">query</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#rawQuery">rawQuery</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#setSearchPath">setSearchPath</a></li></ul></li><li><a href="PushdownCompiler.html">PushdownCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.aggExprSql">aggExprSql</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.groupBySql">groupBySql</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.groupSelectSql">groupSelectSql</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.mongoMatch">mongoMatch</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.quoteColumn">quoteColumn</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.quoteIdent">quoteIdent</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.splitOp">splitOp</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.splitOps">splitOps</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.toMongo">toMongo</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.toMongoAggregate">toMongoAggregate</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="QualityService.html">QualityService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QualityService.html#.runQualityCheck">runQualityCheck</a></li></ul></li><li><a href="QueryEngineController.html">QueryEngineController</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryEngineController.html#.executeAsyncQuery">executeAsyncQuery</a></li><li data-type='method' style='display: none;'><a href="QueryEngineController.html#.executeQuery">executeQuery</a></li><li data-type='method' style='display: none;'><a href="QueryEngineController.html#.getJobStatus">getJobStatus</a></li><li data-type='method' style='display: none;'><a href="QueryEngineController.html#.refreshView">refreshView</a></li></ul></li><li><a href="QueryEngineService.html">QueryEngineService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.applyHaving">applyHaving</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.assertSafeKeys">assertSafeKeys</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.buildMutationSql">buildMutationSql</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.buildWhere">buildWhere</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.detectUnsafeOperations">detectUnsafeOperations</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.distributeTable">distributeTable</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeAsyncQuery">executeAsyncQuery</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeAsyncRawSql">executeAsyncRawSql</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeQuery">executeQuery</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeRawSql">executeRawSql</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeSqlOnSource">executeSqlOnSource</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.fetch">fetch</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.formatInline">formatInline</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.generateSql">generateSql</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.getJobStatus">getJobStatus</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.mutate">mutate</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.qIdent">qIdent</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.refreshMaterializedView">refreshMaterializedView</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.resolveTarget">resolveTarget</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.stripSources">stripSources</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.toTenantSchemaName">toTenantSchemaName</a></li></ul></li><li><a href="QueryLogService.html">QueryLogService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryLogService.html#.capture">capture</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.get">get</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.list">list</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.memDelta">memDelta</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.record">record</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.truncate">truncate</a></li></ul></li><li><a href="QueryPlanner.html">QueryPlanner</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryPlanner.html#.classify">classify</a></li><li data-type='method' style='display: none;'><a href="QueryPlanner.html#.collectRefs">collectRefs</a></li><li data-type='method' style='display: none;'><a href="QueryPlanner.html#.resolveLeg">resolveLeg</a></li></ul></li><li><a href="QueryTranspiler.html">QueryTranspiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.columnToSql">columnToSql</a></li><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.mapOp">mapOp</a></li><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.toSql">toSql</a></li><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.whereToSql">whereToSql</a></li></ul></li><li><a href="global.html#RecursiveExecutor">RecursiveExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#RecursiveExecutor#.run">run</a></li></ul></li><li><a href="ResilienceService.html">ResilienceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ResilienceService.html#.checkDatabaseHealth">checkDatabaseHealth</a></li><li data-type='method' style='display: none;'><a href="ResilienceService.html#.getReplicationStats">getReplicationStats</a></li></ul></li><li><a href="SavedAnalyticsService.html">SavedAnalyticsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindAst">bindAst</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindSql">bindSql</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.create">create</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.get">get</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.list">list</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.remove">remove</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.resolveValues">resolveValues</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.run">run</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.top">top</a></li></ul></li><li><a href="SecurityService.html">SecurityService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SecurityService.html#.applyAdvancedRLS">applyAdvancedRLS</a></li><li data-type='method' style='display: none;'><a href="SecurityService.html#.applyRLSToSchema">applyRLSToSchema</a></li><li data-type='method' style='display: none;'><a href="SecurityService.html#.encryptField">encryptField</a></li></ul></li><li><a href="global.html#SnowflakeConnector">SnowflakeConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#close">close</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#connect">connect</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#exec">exec</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#query">query</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#sdk">sdk</a></li></ul></li><li><a href="SyncService.html">SyncService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SyncService.html#.initializeSync">initializeSync</a></li><li data-type='method' style='display: none;'><a href="SyncService.html#.initializeSync">initializeSync</a></li><li data-type='method' style='display: none;'><a href="SyncService.html#.setupPhysicalSync">setupPhysicalSync</a></li><li data-type='method' style='display: none;'><a href="SyncService.html#.syncTable">syncTable</a></li></ul></li><li><a href="TenantService.html">TenantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TenantService.html#.createTenant">createTenant</a></li><li data-type='method' style='display: none;'><a href="TenantService.html#.deleteTenant">deleteTenant</a></li><li data-type='method' style='display: none;'><a href="TenantService.html#.listAll">listAll</a></li><li data-type='method' style='display: none;'><a href="TenantService.html#.updateTenant">updateTenant</a></li></ul></li><li><a href="Transpiler.html">Transpiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="Transpiler.html#.callTriggerEngine">callTriggerEngine</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.findColumnType">findColumnType</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.normalizeType">normalizeType</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.qualifyColumnsForTrigger">qualifyColumnsForTrigger</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.toMongo">toMongo</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerActionCompiler.html">TriggerActionCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileActionBody">compileActionBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileEnqueueBody">compileEnqueueBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileExecute">compileExecute</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.condition">condition</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.expr">expr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.msg">msg</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.normalizeEvents">normalizeEvents</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.runAtExpr">runAtExpr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.timingFromEvent">timingFromEvent</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerService.html">TriggerService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerService.html#.createTrigger">createTrigger</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.deleteTrigger">deleteTrigger</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.deployTrigger">deployTrigger</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.enqueueJob">enqueueJob</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.listJobs">listJobs</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.listLogs">listLogs</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.listTriggers">listTriggers</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.registryUpsertSql">registryUpsertSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.retryJob">retryJob</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.transpileTriggerSql">transpileTriggerSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.updateTrigger">updateTrigger</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.validate">validate</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.writeLog">writeLog</a></li></ul></li><li><a href="UiService.html">UiService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="UiService.html#.getDashboardStats">getDashboardStats</a></li></ul></li></ul><h3>Modules</h3><ul><li><a href="module-controllers_adminController.html">controllers/adminController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.createConnection">createConnection</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.createTenant">createTenant</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.createUser">createUser</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.deleteNotificationChannel">deleteNotificationChannel</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.deleteTenant">deleteTenant</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.deleteUser">deleteUser</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getAuditLogs">getAuditLogs</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getCatalogSummary">getCatalogSummary</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getConnections">getConnections</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getDashboardStats">getDashboardStats</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getTenants">getTenants</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getUsers">getUsers</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.listNotificationChannels">listNotificationChannels</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.removeConnection">removeConnection</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.updateConnectionStatus">updateConnectionStatus</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.updateTenant">updateTenant</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.updateUser">updateUser</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.upsertNotificationChannel">upsertNotificationChannel</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_adminController.html#~getTenants">getTenants</a></li></ul></li><li><a href="module-controllers_authController.html">controllers/authController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_authController.html#.login">login</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_authController.html#~login">login</a></li></ul></li><li><a href="module-controllers_constraintController.html">controllers/constraintController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_constraintController.html#.listConstraints">listConstraints</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_constraintController.html#~listConstraints">listConstraints</a></li></ul></li><li><a href="module-controllers_dataController.html">controllers/dataController</a><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_dataController.html#~handle">handle</a></li></ul></li><li><a href="module-controllers_grantController.html">controllers/grantController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_grantController.html#.listGrants">listGrants</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_grantController.html#~listGrants">listGrants</a></li></ul></li><li><a href="module-controllers_metadataController.html">controllers/metadataController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.applyMetadata">applyMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.crawlTenant">crawlTenant</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.diffMetadata">diffMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.exportMetadata">exportMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getColumns">getColumns</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getDownstreamStatus">getDownstreamStatus</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getEvents">getEvents</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getMetadataHistory">getMetadataHistory</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getPreviewData">getPreviewData</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getRelationships">getRelationships</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getSchemas">getSchemas</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getSources">getSources</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getTableDetails">getTableDetails</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getTables">getTables</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getTemplate">getTemplate</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.migrateMetadata">migrateMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.rollbackMetadata">rollbackMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.toggleDownstream">toggleDownstream</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#~META_TTL">META_TTL</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_metadataController.html#~exportMetadata">exportMetadata</a></li><li data-type='method' style='display: none;'><a href="module-controllers_metadataController.html#~getDownstreamStatus">getDownstreamStatus</a></li><li data-type='method' style='display: none;'><a href="module-controllers_metadataController.html#~normalizeAstColumn">normalizeAstColumn</a></li></ul></li><li><a href="module-controllers_policyController.html">controllers/policyController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_policyController.html#.createPolicy">createPolicy</a></li><li data-type='member' style='display: none;'><a href="module-controllers_policyController.html#.listPolicies">listPolicies</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_policyController.html#~listPolicies">listPolicies</a></li></ul></li><li><a href="module-controllers_queryController.html">controllers/queryController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_queryController.html#.executeEngineQuery">executeEngineQuery</a></li><li data-type='member' style='display: none;'><a href="module-controllers_queryController.html#.executeNativeSql">executeNativeSql</a></li><li data-type='member' style='display: none;'><a href="module-controllers_queryController.html#.executeRawSql">executeRawSql</a></li><li data-type='member' style='display: none;'><a href="module-controllers_queryController.html#.transpileQuery">transpileQuery</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_queryController.html#~executeEngineQuery">executeEngineQuery</a></li></ul></li><li><a href="module-controllers_queryLogController.html">controllers/queryLogController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_queryLogController.html#.listQueryLogs">listQueryLogs</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_queryLogController.html#~listQueryLogs">listQueryLogs</a></li></ul></li><li><a href="module-controllers_savedAnalyticsController.html">controllers/savedAnalyticsController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.createAnalytic">createAnalytic</a></li><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.deleteAnalytic">deleteAnalytic</a></li><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.getAnalytic">getAnalytic</a></li><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.listAnalytics">listAnalytics</a></li><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.topAnalytics">topAnalytics</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#~listAnalytics">listAnalytics</a></li><li data-type='method' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#~sessionOf">sessionOf</a></li></ul></li><li><a href="module-controllers_triggersController.html">controllers/triggersController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.createTrigger">createTrigger</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.deleteTrigger">deleteTrigger</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.deployTrigger">deployTrigger</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.listTriggerJobs">listTriggerJobs</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.listTriggerLogs">listTriggerLogs</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.listTriggers">listTriggers</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.updateTrigger">updateTrigger</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_triggersController.html#~listTriggers">listTriggers</a></li></ul></li><li><a href="module-routes_adminRoutes.html">routes/adminRoutes</a></li><li><a href="module-routes_analyticsRoutes.html">routes/analyticsRoutes</a></li><li><a href="module-routes_authRoutes.html">routes/authRoutes</a></li><li><a href="module-routes_constraintRoutes.html">routes/constraintRoutes</a></li><li><a href="module-routes_dataRoutes.html">routes/dataRoutes</a></li><li><a href="module-routes_grantRoutes.html">routes/grantRoutes</a></li><li><a href="module-routes_metadataRoutes.html">routes/metadataRoutes</a></li><li><a href="module-routes_policyRoutes.html">routes/policyRoutes</a></li><li><a href="module-routes_queryLogRoutes.html">routes/queryLogRoutes</a></li><li><a href="module-routes_queryRoutes.html">routes/queryRoutes</a></li><li><a href="module-routes_savedAnalyticsRoutes.html">routes/savedAnalyticsRoutes</a></li><li><a href="module-routes_triggerRoutes.html">routes/triggerRoutes</a></li></ul><h3>Global</h3><ul><li><a href="global.html#AGG_FUNCS">AGG_FUNCS</a></li><li><a href="global.html#CANON_OP">CANON_OP</a></li><li><a href="global.html#EVENT_TIMINGS">EVENT_TIMINGS</a></li><li><a href="global.html#LOCAL_SOURCE">LOCAL_SOURCE</a></li><li><a href="global.html#OP_MAP">OP_MAP</a></li><li><a href="global.html#RANKING">RANKING</a></li><li><a href="global.html#SQL_OPERATORS">SQL_OPERATORS</a></li><li><a href="global.html#SyncType">SyncType</a></li><li><a href="global.html#VAR_TOKEN">VAR_TOKEN</a></li><li><a href="global.html#aggregateRaw">aggregateRaw</a></li><li><a href="global.html#applyWindows">applyWindows</a></li><li><a href="global.html#base">base</a></li><li><a href="global.html#cacheEnabled">cacheEnabled</a></li><li><a href="global.html#cacheGet">cacheGet</a></li><li><a href="global.html#cacheInvalidate">cacheInvalidate</a></li><li><a href="global.html#cacheSet">cacheSet</a></li><li><a href="global.html#cached">cached</a></li><li><a href="global.html#client">client</a></li><li><a href="global.html#comparator">comparator</a></li><li><a href="global.html#extractWindows">extractWindows</a></li><li><a href="global.html#gName">gName</a></li><li><a href="global.html#getJwtSecret">getJwtSecret</a></li><li><a href="global.html#hasWindows">hasWindows</a></li><li><a href="global.html#ident">ident</a></li><li><a href="global.html#initCache">initCache</a></li><li><a href="global.html#invalidateTenant">invalidateTenant</a></li><li><a href="global.html#isAggregateQuery">isAggregateQuery</a></li><li><a href="global.html#legKey">legKey</a></li><li><a href="global.html#maxRowsPerLeg">maxRowsPerLeg</a></li><li><a href="global.html#mergePartials">mergePartials</a></li><li><a href="global.html#migrate">migrate</a></li><li><a href="global.html#num">num</a></li><li><a href="global.html#numeric">numeric</a></li><li><a href="global.html#options">options</a></li><li><a href="global.html#parseAggregates">parseAggregates</a></li><li><a href="global.html#parseHaving">parseHaving</a></li><li><a href="global.html#parseLiteral">parseLiteral</a></li><li><a href="global.html#parseSelect">parseSelect</a></li><li><a href="global.html#parseWhere">parseWhere</a></li><li><a href="global.html#partialSpec">partialSpec</a></li><li><a href="global.html#partitionKey">partitionKey</a></li><li><a href="global.html#projectWithWindows">projectWithWindows</a></li><li><a href="global.html#queryWithContext">queryWithContext</a></li><li><a href="global.html#readCol">readCol</a></li><li><a href="global.html#splitTopLevel">splitTopLevel</a></li><li><a href="global.html#sqlToAst">sqlToAst</a></li><li><a href="global.html#toCanonical">toCanonical</a></li><li><a href="global.html#windowBaseColumns">windowBaseColumns</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">backend/src/modules/metadata/connectors/factory.ts</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * Cross-source connector factory.
+ * --------------------------------
+ * Defines the `IConnector` contract every supported engine implements —
+ * schema/table/column discovery, filtered query with pushdown, optional raw
+ * SQL execution, and optional document-store write ops — plus one concrete
+ * connector per supported engine:
+ *  - `PostgresConnector` — a remote Postgres source, with catalog introspection
+ *    via `pg_class`/`pg_proc`/`pg_type` and SQL pushdown via `PushdownCompiler`.
+ *  - `MySQLConnector` — MySQL/MariaDB, via `SHOW`/`information_schema` and SQL pushdown.
+ *  - `MongoDBConnector` — MongoDB, with schema inferred by sampling documents and
+ *    pushdown compiled to either a `find` spec or a `$group` aggregation pipeline.
+ *  - `SnowflakeConnector` — Snowflake via the optional `snowflake-sdk` driver
+ *    (lazy-required so the build never hard-depends on it).
+ *  - `ElasticsearchConnector` — Elasticsearch as a queryable federated source via
+ *    `_search`/`_sql`, plus bulk write ops for the `/api/data` CRUD endpoints.
+ * `ConnectorFactory.getConnector` is the single entry point used across the
+ * metadata module (crawling, manifest export, live query execution) to obtain
+ * the right connector instance for a data source's engine `type`.
+ */
+import { Pool } from 'pg';
+import * as mysql from 'mysql2/promise';
+import { MongoClient } from 'mongodb';
+import { PushdownCompiler, CanonicalQuery } from '../../query-engine/pushdown';
+
+/**
+ * Extract the canonical query shape (select / filter / orderBy / limit / offset)
+ * from a QueryConfig so it can be pushed down to a source engine.
+ */
+function toCanonical(config: any): CanonicalQuery {
+    return {
+        select: config?.select,
+        filter: config?.filter,
+        orderBy: config?.orderBy,
+        limit: config?.limit,
+        offset: config?.offset,
+        groupBy: config?.groupBy,
+        aggregates: config?.aggregates,
+    };
+}
+
+/**
+ * Common contract every engine connector implements, letting the rest of the
+ * fabric (crawling, manifest export, live query execution, CRUD endpoints)
+ * treat Postgres/MySQL/MongoDB/Snowflake/Elasticsearch sources uniformly.
+ */
+export interface IConnector {
+    /** Lists the source's logical schemas/databases as `{ name, physicalName }`. */
+    discoverSchemas(): Promise&lt;any[]>;
+    /** Lists tables/views/other relations in a schema as `{ name, physicalName, rowCount, resourceType }`. */
+    discoverTables(schema: string): Promise&lt;any[]>;
+    /** Column-level metadata: { name, type, nullable, default, primaryKey } */
+    discoverColumns?(schema: string, table: string): Promise&lt;any[]>;
+    /** Runs a canonical (pushdown-compiled) filtered/sorted/paginated query against one table/collection. */
+    query(schema: string, table: string, config: any): Promise&lt;any[]>;
+    /** Execute arbitrary native SQL at the source (SQL-native engines only). */
+    rawQuery?(sql: string, params?: any[]): Promise&lt;any[]>;
+    /** Document-store write ops (Mongo); relational engines use rawQuery instead. */
+    insertDocs?(schema: string, table: string, docs: any[]): Promise&lt;any>;
+    updateDocs?(schema: string, table: string, filter: Record&lt;string, any>, set: Record&lt;string, any>): Promise&lt;any>;
+    deleteDocs?(schema: string, table: string, filter: Record&lt;string, any>): Promise&lt;any>;
+    /** Releases any pooled/native connection held by the connector. */
+    close(): Promise&lt;void>;
+}
+
+/**
+ * `IConnector` implementation for a remote Postgres data source: catalog
+ * introspection via `pg_class`/`pg_proc`/`pg_type`/`information_schema`, and
+ * filtered queries compiled through `PushdownCompiler` with a fallback to the
+ * `public` schema if the configured schema fails.
+ */
+export class PostgresConnector implements IConnector {
+    private pool: Pool;
+    /**
+     * Creates a connection pool for the given source configuration.
+     * @param config Connection config: either `connectionString`, or `host`/`port`/`user`/`password|pass`/`database|dbName|db`.
+     */
+    constructor(config: any) {
+        if (config.advanced?.dynamicOptions) {
+            console.log(`[Connector] Applying dynamic options:`, JSON.stringify(config.advanced.dynamicOptions));
+        }
+        
+        const poolConfig: any = {
+            host: String(config.host || 'localhost'),
+            port: Number(config.port || 5432),
+            database: String(config.dbName || config.database || config.db || 'postgres'),
+            user: String(config.user || 'postgres')
+        };
+
+        // Industrial Safety: Only attach password if it's a valid string
+        const pass = config.pass || config.password;
+        if (typeof pass === 'string' &amp;&amp; pass.length > 0) {
+            poolConfig.password = pass;
+        }
+
+        if (config.connectionString) {
+            this.pool = new Pool({ connectionString: String(config.connectionString) });
+        } else {
+            this.pool = new Pool(poolConfig);
+        }
+    }
+
+    /**
+     * Lists user schemas, excluding `information_schema`/`pg_catalog` and any `pg_%` system schema.
+     * @returns Rows of `(name, physicalName)` (identical, since Postgres schema names are already physical).
+     */
+    async discoverSchemas(): Promise&lt;any[]> {
+        const { rows } = await this.pool.query(`
+            SELECT
+                schema_name as name,
+                schema_name as "physicalName"
+            FROM information_schema.schemata
+            WHERE schema_name NOT IN ('information_schema', 'pg_catalog')
+              AND schema_name NOT LIKE 'pg_%'
+        `);
+        return rows;
+    }
+
+    /**
+     * Lists every discoverable object in a schema: tables, partitioned
+     * tables, views, materialized views, foreign tables and sequences (via
+     * `pg_class`), plus functions/procedures (via `pg_proc`, ignored if
+     * `prokind` isn't supported pre-PG11) and enum types (via `pg_type`).
+     * @param schema Physical schema name to scan.
+     * @returns Combined rows of `(name, physicalName, rowCount, resourceType)` across all object kinds.
+     */
+    async discoverTables(schema: string): Promise&lt;any[]> {
+        // Relations: tables, partitioned tables, views, materialized views,
+        // foreign tables, and sequences — each with its object type.
+        const rels = await this.pool.query(`
+            SELECT c.relname AS name, c.relname AS "physicalName", GREATEST(c.reltuples, 0)::bigint AS "rowCount",
+                   CASE c.relkind
+                        WHEN 'r' THEN 'TABLE'
+                        WHEN 'p' THEN 'TABLE'
+                        WHEN 'v' THEN 'VIEW'
+                        WHEN 'm' THEN 'MATERIALIZED_VIEW'
+                        WHEN 'f' THEN 'FOREIGN_TABLE'
+                        WHEN 'S' THEN 'SEQUENCE'
+                   END AS "resourceType"
+            FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = $1 AND c.relkind IN ('r','p','v','m','f','S')
+        `, [schema]);
+        // Functions &amp; procedures.
+        const funcs = await this.pool.query(`
+            SELECT p.proname AS name, p.proname AS "physicalName", 0::bigint AS "rowCount",
+                   CASE p.prokind WHEN 'p' THEN 'PROCEDURE' ELSE 'FUNCTION' END AS "resourceType"
+            FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+            WHERE n.nspname = $1 AND p.prokind IN ('f','p')
+        `, [schema]).catch(() => ({ rows: [] })); // prokind exists on PG11+; ignore otherwise
+        // Enum types.
+        const enums = await this.pool.query(`
+            SELECT t.typname AS name, t.typname AS "physicalName", 0::bigint AS "rowCount", 'ENUM' AS "resourceType"
+            FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+            WHERE n.nspname = $1 AND t.typtype = 'e'
+        `, [schema]).catch(() => ({ rows: [] }));
+        return [...rels.rows, ...funcs.rows, ...enums.rows];
+    }
+
+    /**
+     * Foreign-key relationships within a schema (for ER diagrams).
+     * @param schema Physical schema name to scan.
+     * @returns Rows of `(name, sourceTable, sourceColumn, targetTable, targetColumn)`, one per FK constraint column.
+     */
+    async discoverRelationships(schema: string): Promise&lt;any[]> {
+        const { rows } = await this.pool.query(`
+            SELECT tc.constraint_name AS name,
+                   kcu.table_name AS "sourceTable", kcu.column_name AS "sourceColumn",
+                   ccu.table_name AS "targetTable", ccu.column_name AS "targetColumn"
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+              ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
+            JOIN information_schema.constraint_column_usage ccu
+              ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
+            WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = $1
+        `, [schema]);
+        return rows;
+    }
+
+    /**
+     * Column-level metadata for a table/view/materialized view/foreign table.
+     * Uses `pg_attribute` rather than `information_schema.columns` because
+     * the latter omits materialized views.
+     * @param schema Physical schema name.
+     * @param table Physical relation name.
+     * @returns Rows of `(name, type, nullable, default, primaryKey)`, ordered by column position.
+     */
+    async discoverColumns(schema: string, table: string): Promise&lt;any[]> {
+        // pg_attribute covers tables, views, materialized views and foreign tables
+        // (information_schema.columns omits materialized views).
+        const { rows } = await this.pool.query(`
+            SELECT a.attname AS name,
+                   format_type(a.atttypid, a.atttypmod) AS type,
+                   (NOT a.attnotnull) AS nullable,
+                   pg_get_expr(ad.adbin, ad.adrelid) AS "default",
+                   COALESCE((pk.conkey IS NOT NULL), false) AS "primaryKey"
+            FROM pg_attribute a
+            JOIN pg_class c ON c.oid = a.attrelid
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            LEFT JOIN pg_attrdef ad ON ad.adrelid = a.attrelid AND ad.adnum = a.attnum
+            LEFT JOIN LATERAL (
+                SELECT ct.conkey FROM pg_constraint ct
+                WHERE ct.conrelid = a.attrelid AND ct.contype = 'p' AND a.attnum = ANY(ct.conkey) LIMIT 1
+            ) pk ON true
+            WHERE n.nspname = $1 AND c.relname = $2 AND a.attnum > 0 AND NOT a.attisdropped
+            ORDER BY a.attnum
+        `, [schema, table]);
+        return rows;
+    }
+
+    /**
+     * Runs a canonical (filter/projection/sort/limit/offset) query against a
+     * table, compiled to parameterized SQL by `PushdownCompiler`. If the
+     * query fails against the requested schema, retries once against
+     * `public` before giving up (some sources register objects there
+     * regardless of the nominal schema).
+     * @param schema Physical schema to query.
+     * @param table Physical table name.
+     * @param config Canonical query config (`select`/`filter`/`orderBy`/`limit`/`offset`/`groupBy`/`aggregates`).
+     * @returns The matching rows.
+     * @throws Rethrows the inner error if the query also fails against `public`.
+     */
+    async query(schema: string, table: string, config: any): Promise&lt;any[]> {
+        const canonical = toCanonical(config);
+        // Push filter / projection / sort / limit / offset down to the remote engine
+        // (parameterized) instead of fetching the whole table and filtering in JS.
+        const compiled = PushdownCompiler.toSql({ ...canonical, schema, table, dialect: 'postgres' });
+        // INDUSTRIAL RESILIENCE: Try specified schema, fallback to public if needed
+        try {
+            console.log(`[PostgresConnector] Pushdown SQL: ${compiled.text}`);
+            const { rows } = await this.pool.query(compiled.text, compiled.params);
+            return rows;
+        } catch (err: any) {
+            console.warn(`[PostgresConnector] Schema "${schema}" failed, falling back to public for table "${table}"`);
+            try {
+                const fallback = PushdownCompiler.toSql({ ...canonical, schema: 'public', table, dialect: 'postgres' });
+                const { rows } = await this.pool.query(fallback.text, fallback.params);
+                return rows;
+            } catch (innerErr: any) {
+                console.error(`[PostgresConnector] Query failed on both "${schema}" and "public":`, innerErr.message);
+                throw innerErr;
+            }
+        }
+    }
+
+    /**
+     * Execute native SQL directly at the remote Postgres source. This is how the
+     * fabric runs complex single-source analytics (window functions, recursive CTEs,
+     * materialized-view reads) AT the source engine that owns the data, instead of
+     * only against the hub. Sets a search_path so unqualified names resolve to the
+     * caller-provided schema when supplied.
+     * @param sql SQL text to execute (unqualified names resolve against whatever `search_path` is currently set — see `setSearchPath`).
+     * @param params Positional parameters (`$1`, `$2`, ...) for the query; defaults to none.
+     * @returns The result rows.
+     * @throws Propagates any driver/query error.
+     */
+    async rawQuery(sql: string, params: any[] = []): Promise&lt;any[]> {
+        console.log(`[PostgresConnector] Raw SQL: ${String(sql).slice(0, 200)}`);
+        const { rows } = await this.pool.query(sql, params);
+        return rows;
+    }
+
+    /**
+     * Sets this connection's `search_path` so subsequent unqualified `rawQuery`
+     * calls resolve names against `schema` first, falling back to `public`.
+     * @param schema Schema name to prepend to the search path; sanitized to a safe identifier charset.
+     */
+    async setSearchPath(schema: string): Promise&lt;void> {
+        const safe = String(schema).replace(/[^a-zA-Z0-9_]/g, '');
+        if (safe) await this.pool.query(`SET search_path TO "${safe}", public`);
+    }
+
+    /** Closes the underlying connection pool. */
+    async close() {
+        await this.pool.end();
+    }
+}
+
+/**
+ * `IConnector` implementation for a MySQL/MariaDB data source: catalog
+ * introspection via `SHOW`/`information_schema`, and filtered queries
+ * compiled through `PushdownCompiler`. The underlying connection is opened
+ * lazily on first use and reused for subsequent calls.
+ */
+export class MySQLConnector implements IConnector {
+    private connection: mysql.Connection | null = null;
+    private config: any;
+
+    /**
+     * Stores the connection config; the actual connection is opened lazily by `connect()`.
+     * @param config Connection config: either `connectionString`, or `host`/`port`/`user`/`password|pass`/`database|dbName|db`.
+     */
+    constructor(config: any) {
+        this.config = config;
+    }
+
+    /**
+     * Returns the cached MySQL connection, opening one on first call.
+     * @returns The (possibly newly created) `mysql2` connection.
+     */
+    private async connect() {
+        if (!this.connection) {
+            if (this.config.connectionString) {
+                this.connection = await mysql.createConnection(this.config.connectionString);
+            } else {
+                this.connection = await mysql.createConnection({
+                    host: this.config.host,
+                    port: this.config.port,
+                    user: this.config.user,
+                    password: this.config.pass || this.config.password,
+                    database: this.config.dbName || this.config.database || this.config.db
+                });
+            }
+        }
+        return this.connection;
+    }
+
+    /**
+     * Lists databases as MySQL's logical schemas.
+     * @returns Rows of `(name, physicalName)` (both equal to the database name).
+     */
+    async discoverSchemas(): Promise&lt;any[]> {
+        const conn = await this.connect();
+        const [rows]: any = await conn.query('SHOW DATABASES');
+        return rows.map((r: any) => ({ name: r.Database, physicalName: r.Database }));
+    }
+
+    /**
+     * Lists tables/views (via `SHOW FULL TABLES`, which distinguishes the
+     * two) plus stored functions/procedures (via `information_schema.ROUTINES`,
+     * best-effort) in a database.
+     * @param schema Database name to scan; sanitized to a safe identifier charset before use in `USE`.
+     * @returns Combined rows of `(name, physicalName, rowCount: 0, resourceType)`.
+     */
+    async discoverTables(schema: string): Promise&lt;any[]> {
+        const conn = await this.connect();
+        const safeSchema = schema.replace(/[^a-zA-Z0-9_]/g, '');
+        await conn.query(`USE \`${safeSchema}\``);
+        // SHOW FULL TABLES distinguishes BASE TABLE from VIEW.
+        const [tables]: any = await conn.query('SHOW FULL TABLES');
+        const out = tables.map((r: any) => {
+            const vals = Object.values(r);
+            const name = vals[0];
+            const tableType = String(vals[1] || 'BASE TABLE').toUpperCase();
+            return { name, physicalName: name, rowCount: 0, resourceType: tableType.includes('VIEW') ? 'VIEW' : 'TABLE' };
+        });
+        // Stored functions &amp; procedures.
+        try {
+            const [routines]: any = await conn.query(
+                'SELECT ROUTINE_NAME AS name, ROUTINE_TYPE AS type FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA = ?', [safeSchema]);
+            for (const r of routines) out.push({ name: r.name, physicalName: r.name, rowCount: 0, resourceType: String(r.type).toUpperCase() === 'PROCEDURE' ? 'PROCEDURE' : 'FUNCTION' });
+        } catch { /* routines optional */ }
+        return out;
+    }
+
+    /**
+     * Column-level metadata for a table via `information_schema.COLUMNS`.
+     * @param schema Database (schema) name.
+     * @param table Table name.
+     * @returns Rows of `(name, type, nullable, default, primaryKey)`, ordered by column position.
+     */
+    async discoverColumns(schema: string, table: string): Promise&lt;any[]> {
+        const conn = await this.connect();
+        const [rows]: any = await conn.query(
+            `SELECT COLUMN_NAME AS name, DATA_TYPE AS type, (IS_NULLABLE='YES') AS nullable,
+                    COLUMN_DEFAULT AS \`default\`, (COLUMN_KEY='PRI') AS \`primaryKey\`
+             FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION`,
+            [schema, table]);
+        return rows;
+    }
+
+    /**
+     * Runs a canonical (filter/projection/sort/limit/offset) query against a
+     * table, compiled to parameterized SQL by `PushdownCompiler`. Switches
+     * the connection's active database to `schema` before executing.
+     * @param schema Database name to query.
+     * @param table Table name.
+     * @param config Canonical query config (`select`/`filter`/`orderBy`/`limit`/`offset`/`groupBy`/`aggregates`).
+     * @returns The matching rows.
+     */
+    async query(schema: string, table: string, config: any): Promise&lt;any[]> {
+        const conn = await this.connect();
+        await conn.query(`USE \`${schema.replace(/[^a-zA-Z0-9_]/g, '')}\``);
+        // Push filter / projection / sort / limit / offset down to MySQL (parameterized).
+        const compiled = PushdownCompiler.toSql({ ...toCanonical(config), table, dialect: 'mysql' });
+        console.log(`[MySQLConnector] Pushdown SQL: ${compiled.text}`);
+        const [rows]: any = await conn.execute(compiled.text, compiled.params);
+        return rows;
+    }
+
+    /** Closes the underlying connection, if one was ever opened. */
+    async close() {
+        if (this.connection) await this.connection.end();
+    }
+}
+
+/**
+ * `IConnector` implementation for a MongoDB data source. Schemas map to
+ * Mongo databases and tables to collections; since Mongo is schemaless,
+ * column metadata is inferred by sampling documents. Filtered queries are
+ * pushed down either as a `find` spec or, when aggregates/grouping are
+ * requested, as a `$group` aggregation pipeline (both via `PushdownCompiler`).
+ * Also implements the optional document-store write ops used by the
+ * `/api/data` CRUD endpoints.
+ */
+export class MongoDBConnector implements IConnector {
+    private client: MongoClient;
+    private config: any;
+
+    /**
+     * Creates a (not-yet-connected) MongoDB client from the given config.
+     * @param config Connection config: `uri`/`connectionString`/`url`, or `user`/`pass`/`host`/`port` to build a `mongodb://` URL.
+     */
+    constructor(config: any) {
+        if (config.advanced?.dynamicOptions) {
+            console.log(`[Connector] Applying dynamic options to Mongo:`, JSON.stringify(config.advanced.dynamicOptions));
+        }
+        // Accept every config shape used across the platform (dispatcher uses `uri`,
+        // examples use host/port, others use connectionString/url).
+        const url = config.uri || config.connectionString || config.url
+            || `mongodb://${config.user}:${config.pass}@${config.host}:${config.port}`;
+        this.client = new MongoClient(url);
+    }
+
+    /**
+     * Lists databases as Mongo's logical schemas, excluding the built-in
+     * `admin`/`config`/`local` system databases.
+     * @returns Rows of `(name, physicalName)` (both equal to the database name).
+     */
+    async discoverSchemas(): Promise&lt;any[]> {
+        await this.client.connect();
+        const dbs = await this.client.db().admin().listDatabases();
+        const SYSTEM_DBS = new Set(['admin', 'config', 'local']);
+        return dbs.databases
+            .filter((db: any) => !SYSTEM_DBS.has(db.name))
+            .map((db: any) => ({ name: db.name, physicalName: db.name }));
+    }
+
+    /**
+     * Lists collections (and views) in a database.
+     * @param schema Database name.
+     * @returns Rows of `(name, physicalName, rowCount: 0, resourceType)`, where `resourceType` is `'VIEW'` for Mongo views and `'TABLE'` for ordinary collections.
+     */
+    async discoverTables(schema: string): Promise&lt;any[]> {
+        const db = this.client.db(schema);
+        const collections = await db.listCollections().toArray();
+        // Mongo listCollections reports type 'collection' vs 'view'.
+        return collections.map(c => ({
+            name: c.name,
+            physicalName: c.name,
+            rowCount: 0,
+            resourceType: (c as any).type === 'view' ? 'VIEW' : 'TABLE',
+        }));
+    }
+
+    /**
+     * Infers a collection's fields by sampling up to 20 documents, since
+     * Mongo collections have no fixed schema. The `_id` field is always
+     * reported as the primary key.
+     * @param schema Database name.
+     * @param table Collection name.
+     * @returns Inferred columns as `(name, type, nullable: true, default: null, primaryKey)`, where `type` is a JS `typeof` result (or `'array'`/`'null'`).
+     */
+    async discoverColumns(schema: string, table: string): Promise&lt;any[]> {
+        // Mongo is schemaless — infer fields by sampling a few documents.
+        await this.client.connect();
+        const docs = await this.client.db(schema).collection(table).find({}).limit(20).toArray();
+        const fields = new Map&lt;string, string>();
+        for (const doc of docs) {
+            for (const k of Object.keys(doc)) {
+                if (!fields.has(k)) { const v = (doc as any)[k]; fields.set(k, v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v); }
+            }
+        }
+        return Array.from(fields.entries()).map(([name, type]) => ({ name, type, nullable: true, default: null, primaryKey: name === '_id' }));
+    }
+
+    /**
+     * Runs a canonical (filter/projection/sort/limit/offset, or grouped
+     * aggregate) query against a collection. Uses a `$group` aggregation
+     * pipeline (compiled by `PushdownCompiler.toMongoAggregate`) whenever
+     * aggregates or GROUP BY columns are requested (GROUP BY with no
+     * aggregates behaves as DISTINCT); otherwise compiles a plain `find`
+     * spec (filter/projection/sort/skip/limit) via `PushdownCompiler.toMongo`.
+     * @param schema Database name to query.
+     * @param table Collection name.
+     * @param config Canonical query config (`select`/`filter`/`orderBy`/`limit`/`offset`/`groupBy`/`aggregates`).
+     * @returns The matching documents (or aggregation result documents).
+     */
+    async query(schema: string, table: string, config: any): Promise&lt;any[]> {
+        await this.client.connect();
+        const db = this.client.db(schema);
+        const collection = db.collection(table);
+        const canonical = toCanonical(config);
+
+        // Aggregate / DISTINCT pushdown: a $group pipeline (groups, not rows) is used
+        // when there are aggregates OR grouping columns (GROUP BY-only = DISTINCT).
+        if ((canonical.aggregates &amp;&amp; canonical.aggregates.length > 0) || (canonical.groupBy &amp;&amp; canonical.groupBy.length > 0)) {
+            const pipeline = PushdownCompiler.toMongoAggregate(canonical);
+            console.log(`[MongoDBConnector] Pushdown aggregate: ${JSON.stringify(pipeline)}`);
+            return await collection.aggregate(pipeline).toArray();
+        }
+
+        // Push filter / projection / sort / limit / skip down to MongoDB.
+        const spec = PushdownCompiler.toMongo(canonical);
+        console.log(`[MongoDBConnector] Pushdown find: ${JSON.stringify(spec.filter)} proj=${JSON.stringify(spec.projection || {})}`);
+
+        let cursor = collection.find(spec.filter, spec.projection ? { projection: spec.projection } : {});
+        if (spec.sort) cursor = cursor.sort(spec.sort);
+        if (typeof spec.skip === 'number') cursor = cursor.skip(spec.skip);
+        if (typeof spec.limit === 'number') cursor = cursor.limit(spec.limit);
+
+        return await cursor.toArray();
+    }
+
+    // --- write support (used by the /api/data CRUD endpoints) ---
+    /**
+     * Bulk-inserts documents into a collection.
+     * @param schema Database name.
+     * @param table Collection name.
+     * @param docs Documents to insert.
+     * @returns `(insertedCount)`.
+     */
+    async insertDocs(schema: string, table: string, docs: any[]): Promise&lt;any> {
+        await this.client.connect();
+        const r = await this.client.db(schema).collection(table).insertMany(docs);
+        return { insertedCount: r.insertedCount };
+    }
+    /**
+     * Applies a `$set` update to every document matching a canonical filter.
+     * @param schema Database name.
+     * @param table Collection name.
+     * @param filter Canonical filter, compiled to a Mongo match via `PushdownCompiler.toMongo`.
+     * @param set Field/value pairs to `$set` on each matched document.
+     * @returns `(matchedCount, modifiedCount)`.
+     */
+    async updateDocs(schema: string, table: string, filter: Record&lt;string, any>, set: Record&lt;string, any>): Promise&lt;any> {
+        await this.client.connect();
+        const match = PushdownCompiler.toMongo({ filter }).filter;
+        const r = await this.client.db(schema).collection(table).updateMany(match, { $set: set });
+        return { matchedCount: r.matchedCount, modifiedCount: r.modifiedCount };
+    }
+    /**
+     * Deletes every document matching a canonical filter.
+     * @param schema Database name.
+     * @param table Collection name.
+     * @param filter Canonical filter, compiled to a Mongo match via `PushdownCompiler.toMongo`.
+     * @returns `(deletedCount)`.
+     */
+    async deleteDocs(schema: string, table: string, filter: Record&lt;string, any>): Promise&lt;any> {
+        await this.client.connect();
+        const match = PushdownCompiler.toMongo({ filter }).filter;
+        const r = await this.client.db(schema).collection(table).deleteMany(match);
+        return { deletedCount: r.deletedCount };
+    }
+
+    /** Closes the underlying MongoDB client. */
+    async close() {
+        await this.client.close();
+    }
+}
+
+/**
+ * SnowflakeConnector — queries Snowflake as a federated source with full pushdown
+ * (filter/projection/sort/limit + GROUP BY aggregates via the shared SQL compiler).
+ * The `snowflake-sdk` driver is lazy-required so the build never depends on it;
+ * a clear error is thrown only if a Snowflake source is actually used without it.
+ */
+export class SnowflakeConnector implements IConnector {
+    private config: any;
+    private conn: any = null;
+    /**
+     * Stores the connection config; the actual Snowflake connection is opened lazily by `connect()`.
+     * @param config Connection config: `account`, `user`/`username`, `pass`/`password`, `warehouse`, `role`, `dbName`/`database`, `schema`.
+     */
+    constructor(config: any) { this.config = config; }
+
+    /**
+     * Lazily requires the optional `snowflake-sdk` dependency.
+     * @returns The `snowflake-sdk` module.
+     * @throws {Error} If `snowflake-sdk` isn't installed.
+     */
+    private sdk(): any {
+        try { return require('snowflake-sdk'); }
+        catch { throw new Error("Snowflake support requires the 'snowflake-sdk' package. Run: npm i snowflake-sdk"); }
+    }
+
+    /**
+     * Returns the cached Snowflake connection, establishing one on first call.
+     * @returns The connected `snowflake-sdk` connection object.
+     * @throws Propagates any connection error from the driver.
+     */
+    private async connect(): Promise&lt;any> {
+        if (this.conn) return this.conn;
+        const snowflake = this.sdk();
+        const c = this.config;
+        const connection = snowflake.createConnection({
+            account: c.account,
+            username: c.user || c.username,
+            password: c.pass || c.password,
+            warehouse: c.warehouse,
+            role: c.role,
+            database: c.dbName || c.database,
+            schema: c.schema,
+        });
+        await new Promise&lt;void>((resolve, reject) => connection.connect((err: any) => (err ? reject(err) : resolve())));
+        this.conn = connection;
+        return connection;
+    }
+
+    /**
+     * Executes SQL against Snowflake and promisifies the driver's callback-based result.
+     * @param sqlText SQL text to execute, with `?` placeholders for `binds`.
+     * @param binds Positional bind values; defaults to none.
+     * @returns The result rows.
+     * @throws Propagates any error reported by the driver's `execute` callback.
+     */
+    private async exec(sqlText: string, binds: any[] = []): Promise&lt;any[]> {
+        const conn = await this.connect();
+        return new Promise&lt;any[]>((resolve, reject) => {
+            conn.execute({ sqlText, binds, complete: (err: any, _stmt: any, rows: any[]) => (err ? reject(err) : resolve(rows || [])) });
+        });
+    }
+
+    /**
+     * Lists schemas via `INFORMATION_SCHEMA.SCHEMATA`.
+     * @returns Rows of `(name, physicalName)` (both equal to the schema name).
+     */
+    async discoverSchemas(): Promise&lt;any[]> {
+        const rows = await this.exec(`SELECT SCHEMA_NAME AS name FROM INFORMATION_SCHEMA.SCHEMATA`);
+        return rows.map((r) => ({ name: r.NAME || r.name, physicalName: r.NAME || r.name }));
+    }
+    /**
+     * Lists tables/views (via `INFORMATION_SCHEMA.TABLES`) plus sequences and
+     * functions (best-effort, each independently optional) in a schema.
+     * @param schema Schema name to scan.
+     * @returns Combined rows of `(name, physicalName, rowCount: 0, resourceType)`.
+     */
+    async discoverTables(schema: string): Promise&lt;any[]> {
+        const tables = await this.exec(
+            `SELECT TABLE_NAME AS name, TABLE_TYPE AS type FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ?`, [schema]);
+        const out = tables.map((r) => {
+            const name = r.NAME || r.name;
+            const type = String(r.TYPE || r.type || 'BASE TABLE').toUpperCase();
+            return { name, physicalName: name, rowCount: 0, resourceType: type.includes('VIEW') ? 'VIEW' : 'TABLE' };
+        });
+        const push = (rows: any[], rt: string) => rows.forEach((r) => { const n = r.NAME || r.name; out.push({ name: n, physicalName: n, rowCount: 0, resourceType: rt }); });
+        try { push(await this.exec(`SELECT SEQUENCE_NAME AS name FROM INFORMATION_SCHEMA.SEQUENCES WHERE SEQUENCE_SCHEMA = ?`, [schema]), 'SEQUENCE'); } catch { /* optional */ }
+        try { push(await this.exec(`SELECT FUNCTION_NAME AS name FROM INFORMATION_SCHEMA.FUNCTIONS WHERE FUNCTION_SCHEMA = ?`, [schema]), 'FUNCTION'); } catch { /* optional */ }
+        return out;
+    }
+
+    /**
+     * Runs a canonical (filter/projection/sort/limit/offset, or GROUP BY
+     * aggregate) query against a table, compiled to Snowflake SQL by `PushdownCompiler`.
+     * @param schema Schema name to query.
+     * @param table Table name.
+     * @param config Canonical query config (`select`/`filter`/`orderBy`/`limit`/`offset`/`groupBy`/`aggregates`).
+     * @returns The matching rows.
+     */
+    async query(schema: string, table: string, config: any): Promise&lt;any[]> {
+        const compiled = PushdownCompiler.toSql({ ...toCanonical(config), schema, table, dialect: 'snowflake' });
+        console.log(`[SnowflakeConnector] Pushdown SQL: ${compiled.text}`);
+        return await this.exec(compiled.text, compiled.params);
+    }
+
+    /** Destroys the underlying Snowflake connection, if one was ever opened. */
+    async close(): Promise&lt;void> {
+        if (this.conn) await new Promise&lt;void>((resolve) => this.conn.destroy(() => resolve()));
+        this.conn = null;
+    }
+}
+
+/**
+ * ElasticsearchConnector — makes ES a READABLE federated source via _search:
+ * predicate/sort/projection/size pushdown as query-DSL, and GROUP BY aggregates
+ * as terms + metric sub-aggregations. (The write/sink worker is separate.)
+ */
+export class ElasticsearchConnector implements IConnector {
+    private base: string;
+    private auth?: { username: string; password: string };
+    /**
+     * Builds the connector's base URL and optional basic-auth credentials.
+     * @param config Connection config: `uri`/`url`/`connectionString`, or `host`/`port`; optional `user|username`/`pass|password`.
+     */
+    constructor(config: any) {
+        const host = config.host || 'localhost';
+        const port = config.port || 9200;
+        this.base = (config.uri || config.url || config.connectionString || `http://${host}:${port}`).replace(/\/$/, '');
+        const user = config.user || config.username;
+        const pass = config.pass || config.password;
+        if (user) this.auth = { username: String(user), password: String(pass || '') };
+    }
+
+    /**
+     * Issues an HTTP request against the Elasticsearch REST API.
+     * @param method HTTP method (e.g. `GET`, `POST`, `PUT`, `DELETE`).
+     * @param path Request path, appended to the connector's base URL.
+     * @param body Optional request body.
+     * @param contentType Request `Content-Type` header; defaults to `application/json` (pass `application/x-ndjson` for `_bulk`).
+     * @returns The parsed response body.
+     * @throws Propagates any HTTP/network error from axios.
+     */
+    private async req(method: string, path: string, body?: any, contentType = 'application/json'): Promise&lt;any> {
+        const axios = require('axios');
+        const res = await axios({ method, url: `${this.base}${path}`, data: body, auth: this.auth, headers: { 'Content-Type': contentType }, timeout: 30000 });
+        return res.data;
+    }
+
+    /**
+     * Elasticsearch has no schema concept; exposes a single logical namespace
+     * so the rest of the fabric's schema-scoped APIs still work uniformly.
+     * @returns A single-element array: `[( name: 'default', physicalName: 'default' )]`.
+     */
+    async discoverSchemas(): Promise&lt;any[]> {
+        // ES has no schemas; expose a single logical namespace.
+        return [{ name: 'default', physicalName: 'default' }];
+    }
+    /**
+     * Lists indices via `_cat/indices`, excluding hidden/system indices (those prefixed with `.`).
+     * @param _schema Unused (ES has no schema concept).
+     * @returns Rows of `(name, physicalName, rowCount, resourceType: 'TABLE')`, one per index.
+     */
+    async discoverTables(_schema: string): Promise&lt;any[]> {
+        const data = await this.req('GET', `/_cat/indices?format=json`);
+        return (data || [])
+            .filter((i: any) => !String(i.index).startsWith('.'))
+            .map((i: any) => ({ name: i.index, physicalName: i.index, rowCount: Number(i['docs.count']) || 0, resourceType: 'TABLE' }));
+    }
+
+    /**
+     * Column metadata from the index mapping (field name + ES type).
+     * @param _schema Unused (ES has no schema concept).
+     * @param table Index name whose mapping is inspected.
+     * @returns Rows of `(name, type, nullable: true, default: null, primaryKey: false)`, one per mapped field.
+     */
+    async discoverColumns(_schema: string, table: string): Promise&lt;any[]> {
+        const data = await this.req('GET', `/${table}/_mapping`);
+        // { &lt;index>: { mappings: { properties: { field: { type, ... } } } } }
+        const idx = Object.keys(data || {})[0];
+        const props = (idx &amp;&amp; data[idx]?.mappings?.properties) || {};
+        return Object.keys(props).map((name) => ({
+            name, type: props[name].type || (props[name].properties ? 'object' : 'unknown'),
+            nullable: true, default: null, primaryKey: false,
+        }));
+    }
+
+    /**
+     * Instance-level convenience wrapper around the static `filterClauses`.
+     * @param filter Canonical filter map (`(column: value | ( $op: value, ... ))`); defaults to no filter.
+     * @returns The compiled ES query-DSL clauses.
+     */
+    private buildFilter(filter: Record&lt;string, any> = {}): any[] {
+        return ElasticsearchConnector.filterClauses(filter);
+    }
+
+    /**
+     * Faithful preview of the _search body the connector would send (for the execution trace).
+     * @param canonical Canonical query config (`filter`/`select`/`limit`/`groupBy`/`aggregates`).
+     * @param index Target index name, used only to render the `POST /{index}/_search` line.
+     * @returns A human-readable string showing the HTTP method/path and (abbreviated, for aggregates) request body.
+     */
+    static previewBody(canonical: any, index: string): string {
+        const clauses = this.filterClauses(canonical.filter || {});
+        const query = clauses.length ? { bool: { filter: clauses } } : { match_all: {} };
+        if (canonical.aggregates &amp;&amp; canonical.aggregates.length > 0) {
+            const groupBy = canonical.groupBy || [];
+            const buckets = groupBy.map((g: any) => (g &amp;&amp; typeof g === 'object' &amp;&amp; g.dateInterval)
+                ? `date_histogram(${g.field}/${g.dateInterval})` : `terms(${g})`).join(' → ') || '(none)';
+            return `POST /${index}/_search ${JSON.stringify({ size: 0, query, aggs: `${buckets} + [${canonical.aggregates.map((a: any) => a.func).join(',')}]` })}`;
+        }
+        const body: any = { query };
+        if (canonical.select?.length &amp;&amp; !canonical.select.includes('*')) body._source = canonical.select;
+        if (typeof canonical.limit === 'number') body.size = canonical.limit;
+        return `POST /${index}/_search ${JSON.stringify(body)}`;
+    }
+
+    /**
+     * Compiles a canonical filter map into Elasticsearch query-DSL clauses.
+     * Each column may carry a bare value (compiled to `term` equality) or an
+     * object of `$op` keys (e.g. `($gte: 5, $lte: 10)`) compiled to the
+     * matching `term`/`range`/`terms`/`wildcard`/`match` clause per operator.
+     * @param filter Canonical filter map (`(column: value | ( $eq|$ne|$gt|$gte|$lt|$lte|$in|$like|$ilike|$match|$fuzzy: value ))`); defaults to no filter.
+     * @returns The compiled ES query-DSL clauses (to be combined with `bool.filter`/`bool.must`).
+     */
+    static filterClauses(filter: Record&lt;string, any> = {}): any[] {
+        const clauses: any[] = [];
+        for (const key of Object.keys(filter)) {
+            const raw = filter[key];
+            // A column may carry multiple operators (e.g. a range { $gte, $lte }).
+            const rawKeys = raw &amp;&amp; typeof raw === 'object' &amp;&amp; !Array.isArray(raw) ? Object.keys(raw) : [];
+            const ops = (rawKeys.length &amp;&amp; rawKeys.every((k) => k.startsWith('$')))
+                ? rawKeys.map((op) => ({ op, val: raw[op] }))
+                : [{ op: '$eq', val: raw }];
+            for (const { op, val } of ops) {
+                switch (op) {
+                    case '$eq': clauses.push({ term: { [key]: val } }); break;
+                    case '$ne': clauses.push({ bool: { must_not: { term: { [key]: val } } } }); break;
+                    case '$gt': clauses.push({ range: { [key]: { gt: val } } }); break;
+                    case '$gte': clauses.push({ range: { [key]: { gte: val } } }); break;
+                    case '$lt': clauses.push({ range: { [key]: { lt: val } } }); break;
+                    case '$lte': clauses.push({ range: { [key]: { lte: val } } }); break;
+                    case '$in': clauses.push({ terms: { [key]: val } }); break;
+                    case '$like': case '$ilike':
+                        clauses.push({ wildcard: { [key]: { value: String(val).replace(/%/g, '*').replace(/_/g, '?'), case_insensitive: op === '$ilike' } } });
+                        break;
+                    case '$match': // native full-text relevance search on an analyzed field
+                        clauses.push({ match: { [key]: val } });
+                        break;
+                    case '$fuzzy': // fuzzy / entity-resolution match (Levenshtein, fuzziness=AUTO)
+                        clauses.push({ match: { [key]: { query: val, fuzziness: 'AUTO' } } });
+                        break;
+                    default: clauses.push({ term: { [key]: val } });
+                }
+            }
+        }
+        return clauses;
+    }
+
+    /**
+     * Split canonical filter clauses into scoring (match/fuzzy → `must`) and non-scoring (`filter`).
+     * @param filter Canonical filter map, as accepted by `filterClauses`; defaults to no filter.
+     * @returns An ES query object: `(match_all: ())` if there are no clauses, otherwise `(bool: ( filter?, must? ))`.
+     */
+    static buildQuery(filter: Record&lt;string, any> = {}): any {
+        const all = ElasticsearchConnector.filterClauses(filter);
+        const must = all.filter((c) => c.match || c.fuzzy);   // full-text / fuzzy → scored
+        const filt = all.filter((c) => !(c.match || c.fuzzy)); // exact / range → non-scored
+        if (!must.length &amp;&amp; !filt.length) return { match_all: {} };
+        return { bool: { ...(filt.length ? { filter: filt } : {}), ...(must.length ? { must } : {}) } };
+    }
+
+    /**
+     * One ES metric sub-agg for an aggregate spec (null for COUNT → use bucket doc_count).
+     * @param a Aggregate spec (`(func, column, alias, percent?)`); `func` is one of SUM/MIN/MAX/AVG/COUNT/COUNT_DISTINCT/PERCENTILE.
+     * @returns The corresponding ES metric aggregation body (`sum`/`min`/`max`/`avg`/`cardinality`/`percentiles`), or `null` for `COUNT` (handled via bucket `doc_count` instead) or an unrecognized function.
+     */
+    private static metricAgg(a: any): any | null {
+        const field = a.column;
+        switch (a.func) {
+            case 'COUNT': return null;
+            case 'SUM': return { sum: { field } };
+            case 'MIN': return { min: { field } };
+            case 'MAX': return { max: { field } };
+            case 'AVG': return { avg: { field } };
+            case 'COUNT_DISTINCT': return { cardinality: { field } };
+            case 'PERCENTILE': return { percentiles: { field, percents: [a.percent || 95] } };
+            default: return null;
+        }
+    }
+
+    /**
+     * Runs a canonical query against an index, either as a grouped aggregate
+     * (`_search` with `size: 0` and `aggs`, flattened back into rows via
+     * `flattenAggs`) when aggregates or GROUP BY columns are requested
+     * (GROUP BY with no aggregates behaves as DISTINCT), or as a plain
+     * document search (`_search` with `query`/`_source`/`sort`/`from`/`size`)
+     * otherwise. Plain searches are capped so `from + size` never exceeds
+     * Elasticsearch's default `max_result_window` (10000).
+     * @param schema Unused (ES has no schema concept); the index name doubles as the table.
+     * @param table Index name to query.
+     * @param config Canonical query config (`select`/`filter`/`orderBy`/`limit`/`offset`/`groupBy`/`aggregates`).
+     * @returns For plain searches: hit documents plus `_id`/`_score`. For aggregates: one flattened row per bucket combination, with metric values under their aliases.
+     */
+    async query(schema: string, table: string, config: any): Promise&lt;any[]> {
+        const canonical = toCanonical(config);
+        const index = table;
+        const query = ElasticsearchConnector.buildQuery(canonical.filter || {});
+
+        // Aggregate / DISTINCT pushdown: (date_histogram | terms) buckets for group cols
+        // + metric sub-aggs. Fires on aggregates OR grouping columns (GROUP BY-only = DISTINCT).
+        if ((canonical.aggregates &amp;&amp; canonical.aggregates.length > 0) || (canonical.groupBy &amp;&amp; canonical.groupBy.length > 0)) {
+            const groupBy: any[] = canonical.groupBy || [];
+            const aggregates: any[] = canonical.aggregates || []; // may be empty for GROUP BY-only (DISTINCT)
+            const metrics: Record&lt;string, any> = {};
+            for (const a of aggregates) {
+                const m = ElasticsearchConnector.metricAgg(a);
+                if (m) metrics[a.alias] = m;
+            }
+            const countAlias = aggregates.find((a: any) => a.func === 'COUNT')?.alias;
+            // Nest bucket aggs from the group columns (string → terms; {field,dateInterval} → date_histogram).
+            let aggs: any = metrics;
+            for (let i = groupBy.length - 1; i >= 0; i--) {
+                const g = groupBy[i];
+                const bucket = (g &amp;&amp; typeof g === 'object' &amp;&amp; g.dateInterval)
+                    ? { date_histogram: { field: g.field, calendar_interval: g.dateInterval } }
+                    : { terms: { field: typeof g === 'object' ? g.field : g, size: 10000 } };
+                aggs = { [`g_${i}`]: { ...bucket, aggs } };
+            }
+            const body = { size: 0, query, aggs: groupBy.length ? aggs : metrics };
+            console.log(`[ElasticsearchConnector] Pushdown aggregate on ${index}: ${JSON.stringify(body)}`);
+            const data = await this.req('POST', `/${index}/_search`, body);
+            return this.flattenAggs(data.aggregations || {}, groupBy, aggregates, countAlias, 0, {});
+        }
+
+        const body: any = { query };
+        if (canonical.select &amp;&amp; canonical.select.length &amp;&amp; !canonical.select.includes('*')) body._source = canonical.select;
+        if (canonical.orderBy &amp;&amp; canonical.orderBy.length) body.sort = canonical.orderBy.map((o) => ({ [o.field]: (o.dir === 'DESC' ? 'desc' : 'asc') }));
+        // Elasticsearch rejects from+size beyond index.max_result_window (default 10000).
+        const MAX_ES_WINDOW = 10000;
+        const from = typeof canonical.offset === 'number' ? Math.max(0, canonical.offset) : 0;
+        const want = typeof canonical.limit === 'number' ? canonical.limit : 1000;
+        body.size = Math.max(0, Math.min(want, MAX_ES_WINDOW - from));
+        if (from) body.from = from;
+        console.log(`[ElasticsearchConnector] Pushdown search on ${index}: ${JSON.stringify(body)}`);
+        const data = await this.req('POST', `/${index}/_search`, body);
+        // Surface the relevance _score alongside the document source (0 when unscored).
+        return (data.hits?.hits || []).map((h: any) => ({ _id: h._id, _score: h._score, ...h._source }));
+    }
+
+    /**
+     * Native SQL against Elasticsearch's `_sql` endpoint (SQL mode). Lets
+     * /api/queries/exec run SELECT/WHERE/GROUP BY/aggregate SQL directly on ES.
+     * ES SQL is a read-only subset: no JOINs; full-text via MATCH()/QUERY().
+     * @param sql SQL text understood by ES SQL mode.
+     * @returns Rows re-keyed from ES SQL's columnar `(columns, rows)` shape into plain objects.
+     */
+    async rawQuery(sql: string): Promise&lt;any[]> {
+        console.log(`[ElasticsearchConnector] _sql: ${String(sql).slice(0, 200)}`);
+        const data = await this.req('POST', `/_sql?format=json`, { query: sql });
+        const cols: string[] = (data.columns || []).map((c: any) => c.name);
+        return (data.rows || []).map((r: any[]) => Object.fromEntries(cols.map((c, i) => [c, r[i]])));
+    }
+
+    // --- write support (used by the /api/data CRUD endpoints) ---
+    /**
+     * Bulk-inserts documents into an index via `_bulk`, refreshing immediately
+     * so they're searchable right away. Uses each document's `_id` field (if
+     * present) as the ES document id, stripping it from the indexed `_source`.
+     * @param _schema Unused (ES has no schema concept).
+     * @param index Target index.
+     * @param docs Documents to index; a top-level `_id` field, if present, becomes the ES document id.
+     * @returns `(insertedCount)`, counting only bulk items that reported a successful (&lt; 300) status.
+     */
+    async insertDocs(_schema: string, index: string, docs: any[]): Promise&lt;any> {
+        const lines: string[] = [];
+        for (const d of docs) {
+            const { _id, ...src } = d;
+            lines.push(JSON.stringify(_id != null ? { index: { _index: index, _id: String(_id) } } : { index: { _index: index } }));
+            lines.push(JSON.stringify(src));
+        }
+        const res = await this.req('POST', `/_bulk?refresh=true`, lines.join('\n') + '\n', 'application/x-ndjson');
+        const items = res.items || [];
+        return { insertedCount: items.filter((i: any) => i.index &amp;&amp; i.index.status &lt; 300).length };
+    }
+    /**
+     * Updates every document matching a canonical filter via `_update_by_query`,
+     * using a Painless script that sets each field from `set` (refreshed immediately).
+     * @param _schema Unused (ES has no schema concept).
+     * @param index Target index.
+     * @param filter Canonical filter, compiled to ES query-DSL via `buildQuery`.
+     * @param set Field/value pairs applied to each matched document's `_source`.
+     * @returns `(modifiedCount)`.
+     */
+    async updateDocs(_schema: string, index: string, filter: Record&lt;string, any>, set: Record&lt;string, any>): Promise&lt;any> {
+        const src = Object.keys(set).map((k) => `ctx._source["${k}"] = params["${k}"]`).join('; ');
+        const body = { query: ElasticsearchConnector.buildQuery(filter), script: { source: src, params: set } };
+        const res = await this.req('POST', `/${index}/_update_by_query?refresh=true`, body);
+        return { modifiedCount: res.updated || 0 };
+    }
+    /**
+     * Deletes every document matching a canonical filter via `_delete_by_query` (refreshed immediately).
+     * @param _schema Unused (ES has no schema concept).
+     * @param index Target index.
+     * @param filter Canonical filter, compiled to ES query-DSL via `buildQuery`.
+     * @returns `(deletedCount)`.
+     */
+    async deleteDocs(_schema: string, index: string, filter: Record&lt;string, any>): Promise&lt;any> {
+        const res = await this.req('POST', `/${index}/_delete_by_query?refresh=true`, { query: ElasticsearchConnector.buildQuery(filter) });
+        return { deletedCount: res.deleted || 0 };
+    }
+
+    /**
+     * Recursively flatten nested (terms | date_histogram) buckets into flat rows.
+     * @param node Current aggregation node (the top-level `aggregations` object at `depth: 0`).
+     * @param groupBy The GROUP BY column specs, in nesting order.
+     * @param aggregates The requested aggregate specs, read off each leaf bucket.
+     * @param countAlias Unused parameter kept for signature stability (COUNT is read from `aggregates` directly).
+     * @param depth Current recursion depth into `groupBy` (0 at the top level).
+     * @param carry Group-column values accumulated from enclosing bucket levels.
+     * @returns One flattened row per leaf bucket combination, each with the carried group values plus metric values keyed by alias.
+     */
+    private flattenAggs(node: any, groupBy: any[], aggregates: any[], countAlias: string | undefined, depth: number, carry: Record&lt;string, any>): any[] {
+        if (depth &lt; groupBy.length) {
+            const bucketAgg = node[`g_${depth}`];
+            const out: any[] = [];
+            const g = groupBy[depth];
+            // For a date_histogram, key the output column by the field name and use the readable key.
+            const gcol = (g &amp;&amp; typeof g === 'object') ? g.field : g;
+            for (const b of bucketAgg?.buckets || []) {
+                const key = b.key_as_string !== undefined ? b.key_as_string : b.key;
+                out.push(...this.flattenAggs(b, groupBy, aggregates, countAlias, depth + 1, { ...carry, [gcol]: key }));
+            }
+            return out;
+        }
+        // Leaf: emit one row with group carry + metric values.
+        const row: any = { ...carry };
+        for (const a of aggregates) {
+            if (a.func === 'COUNT') row[a.alias] = node.doc_count;
+            else if (a.func === 'PERCENTILE') { const v = node[a.alias]?.values || {}; row[a.alias] = v[Object.keys(v)[0] as string]; }
+            else row[a.alias] = node[a.alias]?.value;
+        }
+        return [row];
+    }
+
+    /** No-op: the connector is stateless HTTP, so there is no connection to release. */
+    async close(): Promise&lt;void> { /* stateless HTTP */ }
+}
+
+/**
+ * Single entry point for obtaining an `IConnector` instance for a data
+ * source's registered engine type.
+ * @class
+ * @hideconstructor
+ */
+export class ConnectorFactory {
+    /**
+     * Instantiates the `IConnector` implementation matching an engine type.
+     * @param type Engine type, matched case-insensitively; accepts common aliases (`POSTGRESQL`→Postgres, `MONGO`→MongoDB, `ELASTIC`/`ES`→Elasticsearch).
+     * @param config Engine-specific connection config, passed through to the connector's constructor.
+     * @returns A new connector instance for the requested engine.
+     * @throws {Error} If `type` doesn't match any supported engine.
+     */
+    static getConnector(type: string, config: any): IConnector {
+        switch (type.toUpperCase()) {
+            case 'POSTGRES':
+            case 'POSTGRESQL':
+                return new PostgresConnector(config);
+            case 'MYSQL':
+                return new MySQLConnector(config);
+            case 'MONGODB':
+            case 'MONGO':
+                return new MongoDBConnector(config);
+            case 'SNOWFLAKE':
+                return new SnowflakeConnector(config);
+            case 'ELASTICSEARCH':
+            case 'ELASTIC':
+            case 'ES':
+                return new ElasticsearchConnector(config);
+            default:
+                throw new Error(`Unsupported connector type: ${type}`);
+        }
+    }
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Jul 12 2026 10:30:14 GMT+0530 (India Standard Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+<script src="scripts/collapse.js" defer></script>
+
+
+</body>
+</html>

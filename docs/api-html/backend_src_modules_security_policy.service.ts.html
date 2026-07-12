@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>backend/src/modules/security/policy.service.ts - Zero Data Fabric — API Reference</title>
+    
+    
+    
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="ApiPortalService.html">ApiPortalService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ApiPortalService.html#.exposeTableToApi">exposeTableToApi</a></li><li data-type='method' style='display: none;'><a href="ApiPortalService.html#.getTenantOpenApiSpec">getTenantOpenApiSpec</a></li></ul></li><li><a href="ConstraintService.html">ConstraintService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ConstraintService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.evalCheck">evalCheck</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.list">list</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.parseCheckExpression">parseCheckExpression</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.specFromManifestTable">specFromManifestTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.upsert">upsert</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.validate">validate</a></li></ul></li><li><a href="DiffEngine.html">DiffEngine</a><ul class='methods'><li data-type='method' style='display: none;'><a href="DiffEngine.html#.compare">compare</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.detectRetiredResources">detectRetiredResources</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffEnum">diffEnum</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffFunction">diffFunction</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffSequence">diffSequence</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffTable">diffTable</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffView">diffView</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.processResourceDiff">processResourceDiff</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.sortResources">sortResources</a></li></ul></li><li><a href="DownstreamService.html">DownstreamService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="DownstreamService.html#.bulkIndexRows">bulkIndexRows</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.ensureElasticIndex">ensureElasticIndex</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.fetchTableRows">fetchTableRows</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.getConnectorConfig">getConnectorConfig</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.provision">provision</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.provisionElasticsearch">provisionElasticsearch</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.provisionSnowflake">provisionSnowflake</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.toElasticMappings">toElasticMappings</a></li></ul></li><li><a href="ElasticsearchConnector.html">ElasticsearchConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#buildFilter">buildFilter</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#close">close</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#deleteDocs">deleteDocs</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#discoverColumns">discoverColumns</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#flattenAggs">flattenAggs</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#insertDocs">insertDocs</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#query">query</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#rawQuery">rawQuery</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#req">req</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#updateDocs">updateDocs</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#.buildQuery">buildQuery</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#.filterClauses">filterClauses</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#.metricAgg">metricAgg</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#.previewBody">previewBody</a></li></ul></li><li></li><li><a href="ElasticsearchMutationWorker.html">ElasticsearchMutationWorker</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.defer">defer</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.enqueueMutation">enqueueMutation</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.getElasticConnector">getElasticConnector</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.process">process</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.start">start</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.tick">tick</a></li></ul></li><li><a href="EventService.html">EventService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="EventService.html#.attachEventTrigger">attachEventTrigger</a></li><li data-type='method' style='display: none;'><a href="EventService.html#.dispatchWebhook">dispatchWebhook</a></li><li data-type='method' style='display: none;'><a href="EventService.html#.emit">emit</a></li></ul></li><li><a href="FabricSequenceService.html">FabricSequenceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.currval">currval</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.ensure">ensure</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.nextval">nextval</a></li></ul></li><li><a href="FabricWriteGenerators.html">FabricWriteGenerators</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricWriteGenerators.html#.apply">apply</a></li><li data-type='method' style='display: none;'><a href="FabricWriteGenerators.html#.resolve">resolve</a></li></ul></li><li><a href="FederationExecutor.html">FederationExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyOrderLimit">applyOrderLimit</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyProjection">applyProjection</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyWhere">applyWhere</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.astLegToCanonical">astLegToCanonical</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.buildLegFilters">buildLegFilters</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.evalOn">evalOn</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.execute">execute</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.executeJoin">executeJoin</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.executeSetOp">executeSetOp</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fanAggregate">fanAggregate</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fetchLegDirect">fetchLegDirect</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.previewConnectorQuery">previewConnectorQuery</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.serialize">serialize</a></li></ul></li><li><a href="GitOpsService.html">GitOpsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GitOpsService.html#.deploySchema">deploySchema</a></li></ul></li><li><a href="GrantService.html">GrantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GrantService.html#.check">check</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.decide">decide</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.enforce">enforce</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.list">list</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.upsert">upsert</a></li></ul></li><li><a href="HeterogeneousDispatcher.html">HeterogeneousDispatcher</a><ul class='methods'><li data-type='method' style='display: none;'><a href="HeterogeneousDispatcher.html#.execute">execute</a></li><li data-type='method' style='display: none;'><a href="HeterogeneousDispatcher.html#.executeMongo">executeMongo</a></li><li data-type='method' style='display: none;'><a href="HeterogeneousDispatcher.html#.executeMysql">executeMysql</a></li><li data-type='method' style='display: none;'><a href="HeterogeneousDispatcher.html#.executePostgres">executePostgres</a></li></ul></li><li><a href="IntegrationService.html">IntegrationService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="IntegrationService.html#.registerRemoteSource">registerRemoteSource</a></li><li data-type='method' style='display: none;'><a href="IntegrationService.html#.removeSource">removeSource</a></li><li data-type='method' style='display: none;'><a href="IntegrationService.html#.testConnection">testConnection</a></li></ul></li><li><a href="ManifestParser.html">ManifestParser</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ManifestParser.html#.parse">parse</a></li></ul></li><li><a href="MetadataOrchestrator.html">MetadataOrchestrator</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#apply">apply</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#ensureBaseInfrastructure">ensureBaseInfrastructure</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#ensureFabricPrimitives">ensureFabricPrimitives</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#ensureTenantSchemaPrivileges">ensureTenantSchemaPrivileges</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#findSourcesInQuery">findSourcesInQuery</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#getHistory">getHistory</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#persistMetadataState">persistMetadataState</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#plan">plan</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#rollback">rollback</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#validateDataSources">validateDataSources</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#validateManifest">validateManifest</a></li></ul></li><li><a href="MetadataService.html">MetadataService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MetadataService.html#.collectExternalSources">collectExternalSources</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.crawlSource">crawlSource</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.crawlTenant">crawlTenant</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.diffMetadata">diffMetadata</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.exportManifest">exportManifest</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.getSchemas">getSchemas</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.getTables">getTables</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.getTemplate">getTemplate</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.introspectColumns">introspectColumns</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.migrateMetadata">migrateMetadata</a></li></ul></li><li><a href="global.html#MongoDBConnector">MongoDBConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#close">close</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#deleteDocs">deleteDocs</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#discoverColumns">discoverColumns</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#insertDocs">insertDocs</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#query">query</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#updateDocs">updateDocs</a></li></ul></li><li><a href="global.html#MySQLConnector">MySQLConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#close">close</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#connect">connect</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#discoverColumns">discoverColumns</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#query">query</a></li></ul></li><li><a href="PolicyService.html">PolicyService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PolicyService.html#.applyMasks">applyMasks</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.cheapHash">cheapHash</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.compileFilter">compileFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.deletePolicy">deletePolicy</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.listPolicies">listPolicies</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.maskValue">maskValue</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.mergeIntoFilter">mergeIntoFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.physicalSchema">physicalSchema</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolveValue">resolveValue</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.roleMatches">roleMatches</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.upsertPolicy">upsertPolicy</a></li></ul></li><li><a href="global.html#PostgresConnector">PostgresConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#close">close</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#discoverColumns">discoverColumns</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#discoverRelationships">discoverRelationships</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#query">query</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#rawQuery">rawQuery</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#setSearchPath">setSearchPath</a></li></ul></li><li><a href="PushdownCompiler.html">PushdownCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.aggExprSql">aggExprSql</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.groupBySql">groupBySql</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.groupSelectSql">groupSelectSql</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.mongoMatch">mongoMatch</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.quoteColumn">quoteColumn</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.quoteIdent">quoteIdent</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.splitOp">splitOp</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.splitOps">splitOps</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.toMongo">toMongo</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.toMongoAggregate">toMongoAggregate</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="QualityService.html">QualityService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QualityService.html#.runQualityCheck">runQualityCheck</a></li></ul></li><li><a href="QueryEngineController.html">QueryEngineController</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryEngineController.html#.executeAsyncQuery">executeAsyncQuery</a></li><li data-type='method' style='display: none;'><a href="QueryEngineController.html#.executeQuery">executeQuery</a></li><li data-type='method' style='display: none;'><a href="QueryEngineController.html#.getJobStatus">getJobStatus</a></li><li data-type='method' style='display: none;'><a href="QueryEngineController.html#.refreshView">refreshView</a></li></ul></li><li><a href="QueryEngineService.html">QueryEngineService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.applyHaving">applyHaving</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.assertSafeKeys">assertSafeKeys</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.buildMutationSql">buildMutationSql</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.buildWhere">buildWhere</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.detectUnsafeOperations">detectUnsafeOperations</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.distributeTable">distributeTable</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeAsyncQuery">executeAsyncQuery</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeAsyncRawSql">executeAsyncRawSql</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeQuery">executeQuery</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeRawSql">executeRawSql</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeSqlOnSource">executeSqlOnSource</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.fetch">fetch</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.formatInline">formatInline</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.generateSql">generateSql</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.getJobStatus">getJobStatus</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.mutate">mutate</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.qIdent">qIdent</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.refreshMaterializedView">refreshMaterializedView</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.resolveTarget">resolveTarget</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.stripSources">stripSources</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.toTenantSchemaName">toTenantSchemaName</a></li></ul></li><li><a href="QueryLogService.html">QueryLogService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryLogService.html#.capture">capture</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.get">get</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.list">list</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.memDelta">memDelta</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.record">record</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.truncate">truncate</a></li></ul></li><li><a href="QueryPlanner.html">QueryPlanner</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryPlanner.html#.classify">classify</a></li><li data-type='method' style='display: none;'><a href="QueryPlanner.html#.collectRefs">collectRefs</a></li><li data-type='method' style='display: none;'><a href="QueryPlanner.html#.resolveLeg">resolveLeg</a></li></ul></li><li><a href="QueryTranspiler.html">QueryTranspiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.columnToSql">columnToSql</a></li><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.mapOp">mapOp</a></li><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.toSql">toSql</a></li><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.whereToSql">whereToSql</a></li></ul></li><li><a href="global.html#RecursiveExecutor">RecursiveExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#RecursiveExecutor#.run">run</a></li></ul></li><li><a href="ResilienceService.html">ResilienceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ResilienceService.html#.checkDatabaseHealth">checkDatabaseHealth</a></li><li data-type='method' style='display: none;'><a href="ResilienceService.html#.getReplicationStats">getReplicationStats</a></li></ul></li><li><a href="SavedAnalyticsService.html">SavedAnalyticsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindAst">bindAst</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindSql">bindSql</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.create">create</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.get">get</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.list">list</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.remove">remove</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.resolveValues">resolveValues</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.run">run</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.top">top</a></li></ul></li><li><a href="SecurityService.html">SecurityService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SecurityService.html#.applyAdvancedRLS">applyAdvancedRLS</a></li><li data-type='method' style='display: none;'><a href="SecurityService.html#.applyRLSToSchema">applyRLSToSchema</a></li><li data-type='method' style='display: none;'><a href="SecurityService.html#.encryptField">encryptField</a></li></ul></li><li><a href="global.html#SnowflakeConnector">SnowflakeConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#close">close</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#connect">connect</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#exec">exec</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#query">query</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#sdk">sdk</a></li></ul></li><li><a href="SyncService.html">SyncService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SyncService.html#.initializeSync">initializeSync</a></li><li data-type='method' style='display: none;'><a href="SyncService.html#.initializeSync">initializeSync</a></li><li data-type='method' style='display: none;'><a href="SyncService.html#.setupPhysicalSync">setupPhysicalSync</a></li><li data-type='method' style='display: none;'><a href="SyncService.html#.syncTable">syncTable</a></li></ul></li><li><a href="TenantService.html">TenantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TenantService.html#.createTenant">createTenant</a></li><li data-type='method' style='display: none;'><a href="TenantService.html#.deleteTenant">deleteTenant</a></li><li data-type='method' style='display: none;'><a href="TenantService.html#.listAll">listAll</a></li><li data-type='method' style='display: none;'><a href="TenantService.html#.updateTenant">updateTenant</a></li></ul></li><li><a href="Transpiler.html">Transpiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="Transpiler.html#.callTriggerEngine">callTriggerEngine</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.findColumnType">findColumnType</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.normalizeType">normalizeType</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.qualifyColumnsForTrigger">qualifyColumnsForTrigger</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.toMongo">toMongo</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerActionCompiler.html">TriggerActionCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileActionBody">compileActionBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileEnqueueBody">compileEnqueueBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileExecute">compileExecute</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.condition">condition</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.expr">expr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.msg">msg</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.normalizeEvents">normalizeEvents</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.runAtExpr">runAtExpr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.timingFromEvent">timingFromEvent</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerService.html">TriggerService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerService.html#.createTrigger">createTrigger</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.deleteTrigger">deleteTrigger</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.deployTrigger">deployTrigger</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.enqueueJob">enqueueJob</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.listJobs">listJobs</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.listLogs">listLogs</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.listTriggers">listTriggers</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.registryUpsertSql">registryUpsertSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.retryJob">retryJob</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.transpileTriggerSql">transpileTriggerSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.updateTrigger">updateTrigger</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.validate">validate</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.writeLog">writeLog</a></li></ul></li><li><a href="UiService.html">UiService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="UiService.html#.getDashboardStats">getDashboardStats</a></li></ul></li></ul><h3>Modules</h3><ul><li><a href="module-controllers_adminController.html">controllers/adminController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.createConnection">createConnection</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.createTenant">createTenant</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.createUser">createUser</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.deleteNotificationChannel">deleteNotificationChannel</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.deleteTenant">deleteTenant</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.deleteUser">deleteUser</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getAuditLogs">getAuditLogs</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getCatalogSummary">getCatalogSummary</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getConnections">getConnections</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getDashboardStats">getDashboardStats</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getTenants">getTenants</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getUsers">getUsers</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.listNotificationChannels">listNotificationChannels</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.removeConnection">removeConnection</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.updateConnectionStatus">updateConnectionStatus</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.updateTenant">updateTenant</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.updateUser">updateUser</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.upsertNotificationChannel">upsertNotificationChannel</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_adminController.html#~getTenants">getTenants</a></li></ul></li><li><a href="module-controllers_authController.html">controllers/authController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_authController.html#.login">login</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_authController.html#~login">login</a></li></ul></li><li><a href="module-controllers_constraintController.html">controllers/constraintController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_constraintController.html#.listConstraints">listConstraints</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_constraintController.html#~listConstraints">listConstraints</a></li></ul></li><li><a href="module-controllers_dataController.html">controllers/dataController</a><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_dataController.html#~handle">handle</a></li></ul></li><li><a href="module-controllers_grantController.html">controllers/grantController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_grantController.html#.listGrants">listGrants</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_grantController.html#~listGrants">listGrants</a></li></ul></li><li><a href="module-controllers_metadataController.html">controllers/metadataController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.applyMetadata">applyMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.crawlTenant">crawlTenant</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.diffMetadata">diffMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.exportMetadata">exportMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getColumns">getColumns</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getDownstreamStatus">getDownstreamStatus</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getEvents">getEvents</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getMetadataHistory">getMetadataHistory</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getPreviewData">getPreviewData</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getRelationships">getRelationships</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getSchemas">getSchemas</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getSources">getSources</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getTableDetails">getTableDetails</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getTables">getTables</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getTemplate">getTemplate</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.migrateMetadata">migrateMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.rollbackMetadata">rollbackMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.toggleDownstream">toggleDownstream</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#~META_TTL">META_TTL</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_metadataController.html#~exportMetadata">exportMetadata</a></li><li data-type='method' style='display: none;'><a href="module-controllers_metadataController.html#~getDownstreamStatus">getDownstreamStatus</a></li><li data-type='method' style='display: none;'><a href="module-controllers_metadataController.html#~normalizeAstColumn">normalizeAstColumn</a></li></ul></li><li><a href="module-controllers_policyController.html">controllers/policyController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_policyController.html#.createPolicy">createPolicy</a></li><li data-type='member' style='display: none;'><a href="module-controllers_policyController.html#.listPolicies">listPolicies</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_policyController.html#~listPolicies">listPolicies</a></li></ul></li><li><a href="module-controllers_queryController.html">controllers/queryController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_queryController.html#.executeEngineQuery">executeEngineQuery</a></li><li data-type='member' style='display: none;'><a href="module-controllers_queryController.html#.executeNativeSql">executeNativeSql</a></li><li data-type='member' style='display: none;'><a href="module-controllers_queryController.html#.executeRawSql">executeRawSql</a></li><li data-type='member' style='display: none;'><a href="module-controllers_queryController.html#.transpileQuery">transpileQuery</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_queryController.html#~executeEngineQuery">executeEngineQuery</a></li></ul></li><li><a href="module-controllers_queryLogController.html">controllers/queryLogController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_queryLogController.html#.listQueryLogs">listQueryLogs</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_queryLogController.html#~listQueryLogs">listQueryLogs</a></li></ul></li><li><a href="module-controllers_savedAnalyticsController.html">controllers/savedAnalyticsController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.createAnalytic">createAnalytic</a></li><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.deleteAnalytic">deleteAnalytic</a></li><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.getAnalytic">getAnalytic</a></li><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.listAnalytics">listAnalytics</a></li><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.topAnalytics">topAnalytics</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#~listAnalytics">listAnalytics</a></li><li data-type='method' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#~sessionOf">sessionOf</a></li></ul></li><li><a href="module-controllers_triggersController.html">controllers/triggersController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.createTrigger">createTrigger</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.deleteTrigger">deleteTrigger</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.deployTrigger">deployTrigger</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.listTriggerJobs">listTriggerJobs</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.listTriggerLogs">listTriggerLogs</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.listTriggers">listTriggers</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.updateTrigger">updateTrigger</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_triggersController.html#~listTriggers">listTriggers</a></li></ul></li><li><a href="module-routes_adminRoutes.html">routes/adminRoutes</a></li><li><a href="module-routes_analyticsRoutes.html">routes/analyticsRoutes</a></li><li><a href="module-routes_authRoutes.html">routes/authRoutes</a></li><li><a href="module-routes_constraintRoutes.html">routes/constraintRoutes</a></li><li><a href="module-routes_dataRoutes.html">routes/dataRoutes</a></li><li><a href="module-routes_grantRoutes.html">routes/grantRoutes</a></li><li><a href="module-routes_metadataRoutes.html">routes/metadataRoutes</a></li><li><a href="module-routes_policyRoutes.html">routes/policyRoutes</a></li><li><a href="module-routes_queryLogRoutes.html">routes/queryLogRoutes</a></li><li><a href="module-routes_queryRoutes.html">routes/queryRoutes</a></li><li><a href="module-routes_savedAnalyticsRoutes.html">routes/savedAnalyticsRoutes</a></li><li><a href="module-routes_triggerRoutes.html">routes/triggerRoutes</a></li></ul><h3>Global</h3><ul><li><a href="global.html#AGG_FUNCS">AGG_FUNCS</a></li><li><a href="global.html#CANON_OP">CANON_OP</a></li><li><a href="global.html#EVENT_TIMINGS">EVENT_TIMINGS</a></li><li><a href="global.html#LOCAL_SOURCE">LOCAL_SOURCE</a></li><li><a href="global.html#OP_MAP">OP_MAP</a></li><li><a href="global.html#RANKING">RANKING</a></li><li><a href="global.html#SQL_OPERATORS">SQL_OPERATORS</a></li><li><a href="global.html#SyncType">SyncType</a></li><li><a href="global.html#VAR_TOKEN">VAR_TOKEN</a></li><li><a href="global.html#aggregateRaw">aggregateRaw</a></li><li><a href="global.html#applyWindows">applyWindows</a></li><li><a href="global.html#base">base</a></li><li><a href="global.html#cacheEnabled">cacheEnabled</a></li><li><a href="global.html#cacheGet">cacheGet</a></li><li><a href="global.html#cacheInvalidate">cacheInvalidate</a></li><li><a href="global.html#cacheSet">cacheSet</a></li><li><a href="global.html#cached">cached</a></li><li><a href="global.html#client">client</a></li><li><a href="global.html#comparator">comparator</a></li><li><a href="global.html#extractWindows">extractWindows</a></li><li><a href="global.html#gName">gName</a></li><li><a href="global.html#getJwtSecret">getJwtSecret</a></li><li><a href="global.html#hasWindows">hasWindows</a></li><li><a href="global.html#ident">ident</a></li><li><a href="global.html#initCache">initCache</a></li><li><a href="global.html#invalidateTenant">invalidateTenant</a></li><li><a href="global.html#isAggregateQuery">isAggregateQuery</a></li><li><a href="global.html#legKey">legKey</a></li><li><a href="global.html#maxRowsPerLeg">maxRowsPerLeg</a></li><li><a href="global.html#mergePartials">mergePartials</a></li><li><a href="global.html#migrate">migrate</a></li><li><a href="global.html#num">num</a></li><li><a href="global.html#numeric">numeric</a></li><li><a href="global.html#options">options</a></li><li><a href="global.html#parseAggregates">parseAggregates</a></li><li><a href="global.html#parseHaving">parseHaving</a></li><li><a href="global.html#parseLiteral">parseLiteral</a></li><li><a href="global.html#parseSelect">parseSelect</a></li><li><a href="global.html#parseWhere">parseWhere</a></li><li><a href="global.html#partialSpec">partialSpec</a></li><li><a href="global.html#partitionKey">partitionKey</a></li><li><a href="global.html#projectWithWindows">projectWithWindows</a></li><li><a href="global.html#queryWithContext">queryWithContext</a></li><li><a href="global.html#readCol">readCol</a></li><li><a href="global.html#splitTopLevel">splitTopLevel</a></li><li><a href="global.html#sqlToAst">sqlToAst</a></li><li><a href="global.html#toCanonical">toCanonical</a></li><li><a href="global.html#windowBaseColumns">windowBaseColumns</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">backend/src/modules/security/policy.service.ts</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import { pool } from '../../config/database';
+
+/**
+ * PolicyService — the fabric's engine-agnostic access-policy layer.
+ *
+ * Postgres enforces row-level security and column masking natively. Non-RLS
+ * engines (MongoDB, Elasticsearch, remote warehouses reached as connectors) have
+ * no such enforcement, so the fabric compensates:
+ *
+ *   • ROW policies  → compiled into a CanonicalQuery filter and INJECTED into the
+ *                     leg's pushdown, so the predicate runs AT THE SOURCE (Mongo
+ *                     `$match`, ES query, remote SQL WHERE) — the tenant only ever
+ *                     receives rows they are allowed to see.
+ *   • COLUMN masking → applied to result rows POST-fetch (REDACT / NULL / HASH /
+ *                     PARTIAL) for the roles the rule targets.
+ *
+ * Policies are stored engine-agnostically in fabric_system.access_policies so the
+ * SAME definition drives every engine. A policy predicate clause is
+ * `(column, operator, value)`, where `value` is a literal or a session
+ * reference `(session: 'tenant_id' | 'region' | 'role' | 'username')` resolved
+ * per request — the analogue of a Postgres policy's `current_setting('app.*')`.
+ */
+
+export type PolicyOperator =
+  | 'EQ' | 'NEQ' | 'GT' | 'GTE' | 'LT' | 'LTE' | 'IN' | 'LIKE' | 'IS_NULL' | 'IS_NOT_NULL';
+
+export interface PolicyClause {
+  column: string;
+  operator: PolicyOperator;
+  /** Literal, array (for IN), or a session reference: { session: 'tenant_id' | 'region' | 'role' | 'username' }. */
+  value?: any;
+}
+
+export type MaskStrategy = 'REDACT' | 'NULL' | 'HASH' | 'PARTIAL';
+
+export interface MaskRule {
+  column: string;
+  /** Roles the mask applies to; omit = mask for everyone. */
+  roles?: string[];
+  strategy: MaskStrategy;
+}
+
+export interface AccessPolicy {
+  name: string;
+  schema: string;   // logical (Global_Supply_Chain) or physical (tenant_x_Global_Supply_Chain)
+  table: string;
+  /** Roles this row policy restricts; omit = applies to all roles. */
+  roles?: string[];
+  rowFilter?: PolicyClause[];
+  masking?: MaskRule[];
+}
+
+export interface SessionCtx {
+  tenantId: string;
+  role?: string;
+  region?: string;
+  username?: string;
+}
+
+const CANON_OP: Record&lt;string, string> = {
+  EQ: '$eq', NEQ: '$ne', GT: '$gt', GTE: '$gte', LT: '$lt', LTE: '$lte', IN: '$in', LIKE: '$like',
+};
+
+/**
+ * Engine-agnostic access-policy service: stores row policies + column masking and
+ * enforces them on non-RLS engines (row-predicate injection + post-fetch masking).
+ * @class
+ * @hideconstructor
+ */
+export class PolicyService {
+  private static ready = false;
+
+  /** Create the engine-agnostic policy catalog (idempotent). */
+  static async ensureTable(): Promise&lt;void> {
+    if (this.ready) return;
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS fabric_system.access_policies (
+        id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id     text NOT NULL,
+        schema_name   text NOT NULL,
+        table_name    text NOT NULL,
+        policy_name   text NOT NULL,
+        roles         jsonb NOT NULL DEFAULT '[]'::jsonb,
+        row_filter    jsonb NOT NULL DEFAULT '[]'::jsonb,
+        masking       jsonb NOT NULL DEFAULT '[]'::jsonb,
+        source        text NOT NULL DEFAULT 'API',
+        created_at    timestamptz NOT NULL DEFAULT NOW(),
+        updated_at    timestamptz NOT NULL DEFAULT NOW(),
+        UNIQUE (tenant_id, schema_name, table_name, policy_name)
+      )`);
+    this.ready = true;
+  }
+
+  /** Normalize a logical or physical schema to the tenant's physical schema. */
+  static physicalSchema(tenantId: string, schema: string): string {
+    const prefix = `tenant_${tenantId}_`;
+    if (schema.startsWith(prefix) || schema.startsWith('tenant_')) return schema;
+    return `${prefix}${schema}`;
+  }
+
+  /**
+   * Create or replace a named access policy for a (schema, table). Upserts on
+   * the (tenant, schema, table, policyName) unique key, so re-applying the
+   * same policy name overwrites its previous row filter/masking definition.
+   * @param tenantId - Owning tenant.
+   * @param p - The policy definition (name, schema, table, roles, rowFilter, masking).
+   * @param source - Origin of the write, e.g. 'API' or 'MANIFEST'.
+   * @returns The persisted policy row.
+   */
+  static async upsertPolicy(tenantId: string, p: AccessPolicy, source = 'API'): Promise&lt;any> {
+    await this.ensureTable();
+    // Store the schema EXACTLY as the query leg will present it — for tenant-managed
+    // Postgres that is `tenant_&lt;id>_&lt;logical>` (the orchestrator passes it already
+    // physical); for external connectors it is the remote db/schema (e.g. Mongo's
+    // db name, a remote PG schema). No auto-prefixing, so resolve() matches exactly.
+    const schema = p.schema;
+    const { rows } = await pool.query(
+      `INSERT INTO fabric_system.access_policies
+        (tenant_id, schema_name, table_name, policy_name, roles, row_filter, masking, source, updated_at)
+       VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb,$8,NOW())
+       ON CONFLICT (tenant_id, schema_name, table_name, policy_name)
+       DO UPDATE SET roles = EXCLUDED.roles, row_filter = EXCLUDED.row_filter,
+                     masking = EXCLUDED.masking, source = EXCLUDED.source, updated_at = NOW()
+       RETURNING id, policy_name AS name, schema_name AS schema, table_name AS "table", roles, row_filter AS "rowFilter", masking, source`,
+      [tenantId, schema, p.table, p.name, JSON.stringify(p.roles || []),
+       JSON.stringify(p.rowFilter || []), JSON.stringify(p.masking || []), source]
+    );
+    return rows[0];
+  }
+
+  /**
+   * List every declared access policy for a tenant, newest first.
+   * @param tenantId - Tenant whose policies are being listed.
+   * @returns All policy rows for the tenant (may be empty).
+   */
+  static async listPolicies(tenantId: string): Promise&lt;any[]> {
+    await this.ensureTable();
+    const { rows } = await pool.query(
+      `SELECT id, policy_name AS name, schema_name AS schema, table_name AS "table",
+              roles, row_filter AS "rowFilter", masking, source, updated_at AS "updatedAt"
+       FROM fabric_system.access_policies WHERE tenant_id = $1 ORDER BY updated_at DESC`,
+      [tenantId]
+    );
+    return rows;
+  }
+
+  /**
+   * Delete a single access policy by id, scoped to the owning tenant.
+   * @param tenantId - Owning tenant (guards against cross-tenant deletion).
+   * @param id - The policy's uuid.
+   * @returns `true` if a row was deleted, `false` if no matching policy existed.
+   */
+  static async deletePolicy(tenantId: string, id: string): Promise&lt;boolean> {
+    await this.ensureTable();
+    const { rowCount } = await pool.query(
+      `DELETE FROM fabric_system.access_policies WHERE tenant_id = $1 AND id = $2`, [tenantId, id]
+    );
+    return (rowCount || 0) > 0;
+  }
+
+  /**
+   * Resolve a session reference (`(session: 'tenant_id' | 'region' | 'role' |
+   * 'username')`) to its concrete value from `session`, or pass a literal
+   * value through unchanged.
+   * @param value - A policy clause's literal value, or a session reference object.
+   * @param session - The request's session context.
+   * @returns The resolved literal value (or `null` for an unset/unknown session reference).
+   */
+  private static resolveValue(value: any, session: SessionCtx): any {
+    if (value &amp;&amp; typeof value === 'object' &amp;&amp; !Array.isArray(value) &amp;&amp; 'session' in value) {
+      switch (String(value.session)) {
+        case 'tenant_id': return session.tenantId;
+        case 'region': return session.region ?? null;
+        case 'role': return session.role ?? null;
+        case 'username': return session.username ?? null;
+        default: return null;
+      }
+    }
+    return value;
+  }
+
+  /**
+   * Test whether a policy's (or masking rule's) role restriction applies to
+   * the current session. An empty/missing role list means the rule applies
+   * to every role.
+   * @param roles - The `roles` array declared on a policy or mask rule.
+   * @param session - The request's session context.
+   * @returns `true` if the rule applies to `session.role`.
+   */
+  private static roleMatches(roles: any, session: SessionCtx): boolean {
+    if (!Array.isArray(roles) || roles.length === 0) return true; // applies to all
+    const r = String(session.role || '').toUpperCase();
+    return roles.map((x) => String(x).toUpperCase()).includes(r);
+  }
+
+  /**
+   * Compile a list of policy clauses into a CanonicalQuery filter fragment.
+   * Multiple clauses on the same column are merged (all conditions apply).
+   */
+  static compileFilter(clauses: PolicyClause[], session: SessionCtx): Record&lt;string, any> {
+    const filter: Record&lt;string, any> = {};
+    for (const c of clauses || []) {
+      if (!c || !c.column) continue;
+      const op = String(c.operator || 'EQ').toUpperCase();
+      const col = c.column;
+      const merge = (frag: any) => { filter[col] = { ...(typeof filter[col] === 'object' ? filter[col] : {}), ...frag }; };
+      if (op === 'IS_NULL') { merge({ $eq: null }); continue; }
+      if (op === 'IS_NOT_NULL') { merge({ $ne: null }); continue; }
+      const canonOp = CANON_OP[op];
+      if (!canonOp) continue;
+      merge({ [canonOp]: this.resolveValue(c.value, session) });
+    }
+    return filter;
+  }
+
+  /**
+   * Resolve the effective row-filter + masking for a physical (schema, table)
+   * under a session. Only policies whose roles match the session are applied.
+   */
+  static async resolve(
+    tenantId: string, physicalSchema: string, table: string, session: SessionCtx
+  ): Promise&lt;{ filter: Record&lt;string, any>; masks: MaskRule[]; applied: string[] }> {
+    await this.ensureTable();
+    const result = await pool.query(
+      `SELECT policy_name, roles, row_filter, masking
+       FROM fabric_system.access_policies
+       WHERE tenant_id = $1 AND schema_name = $2 AND table_name = $3`,
+      [tenantId, physicalSchema, table]
+    );
+    const rows = result?.rows || [];
+    let filter: Record&lt;string, any> = {};
+    const masks: MaskRule[] = [];
+    const applied: string[] = [];
+    for (const row of rows) {
+      if (!this.roleMatches(row.roles, session)) continue;
+      const clauses: PolicyClause[] = Array.isArray(row.row_filter) ? row.row_filter : [];
+      if (clauses.length) {
+        const frag = this.compileFilter(clauses, session);
+        for (const [col, cond] of Object.entries(frag)) {
+          filter[col] = { ...(typeof filter[col] === 'object' ? filter[col] : {}), ...(cond as object) };
+        }
+      }
+      for (const m of (Array.isArray(row.masking) ? row.masking : [])) {
+        if (this.roleMatches(m.roles, session)) masks.push(m);
+      }
+      applied.push(row.policy_name);
+    }
+    return { filter, masks, applied };
+  }
+
+  /** Merge a policy filter fragment into an existing CanonicalQuery filter. */
+  static mergeIntoFilter(existing: Record&lt;string, any> | undefined, policyFilter: Record&lt;string, any>): Record&lt;string, any> {
+    const out: Record&lt;string, any> = { ...(existing || {}) };
+    for (const [col, cond] of Object.entries(policyFilter)) {
+      const prev = out[col];
+      if (prev &amp;&amp; typeof prev === 'object' &amp;&amp; !Array.isArray(prev) &amp;&amp; typeof cond === 'object') {
+        out[col] = { ...prev, ...cond };
+      } else if (prev !== undefined &amp;&amp; (typeof prev !== 'object' || Array.isArray(prev))) {
+        // Existing bare-equality plus a policy condition → combine as operators.
+        out[col] = { $eq: prev, ...(cond as object) };
+      } else {
+        out[col] = cond;
+      }
+    }
+    return out;
+  }
+
+  /** Apply masking to result rows for the given session. */
+  static applyMasks(rows: any[], masks: MaskRule[], _session: SessionCtx): any[] {
+    if (!masks.length || !Array.isArray(rows)) return rows;
+    return rows.map((r) => {
+      if (!r || typeof r !== 'object') return r;
+      const copy = { ...r };
+      for (const m of masks) {
+        if (!(m.column in copy)) continue;
+        copy[m.column] = this.maskValue(copy[m.column], m.strategy);
+      }
+      return copy;
+    });
+  }
+
+  /**
+   * Apply a single masking strategy to a scalar value.
+   * @param v - The raw column value (nullish values pass through unmasked).
+   * @param strategy - One of REDACT / NULL / HASH / PARTIAL.
+   * @returns The masked value, or `v` unchanged for an unrecognized strategy.
+   */
+  private static maskValue(v: any, strategy: MaskStrategy): any {
+    if (v === null || v === undefined) return v;
+    switch (strategy) {
+      case 'NULL': return null;
+      case 'REDACT': return '***REDACTED***';
+      case 'HASH': return `sha256:${this.cheapHash(String(v))}`;
+      case 'PARTIAL': {
+        const s = String(v);
+        if (s.length &lt;= 4) return '****';
+        return `${'*'.repeat(Math.max(0, s.length - 4))}${s.slice(-4)}`;
+      }
+      default: return v;
+    }
+  }
+
+  /**
+   * Small non-crypto digest — masking only needs a stable, non-reversible
+   * output here, not cryptographic strength (djb2-style hash).
+   * @param s - Input string to hash.
+   * @returns An 8-hex-digit digest.
+   */
+  private static cheapHash(s: string): string {
+    let h = 5381;
+    for (let i = 0; i &lt; s.length; i++) h = ((h &lt;&lt; 5) + h + s.charCodeAt(i)) >>> 0;
+    return h.toString(16).padStart(8, '0');
+  }
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Jul 12 2026 10:30:14 GMT+0530 (India Standard Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+<script src="scripts/collapse.js" defer></script>
+
+
+</body>
+</html>

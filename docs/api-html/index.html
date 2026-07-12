@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>Home - Zero Data Fabric — API Reference</title>
+    
+    
+    
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="ApiPortalService.html">ApiPortalService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ApiPortalService.html#.exposeTableToApi">exposeTableToApi</a></li><li data-type='method' style='display: none;'><a href="ApiPortalService.html#.getTenantOpenApiSpec">getTenantOpenApiSpec</a></li></ul></li><li><a href="ConstraintService.html">ConstraintService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ConstraintService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.evalCheck">evalCheck</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.list">list</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.parseCheckExpression">parseCheckExpression</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.specFromManifestTable">specFromManifestTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.upsert">upsert</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.validate">validate</a></li></ul></li><li><a href="DiffEngine.html">DiffEngine</a><ul class='methods'><li data-type='method' style='display: none;'><a href="DiffEngine.html#.compare">compare</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.detectRetiredResources">detectRetiredResources</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffEnum">diffEnum</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffFunction">diffFunction</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffSequence">diffSequence</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffTable">diffTable</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffView">diffView</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.processResourceDiff">processResourceDiff</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.sortResources">sortResources</a></li></ul></li><li><a href="DownstreamService.html">DownstreamService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="DownstreamService.html#.bulkIndexRows">bulkIndexRows</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.ensureElasticIndex">ensureElasticIndex</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.fetchTableRows">fetchTableRows</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.getConnectorConfig">getConnectorConfig</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.provision">provision</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.provisionElasticsearch">provisionElasticsearch</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.provisionSnowflake">provisionSnowflake</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.toElasticMappings">toElasticMappings</a></li></ul></li><li><a href="ElasticsearchConnector.html">ElasticsearchConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#buildFilter">buildFilter</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#close">close</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#deleteDocs">deleteDocs</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#discoverColumns">discoverColumns</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#flattenAggs">flattenAggs</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#insertDocs">insertDocs</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#query">query</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#rawQuery">rawQuery</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#req">req</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#updateDocs">updateDocs</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#.buildQuery">buildQuery</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#.filterClauses">filterClauses</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#.metricAgg">metricAgg</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#.previewBody">previewBody</a></li></ul></li><li></li><li><a href="ElasticsearchMutationWorker.html">ElasticsearchMutationWorker</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.defer">defer</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.enqueueMutation">enqueueMutation</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.getElasticConnector">getElasticConnector</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.process">process</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.start">start</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.tick">tick</a></li></ul></li><li><a href="EventService.html">EventService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="EventService.html#.attachEventTrigger">attachEventTrigger</a></li><li data-type='method' style='display: none;'><a href="EventService.html#.dispatchWebhook">dispatchWebhook</a></li><li data-type='method' style='display: none;'><a href="EventService.html#.emit">emit</a></li></ul></li><li><a href="FabricSequenceService.html">FabricSequenceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.currval">currval</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.ensure">ensure</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.nextval">nextval</a></li></ul></li><li><a href="FabricWriteGenerators.html">FabricWriteGenerators</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricWriteGenerators.html#.apply">apply</a></li><li data-type='method' style='display: none;'><a href="FabricWriteGenerators.html#.resolve">resolve</a></li></ul></li><li><a href="FederationExecutor.html">FederationExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyOrderLimit">applyOrderLimit</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyProjection">applyProjection</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyWhere">applyWhere</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.astLegToCanonical">astLegToCanonical</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.buildLegFilters">buildLegFilters</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.evalOn">evalOn</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.execute">execute</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.executeJoin">executeJoin</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.executeSetOp">executeSetOp</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fanAggregate">fanAggregate</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fetchLegDirect">fetchLegDirect</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.previewConnectorQuery">previewConnectorQuery</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.serialize">serialize</a></li></ul></li><li><a href="GitOpsService.html">GitOpsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GitOpsService.html#.deploySchema">deploySchema</a></li></ul></li><li><a href="GrantService.html">GrantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GrantService.html#.check">check</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.decide">decide</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.enforce">enforce</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.list">list</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.upsert">upsert</a></li></ul></li><li><a href="HeterogeneousDispatcher.html">HeterogeneousDispatcher</a><ul class='methods'><li data-type='method' style='display: none;'><a href="HeterogeneousDispatcher.html#.execute">execute</a></li><li data-type='method' style='display: none;'><a href="HeterogeneousDispatcher.html#.executeMongo">executeMongo</a></li><li data-type='method' style='display: none;'><a href="HeterogeneousDispatcher.html#.executeMysql">executeMysql</a></li><li data-type='method' style='display: none;'><a href="HeterogeneousDispatcher.html#.executePostgres">executePostgres</a></li></ul></li><li><a href="IntegrationService.html">IntegrationService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="IntegrationService.html#.registerRemoteSource">registerRemoteSource</a></li><li data-type='method' style='display: none;'><a href="IntegrationService.html#.removeSource">removeSource</a></li><li data-type='method' style='display: none;'><a href="IntegrationService.html#.testConnection">testConnection</a></li></ul></li><li><a href="ManifestParser.html">ManifestParser</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ManifestParser.html#.parse">parse</a></li></ul></li><li><a href="MetadataOrchestrator.html">MetadataOrchestrator</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#apply">apply</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#ensureBaseInfrastructure">ensureBaseInfrastructure</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#ensureFabricPrimitives">ensureFabricPrimitives</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#ensureTenantSchemaPrivileges">ensureTenantSchemaPrivileges</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#findSourcesInQuery">findSourcesInQuery</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#getHistory">getHistory</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#persistMetadataState">persistMetadataState</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#plan">plan</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#rollback">rollback</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#validateDataSources">validateDataSources</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#validateManifest">validateManifest</a></li></ul></li><li><a href="MetadataService.html">MetadataService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MetadataService.html#.collectExternalSources">collectExternalSources</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.crawlSource">crawlSource</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.crawlTenant">crawlTenant</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.diffMetadata">diffMetadata</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.exportManifest">exportManifest</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.getSchemas">getSchemas</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.getTables">getTables</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.getTemplate">getTemplate</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.introspectColumns">introspectColumns</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.migrateMetadata">migrateMetadata</a></li></ul></li><li><a href="global.html#MongoDBConnector">MongoDBConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#close">close</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#deleteDocs">deleteDocs</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#discoverColumns">discoverColumns</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#insertDocs">insertDocs</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#query">query</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#updateDocs">updateDocs</a></li></ul></li><li><a href="global.html#MySQLConnector">MySQLConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#close">close</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#connect">connect</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#discoverColumns">discoverColumns</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#query">query</a></li></ul></li><li><a href="PolicyService.html">PolicyService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PolicyService.html#.applyMasks">applyMasks</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.cheapHash">cheapHash</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.compileFilter">compileFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.deletePolicy">deletePolicy</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.listPolicies">listPolicies</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.maskValue">maskValue</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.mergeIntoFilter">mergeIntoFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.physicalSchema">physicalSchema</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolveValue">resolveValue</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.roleMatches">roleMatches</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.upsertPolicy">upsertPolicy</a></li></ul></li><li><a href="global.html#PostgresConnector">PostgresConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#close">close</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#discoverColumns">discoverColumns</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#discoverRelationships">discoverRelationships</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#query">query</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#rawQuery">rawQuery</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#setSearchPath">setSearchPath</a></li></ul></li><li><a href="PushdownCompiler.html">PushdownCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.aggExprSql">aggExprSql</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.groupBySql">groupBySql</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.groupSelectSql">groupSelectSql</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.mongoMatch">mongoMatch</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.quoteColumn">quoteColumn</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.quoteIdent">quoteIdent</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.splitOp">splitOp</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.splitOps">splitOps</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.toMongo">toMongo</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.toMongoAggregate">toMongoAggregate</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="QualityService.html">QualityService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QualityService.html#.runQualityCheck">runQualityCheck</a></li></ul></li><li><a href="QueryEngineController.html">QueryEngineController</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryEngineController.html#.executeAsyncQuery">executeAsyncQuery</a></li><li data-type='method' style='display: none;'><a href="QueryEngineController.html#.executeQuery">executeQuery</a></li><li data-type='method' style='display: none;'><a href="QueryEngineController.html#.getJobStatus">getJobStatus</a></li><li data-type='method' style='display: none;'><a href="QueryEngineController.html#.refreshView">refreshView</a></li></ul></li><li><a href="QueryEngineService.html">QueryEngineService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.applyHaving">applyHaving</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.assertSafeKeys">assertSafeKeys</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.buildMutationSql">buildMutationSql</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.buildWhere">buildWhere</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.detectUnsafeOperations">detectUnsafeOperations</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.distributeTable">distributeTable</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeAsyncQuery">executeAsyncQuery</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeAsyncRawSql">executeAsyncRawSql</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeQuery">executeQuery</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeRawSql">executeRawSql</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeSqlOnSource">executeSqlOnSource</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.fetch">fetch</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.formatInline">formatInline</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.generateSql">generateSql</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.getJobStatus">getJobStatus</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.mutate">mutate</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.qIdent">qIdent</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.refreshMaterializedView">refreshMaterializedView</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.resolveTarget">resolveTarget</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.stripSources">stripSources</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.toTenantSchemaName">toTenantSchemaName</a></li></ul></li><li><a href="QueryLogService.html">QueryLogService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryLogService.html#.capture">capture</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.get">get</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.list">list</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.memDelta">memDelta</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.record">record</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.truncate">truncate</a></li></ul></li><li><a href="QueryPlanner.html">QueryPlanner</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryPlanner.html#.classify">classify</a></li><li data-type='method' style='display: none;'><a href="QueryPlanner.html#.collectRefs">collectRefs</a></li><li data-type='method' style='display: none;'><a href="QueryPlanner.html#.resolveLeg">resolveLeg</a></li></ul></li><li><a href="QueryTranspiler.html">QueryTranspiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.columnToSql">columnToSql</a></li><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.mapOp">mapOp</a></li><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.toSql">toSql</a></li><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.whereToSql">whereToSql</a></li></ul></li><li><a href="global.html#RecursiveExecutor">RecursiveExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#RecursiveExecutor#.run">run</a></li></ul></li><li><a href="ResilienceService.html">ResilienceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ResilienceService.html#.checkDatabaseHealth">checkDatabaseHealth</a></li><li data-type='method' style='display: none;'><a href="ResilienceService.html#.getReplicationStats">getReplicationStats</a></li></ul></li><li><a href="SavedAnalyticsService.html">SavedAnalyticsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindAst">bindAst</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindSql">bindSql</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.create">create</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.get">get</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.list">list</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.remove">remove</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.resolveValues">resolveValues</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.run">run</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.top">top</a></li></ul></li><li><a href="SecurityService.html">SecurityService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SecurityService.html#.applyAdvancedRLS">applyAdvancedRLS</a></li><li data-type='method' style='display: none;'><a href="SecurityService.html#.applyRLSToSchema">applyRLSToSchema</a></li><li data-type='method' style='display: none;'><a href="SecurityService.html#.encryptField">encryptField</a></li></ul></li><li><a href="global.html#SnowflakeConnector">SnowflakeConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#close">close</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#connect">connect</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#exec">exec</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#query">query</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#sdk">sdk</a></li></ul></li><li><a href="SyncService.html">SyncService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SyncService.html#.initializeSync">initializeSync</a></li><li data-type='method' style='display: none;'><a href="SyncService.html#.initializeSync">initializeSync</a></li><li data-type='method' style='display: none;'><a href="SyncService.html#.setupPhysicalSync">setupPhysicalSync</a></li><li data-type='method' style='display: none;'><a href="SyncService.html#.syncTable">syncTable</a></li></ul></li><li><a href="TenantService.html">TenantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TenantService.html#.createTenant">createTenant</a></li><li data-type='method' style='display: none;'><a href="TenantService.html#.deleteTenant">deleteTenant</a></li><li data-type='method' style='display: none;'><a href="TenantService.html#.listAll">listAll</a></li><li data-type='method' style='display: none;'><a href="TenantService.html#.updateTenant">updateTenant</a></li></ul></li><li><a href="Transpiler.html">Transpiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="Transpiler.html#.callTriggerEngine">callTriggerEngine</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.findColumnType">findColumnType</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.normalizeType">normalizeType</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.qualifyColumnsForTrigger">qualifyColumnsForTrigger</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.toMongo">toMongo</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerActionCompiler.html">TriggerActionCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileActionBody">compileActionBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileEnqueueBody">compileEnqueueBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileExecute">compileExecute</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.condition">condition</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.expr">expr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.msg">msg</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.normalizeEvents">normalizeEvents</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.runAtExpr">runAtExpr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.timingFromEvent">timingFromEvent</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerService.html">TriggerService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerService.html#.createTrigger">createTrigger</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.deleteTrigger">deleteTrigger</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.deployTrigger">deployTrigger</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.enqueueJob">enqueueJob</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.listJobs">listJobs</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.listLogs">listLogs</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.listTriggers">listTriggers</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.registryUpsertSql">registryUpsertSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.retryJob">retryJob</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.transpileTriggerSql">transpileTriggerSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.updateTrigger">updateTrigger</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.validate">validate</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.writeLog">writeLog</a></li></ul></li><li><a href="UiService.html">UiService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="UiService.html#.getDashboardStats">getDashboardStats</a></li></ul></li></ul><h3>Modules</h3><ul><li><a href="module-controllers_adminController.html">controllers/adminController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.createConnection">createConnection</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.createTenant">createTenant</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.createUser">createUser</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.deleteNotificationChannel">deleteNotificationChannel</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.deleteTenant">deleteTenant</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.deleteUser">deleteUser</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getAuditLogs">getAuditLogs</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getCatalogSummary">getCatalogSummary</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getConnections">getConnections</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getDashboardStats">getDashboardStats</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getTenants">getTenants</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getUsers">getUsers</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.listNotificationChannels">listNotificationChannels</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.removeConnection">removeConnection</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.updateConnectionStatus">updateConnectionStatus</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.updateTenant">updateTenant</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.updateUser">updateUser</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.upsertNotificationChannel">upsertNotificationChannel</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_adminController.html#~getTenants">getTenants</a></li></ul></li><li><a href="module-controllers_authController.html">controllers/authController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_authController.html#.login">login</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_authController.html#~login">login</a></li></ul></li><li><a href="module-controllers_constraintController.html">controllers/constraintController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_constraintController.html#.listConstraints">listConstraints</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_constraintController.html#~listConstraints">listConstraints</a></li></ul></li><li><a href="module-controllers_dataController.html">controllers/dataController</a><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_dataController.html#~handle">handle</a></li></ul></li><li><a href="module-controllers_grantController.html">controllers/grantController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_grantController.html#.listGrants">listGrants</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_grantController.html#~listGrants">listGrants</a></li></ul></li><li><a href="module-controllers_metadataController.html">controllers/metadataController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.applyMetadata">applyMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.crawlTenant">crawlTenant</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.diffMetadata">diffMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.exportMetadata">exportMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getColumns">getColumns</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getDownstreamStatus">getDownstreamStatus</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getEvents">getEvents</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getMetadataHistory">getMetadataHistory</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getPreviewData">getPreviewData</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getRelationships">getRelationships</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getSchemas">getSchemas</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getSources">getSources</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getTableDetails">getTableDetails</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getTables">getTables</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getTemplate">getTemplate</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.migrateMetadata">migrateMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.rollbackMetadata">rollbackMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.toggleDownstream">toggleDownstream</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#~META_TTL">META_TTL</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_metadataController.html#~exportMetadata">exportMetadata</a></li><li data-type='method' style='display: none;'><a href="module-controllers_metadataController.html#~getDownstreamStatus">getDownstreamStatus</a></li><li data-type='method' style='display: none;'><a href="module-controllers_metadataController.html#~normalizeAstColumn">normalizeAstColumn</a></li></ul></li><li><a href="module-controllers_policyController.html">controllers/policyController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_policyController.html#.createPolicy">createPolicy</a></li><li data-type='member' style='display: none;'><a href="module-controllers_policyController.html#.listPolicies">listPolicies</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_policyController.html#~listPolicies">listPolicies</a></li></ul></li><li><a href="module-controllers_queryController.html">controllers/queryController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_queryController.html#.executeEngineQuery">executeEngineQuery</a></li><li data-type='member' style='display: none;'><a href="module-controllers_queryController.html#.executeNativeSql">executeNativeSql</a></li><li data-type='member' style='display: none;'><a href="module-controllers_queryController.html#.executeRawSql">executeRawSql</a></li><li data-type='member' style='display: none;'><a href="module-controllers_queryController.html#.transpileQuery">transpileQuery</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_queryController.html#~executeEngineQuery">executeEngineQuery</a></li></ul></li><li><a href="module-controllers_queryLogController.html">controllers/queryLogController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_queryLogController.html#.listQueryLogs">listQueryLogs</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_queryLogController.html#~listQueryLogs">listQueryLogs</a></li></ul></li><li><a href="module-controllers_savedAnalyticsController.html">controllers/savedAnalyticsController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.createAnalytic">createAnalytic</a></li><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.deleteAnalytic">deleteAnalytic</a></li><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.getAnalytic">getAnalytic</a></li><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.listAnalytics">listAnalytics</a></li><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.topAnalytics">topAnalytics</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#~listAnalytics">listAnalytics</a></li><li data-type='method' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#~sessionOf">sessionOf</a></li></ul></li><li><a href="module-controllers_triggersController.html">controllers/triggersController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.createTrigger">createTrigger</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.deleteTrigger">deleteTrigger</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.deployTrigger">deployTrigger</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.listTriggerJobs">listTriggerJobs</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.listTriggerLogs">listTriggerLogs</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.listTriggers">listTriggers</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.updateTrigger">updateTrigger</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_triggersController.html#~listTriggers">listTriggers</a></li></ul></li><li><a href="module-routes_adminRoutes.html">routes/adminRoutes</a></li><li><a href="module-routes_analyticsRoutes.html">routes/analyticsRoutes</a></li><li><a href="module-routes_authRoutes.html">routes/authRoutes</a></li><li><a href="module-routes_constraintRoutes.html">routes/constraintRoutes</a></li><li><a href="module-routes_dataRoutes.html">routes/dataRoutes</a></li><li><a href="module-routes_grantRoutes.html">routes/grantRoutes</a></li><li><a href="module-routes_metadataRoutes.html">routes/metadataRoutes</a></li><li><a href="module-routes_policyRoutes.html">routes/policyRoutes</a></li><li><a href="module-routes_queryLogRoutes.html">routes/queryLogRoutes</a></li><li><a href="module-routes_queryRoutes.html">routes/queryRoutes</a></li><li><a href="module-routes_savedAnalyticsRoutes.html">routes/savedAnalyticsRoutes</a></li><li><a href="module-routes_triggerRoutes.html">routes/triggerRoutes</a></li></ul><h3>Global</h3><ul><li><a href="global.html#AGG_FUNCS">AGG_FUNCS</a></li><li><a href="global.html#CANON_OP">CANON_OP</a></li><li><a href="global.html#EVENT_TIMINGS">EVENT_TIMINGS</a></li><li><a href="global.html#LOCAL_SOURCE">LOCAL_SOURCE</a></li><li><a href="global.html#OP_MAP">OP_MAP</a></li><li><a href="global.html#RANKING">RANKING</a></li><li><a href="global.html#SQL_OPERATORS">SQL_OPERATORS</a></li><li><a href="global.html#SyncType">SyncType</a></li><li><a href="global.html#VAR_TOKEN">VAR_TOKEN</a></li><li><a href="global.html#aggregateRaw">aggregateRaw</a></li><li><a href="global.html#applyWindows">applyWindows</a></li><li><a href="global.html#base">base</a></li><li><a href="global.html#cacheEnabled">cacheEnabled</a></li><li><a href="global.html#cacheGet">cacheGet</a></li><li><a href="global.html#cacheInvalidate">cacheInvalidate</a></li><li><a href="global.html#cacheSet">cacheSet</a></li><li><a href="global.html#cached">cached</a></li><li><a href="global.html#client">client</a></li><li><a href="global.html#comparator">comparator</a></li><li><a href="global.html#extractWindows">extractWindows</a></li><li><a href="global.html#gName">gName</a></li><li><a href="global.html#getJwtSecret">getJwtSecret</a></li><li><a href="global.html#hasWindows">hasWindows</a></li><li><a href="global.html#ident">ident</a></li><li><a href="global.html#initCache">initCache</a></li><li><a href="global.html#invalidateTenant">invalidateTenant</a></li><li><a href="global.html#isAggregateQuery">isAggregateQuery</a></li><li><a href="global.html#legKey">legKey</a></li><li><a href="global.html#maxRowsPerLeg">maxRowsPerLeg</a></li><li><a href="global.html#mergePartials">mergePartials</a></li><li><a href="global.html#migrate">migrate</a></li><li><a href="global.html#num">num</a></li><li><a href="global.html#numeric">numeric</a></li><li><a href="global.html#options">options</a></li><li><a href="global.html#parseAggregates">parseAggregates</a></li><li><a href="global.html#parseHaving">parseHaving</a></li><li><a href="global.html#parseLiteral">parseLiteral</a></li><li><a href="global.html#parseSelect">parseSelect</a></li><li><a href="global.html#parseWhere">parseWhere</a></li><li><a href="global.html#partialSpec">partialSpec</a></li><li><a href="global.html#partitionKey">partitionKey</a></li><li><a href="global.html#projectWithWindows">projectWithWindows</a></li><li><a href="global.html#queryWithContext">queryWithContext</a></li><li><a href="global.html#readCol">readCol</a></li><li><a href="global.html#splitTopLevel">splitTopLevel</a></li><li><a href="global.html#sqlToAst">sqlToAst</a></li><li><a href="global.html#toCanonical">toCanonical</a></li><li><a href="global.html#windowBaseColumns">windowBaseColumns</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+
+    
+
+
+
+    
+
+
+    <section class="package">
+        <h3> </h3>		
+    </section>
+
+
+
+
+
+
+
+
+
+    
+
+
+
+    <section class="readme usertext">
+        <article><h1>Capability Model &amp; Matrix — one model, two modes, three tiers</h1>
+<p>This document explains <strong>how every feature of the fabric works</strong>, checked against
+every construct in <code>test_manifest.json</code>, and how each is reachable <strong>consistently
+from both the AST query mode and the SQL query mode</strong>.</p>
+<h2>1. One model</h2>
+<p>Two entry modes normalize to a <strong>single canonical AST</strong> before planning:</p>
+<ul>
+<li><strong>AST mode</strong> — a structured <code>query</code> object (<code>{ select, from, where, joins, groupBy, with, recursive, … }</code>).</li>
+<li><strong>SQL mode</strong> — a SQL string. On a SQL-native engine (Postgres/remote) it runs
+natively; on a non-SQL engine (Mongo) it is translated to the same AST by
+<code>sqlToAst</code>, then planned identically.</li>
+</ul>
+<p>Because both modes converge on the same AST + planner, every capability below is
+available the same way from either — that is the consistency guarantee.</p>
+<h2>2. Three enforcement tiers (the compensation philosophy)</h2>
+<p>For each capability the planner picks, per engine:</p>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Push-down</strong></td>
+<td>the source enforces/executes it natively (Postgres RLS, CHECK, GRANT, <code>nextval</code>, functions, <code>WITH RECURSIVE</code>)</td>
+</tr>
+<tr>
+<td><strong>Compensate-in-fabric</strong></td>
+<td>a fabric engine does it when the source can't — the whole point for Mongo/ES</td>
+</tr>
+<tr>
+<td><strong>Reject-if-impossible</strong></td>
+<td>explicit, non-silent error (e.g. <code>EXCLUDE … USING GIST</code> on Mongo)</td>
+</tr>
+</tbody>
+</table>
+<p>&quot;If Mongo doesn't support it, the fabric adds its own engine/helper&quot; — that is
+tier 2, applied uniformly.</p>
+<h2>3. The fabric engines (tier-2 compensations)</h2>
+<table>
+<thead>
+<tr>
+<th>Engine</th>
+<th>File</th>
+<th>Compensates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PushdownCompiler</td>
+<td><code>query-engine/pushdown.ts</code></td>
+<td>filter/projection/sort/limit → SQL / Mongo / ES</td>
+</tr>
+<tr>
+<td>FederationExecutor</td>
+<td><code>query-engine/federation.ts</code></td>
+<td>cross-engine JOIN / UNION / INTERSECT / EXCEPT, partial-aggregate merge, bind-join</td>
+</tr>
+<tr>
+<td>Aggregate engine</td>
+<td><code>query-engine/aggregate.ts</code></td>
+<td>multi-source GROUP BY (partial + merge)</td>
+</tr>
+<tr>
+<td>Window engine</td>
+<td><code>query-engine/compensate.ts</code></td>
+<td>RANK / ROW_NUMBER / SUM OVER … in-fabric</td>
+</tr>
+<tr>
+<td>Recursive engine</td>
+<td><code>query-engine/recursive.ts</code></td>
+<td><code>WITH RECURSIVE</code> / hierarchy traversal over any engine</td>
+</tr>
+<tr>
+<td>Sequence engine</td>
+<td><code>query-engine/sequence.service.ts</code></td>
+<td><code>nextval</code> for engines with no sequences</td>
+</tr>
+<tr>
+<td>Write-value engine</td>
+<td><code>query-engine/write_generators.ts</code></td>
+<td>UUID_V7 / IDENTITY / FUNCTIONAL / SOFT_DELETE defaults</td>
+</tr>
+<tr>
+<td><strong>Policy engine</strong></td>
+<td><code>security/policy.service.ts</code></td>
+<td>row-predicate injection + column masking</td>
+</tr>
+<tr>
+<td><strong>Constraint engine</strong></td>
+<td><code>query-engine/constraint.service.ts</code></td>
+<td>NOT NULL / UNIQUE / CHECK / ENUM / FK on write</td>
+</tr>
+<tr>
+<td><strong>Grant engine</strong></td>
+<td><code>security/grant.service.ts</code></td>
+<td>role/privilege table access gate</td>
+</tr>
+<tr>
+<td>Function-as-a-service</td>
+<td><code>CALL</code> op + <code>write_generators.ts</code></td>
+<td>run functions/procedures on the hub for any engine</td>
+</tr>
+<tr>
+<td>SQL translator</td>
+<td><code>query-engine/sql_translator.ts</code></td>
+<td>SQL → AST for non-SQL engines</td>
+</tr>
+<tr>
+<td>Trigger engine</td>
+<td><code>trigger-engine/</code> MS + <code>triggers/*</code></td>
+<td>durable action triggers + native manifest triggers</td>
+</tr>
+</tbody>
+</table>
+<h2>4. Capability matrix — every <code>test_manifest.json</code> construct</h2>
+<p><code>PG</code> = native Postgres. <code>Mongo/ES</code> = the non-SQL compensation tier.</p>
+<table>
+<thead>
+<tr>
+<th>Manifest construct</th>
+<th>AST mode</th>
+<th>SQL mode</th>
+<th>PG</th>
+<th>Mongo/ES (compensation)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ENUM type</td>
+<td>apply</td>
+<td>apply</td>
+<td>native <code>CREATE TYPE</code></td>
+<td>validated in-fabric on write (Constraint engine)</td>
+</tr>
+<tr>
+<td>SEQUENCE (incl. PROCEDURAL)</td>
+<td>✅</td>
+<td>✅</td>
+<td>native <code>nextval</code></td>
+<td>Sequence engine (atomic allocator)</td>
+</tr>
+<tr>
+<td>Column strategies (UUID_V7 / IDENTITY / LEGACY_SERIAL / FUNCTIONAL / SOFT_DELETE)</td>
+<td>✅ <code>generate</code></td>
+<td>✅</td>
+<td>native defaults</td>
+<td>Write-value engine supplies values</td>
+</tr>
+<tr>
+<td>TABLE / columns / types</td>
+<td>✅</td>
+<td>✅</td>
+<td>native DDL</td>
+<td><code>createCollection</code> + indexes</td>
+</tr>
+<tr>
+<td><strong>CHECK constraint</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>native</td>
+<td><strong>Constraint engine</strong> (regex/comparison eval on write)</td>
+</tr>
+<tr>
+<td><strong>UNIQUE</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>native</td>
+<td>Mongo unique index + fabric pre-check</td>
+</tr>
+<tr>
+<td><strong>NOT NULL</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>native</td>
+<td><strong>Constraint engine</strong></td>
+</tr>
+<tr>
+<td><strong>FOREIGN KEY</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>native (relationship or <code>constraints[]</code>)</td>
+<td><strong>Constraint engine</strong> (existence lookup)</td>
+</tr>
+<tr>
+<td>EXCLUDE … USING GIST</td>
+<td>✅</td>
+<td>—</td>
+<td>native</td>
+<td><strong>reject-if-impossible</strong> (Postgres-only)</td>
+</tr>
+<tr>
+<td>TRIGGER (manifest)</td>
+<td>✅</td>
+<td>via manifest</td>
+<td>native <code>CREATE TRIGGER</code></td>
+<td>native trigger enqueues durable job</td>
+</tr>
+<tr>
+<td>TRIGGER (API/UI action)</td>
+<td>✅</td>
+<td>✅</td>
+<td>—</td>
+<td>Trigger-engine MS + durable queue</td>
+</tr>
+<tr>
+<td><strong>masking</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>native (or fabric)</td>
+<td><strong>Policy engine</strong> post-fetch redaction</td>
+</tr>
+<tr>
+<td><strong>RLS policies</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>native RLS</td>
+<td><strong>Policy engine</strong> predicate injection (pushed to source)</td>
+</tr>
+<tr>
+<td><strong>grants</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>native GRANT</td>
+<td><strong>Grant engine</strong> role/privilege gate</td>
+</tr>
+<tr>
+<td><strong>FUNCTION</strong> (author)</td>
+<td>✅</td>
+<td>✅</td>
+<td>native</td>
+<td>provisioned on hub (FaaS)</td>
+</tr>
+<tr>
+<td><strong>FUNCTION/PROCEDURE (call)</strong></td>
+<td>✅ <code>{type:'CALL'}</code></td>
+<td>✅ <code>CALL</code>/<code>SELECT fn()</code></td>
+<td>native</td>
+<td><strong>function-as-a-service</strong> on hub</td>
+</tr>
+<tr>
+<td>VIEW (plain / window / aggregate)</td>
+<td>✅</td>
+<td>✅</td>
+<td>native view</td>
+<td>window/aggregate engines</td>
+</tr>
+<tr>
+<td>VIEW (federated VIRTUAL union/intersect/except)</td>
+<td>✅</td>
+<td>use AST</td>
+<td>—</td>
+<td>FederationExecutor set-ops</td>
+</tr>
+<tr>
+<td><strong>recursive VIEW / WITH RECURSIVE</strong></td>
+<td>✅ <code>query.with</code> / <code>query.recursive</code></td>
+<td>PG passthrough; Mongo → use AST</td>
+<td>native <code>WITH RECURSIVE</code></td>
+<td><strong>Recursive engine</strong> (in-fabric traversal)</td>
+</tr>
+<tr>
+<td>MATERIALIZED VIEW (+ refresh)</td>
+<td>✅</td>
+<td>✅</td>
+<td>native matview</td>
+<td>(Postgres target)</td>
+</tr>
+<tr>
+<td>relationships (1:1 / 1:M / M:N)</td>
+<td>✅</td>
+<td>✅</td>
+<td>native FK / bridge</td>
+<td>FK compensation via Constraint engine</td>
+</tr>
+</tbody>
+</table>
+<h3>Notes on <code>WITH</code>/CTE in SQL mode</h3>
+<p><code>WITH</code>/<code>WITH RECURSIVE</code> runs natively when the SQL targets a SQL engine
+(Postgres/remote — passthrough). For a <strong>non-SQL</strong> engine, <code>sqlToAst</code> returns an
+actionable error pointing to the AST equivalents (<code>query.with</code> for Postgres,
+<code>query.recursive</code> for cross-engine in-fabric traversal), which <strong>do</strong> run on
+Mongo/ES. So recursion is always available — the SQL string form just isn't the
+vehicle for a document store.</p>
+<h2>5. Control-plane APIs (all engine-agnostic, all synced from the manifest too)</h2>
+<table>
+<thead>
+<tr>
+<th>API</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST/GET/DELETE /api/policies</code></td>
+<td>row policies + masking</td>
+</tr>
+<tr>
+<td><code>POST/GET /api/constraints</code></td>
+<td>NOT NULL / UNIQUE / ENUM / CHECK / FK</td>
+</tr>
+<tr>
+<td><code>POST/GET /api/grants</code></td>
+<td>table privileges by role</td>
+</tr>
+<tr>
+<td><code>POST/GET/PUT/DELETE /api/triggers</code></td>
+<td>action triggers + durable jobs</td>
+</tr>
+<tr>
+<td><code>POST /api/data/{fetch,create,update,delete,call,sequence}</code></td>
+<td>CRUD + FaaS + sequences</td>
+</tr>
+<tr>
+<td><code>POST /api/analytics/query</code></td>
+<td>AST/SQL queries (federation, recursion, window, aggregate)</td>
+</tr>
+<tr>
+<td><code>POST/GET/DELETE /api/saved-analytics</code> (+ <code>/:id/run</code>)</td>
+<td>reusable, <code>{{variable}}</code>-bound analytics; run/trigger with inputs</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Session context</strong> (<code>tenant</code>, <code>role</code>, <code>region</code>) is threaded from the request
+(token + <code>x-tenant-id</code> + <code>x-region</code>); ADMIN may <code>x-act-as-role: &lt;role&gt;</code> to test
+policies/grants/masking as another role (&quot;view as&quot;).</p>
+<h2>6. Why this is efficient</h2>
+<ul>
+<li>Row policies compile into the <strong>pushdown</strong>, so the predicate runs at the source
+(Mongo <code>$match</code>) — the fabric never fetches then filters.</li>
+<li>Constraints validate the <strong>write payload</strong> (and a single bounded lookup for
+UNIQUE/FK) before dispatch — O(rows), not a scan.</li>
+<li>Recursion pushes one <code>IN(…)</code> <strong>bind-filter per level</strong> — not a query per node.</li>
+<li>Grants are a single cached decision; masking is an O(rows) post-map.</li>
+</ul></article>
+    </section>
+
+
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Jul 12 2026 10:30:14 GMT+0530 (India Standard Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+<script src="scripts/collapse.js" defer></script>
+
+
+</body>
+</html>

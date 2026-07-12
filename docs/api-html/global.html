@@ -1,0 +1,7007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>Global - Zero Data Fabric — API Reference</title>
+    
+    
+    
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="ApiPortalService.html">ApiPortalService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ApiPortalService.html#.exposeTableToApi">exposeTableToApi</a></li><li data-type='method' style='display: none;'><a href="ApiPortalService.html#.getTenantOpenApiSpec">getTenantOpenApiSpec</a></li></ul></li><li><a href="ConstraintService.html">ConstraintService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ConstraintService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.evalCheck">evalCheck</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.list">list</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.parseCheckExpression">parseCheckExpression</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.specFromManifestTable">specFromManifestTable</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.upsert">upsert</a></li><li data-type='method' style='display: none;'><a href="ConstraintService.html#.validate">validate</a></li></ul></li><li><a href="DiffEngine.html">DiffEngine</a><ul class='methods'><li data-type='method' style='display: none;'><a href="DiffEngine.html#.compare">compare</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.detectRetiredResources">detectRetiredResources</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffEnum">diffEnum</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffFunction">diffFunction</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffSequence">diffSequence</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffTable">diffTable</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.diffView">diffView</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.processResourceDiff">processResourceDiff</a></li><li data-type='method' style='display: none;'><a href="DiffEngine.html#.sortResources">sortResources</a></li></ul></li><li><a href="DownstreamService.html">DownstreamService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="DownstreamService.html#.bulkIndexRows">bulkIndexRows</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.ensureElasticIndex">ensureElasticIndex</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.fetchTableRows">fetchTableRows</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.getConnectorConfig">getConnectorConfig</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.provision">provision</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.provisionElasticsearch">provisionElasticsearch</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.provisionSnowflake">provisionSnowflake</a></li><li data-type='method' style='display: none;'><a href="DownstreamService.html#.toElasticMappings">toElasticMappings</a></li></ul></li><li><a href="ElasticsearchConnector.html">ElasticsearchConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#buildFilter">buildFilter</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#close">close</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#deleteDocs">deleteDocs</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#discoverColumns">discoverColumns</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#flattenAggs">flattenAggs</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#insertDocs">insertDocs</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#query">query</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#rawQuery">rawQuery</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#req">req</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#updateDocs">updateDocs</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#.buildQuery">buildQuery</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#.filterClauses">filterClauses</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#.metricAgg">metricAgg</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchConnector.html#.previewBody">previewBody</a></li></ul></li><li></li><li><a href="ElasticsearchMutationWorker.html">ElasticsearchMutationWorker</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.defer">defer</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.enqueueMutation">enqueueMutation</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.getElasticConnector">getElasticConnector</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.process">process</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.start">start</a></li><li data-type='method' style='display: none;'><a href="ElasticsearchMutationWorker.html#.tick">tick</a></li></ul></li><li><a href="EventService.html">EventService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="EventService.html#.attachEventTrigger">attachEventTrigger</a></li><li data-type='method' style='display: none;'><a href="EventService.html#.dispatchWebhook">dispatchWebhook</a></li><li data-type='method' style='display: none;'><a href="EventService.html#.emit">emit</a></li></ul></li><li><a href="FabricSequenceService.html">FabricSequenceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.currval">currval</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.ensure">ensure</a></li><li data-type='method' style='display: none;'><a href="FabricSequenceService.html#.nextval">nextval</a></li></ul></li><li><a href="FabricWriteGenerators.html">FabricWriteGenerators</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FabricWriteGenerators.html#.apply">apply</a></li><li data-type='method' style='display: none;'><a href="FabricWriteGenerators.html#.resolve">resolve</a></li></ul></li><li><a href="FederationExecutor.html">FederationExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyOrderLimit">applyOrderLimit</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyProjection">applyProjection</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.applyWhere">applyWhere</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.astLegToCanonical">astLegToCanonical</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.buildLegFilters">buildLegFilters</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.evalOn">evalOn</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.execute">execute</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.executeJoin">executeJoin</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.executeSetOp">executeSetOp</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fanAggregate">fanAggregate</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.fetchLegDirect">fetchLegDirect</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.previewConnectorQuery">previewConnectorQuery</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="FederationExecutor.html#.serialize">serialize</a></li></ul></li><li><a href="GitOpsService.html">GitOpsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GitOpsService.html#.deploySchema">deploySchema</a></li></ul></li><li><a href="GrantService.html">GrantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="GrantService.html#.check">check</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.decide">decide</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.enforce">enforce</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.list">list</a></li><li data-type='method' style='display: none;'><a href="GrantService.html#.upsert">upsert</a></li></ul></li><li><a href="HeterogeneousDispatcher.html">HeterogeneousDispatcher</a><ul class='methods'><li data-type='method' style='display: none;'><a href="HeterogeneousDispatcher.html#.execute">execute</a></li><li data-type='method' style='display: none;'><a href="HeterogeneousDispatcher.html#.executeMongo">executeMongo</a></li><li data-type='method' style='display: none;'><a href="HeterogeneousDispatcher.html#.executeMysql">executeMysql</a></li><li data-type='method' style='display: none;'><a href="HeterogeneousDispatcher.html#.executePostgres">executePostgres</a></li></ul></li><li><a href="IntegrationService.html">IntegrationService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="IntegrationService.html#.registerRemoteSource">registerRemoteSource</a></li><li data-type='method' style='display: none;'><a href="IntegrationService.html#.removeSource">removeSource</a></li><li data-type='method' style='display: none;'><a href="IntegrationService.html#.testConnection">testConnection</a></li></ul></li><li><a href="ManifestParser.html">ManifestParser</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ManifestParser.html#.parse">parse</a></li></ul></li><li><a href="MetadataOrchestrator.html">MetadataOrchestrator</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#apply">apply</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#ensureBaseInfrastructure">ensureBaseInfrastructure</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#ensureFabricPrimitives">ensureFabricPrimitives</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#ensureTenantSchemaPrivileges">ensureTenantSchemaPrivileges</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#findSourcesInQuery">findSourcesInQuery</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#getHistory">getHistory</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#persistMetadataState">persistMetadataState</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#plan">plan</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#rollback">rollback</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#validateDataSources">validateDataSources</a></li><li data-type='method' style='display: none;'><a href="MetadataOrchestrator.html#validateManifest">validateManifest</a></li></ul></li><li><a href="MetadataService.html">MetadataService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MetadataService.html#.collectExternalSources">collectExternalSources</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.crawlSource">crawlSource</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.crawlTenant">crawlTenant</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.diffMetadata">diffMetadata</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.exportManifest">exportManifest</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.getSchemas">getSchemas</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.getTables">getTables</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.getTemplate">getTemplate</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.introspectColumns">introspectColumns</a></li><li data-type='method' style='display: none;'><a href="MetadataService.html#.migrateMetadata">migrateMetadata</a></li></ul></li><li><a href="global.html#MongoDBConnector">MongoDBConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#close">close</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#deleteDocs">deleteDocs</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#discoverColumns">discoverColumns</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#insertDocs">insertDocs</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#query">query</a></li><li data-type='method' style='display: none;'><a href="global.html#MongoDBConnector#updateDocs">updateDocs</a></li></ul></li><li><a href="global.html#MySQLConnector">MySQLConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#close">close</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#connect">connect</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#discoverColumns">discoverColumns</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="global.html#MySQLConnector#query">query</a></li></ul></li><li><a href="PolicyService.html">PolicyService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PolicyService.html#.applyMasks">applyMasks</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.cheapHash">cheapHash</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.compileFilter">compileFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.deletePolicy">deletePolicy</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.listPolicies">listPolicies</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.maskValue">maskValue</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.mergeIntoFilter">mergeIntoFilter</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.physicalSchema">physicalSchema</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolve">resolve</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.resolveValue">resolveValue</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.roleMatches">roleMatches</a></li><li data-type='method' style='display: none;'><a href="PolicyService.html#.upsertPolicy">upsertPolicy</a></li></ul></li><li><a href="global.html#PostgresConnector">PostgresConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#close">close</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#discoverColumns">discoverColumns</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#discoverRelationships">discoverRelationships</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#query">query</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#rawQuery">rawQuery</a></li><li data-type='method' style='display: none;'><a href="global.html#PostgresConnector#setSearchPath">setSearchPath</a></li></ul></li><li><a href="PushdownCompiler.html">PushdownCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.aggExprSql">aggExprSql</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.groupBySql">groupBySql</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.groupSelectSql">groupSelectSql</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.mongoMatch">mongoMatch</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.quoteColumn">quoteColumn</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.quoteIdent">quoteIdent</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.splitOp">splitOp</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.splitOps">splitOps</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.toMongo">toMongo</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.toMongoAggregate">toMongoAggregate</a></li><li data-type='method' style='display: none;'><a href="PushdownCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="QualityService.html">QualityService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QualityService.html#.runQualityCheck">runQualityCheck</a></li></ul></li><li><a href="QueryEngineController.html">QueryEngineController</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryEngineController.html#.executeAsyncQuery">executeAsyncQuery</a></li><li data-type='method' style='display: none;'><a href="QueryEngineController.html#.executeQuery">executeQuery</a></li><li data-type='method' style='display: none;'><a href="QueryEngineController.html#.getJobStatus">getJobStatus</a></li><li data-type='method' style='display: none;'><a href="QueryEngineController.html#.refreshView">refreshView</a></li></ul></li><li><a href="QueryEngineService.html">QueryEngineService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.applyHaving">applyHaving</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.assertSafeKeys">assertSafeKeys</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.buildMutationSql">buildMutationSql</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.buildWhere">buildWhere</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.detectUnsafeOperations">detectUnsafeOperations</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.distributeTable">distributeTable</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeAsyncQuery">executeAsyncQuery</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeAsyncRawSql">executeAsyncRawSql</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeQuery">executeQuery</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeRawSql">executeRawSql</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.executeSqlOnSource">executeSqlOnSource</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.fetch">fetch</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.formatInline">formatInline</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.generateSql">generateSql</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.getJobStatus">getJobStatus</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.mutate">mutate</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.qIdent">qIdent</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.refreshMaterializedView">refreshMaterializedView</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.resolveTarget">resolveTarget</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.stripSources">stripSources</a></li><li data-type='method' style='display: none;'><a href="QueryEngineService.html#.toTenantSchemaName">toTenantSchemaName</a></li></ul></li><li><a href="QueryLogService.html">QueryLogService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryLogService.html#.capture">capture</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.get">get</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.list">list</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.memDelta">memDelta</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.record">record</a></li><li data-type='method' style='display: none;'><a href="QueryLogService.html#.truncate">truncate</a></li></ul></li><li><a href="QueryPlanner.html">QueryPlanner</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryPlanner.html#.classify">classify</a></li><li data-type='method' style='display: none;'><a href="QueryPlanner.html#.collectRefs">collectRefs</a></li><li data-type='method' style='display: none;'><a href="QueryPlanner.html#.resolveLeg">resolveLeg</a></li></ul></li><li><a href="QueryTranspiler.html">QueryTranspiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.columnToSql">columnToSql</a></li><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.mapOp">mapOp</a></li><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.toSql">toSql</a></li><li data-type='method' style='display: none;'><a href="QueryTranspiler.html#.whereToSql">whereToSql</a></li></ul></li><li><a href="global.html#RecursiveExecutor">RecursiveExecutor</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#RecursiveExecutor#.run">run</a></li></ul></li><li><a href="ResilienceService.html">ResilienceService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="ResilienceService.html#.checkDatabaseHealth">checkDatabaseHealth</a></li><li data-type='method' style='display: none;'><a href="ResilienceService.html#.getReplicationStats">getReplicationStats</a></li></ul></li><li><a href="SavedAnalyticsService.html">SavedAnalyticsService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindAst">bindAst</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.bindSql">bindSql</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.create">create</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.ensureTable">ensureTable</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.get">get</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.list">list</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.remove">remove</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.resolveValues">resolveValues</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.run">run</a></li><li data-type='method' style='display: none;'><a href="SavedAnalyticsService.html#.top">top</a></li></ul></li><li><a href="SecurityService.html">SecurityService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SecurityService.html#.applyAdvancedRLS">applyAdvancedRLS</a></li><li data-type='method' style='display: none;'><a href="SecurityService.html#.applyRLSToSchema">applyRLSToSchema</a></li><li data-type='method' style='display: none;'><a href="SecurityService.html#.encryptField">encryptField</a></li></ul></li><li><a href="global.html#SnowflakeConnector">SnowflakeConnector</a><ul class='methods'><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#close">close</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#connect">connect</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#discoverSchemas">discoverSchemas</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#discoverTables">discoverTables</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#exec">exec</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#query">query</a></li><li data-type='method' style='display: none;'><a href="global.html#SnowflakeConnector#sdk">sdk</a></li></ul></li><li><a href="SyncService.html">SyncService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="SyncService.html#.initializeSync">initializeSync</a></li><li data-type='method' style='display: none;'><a href="SyncService.html#.initializeSync">initializeSync</a></li><li data-type='method' style='display: none;'><a href="SyncService.html#.setupPhysicalSync">setupPhysicalSync</a></li><li data-type='method' style='display: none;'><a href="SyncService.html#.syncTable">syncTable</a></li></ul></li><li><a href="TenantService.html">TenantService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TenantService.html#.createTenant">createTenant</a></li><li data-type='method' style='display: none;'><a href="TenantService.html#.deleteTenant">deleteTenant</a></li><li data-type='method' style='display: none;'><a href="TenantService.html#.listAll">listAll</a></li><li data-type='method' style='display: none;'><a href="TenantService.html#.updateTenant">updateTenant</a></li></ul></li><li><a href="Transpiler.html">Transpiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="Transpiler.html#.callTriggerEngine">callTriggerEngine</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.findColumnType">findColumnType</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.normalizeType">normalizeType</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.qualifyColumnsForTrigger">qualifyColumnsForTrigger</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.toMongo">toMongo</a></li><li data-type='method' style='display: none;'><a href="Transpiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerActionCompiler.html">TriggerActionCompiler</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileActionBody">compileActionBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileEnqueueBody">compileEnqueueBody</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.compileExecute">compileExecute</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.condition">condition</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.expr">expr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.ident">ident</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.msg">msg</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.normalizeEvents">normalizeEvents</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.qualify">qualify</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.runAtExpr">runAtExpr</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.timingFromEvent">timingFromEvent</a></li><li data-type='method' style='display: none;'><a href="TriggerActionCompiler.html#.toSql">toSql</a></li></ul></li><li><a href="TriggerService.html">TriggerService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="TriggerService.html#.createTrigger">createTrigger</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.deleteTrigger">deleteTrigger</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.deployTrigger">deployTrigger</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.enqueueJob">enqueueJob</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.listJobs">listJobs</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.listLogs">listLogs</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.listTriggers">listTriggers</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.registryUpsertSql">registryUpsertSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.retryJob">retryJob</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.transpileTriggerSql">transpileTriggerSql</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.updateTrigger">updateTrigger</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.validate">validate</a></li><li data-type='method' style='display: none;'><a href="TriggerService.html#.writeLog">writeLog</a></li></ul></li><li><a href="UiService.html">UiService</a><ul class='methods'><li data-type='method' style='display: none;'><a href="UiService.html#.getDashboardStats">getDashboardStats</a></li></ul></li></ul><h3>Modules</h3><ul><li><a href="module-controllers_adminController.html">controllers/adminController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.createConnection">createConnection</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.createTenant">createTenant</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.createUser">createUser</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.deleteNotificationChannel">deleteNotificationChannel</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.deleteTenant">deleteTenant</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.deleteUser">deleteUser</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getAuditLogs">getAuditLogs</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getCatalogSummary">getCatalogSummary</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getConnections">getConnections</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getDashboardStats">getDashboardStats</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getTenants">getTenants</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.getUsers">getUsers</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.listNotificationChannels">listNotificationChannels</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.removeConnection">removeConnection</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.updateConnectionStatus">updateConnectionStatus</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.updateTenant">updateTenant</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.updateUser">updateUser</a></li><li data-type='member' style='display: none;'><a href="module-controllers_adminController.html#.upsertNotificationChannel">upsertNotificationChannel</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_adminController.html#~getTenants">getTenants</a></li></ul></li><li><a href="module-controllers_authController.html">controllers/authController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_authController.html#.login">login</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_authController.html#~login">login</a></li></ul></li><li><a href="module-controllers_constraintController.html">controllers/constraintController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_constraintController.html#.listConstraints">listConstraints</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_constraintController.html#~listConstraints">listConstraints</a></li></ul></li><li><a href="module-controllers_dataController.html">controllers/dataController</a><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_dataController.html#~handle">handle</a></li></ul></li><li><a href="module-controllers_grantController.html">controllers/grantController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_grantController.html#.listGrants">listGrants</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_grantController.html#~listGrants">listGrants</a></li></ul></li><li><a href="module-controllers_metadataController.html">controllers/metadataController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.applyMetadata">applyMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.crawlTenant">crawlTenant</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.diffMetadata">diffMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.exportMetadata">exportMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getColumns">getColumns</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getDownstreamStatus">getDownstreamStatus</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getEvents">getEvents</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getMetadataHistory">getMetadataHistory</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getPreviewData">getPreviewData</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getRelationships">getRelationships</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getSchemas">getSchemas</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getSources">getSources</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getTableDetails">getTableDetails</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getTables">getTables</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.getTemplate">getTemplate</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.migrateMetadata">migrateMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.rollbackMetadata">rollbackMetadata</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#.toggleDownstream">toggleDownstream</a></li><li data-type='member' style='display: none;'><a href="module-controllers_metadataController.html#~META_TTL">META_TTL</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_metadataController.html#~exportMetadata">exportMetadata</a></li><li data-type='method' style='display: none;'><a href="module-controllers_metadataController.html#~getDownstreamStatus">getDownstreamStatus</a></li><li data-type='method' style='display: none;'><a href="module-controllers_metadataController.html#~normalizeAstColumn">normalizeAstColumn</a></li></ul></li><li><a href="module-controllers_policyController.html">controllers/policyController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_policyController.html#.createPolicy">createPolicy</a></li><li data-type='member' style='display: none;'><a href="module-controllers_policyController.html#.listPolicies">listPolicies</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_policyController.html#~listPolicies">listPolicies</a></li></ul></li><li><a href="module-controllers_queryController.html">controllers/queryController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_queryController.html#.executeEngineQuery">executeEngineQuery</a></li><li data-type='member' style='display: none;'><a href="module-controllers_queryController.html#.executeNativeSql">executeNativeSql</a></li><li data-type='member' style='display: none;'><a href="module-controllers_queryController.html#.executeRawSql">executeRawSql</a></li><li data-type='member' style='display: none;'><a href="module-controllers_queryController.html#.transpileQuery">transpileQuery</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_queryController.html#~executeEngineQuery">executeEngineQuery</a></li></ul></li><li><a href="module-controllers_queryLogController.html">controllers/queryLogController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_queryLogController.html#.listQueryLogs">listQueryLogs</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_queryLogController.html#~listQueryLogs">listQueryLogs</a></li></ul></li><li><a href="module-controllers_savedAnalyticsController.html">controllers/savedAnalyticsController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.createAnalytic">createAnalytic</a></li><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.deleteAnalytic">deleteAnalytic</a></li><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.getAnalytic">getAnalytic</a></li><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.listAnalytics">listAnalytics</a></li><li data-type='member' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#.topAnalytics">topAnalytics</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#~listAnalytics">listAnalytics</a></li><li data-type='method' style='display: none;'><a href="module-controllers_savedAnalyticsController.html#~sessionOf">sessionOf</a></li></ul></li><li><a href="module-controllers_triggersController.html">controllers/triggersController</a><ul class='members'><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.createTrigger">createTrigger</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.deleteTrigger">deleteTrigger</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.deployTrigger">deployTrigger</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.listTriggerJobs">listTriggerJobs</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.listTriggerLogs">listTriggerLogs</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.listTriggers">listTriggers</a></li><li data-type='member' style='display: none;'><a href="module-controllers_triggersController.html#.updateTrigger">updateTrigger</a></li></ul><ul class='methods'><li data-type='method' style='display: none;'><a href="module-controllers_triggersController.html#~listTriggers">listTriggers</a></li></ul></li><li><a href="module-routes_adminRoutes.html">routes/adminRoutes</a></li><li><a href="module-routes_analyticsRoutes.html">routes/analyticsRoutes</a></li><li><a href="module-routes_authRoutes.html">routes/authRoutes</a></li><li><a href="module-routes_constraintRoutes.html">routes/constraintRoutes</a></li><li><a href="module-routes_dataRoutes.html">routes/dataRoutes</a></li><li><a href="module-routes_grantRoutes.html">routes/grantRoutes</a></li><li><a href="module-routes_metadataRoutes.html">routes/metadataRoutes</a></li><li><a href="module-routes_policyRoutes.html">routes/policyRoutes</a></li><li><a href="module-routes_queryLogRoutes.html">routes/queryLogRoutes</a></li><li><a href="module-routes_queryRoutes.html">routes/queryRoutes</a></li><li><a href="module-routes_savedAnalyticsRoutes.html">routes/savedAnalyticsRoutes</a></li><li><a href="module-routes_triggerRoutes.html">routes/triggerRoutes</a></li></ul><h3>Global</h3><ul><li><a href="global.html#AGG_FUNCS">AGG_FUNCS</a></li><li><a href="global.html#CANON_OP">CANON_OP</a></li><li><a href="global.html#EVENT_TIMINGS">EVENT_TIMINGS</a></li><li><a href="global.html#LOCAL_SOURCE">LOCAL_SOURCE</a></li><li><a href="global.html#OP_MAP">OP_MAP</a></li><li><a href="global.html#RANKING">RANKING</a></li><li><a href="global.html#SQL_OPERATORS">SQL_OPERATORS</a></li><li><a href="global.html#SyncType">SyncType</a></li><li><a href="global.html#VAR_TOKEN">VAR_TOKEN</a></li><li><a href="global.html#aggregateRaw">aggregateRaw</a></li><li><a href="global.html#applyWindows">applyWindows</a></li><li><a href="global.html#base">base</a></li><li><a href="global.html#cacheEnabled">cacheEnabled</a></li><li><a href="global.html#cacheGet">cacheGet</a></li><li><a href="global.html#cacheInvalidate">cacheInvalidate</a></li><li><a href="global.html#cacheSet">cacheSet</a></li><li><a href="global.html#cached">cached</a></li><li><a href="global.html#client">client</a></li><li><a href="global.html#comparator">comparator</a></li><li><a href="global.html#extractWindows">extractWindows</a></li><li><a href="global.html#gName">gName</a></li><li><a href="global.html#getJwtSecret">getJwtSecret</a></li><li><a href="global.html#hasWindows">hasWindows</a></li><li><a href="global.html#ident">ident</a></li><li><a href="global.html#initCache">initCache</a></li><li><a href="global.html#invalidateTenant">invalidateTenant</a></li><li><a href="global.html#isAggregateQuery">isAggregateQuery</a></li><li><a href="global.html#legKey">legKey</a></li><li><a href="global.html#maxRowsPerLeg">maxRowsPerLeg</a></li><li><a href="global.html#mergePartials">mergePartials</a></li><li><a href="global.html#migrate">migrate</a></li><li><a href="global.html#num">num</a></li><li><a href="global.html#numeric">numeric</a></li><li><a href="global.html#options">options</a></li><li><a href="global.html#parseAggregates">parseAggregates</a></li><li><a href="global.html#parseHaving">parseHaving</a></li><li><a href="global.html#parseLiteral">parseLiteral</a></li><li><a href="global.html#parseSelect">parseSelect</a></li><li><a href="global.html#parseWhere">parseWhere</a></li><li><a href="global.html#partialSpec">partialSpec</a></li><li><a href="global.html#partitionKey">partitionKey</a></li><li><a href="global.html#projectWithWindows">projectWithWindows</a></li><li><a href="global.html#queryWithContext">queryWithContext</a></li><li><a href="global.html#readCol">readCol</a></li><li><a href="global.html#splitTopLevel">splitTopLevel</a></li><li><a href="global.html#sqlToAst">sqlToAst</a></li><li><a href="global.html#toCanonical">toCanonical</a></li><li><a href="global.html#windowBaseColumns">windowBaseColumns</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">Global</h1>
+    
+
+    
+
+
+
+
+<section>
+
+<header>
+    
+        <h2>
+        
+            
+        
+        </h2>
+        
+    
+</header>
+
+<article>
+    
+        <div class="container-overview">
+        
+            
+
+<dl class="details">
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+            
+
+            
+        
+        </div>
+    
+
+    
+
+    
+
+    
+    
+    
+
+     
+
+    
+
+    
+        <h3 class="subsection-title">Members</h3>
+
+        
+            
+<h4 class="name" id="AGG_FUNCS"><span class="type-signature type-signature-constant">(constant) </span>AGG_FUNCS<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Aggregate decomposition for multi-source federation.
+-----------------------------------------------------
+Implements the "partial-aggregate split" that lets GROUP BY / aggregates run
+across many sources WITHOUT fetching every row into the fabric:
+
+  - Each source computes a PARTIAL aggregate (GROUP BY g..., COUNT/SUM/MIN/MAX)
+    and returns only #groups rows.
+  - The fabric MERGES the partials into the final result.
+
+Decomposition rules:
+  COUNT(*)/COUNT(c) -> partial COUNT -> final SUM(partial)
+  SUM(c)            -> partial SUM   -> final SUM
+  MIN/MAX(c)        -> partial MIN/MAX -> final MIN/MAX
+  AVG(c)            -> partial SUM(c)+COUNT(c) -> final ΣSUM/ΣCOUNT
+  COUNT(DISTINCT c) -> partial GROUP BY (g,c) distinct keys -> merge distinct set, count</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line1">line 1</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    Aggregate decomposition for multi-source federation.
+-----------------------------------------------------
+Implements the "partial-aggregate split" that lets GROUP BY / aggregates run
+across many sources WITHOUT fetching every row into the fabric:
+
+  - Each source computes a PARTIAL aggregate (GROUP BY g..., COUNT/SUM/MIN/MAX)
+    and returns only #groups rows.
+  - The fabric MERGES the partials into the final result.
+
+Decomposition rules:
+  COUNT(*)/COUNT(c) -> partial COUNT -> final SUM(partial)
+  SUM(c)            -> partial SUM   -> final SUM
+  MIN/MAX(c)        -> partial MIN/MAX -> final MIN/MAX
+  AVG(c)            -> partial SUM(c)+COUNT(c) -> final ΣSUM/ΣCOUNT
+  COUNT(DISTINCT c) -> partial GROUP BY (g,c) distinct keys -> merge distinct set, count
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="CANON_OP"><span class="type-signature type-signature-constant">(constant) </span>CANON_OP<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>PolicyService — the fabric's engine-agnostic access-policy layer.
+
+Postgres enforces row-level security and column masking natively. Non-RLS
+engines (MongoDB, Elasticsearch, remote warehouses reached as connectors) have
+no such enforcement, so the fabric compensates:
+
+  • ROW policies  → compiled into a CanonicalQuery filter and INJECTED into the
+                    leg's pushdown, so the predicate runs AT THE SOURCE (Mongo
+                    `$match`, ES query, remote SQL WHERE) — the tenant only ever
+                    receives rows they are allowed to see.
+  • COLUMN masking → applied to result rows POST-fetch (REDACT / NULL / HASH /
+                    PARTIAL) for the roles the rule targets.
+
+Policies are stored engine-agnostically in fabric_system.access_policies so the
+SAME definition drives every engine. A policy predicate clause is
+`(column, operator, value)`, where `value` is a literal or a session
+reference `(session: 'tenant_id' | 'region' | 'role' | 'username')` resolved
+per request — the analogue of a Postgres policy's `current_setting('app.*')`.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_security_policy.service.ts.html">backend/src/modules/security/policy.service.ts</a>, <a href="backend_src_modules_security_policy.service.ts.html#line3">line 3</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    PolicyService — the fabric's engine-agnostic access-policy layer.
+
+Postgres enforces row-level security and column masking natively. Non-RLS
+engines (MongoDB, Elasticsearch, remote warehouses reached as connectors) have
+no such enforcement, so the fabric compensates:
+
+  • ROW policies  → compiled into a CanonicalQuery filter and INJECTED into the
+                    leg's pushdown, so the predicate runs AT THE SOURCE (Mongo
+                    `$match`, ES query, remote SQL WHERE) — the tenant only ever
+                    receives rows they are allowed to see.
+  • COLUMN masking → applied to result rows POST-fetch (REDACT / NULL / HASH /
+                    PARTIAL) for the roles the rule targets.
+
+Policies are stored engine-agnostically in fabric_system.access_policies so the
+SAME definition drives every engine. A policy predicate clause is
+`(column, operator, value)`, where `value` is a literal or a session
+reference `(session: 'tenant_id' | 'region' | 'role' | 'username')` resolved
+per request — the analogue of a Postgres policy's `current_setting('app.*')`.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="EVENT_TIMINGS"><span class="type-signature type-signature-constant">(constant) </span>EVENT_TIMINGS<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Compilation context: the schema/table the trigger is attached to and the trigger's own name.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_triggers_action_compiler.ts.html">backend/src/modules/triggers/action_compiler.ts</a>, <a href="backend_src_modules_triggers_action_compiler.ts.html#line35">line 35</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    Compilation context: the schema/table the trigger is attached to and the trigger's own name.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="LOCAL_SOURCE"><span class="type-signature type-signature-constant">(constant) </span>LOCAL_SOURCE<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>QueryPlanner
+------------
+Decides HOW a query should be executed across one or many data sources,
+instead of the old behaviour of blindly stripping every `source` label and
+assuming all resources live in the tenant's Postgres schema.
+
+For each resource referenced by the query (from / joins / set-op legs) it
+resolves the physical engine via the catalog and decides whether that
+resource is reachable *inside* the tenant Postgres schema (a local table, a
+postgres_fdw foreign table, or a locally-synced shadow) or only reachable
+through a live connector (a VIRTUAL Mongo/MySQL source).
+
+Strategies:
+  SINGLE_LOCAL      - every leg is reachable in Postgres -> one SQL statement
+                      (Postgres / Citus / FDW planner does the optimization).
+  SINGLE_CONNECTOR  - one simple SELECT against a single connector-only source
+                      -> pushdown via that connector.
+  CROSS_ENGINE      - legs span multiple engines (or a join / set-op crosses
+                      the Postgres <-> connector boundary) -> FederationExecutor.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_planner.ts.html">backend/src/modules/query-engine/planner.ts</a>, <a href="backend_src_modules_query-engine_planner.ts.html#line1">line 1</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    QueryPlanner
+------------
+Decides HOW a query should be executed across one or many data sources,
+instead of the old behaviour of blindly stripping every `source` label and
+assuming all resources live in the tenant's Postgres schema.
+
+For each resource referenced by the query (from / joins / set-op legs) it
+resolves the physical engine via the catalog and decides whether that
+resource is reachable *inside* the tenant Postgres schema (a local table, a
+postgres_fdw foreign table, or a locally-synced shadow) or only reachable
+through a live connector (a VIRTUAL Mongo/MySQL source).
+
+Strategies:
+  SINGLE_LOCAL      - every leg is reachable in Postgres -> one SQL statement
+                      (Postgres / Citus / FDW planner does the optimization).
+  SINGLE_CONNECTOR  - one simple SELECT against a single connector-only source
+                      -> pushdown via that connector.
+  CROSS_ENGINE      - legs span multiple engines (or a join / set-op crosses
+                      the Postgres <-> connector boundary) -> FederationExecutor.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="MongoDBConnector"><span class="type-signature"></span>MongoDBConnector<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>SnowflakeConnector — queries Snowflake as a federated source with full pushdown
+(filter/projection/sort/limit + GROUP BY aggregates via the shared SQL compiler).
+The `snowflake-sdk` driver is lazy-required so the build never depends on it;
+a clear error is thrown only if a Snowflake source is actually used without it.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_metadata_connectors_factory.ts.html">backend/src/modules/metadata/connectors/factory.ts</a>, <a href="backend_src_modules_metadata_connectors_factory.ts.html#line561">line 561</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    SnowflakeConnector — queries Snowflake as a federated source with full pushdown
+(filter/projection/sort/limit + GROUP BY aggregates via the shared SQL compiler).
+The `snowflake-sdk` driver is lazy-required so the build never depends on it;
+a clear error is thrown only if a Snowflake source is actually used without it.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="MySQLConnector"><span class="type-signature"></span>MySQLConnector<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>`IConnector` implementation for a MongoDB data source. Schemas map to
+Mongo databases and tables to collections; since Mongo is schemaless,
+column metadata is inferred by sampling documents. Filtered queries are
+pushed down either as a `find` spec or, when aggregates/grouping are
+requested, as a `$group` aggregation pipeline (both via `PushdownCompiler`).
+Also implements the optional document-store write ops used by the
+`/api/data` CRUD endpoints.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_metadata_connectors_factory.ts.html">backend/src/modules/metadata/connectors/factory.ts</a>, <a href="backend_src_modules_metadata_connectors_factory.ts.html#line396">line 396</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    `IConnector` implementation for a MongoDB data source. Schemas map to
+Mongo databases and tables to collections; since Mongo is schemaless,
+column metadata is inferred by sampling documents. Filtered queries are
+pushed down either as a `find` spec or, when aggregates/grouping are
+requested, as a `$group` aggregation pipeline (both via `PushdownCompiler`).
+Also implements the optional document-store write ops used by the
+`/api/data` CRUD endpoints.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="OP_MAP"><span class="type-signature type-signature-constant">(constant) </span>OP_MAP<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>SQL → AST translator.
+----------------------
+Lets a caller write plain SQL against a NON-SQL engine (e.g. MongoDB) and have
+the fabric translate it into the engine-agnostic query AST, which the planner
+then compiles to that engine's native query (Mongo find / $group, etc.).
+
+This is how "SQL over MongoDB" works: MongoDB has no SQL engine, so instead of
+executing SQL *at* the source, the fabric parses the SQL here and drives its
+normal pushdown path. SQL-native engines (Postgres/MySQL/Snowflake/ES) keep
+running SQL natively — they don't use this.
+
+Supported subset (single-collection analytics — the Mongo-translatable core):
+  SELECT <cols | * | aggregates>              (COUNT(*), COUNT/SUM/AVG/MIN/MAX(col), AS alias)
+  FROM <table>
+  [WHERE <col op value> [AND ...]]            (= != <> < > <= >= LIKE ILIKE IN(...))
+  [GROUP BY <cols>]
+  [ORDER BY <col [ASC|DESC]> [, ...]]
+  [LIMIT n] [OFFSET n]
+JOINs / subqueries / UNION are NOT supported here — use AST mode for those.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_sql_translator.ts.html">backend/src/modules/query-engine/sql_translator.ts</a>, <a href="backend_src_modules_query-engine_sql_translator.ts.html#line1">line 1</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    SQL → AST translator.
+----------------------
+Lets a caller write plain SQL against a NON-SQL engine (e.g. MongoDB) and have
+the fabric translate it into the engine-agnostic query AST, which the planner
+then compiles to that engine's native query (Mongo find / $group, etc.).
+
+This is how "SQL over MongoDB" works: MongoDB has no SQL engine, so instead of
+executing SQL *at* the source, the fabric parses the SQL here and drives its
+normal pushdown path. SQL-native engines (Postgres/MySQL/Snowflake/ES) keep
+running SQL natively — they don't use this.
+
+Supported subset (single-collection analytics — the Mongo-translatable core):
+  SELECT <cols | * | aggregates>              (COUNT(*), COUNT/SUM/AVG/MIN/MAX(col), AS alias)
+  FROM <table>
+  [WHERE <col op value> [AND ...]]            (= != <> < > <= >= LIKE ILIKE IN(...))
+  [GROUP BY <cols>]
+  [ORDER BY <col [ASC|DESC]> [, ...]]
+  [LIMIT n] [OFFSET n]
+JOINs / subqueries / UNION are NOT supported here — use AST mode for those.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="PostgresConnector"><span class="type-signature"></span>PostgresConnector<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>`IConnector` implementation for a MySQL/MariaDB data source: catalog
+introspection via `SHOW`/`information_schema`, and filtered queries
+compiled through `PushdownCompiler`. The underlying connection is opened
+lazily on first use and reused for subsequent calls.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_metadata_connectors_factory.ts.html">backend/src/modules/metadata/connectors/factory.ts</a>, <a href="backend_src_modules_metadata_connectors_factory.ts.html#line278">line 278</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    `IConnector` implementation for a MySQL/MariaDB data source: catalog
+introspection via `SHOW`/`information_schema`, and filtered queries
+compiled through `PushdownCompiler`. The underlying connection is opened
+lazily on first use and reused for subsequent calls.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="RANKING"><span class="type-signature type-signature-constant">(constant) </span>RANKING<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Capability Compensation Engine (query-side).
+--------------------------------------------
+The fabric's own engine for query features a source cannot do natively. The
+principle mirrors how a SQL database layers window/sort logic ON TOP of a scan:
+
+  1. PUSH DOWN everything the source CAN do (filter / projection) so we pull the
+     smallest bounded result set possible.
+  2. COMPENSATE in-fabric for what it CAN'T — computed over that bounded result,
+     never by fetching whole tables.
+
+This module implements WINDOW FUNCTIONS (ROW_NUMBER / RANK / DENSE_RANK / LAG /
+LEAD and running SUM/AVG/COUNT/MIN/MAX OVER (PARTITION BY … ORDER BY …)) so that
+MongoDB, Elasticsearch — any engine — gets consistent window semantics even
+though they can't express them.
+
+Complexity: O(n log n) per window over the pulled rows `n` (a partition sort);
+`n` is bounded by the federation row cap, so memory/CPU stay bounded.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_compensate.ts.html">backend/src/modules/query-engine/compensate.ts</a>, <a href="backend_src_modules_query-engine_compensate.ts.html#line1">line 1</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    Capability Compensation Engine (query-side).
+--------------------------------------------
+The fabric's own engine for query features a source cannot do natively. The
+principle mirrors how a SQL database layers window/sort logic ON TOP of a scan:
+
+  1. PUSH DOWN everything the source CAN do (filter / projection) so we pull the
+     smallest bounded result set possible.
+  2. COMPENSATE in-fabric for what it CAN'T — computed over that bounded result,
+     never by fetching whole tables.
+
+This module implements WINDOW FUNCTIONS (ROW_NUMBER / RANK / DENSE_RANK / LAG /
+LEAD and running SUM/AVG/COUNT/MIN/MAX OVER (PARTITION BY … ORDER BY …)) so that
+MongoDB, Elasticsearch — any engine — gets consistent window semantics even
+though they can't express them.
+
+Complexity: O(n log n) per window over the pulled rows `n` (a partition sort);
+`n` is bounded by the federation row cap, so memory/CPU stay bounded.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="RecursiveExecutor"><span class="type-signature"></span>RecursiveExecutor<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Start a high-resolution stopwatch.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_recursive.ts.html">backend/src/modules/query-engine/recursive.ts</a>, <a href="backend_src_modules_query-engine_recursive.ts.html#line169">line 169</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    Start a high-resolution stopwatch.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="SQL_OPERATORS"><span class="type-signature type-signature-constant">(constant) </span>SQL_OPERATORS<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>A grouping column: a plain field, or a date bucket for time-series aggregation.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_pushdown.ts.html">backend/src/modules/query-engine/pushdown.ts</a>, <a href="backend_src_modules_query-engine_pushdown.ts.html#line26">line 26</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    A grouping column: a plain field, or a date bucket for time-series aggregation.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="SnowflakeConnector"><span class="type-signature"></span>SnowflakeConnector<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>ElasticsearchConnector — makes ES a READABLE federated source via _search:
+predicate/sort/projection/size pushdown as query-DSL, and GROUP BY aggregates
+as terms + metric sub-aggregations. (The write/sink worker is separate.)</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_metadata_connectors_factory.ts.html">backend/src/modules/metadata/connectors/factory.ts</a>, <a href="backend_src_modules_metadata_connectors_factory.ts.html#line672">line 672</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    ElasticsearchConnector — makes ES a READABLE federated source via _search:
+predicate/sort/projection/size pushdown as query-DSL, and GROUP BY aggregates
+as terms + metric sub-aggregations. (The write/sink worker is separate.)
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="SyncType"><span class="type-signature"></span>SyncType<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>How a registered data source's data is made available to the fabric.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_integration_integration.service.ts.html">backend/src/modules/integration/integration.service.ts</a>, <a href="backend_src_modules_integration_integration.service.ts.html#line26">line 26</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    How a registered data source's data is made available to the fabric.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="SyncType"><span class="type-signature"></span>SyncType<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Synchronization strategy for a registered data source.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_sync_sync.service.ts.html">backend/src/modules/sync/sync.service.ts</a>, <a href="backend_src_modules_sync_sync.service.ts.html#line18">line 18</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    Synchronization strategy for a registered data source.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="VAR_TOKEN"><span class="type-signature type-signature-constant">(constant) </span>VAR_TOKEN<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>SavedAnalyticsService — persist reusable, parameterized analytics and run them
+on demand or via API.
+
+An analytic captures a query (AST-mode `config`, or a raw `sql` string) plus a
+set of declared **variables**. The query body references a variable with a
+`({name})` placeholder. At run time the caller supplies values (from the UI or
+an API call) which are bound into the query:
+
+  • AST mode  — `({name})` tokens are replaced with the TYPED value in a deep
+                clone of the config; the value then flows through the normal
+                parameterized pushdown path (injection-safe).
+  • SQL mode  — `({name})` tokens are replaced with a safely-escaped SQL literal
+                (numbers/booleans bare, strings single-quote-escaped).
+
+This is the fabric's "saved query / scheduled report" primitive: define once,
+trigger many times with different inputs, from the UI or `POST /:id/run`.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_analytics.service.ts.html">backend/src/modules/query-engine/analytics.service.ts</a>, <a href="backend_src_modules_query-engine_analytics.service.ts.html#line4">line 4</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    SavedAnalyticsService — persist reusable, parameterized analytics and run them
+on demand or via API.
+
+An analytic captures a query (AST-mode `config`, or a raw `sql` string) plus a
+set of declared **variables**. The query body references a variable with a
+`({name})` placeholder. At run time the caller supplies values (from the UI or
+an API call) which are bound into the query:
+
+  • AST mode  — `({name})` tokens are replaced with the TYPED value in a deep
+                clone of the config; the value then flows through the normal
+                parameterized pushdown path (injection-safe).
+  • SQL mode  — `({name})` tokens are replaced with a safely-escaped SQL literal
+                (numbers/booleans bare, strings single-quote-escaped).
+
+This is the fabric's "saved query / scheduled report" primitive: define once,
+trigger many times with different inputs, from the UI or `POST /:id/run`.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="client"><span class="type-signature"></span>client<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Redis cache — read-through helper for hot, low-write catalog/metadata reads.
+
+Fully OPTIONAL and graceful: if Redis is unavailable (no container, tests, CI),
+every operation becomes a no-op and the app falls back to the database. Nothing
+throws, so correctness never depends on the cache — only latency.
+
+Keys are tenant-scoped; invalidation is by prefix on catalog/source mutations.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_config_cache.ts.html">backend/src/config/cache.ts</a>, <a href="backend_src_config_cache.ts.html#line1">line 1</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    Redis cache — read-through helper for hot, low-write catalog/metadata reads.
+
+Fully OPTIONAL and graceful: if Redis is unavailable (no container, tests, CI),
+every operation becomes a no-op and the app falls back to the database. Nothing
+throws, so correctness never depends on the cache — only latency.
+
+Keys are tenant-scoped; invalidation is by prefix on catalog/source mutations.
+</div>
+
+
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="options"><span class="type-signature type-signature-constant">(constant) </span>options<span class="type-signature"></span></h4>
+
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>swagger-jsdoc options: base OpenAPI document (info/servers/components/schemas) plus the `apis` globs to scan for annotations.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_config_swagger.ts.html">backend/src/config/swagger.ts</a>, <a href="backend_src_config_swagger.ts.html#line18">line 18</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+<div class="description usertext">
+    swagger-jsdoc options: base OpenAPI document (info/servers/components/schemas) plus the `apis` globs to scan for annotations.
+</div>
+
+
+
+
+
+
+
+
+        
+    
+
+    
+        <h3 class="subsection-title">Methods</h3>
+
+        
+            
+
+    
+
+    <h4 class="name" id="aggregateRaw"><span class="type-signature"></span>aggregateRaw<span class="signature">(rows, plan)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Aggregate RAW rows directly (used after a cross-engine join, where rows are not
+pre-aggregated, and after in-fabric recursive traversal). Computes final
+COUNT/SUM/MIN/MAX/AVG/COUNT(DISTINCT) per group in a single pass, keeping a
+running per-group state (sums/counts/min/max/distinct sets) rather than the
+two-phase partial+merge approach (@link mergePartials) uses — appropriate
+here because the rows are already local (post-join or post-traversal), so
+there's no per-source partial to push down.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line233">line 233</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>rows</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">raw (unaggregated) rows to group and aggregate.</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>plan</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the user-requested aggregate plan (grouping columns + aggregates).</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    one row per distinct group, with final aggregate values under their aliases.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="applyWindows"><span class="type-signature"></span>applyWindows<span class="signature">(rows, specs)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Compute each window spec in-fabric and attach its alias to every row.
+For each spec: (1) partitions rows by `partitionBy` into groups, (2) sorts
+each partition per `orderBy`, then (3) computes the function over the
+ordered partition — ranking functions (RANK/DENSE_RANK/ROW_NUMBER) track
+ties via a changing order-key; navigation functions (LAG/LEAD) index
+relative to the current row by `offset`; running aggregates (SUM/AVG/COUNT/
+MIN/MAX) accumulate over an unbounded-preceding-to-current frame, matching
+SQL's default framing when ORDER BY is present. Mutates and returns the same
+row objects (multiple specs progressively add more alias fields).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_compensate.ts.html">backend/src/modules/query-engine/compensate.ts</a>, <a href="backend_src_modules_query-engine_compensate.ts.html#line135">line 135</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>rows</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the bounded base rows fetched via the normal pushdown path.</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>specs</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the window specs to compute (see (@link extractWindows)).</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    the same `rows` array, each row annotated with every spec's alias.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="base"><span class="type-signature"></span>base<span class="signature">(path)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Last segment of a possibly-qualified column path (alias.col -> col).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line28">line 28</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>path</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">a plain or `alias.column` qualified path.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    the unqualified column name.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="base"><span class="type-signature"></span>base<span class="signature">(path)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Last segment of a possibly-qualified column path (alias.col -> col).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_compensate.ts.html">backend/src/modules/query-engine/compensate.ts</a>, <a href="backend_src_modules_query-engine_compensate.ts.html#line35">line 35</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>path</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">a plain or `alias.column` qualified path.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    the unqualified column name.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="cacheEnabled"><span class="type-signature"></span>cacheEnabled<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Report whether the Redis cache is currently usable.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_config_cache.ts.html">backend/src/config/cache.ts</a>, <a href="backend_src_config_cache.ts.html#line45">line 45</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    `true` only if a client exists and successfully connected; `false` in every degraded/disabled case.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="cacheGet"><span class="type-signature type-signature-async">(async) </span>cacheGet<span class="signature">(key)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Read and JSON-parse a cached value. Never throws: a missing/disabled cache,
+a lookup miss, or a Redis error are all treated identically as a cache miss.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_config_cache.ts.html">backend/src/config/cache.ts</a>, <a href="backend_src_config_cache.ts.html#line53">line 53</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>key</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">The cache key to read.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    The parsed value if present, or `null` on a miss, disabled cache, or error.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="cacheInvalidate"><span class="type-signature type-signature-async">(async) </span>cacheInvalidate<span class="signature">(pattern)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Delete all keys matching a glob pattern (e.g. `meta:tenant_A:*`). A no-op
+when the cache is disabled/unavailable; errors are swallowed.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_config_cache.ts.html">backend/src/config/cache.ts</a>, <a href="backend_src_config_cache.ts.html#line87">line 87</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>pattern</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">A Redis `KEYS`-style glob pattern.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    Resolves once matching keys (if any) are deleted.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="cacheSet"><span class="type-signature type-signature-async">(async) </span>cacheSet<span class="signature">(key, value, ttlSeconds)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>JSON-serialize and store a value with a TTL. A no-op (not an error) when
+the cache is disabled/unavailable, and write failures are swallowed —
+caching is a latency optimization, never a correctness dependency.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_config_cache.ts.html">backend/src/config/cache.ts</a>, <a href="backend_src_config_cache.ts.html#line69">line 69</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+        <th>Default</th>
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>key</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                </td>
+            
+
+            <td class="description last">The cache key to write.</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>value</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                </td>
+            
+
+            <td class="description last">The value to serialize (via `JSON.stringify`) and store.</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>ttlSeconds</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    <code>30</code>
+                
+                </td>
+            
+
+            <td class="description last">Expiry in seconds; defaults to 30.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    Resolves once the write attempt completes (success or swallowed failure).
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="cached"><span class="type-signature type-signature-async">(async) </span>cached<span class="signature">(key, ttlSeconds, producer)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Read-through cache helper: return the cached value for `key` if present,
+otherwise call `producer()`, cache its result, and return it. When the
+cache is disabled, this degrades to always calling `producer()`.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_config_cache.ts.html">backend/src/config/cache.ts</a>, <a href="backend_src_config_cache.ts.html#line103">line 103</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>key</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">The cache key.</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>ttlSeconds</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Expiry in seconds for a freshly-produced value.</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>producer</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Async function that computes the value on a cache miss.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    The cached or freshly-produced value.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="comparator"><span class="type-signature"></span>comparator<span class="signature">(orderBy)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Build a row comparator implementing a window's ORDER BY (multi-column, ASC/DESC).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_compensate.ts.html">backend/src/modules/query-engine/compensate.ts</a>, <a href="backend_src_modules_query-engine_compensate.ts.html#line119">line 119</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>orderBy</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">ordered list of `(column, direction)` sort keys.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    a comparator suitable for `Array.prototype.sort`.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="extractWindows"><span class="type-signature"></span>extractWindows<span class="signature">(select)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Extract window specs from an AST `select` list (entries carrying a `window` field).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_compensate.ts.html">backend/src/modules/query-engine/compensate.ts</a>, <a href="backend_src_modules_query-engine_compensate.ts.html#line62">line 62</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>select</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the query's select list; non-array input yields no windows.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    the parsed (@link WindowSpec) list, in select order.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="gName"><span class="type-signature"></span>gName<span class="signature">(g)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Output column name for a group entry (date-bucket entries key by their field).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line38">line 38</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>g</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">a plain grouping column, or a `(field, dateInterval)` date bucket.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    the field name the group value is keyed under in a result row.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="getJwtSecret"><span class="type-signature"></span>getJwtSecret<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Resolve the HMAC secret used to sign/verify JWTs, falling back to a dev default if unset.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_auth_auth.service.ts.html">backend/src/modules/auth/auth.service.ts</a>, <a href="backend_src_modules_auth_auth.service.ts.html#line25">line 25</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="hasWindows"><span class="type-signature"></span>hasWindows<span class="signature">(select)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>True when the select carries any window spec.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_compensate.ts.html">backend/src/modules/query-engine/compensate.ts</a>, <a href="backend_src_modules_query-engine_compensate.ts.html#line193">line 193</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>select</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the query's select list.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    whether (@link extractWindows) would return a non-empty list.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="ident"><span class="type-signature"></span>ident<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Strip anything that isn't a safe identifier character.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_write_generators.ts.html">backend/src/modules/query-engine/write_generators.ts</a>, <a href="backend_src_modules_query-engine_write_generators.ts.html#line32">line 32</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="initCache"><span class="type-signature"></span>initCache<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Initialize the module-level Redis client (lazy-connect, no retry storm).
+Safe to call once at app startup. If `CACHE_DISABLED=true`, or if the
+connection attempt fails/errors, caching is simply left/marked disabled —
+this function never throws, so a missing Redis instance cannot crash startup.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_config_cache.ts.html">backend/src/config/cache.ts</a>, <a href="backend_src_config_cache.ts.html#line15">line 15</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    Nothing; connection success/failure is reflected asynchronously via (@link cacheEnabled).
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="invalidateTenant"><span class="type-signature type-signature-async">(async) </span>invalidateTenant<span class="signature">(tenantId)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Convenience wrapper: invalidate every cached read for a tenant's
+catalog/metadata (all keys under the `meta:<tenantId>:*` prefix).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_config_cache.ts.html">backend/src/config/cache.ts</a>, <a href="backend_src_config_cache.ts.html#line120">line 120</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>tenantId</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">The tenant whose cached reads should be invalidated.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    Resolves once matching keys are deleted.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="isAggregateQuery"><span class="type-signature"></span>isAggregateQuery<span class="signature">(select, groupBy)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>True when a query requests grouping/aggregation.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line287">line 287</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>select</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the query's select list.</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>groupBy</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">explicit GROUP BY columns, if any.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    whether (@link parseAggregates) would produce a non-null plan.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="legKey"><span class="type-signature"></span>legKey<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Build the `resolveMap` cache key for a `{ source, resource }` reference.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_planner.ts.html">backend/src/modules/query-engine/planner.ts</a>, <a href="backend_src_modules_query-engine_planner.ts.html#line32">line 32</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="maxRowsPerLeg"><span class="type-signature"></span>maxRowsPerLeg<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>FederationExecutor
+------------------
+Executes CROSS_ENGINE queries: those whose legs span more than one source
+(e.g. a JOIN of ds1.customer and ds2.customer, or a UNION of a Postgres table
+and a MongoDB collection).
+
+The whole point is to NOT fetch each table wholesale and filter in memory.
+For joins it uses the same techniques a real federated engine does:
+
+  1. Predicate pushdown        - each WHERE conjunct is attributed to its leg
+                                 (by alias) and pushed to that source.
+  2. Transitive propagation    - `c1.id = 5` + join `c1.id = c2.id` also pushes
+                                 `c2.id = 5` to the other source, so BOTH sides
+                                 are filtered before any rows are fetched.
+  3. Bind join (semi-join)     - fetch the filtered driving side first, collect
+                                 its join-key values, then push `key IN (...)`
+                                 to the other side so it only returns rows that
+                                 can match.
+  4. Collision-safe output     - join columns are qualified by alias so two
+                                 same-named tables don't overwrite each other.
+
+Safety: every leg fetch is bounded by `maxRowsPerLeg`
+(env FABRIC_FED_MAX_ROWS_PER_LEG, default 50000). A leg that hits the cap is
+truncated with an explicit warning — never silently. Bind-join IN lists are
+bounded by FABRIC_FED_BIND_MAX_KEYS (default 1000); above that a leg falls back
+to a bounded full fetch (also warned).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_federation.ts.html">backend/src/modules/query-engine/federation.ts</a>, <a href="backend_src_modules_query-engine_federation.ts.html#line1">line 1</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="mergePartials"><span class="type-signature"></span>mergePartials<span class="signature">(rows, plan)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Merge partial-group rows (already grouped per source) into the final result.
+Re-groups the combined partials by their group-column values (a source's
+groups may overlap another's, e.g. the same customer split across two
+shards) and folds each source's partial values into a running accumulator:
+COUNT/SUM sum, MIN/MAX min/max, AVG accumulates the hidden `__sum__`/`__cnt__`
+pair and divides at the end. `distinctSets` accumulates COUNT(DISTINCT)
+values as sets keyed by group+alias when a source returned the raw distinct
+values (`__set__<alias>`); otherwise per-source distinct counts are summed
+as an upper-bound approximation (exact cross-source distinct counting needs
+the raw values).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line143">line 143</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>rows</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">partial-aggregate rows collected from every source (see (@link partialSpec)).</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>plan</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the user-requested aggregate plan (grouping columns + aggregates)
+  used to determine merge semantics per aggregate function.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    one row per distinct group, with final aggregate values under their aliases.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="migrate"><span class="type-signature type-signature-async">(async) </span>migrate<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Run every `.sql` migration file found in `db/init`, in filename-sorted
+order, each wrapped in its own `BEGIN`/`COMMIT` transaction on a single
+persistent connection. On any file's failure, that file's transaction is
+rolled back and the process halts immediately (`process.exit(1)`) to avoid
+continuing on top of a partially-migrated, potentially inconsistent schema.
+On full success, exits with code 0.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_config_migrate.ts.html">backend/src/config/migrate.ts</a>, <a href="backend_src_config_migrate.ts.html#line16">line 16</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    Never resolves normally in practice — the process exits (0 on
+  success, 1 on the first migration failure) rather than returning control to a caller.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="num"><span class="type-signature"></span>num<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Coerce a value to a finite number, defaulting to 0 (for SUM/AVG/MIN/MAX window frames).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_compensate.ts.html">backend/src/modules/query-engine/compensate.ts</a>, <a href="backend_src_modules_query-engine_compensate.ts.html#line60">line 60</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="numeric"><span class="type-signature"></span>numeric<span class="signature">(v)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Coerce a value to a finite number, defaulting to 0.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line133">line 133</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>v</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the value to coerce (already a number, or something `parseFloat` can read).</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    the numeric value, or `0` if it isn't finite/parseable.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="parseAggregates"><span class="type-signature"></span>parseAggregates<span class="signature">(select, groupBy)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Parse an AST/QueryConfig `select` into grouping columns + aggregate specs.
+Handles object specs `(aggregate, column, alias)` and string specs like
+`count(*)`, `SUM(amount)`, `avg(price) as p`. Plain (non-aggregate) columns
+found in an aggregate query are treated as implicit GROUP BY columns.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line47">line 47</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>select</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the query's select list (object aggregate specs and/or plain/aggregate strings), if any.</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>groupBy</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">explicit GROUP BY columns (plain fields or date buckets), if any.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    `null` when the select carries no aggregate AND no groupBy was given
+  (i.e. this isn't an aggregate query); otherwise the parsed
+  `(groupCols, aggregates)` plan with de-duplicated group columns.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="parseHaving"><span class="type-signature"></span>parseHaving<span class="signature">(clause, selectSpecs)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Parse a HAVING clause into predicates on the aggregate RESULT columns. The
+left-hand side may be a SELECT alias (e.g. `cnt`) or an aggregate expression
+(e.g. `COUNT(*)`, `SUM(amount)`) — the latter is resolved to its select alias.
+HAVING is applied by the fabric as a post-aggregation filter (compensation),
+so it works uniformly across engines.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_sql_translator.ts.html">backend/src/modules/query-engine/sql_translator.ts</a>, <a href="backend_src_modules_query-engine_sql_translator.ts.html#line151">line 151</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>clause</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the raw HAVING clause text.</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>selectSpecs</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the already-parsed SELECT list (see (@link parseSelect)), used to resolve aggregate-expression LHS to their alias.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-throws">Throws:</h5>
+
+        
+
+    <div class="param-desc usertext">
+    
+        if a condition doesn't match a supported shape, or references an aggregate not present in the SELECT list.
+    
+    </div>
+
+
+    
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    one predicate per AND-combined condition, keyed by the resolved result-column alias.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="parseLiteral"><span class="type-signature"></span>parseLiteral<span class="signature">(raw)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Parse a SQL literal into a JS value (number, quoted string, boolean, null).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_sql_translator.ts.html">backend/src/modules/query-engine/sql_translator.ts</a>, <a href="backend_src_modules_query-engine_sql_translator.ts.html#line43">line 43</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>raw</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the raw literal text (e.g. `'abc'`, `42`, `3.14`, `true`, `null`).</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    the typed JS value; unrecognized text is returned as a trimmed string.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="parseSelect"><span class="type-signature"></span>parseSelect<span class="signature">(list)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Parse the SELECT list into columns + aggregate specs.
+Recognizes `*`, plain (optionally aliased) columns, and
+`COUNT/SUM/AVG/MIN/MAX(col|*) [AS alias]`. Anything else (scalar/stored
+function calls, window functions, CASE, arithmetic) has no universal
+cross-engine mapping and is rejected rather than silently mistranslated.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_sql_translator.ts.html">backend/src/modules/query-engine/sql_translator.ts</a>, <a href="backend_src_modules_query-engine_sql_translator.ts.html#line90">line 90</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>list</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the raw SELECT list text (between `SELECT [DISTINCT]` and `FROM`).</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-throws">Throws:</h5>
+
+        
+
+    <div class="param-desc usertext">
+    
+        if an entry isn't a recognized plain column or aggregate expression.
+    
+    </div>
+
+
+    
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    `['*']`, or a mixed array of plain column name strings and
+  `(aggregate, column, alias)` aggregate specs.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="parseWhere"><span class="type-signature"></span>parseWhere<span class="signature">(clause)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Parse a WHERE clause (AND-combined simple predicates).
+Supports `col IN (v1, v2, ...)` and `col <op> value` where op is one of
+`= == != <> > >= < <= LIKE ILIKE MATCH`.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_sql_translator.ts.html">backend/src/modules/query-engine/sql_translator.ts</a>, <a href="backend_src_modules_query-engine_sql_translator.ts.html#line126">line 126</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>clause</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the raw WHERE clause text (everything between `WHERE` and the next keyword).</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-throws">Throws:</h5>
+
+        
+
+    <div class="param-desc usertext">
+    
+        if a condition doesn't match a supported shape.
+    
+    </div>
+
+
+    
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    one predicate per AND-combined condition.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="partialSpec"><span class="type-signature"></span>partialSpec<span class="signature">(plan)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>The partial aggregates each source must compute so the fabric can merge them.
+AVG is expanded to a hidden SUM + COUNT pair (the mean can't be summed
+across sources directly — the running sum and count can, and are divided
+back into a mean by (@link mergePartials)). Every other function's partial
+form matches its final form (COUNT/SUM/MIN/MAX/COUNT_DISTINCT).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line111">line 111</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>plan</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the user-requested aggregate plan (grouping columns + aggregates).</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    the `(groupBy, aggregates)` spec to push down to each source.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="partitionKey"><span class="type-signature"></span>partitionKey<span class="signature">(row, cols)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Compute the grouping key for a row's window partition.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_compensate.ts.html">backend/src/modules/query-engine/compensate.ts</a>, <a href="backend_src_modules_query-engine_compensate.ts.html#line110">line 110</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>row</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the row to key.</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>cols</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the PARTITION BY columns.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    a stable string key (JSON of the column values) shared by rows in the same partition.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="projectWithWindows"><span class="type-signature"></span>projectWithWindows<span class="signature">(rows, select)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Project rows to the final select: plain columns + window aliases (drops helper cols).
+Runs after (@link applyWindows) to trim the base-fetch columns (which may
+include extra PARTITION BY/ORDER BY columns pulled in by
+(@link windowBaseColumns) but not requested in the final output) down to
+exactly what the caller asked for.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_compensate.ts.html">backend/src/modules/query-engine/compensate.ts</a>, <a href="backend_src_modules_query-engine_compensate.ts.html#line202">line 202</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>rows</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">rows already annotated by (@link applyWindows).</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>select</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the query's select list (plain columns and/or window specs); `*` passes rows through unchanged.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    new row objects containing only the requested columns/aliases.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="queryWithContext"><span class="type-signature type-signature-async">(async) </span>queryWithContext<span class="signature">(sql, params, context)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Execute a single SQL statement inside a transaction that has been scoped to
+a tenant's session context: switches to `fabric_user`, sets the
+`app.tenant_id` / `app.user_name` / `app.current_region` session GUCs (used
+by RLS policies and audit triggers), and sets `search_path` to the tenant's
+primary schema plus any of its sub-schemas (e.g. `tenant_<id>_<logical>`).
+Commits on success, rolls back and rethrows on error, and always resets the
+role and releases the client back to the pool.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_config_database.ts.html">backend/src/config/database.ts</a>, <a href="backend_src_config_database.ts.html#line24">line 24</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>sql</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">The SQL statement to execute.</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>params</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Positional parameters for the statement.</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>context</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">`(tenantId, username)` — identity to inject into the session.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-throws">Throws:</h5>
+
+        
+
+    <div class="param-desc usertext">
+    
+        Re-throws any error from setting context or running `sql`, after rolling back the transaction.
+    
+    </div>
+
+
+    
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    The `pg` query result for `sql`.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="readCol"><span class="type-signature"></span>readCol<span class="signature">(row, name)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Read a column from a row tolerating alias-qualified keys (o.amount ~ amount).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_aggregate.ts.html">backend/src/modules/query-engine/aggregate.ts</a>, <a href="backend_src_modules_query-engine_aggregate.ts.html#line217">line 217</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>row</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the source row (may be `null`/`undefined`).</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>name</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the column name to read, plain or `alias.column` qualified.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    the value found under `name`, its base (unqualified) name, or the
+  first key whose base matches; `undefined` if none match or `row` is nullish.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="readCol"><span class="type-signature"></span>readCol<span class="signature">(row, name)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Read a column tolerating alias-qualified keys (o.amount ~ amount).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_compensate.ts.html">backend/src/modules/query-engine/compensate.ts</a>, <a href="backend_src_modules_query-engine_compensate.ts.html#line44">line 44</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>row</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the source row (may be `null`/`undefined`).</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>name</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the column name to read, plain or `alias.column` qualified.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    the value found under `name`, its base (unqualified) name, or the
+  first key whose base matches; `undefined` if none match or `row` is nullish.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="splitTopLevel"><span class="type-signature"></span>splitTopLevel<span class="signature">(input, delim)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Split on a top-level delimiter (comma / AND), ignoring anything inside parentheses.
+Used to split a SELECT list on commas, or a WHERE/HAVING clause on `AND`,
+without breaking apart a function call's argument list (e.g.
+`COUNT(a, b)` or `col IN (1, 2, 3)`) since the delimiter is only matched
+when the parenthesis nesting depth is 0.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_sql_translator.ts.html">backend/src/modules/query-engine/sql_translator.ts</a>, <a href="backend_src_modules_query-engine_sql_translator.ts.html#line59">line 59</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>input</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the text to split.</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>delim</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">a regex matching the delimiter at the START of the remaining text (anchored via `m.index === 0`).</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    the trimmed, non-empty segments between top-level delimiter matches.
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="sqlToAst"><span class="type-signature"></span>sqlToAst<span class="signature">(sqlRaw)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Translate a single-table SELECT into the fabric AST `query` object.
+Explicitly rejects (with a directive error message) constructs that have no
+translation to a non-SQL engine: `WITH [RECURSIVE]`/CTEs, `JOIN`, set
+operations, and subqueries — callers needing those should use AST mode
+directly instead of SQL. `SELECT DISTINCT` over plain columns is rewritten
+to a GROUP BY on those columns (DISTINCT with aggregates, or `DISTINCT *`,
+is rejected).</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_sql_translator.ts.html">backend/src/modules/query-engine/sql_translator.ts</a>, <a href="backend_src_modules_query-engine_sql_translator.ts.html#line181">line 181</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>sqlRaw</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the raw SQL string (whitespace-normalized and trailing `;` stripped internally).</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-throws">Throws:</h5>
+
+        
+
+    <div class="param-desc usertext">
+    
+        on unsupported constructs (JOIN / UNION / subquery / CTE) or a
+  statement shape that doesn't match `SELECT [DISTINCT] ... FROM t [WHERE][GROUP BY][HAVING][ORDER BY][LIMIT][OFFSET]`.
+    
+    </div>
+
+
+    
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    the parsed (@link TranslatedQuery) AST fragment (`from`/`select`/`where`/`groupBy`/`having`/`orderBy`/`limit`/`offset`).
+</div>
+
+
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="toCanonical"><span class="type-signature"></span>toCanonical<span class="signature">()</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Extract the canonical query shape (select / filter / orderBy / limit / offset)
+from a QueryConfig so it can be pushed down to a source engine.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_metadata_connectors_factory.ts.html">backend/src/modules/metadata/connectors/factory.ts</a>, <a href="backend_src_modules_metadata_connectors_factory.ts.html#line26">line 26</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="windowBaseColumns"><span class="type-signature"></span>windowBaseColumns<span class="signature">(select)</span><span class="type-signature"></span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li>Columns the base fetch must return so windows can be computed (plain select cols + all window-referenced cols).
+Called before the base query runs (see `executeQuery`'s WINDOW branch in
+query-engine.service.ts) so the fetch projects everything a window needs
+(its own column plus every PARTITION BY/ORDER BY column) even if the final
+projection wouldn't otherwise include them.</li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="backend_src_modules_query-engine_compensate.ts.html">backend/src/modules/query-engine/compensate.ts</a>, <a href="backend_src_modules_query-engine_compensate.ts.html#line85">line 85</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>select</code></td>
+            
+
+            <td class="type">
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">the query's select list (plain columns and/or window specs).</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    the de-duplicated column names to fetch, or `[]` to mean "fetch all
+  columns" (when the select includes `*`).
+</div>
+
+
+
+    
+
+
+
+        
+    
+
+    
+
+    
+</article>
+
+</section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Jul 12 2026 10:30:14 GMT+0530 (India Standard Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+<script src="scripts/collapse.js" defer></script>
+
+
+</body>
+</html>

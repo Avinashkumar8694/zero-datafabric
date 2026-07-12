@@ -1,9 +1,21 @@
 import { pool } from '../../config/database';
 
+/**
+ * QualityService — computes and persists basic data-quality metrics
+ * (null rate, cardinality/uniqueness) for a cataloged column by pushing the
+ * aggregation down as a single SQL query against the column's actual table,
+ * rather than pulling rows into the application.
+ */
 export class QualityService {
   /**
-   * Industrial Grade Data Quality Check
-   * Computes Null Rates and Cardinality via SQL pushdown
+   * Compute and store data-quality metrics for a single cataloged column:
+   * looks up the column's schema/table/name from `fabric_catalog.metadata`,
+   * runs a pushdown aggregate (`count(*)`, null count, distinct count)
+   * against the live table, then writes NULL_RATE and UNIQUENESS rows to
+   * `fabric_catalog.quality_metrics`.
+   * @param metadataId - The `fabric_catalog.metadata` row id identifying the target column.
+   * @returns `(metadataId, nullRate, uniqueness)` — `nullRate` is a percentage (0-100).
+   * @throws {Error} 'Metadata entry not found' if `metadataId` does not exist.
    */
   static async runQualityCheck(metadataId: string) {
     const client = await pool.connect();

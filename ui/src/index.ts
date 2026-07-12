@@ -23,6 +23,10 @@ app.get('/login', (req, res) => {
   res.render('login', { title: 'Zero Data Fabric - Login' });
 });
 
+app.get('/logout', (req, res) => {
+  res.render('logout', { title: 'Zero Data Fabric - Logout' });
+});
+
 app.get('/dashboard', (req, res) => {
   res.render('dashboard', { title: 'Zero Data Fabric - Dashboard' });
 });
@@ -39,6 +43,10 @@ app.get('/workbench', (req, res) => {
   res.render('workbench', { title: 'Zero Data Fabric - Workbench' });
 });
 
+app.get('/workbench/docs', (req, res) => {
+  res.render('workbench_docs', { title: 'Zero Data Fabric - Workbench Docs' });
+});
+
 app.get('/iam', (req, res) => {
   res.render('iam', { title: 'Zero Data Fabric - IAM' });
 });
@@ -47,12 +55,28 @@ app.get('/audit', (req, res) => {
   res.render('audit', { title: 'Zero Data Fabric - Audit Logs' });
 });
 
+app.get('/triggers', (req, res) => {
+  res.render('triggers', { title: 'Zero Data Fabric - Trigger Control Plane' });
+});
+
 app.get('/catalog', (req, res) => {
   res.render('catalog', { title: 'Zero Data Fabric - Discovery Catalog' });
 });
 
 app.get('/metadata', (req, res) => {
   res.render('metadata', { title: 'Zero Data Fabric - Metadata Orchestration' });
+});
+
+app.get('/analytics', (req, res) => {
+  res.render('analytics', { title: 'Zero Data Fabric - Analytics Dashboard' });
+});
+
+app.get('/analytics/custom', (req, res) => {
+  res.render('custom_analytics', { title: 'Zero Data Fabric - Custom Analytics' });
+});
+// Back-compat: the old saved-analytics path now serves the custom analytics page.
+app.get('/analytics/saved', (req, res) => {
+  res.render('custom_analytics', { title: 'Zero Data Fabric - Custom Analytics' });
 });
 
 app.get('/settings', (req, res) => {

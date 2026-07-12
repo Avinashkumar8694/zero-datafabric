@@ -1,4 +1,25 @@
+/**
+ * Manifest ingestion: parses raw manifest input (plain JSON or Markdown
+ * containing a fenced ```json block) into the normalized shape consumed by
+ * `MetadataOrchestrator` and `DiffEngine` — a document with a top-level
+ * `schemas` array, regardless of how the source manifest was authored.
+ */
+
+/**
+ * Parses and normalizes a raw metadata manifest document.
+ * @class
+ * @hideconstructor
+ */
 export class ManifestParser {
+    /**
+     * Parses a manifest from either raw JSON text or Markdown containing a
+     * fenced ```json code block, then normalizes legacy (v4.0 "flat") shape
+     * — a root-level `resources` array with no `schemas` — into the current
+     * `schemas: [( name, resources )]` shape expected downstream.
+     * @param content Raw manifest content: a JSON string, or Markdown embedding one ```json block.
+     * @returns The parsed manifest object (untyped), normalized to always carry a `schemas` array when it declared root-level `resources`.
+     * @throws {Error} If `content` is neither valid JSON nor Markdown containing a valid ```json block.
+     */
     static parse(content: string): any {
         let manifest: any;
         try {

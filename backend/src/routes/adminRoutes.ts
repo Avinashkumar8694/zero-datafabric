@@ -1,30 +1,42 @@
+/**
+ * @module routes/adminRoutes
+ * @description Platform administration router, mounted at `/api/admin` behind
+ * `requireAdmin` (see `index.ts`) — every route here requires a platform-admin
+ * bearer token. Covers tenant lifecycle, data-source connection management,
+ * platform user management, and cross-tenant insights/notification-channel config.
+ */
+
 import { Router } from 'express';
 import * as adminController from '../controllers/adminController';
 
 const router = Router();
 
 // Tenant Management
-router.get('/tenants', adminController.getTenants);
-router.post('/tenants', adminController.createTenant);
-router.put('/tenants/:id', adminController.updateTenant);
-router.patch('/tenants/:id', adminController.updateTenant);
-router.delete('/tenants/:id', adminController.deleteTenant);
+router.get('/tenants', adminController.getTenants); // GET /api/admin/tenants — list all tenants
+router.post('/tenants', adminController.createTenant); // POST /api/admin/tenants — provision a new tenant
+router.put('/tenants/:id', adminController.updateTenant); // PUT /api/admin/tenants/:id — update tenant name/status
+router.patch('/tenants/:id', adminController.updateTenant); // PATCH /api/admin/tenants/:id — same as PUT, partial update
+router.delete('/tenants/:id', adminController.deleteTenant); // DELETE /api/admin/tenants/:id — permanently remove a tenant
 
 // Connection Management
-router.get('/connections', adminController.getConnections);
-router.post('/connections', adminController.createConnection);
-router.patch('/connections', adminController.updateConnectionStatus);
-router.delete('/connections/:id', adminController.removeConnection);
+router.get('/connections', adminController.getConnections); // GET /api/admin/connections — list data sources with live status probe
+router.post('/connections', adminController.createConnection); // POST /api/admin/connections — register/re-integrate a remote source
+router.patch('/connections', adminController.updateConnectionStatus); // PATCH /api/admin/connections — update a source's connection status
+router.delete('/connections/:id', adminController.removeConnection); // DELETE /api/admin/connections/:id — remove a data source
 
 // User Management
-router.get('/users', adminController.getUsers);
-router.post('/users', adminController.createUser);
-router.put('/users/:id', adminController.updateUser);
-router.delete('/users/:id', adminController.deleteUser);
+router.get('/users', adminController.getUsers); // GET /api/admin/users — list all platform users
+router.post('/users', adminController.createUser); // POST /api/admin/users — create a platform user
+router.put('/users/:id', adminController.updateUser); // PUT /api/admin/users/:id — update a platform user
+router.delete('/users/:id', adminController.deleteUser); // DELETE /api/admin/users/:id — delete a platform user
 
 // Platform Insights
-router.get('/stats', adminController.getDashboardStats);
-router.get('/audit-logs', adminController.getAuditLogs);
-router.get('/catalog', adminController.getCatalogSummary);
+router.get('/stats', adminController.getDashboardStats); // GET /api/admin/stats — global dashboard counters
+router.get('/audit-logs', adminController.getAuditLogs); // GET /api/admin/audit-logs — recent platform-wide audit log entries
+router.get('/catalog', adminController.getCatalogSummary); // GET /api/admin/catalog — catalog summary for the caller's tenant
+router.get('/notification-channels', adminController.listNotificationChannels); // GET /api/admin/notification-channels — list configured notification channels
+router.post('/notification-channels', adminController.upsertNotificationChannel); // POST /api/admin/notification-channels — create/update a notification channel
+router.delete('/notification-channels/:id', adminController.deleteNotificationChannel); // DELETE /api/admin/notification-channels/:id — delete a notification channel
+router.post('/notification-channels/test', adminController.testNotificationChannel); // POST /api/admin/notification-channels/test — send a synthetic test event through a channel
 
 export default router;

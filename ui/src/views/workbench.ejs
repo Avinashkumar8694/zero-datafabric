@@ -1,281 +1,918 @@
 <%- include('partials/header') %>
 
-<div class="fade-in">
-    <div style="display: grid; grid-template-columns: 280px 1fr; gap: 2rem; height: calc(100vh - 140px);">
-        <!-- Sidebar: Catalog Explorer -->
-        <aside class="glass-card" style="padding: 0; display: flex; flex-direction: column;">
-            <div style="padding: 1.25rem; border-bottom: 1px solid var(--border);">
-                <h3 style="font-size: 1rem; font-family:'Outfit';"><i class="fas fa-database"></i> Fabric Explorer</h3>
-                <div style="margin-top: 1rem;">
-                    <input type="text" id="explorerSearch" placeholder="Search catalog..." class="context-select" style="width: 100%; font-size: 0.8rem;" onkeyup="filterExplorer()">
-                </div>
-            </div>
-            
-            <div id="explorerTree" style="flex:1; overflow-y:auto; padding: 1rem;">
-                <div class="loading-spinner"></div>
-            </div>
-        </aside>
-
-        <!-- Main: IDE Workspace -->
-        <div style="display: flex; flex-direction: column; gap: 1.5rem; overflow: hidden;">
-            <!-- Query Orchestrator -->
-            <section class="glass-card" style="padding: 1.25rem; margin-bottom: 0;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
-                    <div style="display: flex; background: #F3F4F6; padding: 0.3rem; border-radius: 8px; gap: 0.2rem;">
-                        <button onclick="setMode('SQL')" id="modeSql" class="editor-mode-btn active">SQL</button>
-                        <button onclick="setMode('CONFIG')" id="modeConfig" class="editor-mode-btn">Unified JSON</button>
-                    </div>
-                    <div style="display: flex; gap: 0.75rem;">
-                        <button onclick="newQuery()" class="btn-outline" style="padding: 0.5rem 1rem;"><i class="fas fa-eraser"></i> Clear</button>
-                        <button id="runBtn" class="btn-primary" onclick="executeCurrentQuery()" style="padding: 0.5rem 1.5rem;"><i class="fas fa-play"></i> Run Query</button>
-                    </div>
-                </div>
-
-                <div id="sqlEditor">
-                    <textarea id="sqlInput" spellcheck="false" placeholder="-- SQL Mode (PostgreSQL Syntax)
-SELECT * FROM tables LIMIT 20;" class="ide-textarea"></textarea>
-                </div>
-
-                <div id="configEditor" style="display: none;">
-                    <textarea id="configInput" spellcheck="false" placeholder='{ "type": "SELECT", "tableId": "...", "limit": 20 }' class="ide-textarea"></textarea>
-                </div>
-            </section>
-
-            <!-- Execution Context & Results -->
-            <section class="glass-card" style="flex: 1; padding: 0; display: flex; flex-direction: column; overflow: hidden;">
-                <div style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-                    <h3 style="font-size: 1rem;"><i class="fas fa-list-ul"></i> Result Pipeline</h3>
-                    <div style="display: flex; gap: 1.5rem; align-items: center;">
-                        <span id="sourceBadge" class="badge badge-connected" style="display: none;"></span>
-                        <span id="execTime" style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;"></span>
-                    </div>
-                </div>
-                
-                <div style="flex: 1; overflow: auto; background: white;">
-                    <table id="resultsTable" style="border-radius: 0;">
-                        <thead id="resultsHead"></thead>
-                        <tbody id="resultsBody">
-                            <tr><td style="text-align: center; padding: 5rem; color: var(--text-muted);">
-                                <i class="fas fa-terminal" style="font-size: 2rem; margin-bottom: 1rem; display: block; opacity: 0.3;"></i>
-                                Ready for execution. Select a catalog object or write a query.
-                            </td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+<div class="wb-shell fade-in">
+    <aside class="wb-left">
+        <div class="wb-left-head">
+            <h3>Workbench Explorer</h3>
+            <input id="explorerSearch" class="wb-input" placeholder="Search sources, schemas, resources..." oninput="filterExplorer()">
         </div>
+        <div id="explorerTree" class="wb-tree">
+            <div class="wb-muted" style="padding:1rem;">Loading explorer...</div>
+        </div>
+    </aside>
+
+    <section class="wb-main">
+        <div class="wb-top">
+            <div class="wb-title">
+                <h2>Query Workbench</h2>
+                <p>Pick a mode, write your query, and run it across any data source.</p>
+            </div>
+            <div class="wb-actions">
+                <button class="btn-outline" onclick="openRelationships()">Relationships</button>
+                <a href="/workbench/docs" class="btn-outline" target="_blank" rel="noreferrer">Docs</a>
+            </div>
+        </div>
+
+        <div class="wb-toolbar">
+            <div class="wb-mode" role="tablist" aria-label="Query mode">
+                <button id="modeSql" class="tab-btn active" onclick="setMode('SQL')">SQL</button>
+                <button id="modeAst" class="tab-btn" onclick="setMode('AST')">AST</button>
+            </div>
+            <div class="wb-run-controls">
+                <select id="templatePicker" class="wb-input" style="max-width:220px;" onchange="applyTemplate(this.value)">
+                    <option value="">Load example…</option>
+                </select>
+                <label class="wb-muted" for="rowLimit" style="font-size:0.78rem;">Rows</label>
+                <input id="rowLimit" class="wb-input" type="number" min="1" max="10000" value="100"
+                       style="max-width:80px;" title="Max rows to fetch (applied as LIMIT / query limit)">
+                <button class="btn-outline" onclick="clearEditor()">Clear</button>
+                <button id="runBtn" class="btn-primary" onclick="runCurrent()">Run</button>
+            </div>
+        </div>
+
+        <div id="joinBuilder" class="wb-join" style="display:none;">
+            <strong>AST Join Builder</strong>
+            <div class="wb-join-grid">
+                <select id="joinPrimary" class="wb-input"></select>
+                <select id="joinType" class="wb-input">
+                    <option value="INNER">INNER</option>
+                    <option value="LEFT">LEFT</option>
+                    <option value="RIGHT">RIGHT</option>
+                    <option value="FULL">FULL</option>
+                </select>
+                <select id="joinSecondary" class="wb-input"></select>
+                <input id="joinOn" class="wb-input" placeholder='Join condition, e.g. "shipments.id = shipment_details.shipment_id"'>
+                <button class="btn-outline" onclick="buildJoinAst()">Generate AST</button>
+            </div>
+        </div>
+
+        <div class="wb-editor-wrap">
+            <textarea id="sqlEditor" class="wb-editor" placeholder="SELECT * FROM tenant_tenant_A_global_supply_chain.shipments LIMIT 50;"></textarea>
+            <textarea id="astEditor" class="wb-editor" style="display:none;" placeholder='{"type":"SELECT","schema":"Global_Supply_Chain","limit":50,"query":{"select":["*"],"from":{"resource":"shipments"}}}'></textarea>
+        </div>
+
+        <div id="wbDetail" class="wb-detail" style="display:none;">
+            <div class="wb-detail-head">
+                <span id="wbDetailTitle" class="wb-detail-title"></span>
+                <button class="wb-detail-toggle" onclick="toggleDetail()" title="Collapse / expand">–</button>
+            </div>
+            <div id="wbDetailBody" class="wb-detail-body"></div>
+        </div>
+
+        <div class="wb-results">
+            <div class="wb-results-head">
+                <span id="resultMeta" class="wb-muted">Ready.</span>
+                <span id="wbSpinner" class="wb-spinner" style="display:none;"></span>
+            </div>
+            <div id="wbError" class="wb-error" style="display:none;"></div>
+            <div id="wbPlan" class="wb-plan" style="display:none;"></div>
+            <div class="wb-table-wrap">
+                <table id="resultsTable">
+                    <thead id="resultsHead"></thead>
+                    <tbody id="resultsBody">
+                        <tr><td class="wb-muted" style="padding:2rem;">No results yet.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div id="wbErModal" class="wb-er-modal" style="display:none;" onclick="if(event.target===this)closeRelationships()">
+    <div class="wb-er-dialog" role="dialog" aria-label="Relationship diagram">
+        <div class="wb-er-head">
+            <strong>Relationships</strong>
+            <button class="wb-detail-toggle" onclick="closeRelationships()" title="Close">✕</button>
+        </div>
+        <div id="wbErBody" class="wb-er-body"></div>
     </div>
 </div>
 
 <style>
-    .editor-mode-btn {
-        border: none;
-        background: transparent;
-        padding: 0.4rem 1.2rem;
-        border-radius: 6px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        cursor: pointer;
-        color: var(--text-muted);
-        transition: 0.2s;
+    .wb-shell { display:flex; height:calc(100vh - 84px); background:#f7f9fc; }
+    .wb-left { width:320px; border-right:1px solid #e5e7eb; background:#fff; display:flex; flex-direction:column; }
+    .wb-left-head { padding:1rem; border-bottom:1px solid #eef2f7; }
+    .wb-left-head h3 { margin-bottom:0.75rem; font-size:1rem; }
+    .wb-tree { overflow:auto; padding:0.5rem 0; flex:1; }
+    .wb-main { flex:1; display:flex; flex-direction:column; gap:0.75rem; padding:1rem; min-width:0; }
+    .wb-top { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; }
+    .wb-title h2 { margin:0; font-size:1.4rem; }
+    .wb-title p { margin:0.25rem 0 0; color:#64748b; font-size:0.9rem; }
+    .wb-actions { display:flex; gap:0.5rem; }
+    .wb-guide { background:#eef6ff; border:1px solid #c9defc; border-radius:10px; padding:0.75rem; font-size:0.85rem; }
+    .wb-toolbar { display:flex; justify-content:space-between; gap:0.75rem; align-items:center; background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:0.6rem; }
+    .wb-mode { display:flex; gap:0.5rem; }
+    .tab-btn { border:none; background:#f1f5f9; border-radius:8px; padding:0.45rem 0.8rem; font-weight:700; cursor:pointer; color:#475569; }
+    .tab-btn.active { background:#dbeafe; color:#1d4ed8; }
+    .wb-run-controls { display:flex; gap:0.5rem; align-items:center; }
+    .wb-templates, .wb-join { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:0.65rem; }
+    .wb-templates label { display:block; margin-bottom:0.35rem; font-size:0.8rem; color:#64748b; }
+    .wb-join-grid { display:grid; grid-template-columns: 1.1fr 0.5fr 1.1fr 1.5fr auto; gap:0.5rem; margin-top:0.5rem; }
+    .wb-editor-wrap { flex:1; min-height:220px; background:#0f172a; border-radius:10px; border:1px solid #1e293b; overflow:hidden; }
+    .wb-editor { width:100%; height:100%; min-height:220px; border:none; outline:none; background:#0f172a; color:#e2e8f0; font-family:'JetBrains Mono', monospace; padding:1rem; line-height:1.45; resize:none; }
+    .wb-results { background:#fff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; min-height:220px; display:flex; flex-direction:column; }
+    .wb-results-head { padding:0.55rem 0.75rem; border-bottom:1px solid #eef2f7; background:#f8fafc; display:flex; align-items:center; gap:0.6rem; }
+    .wb-spinner { width:14px; height:14px; border:2px solid #cbd5e1; border-top-color:#2563eb; border-radius:50%; display:inline-block; animation:wb-spin 0.7s linear infinite; }
+    @keyframes wb-spin { to { transform:rotate(360deg); } }
+    .wb-error { padding:0.6rem 0.75rem; background:#fef2f2; border-bottom:1px solid #fecaca; color:#b91c1c; font-size:0.85rem; white-space:pre-wrap; }
+    .wb-plan { padding:0.5rem 0.75rem; border-bottom:1px solid #eef2f7; background:#f0f7ff; display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center; }
+    .wb-plan-chip { background:#dbeafe; color:#1d4ed8; font-weight:700; border-radius:6px; padding:0.15rem 0.5rem; font-size:0.75rem; }
+    .wb-plan-note { color:#334155; font-size:0.76rem; background:#e2e8f0; border-radius:6px; padding:0.15rem 0.5rem; }
+    .wb-warn { flex-basis:100%; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:0.3rem 0.5rem; font-size:0.78rem; }
+    .wb-table-wrap { overflow:auto; flex:1; }
+    #resultsTable { width:100%; border-collapse:collapse; font-size:0.85rem; }
+    #resultsTable th, #resultsTable td { padding:0.5rem 0.65rem; border-bottom:1px solid #f1f5f9; text-align:left; white-space:nowrap; }
+    #resultsTable th { position:sticky; top:0; background:#fff; z-index:1; font-size:0.75rem; color:#64748b; text-transform:uppercase; }
+    .wb-input { width:100%; border:1px solid #dbe2ea; border-radius:8px; padding:0.5rem 0.65rem; font-size:0.85rem; }
+    .wb-muted { color:#64748b; }
+    .tree-source { padding:0.5rem 0.9rem; font-weight:700; color:#1e293b; border-top:1px solid #f1f5f9; }
+    .tree-schema { padding:0.4rem 1.5rem; color:#334155; font-size:0.85rem; }
+    .tree-cat { padding:0.3rem 1.7rem 0.15rem; color:#94a3b8; font-size:0.68rem; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; }
+    .tree-ico { display:inline-block; width:1.1em; text-align:center; color:#64748b; }
+    .tree-item { padding:0.35rem 2.1rem; color:#475569; font-size:0.82rem; cursor:pointer; }
+    .tree-item:hover { background:#f8fafc; }
+    .tree-item.active { background:#e8f0ff; color:#1d4ed8; font-weight:700; border-right:3px solid #2563eb; }
+    .wb-detail { background:#fff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; }
+    .wb-detail-head { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; border-bottom:1px solid #eef2f7; background:#f8fafc; }
+    .wb-detail-title { font-size:0.82rem; color:#334155; font-weight:700; }
+    .wb-detail-title .wb-cap { font-weight:400; color:#94a3b8; font-size:0.72rem; margin-left:0.4rem; }
+    .wb-detail-toggle { border:none; background:#eef2f7; color:#475569; border-radius:6px; width:24px; height:24px; cursor:pointer; font-weight:700; line-height:1; }
+    .wb-detail-body { max-height:240px; overflow:auto; }
+    .wb-detail-body.collapsed { display:none; }
+    .wb-col-table { width:100%; border-collapse:collapse; font-size:0.82rem; }
+    .wb-col-table th, .wb-col-table td { padding:0.4rem 0.65rem; border-bottom:1px solid #f1f5f9; text-align:left; white-space:nowrap; }
+    .wb-col-table th { font-size:0.7rem; color:#64748b; text-transform:uppercase; background:#fff; position:sticky; top:0; }
+    .wb-col-type { color:#7c3aed; font-family:'JetBrains Mono', monospace; font-size:0.78rem; }
+    .wb-er-modal { position:fixed; inset:0; background:rgba(15,23,42,0.45); display:flex; align-items:center; justify-content:center; z-index:1000; padding:1rem; }
+    .wb-er-dialog { background:#fff; border-radius:12px; width:min(920px, 96vw); max-height:88vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 20px 60px rgba(15,23,42,0.35); }
+    .wb-er-head { display:flex; justify-content:space-between; align-items:center; padding:0.75rem 1rem; border-bottom:1px solid #eef2f7; background:#f8fafc; }
+    .wb-er-body { padding:1rem; overflow:auto; }
+    .wb-er-tables { display:flex; flex-wrap:wrap; gap:0.6rem; margin-bottom:1rem; }
+    .wb-er-box { border:1px solid #c9defc; background:#eef6ff; border-radius:8px; padding:0.45rem 0.7rem; font-weight:700; color:#1d4ed8; font-size:0.82rem; }
+    .wb-er-box small { display:block; font-weight:400; color:#64748b; font-size:0.68rem; }
+    .wb-er-edges { display:flex; flex-direction:column; gap:0.4rem; }
+    .wb-er-edge { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; font-size:0.82rem; color:#334155; background:#f8fafc; border:1px solid #eef2f7; border-radius:8px; padding:0.4rem 0.6rem; }
+    .wb-er-node { font-family:'JetBrains Mono', monospace; color:#0f172a; }
+    .wb-er-card { background:#dbeafe; color:#1d4ed8; font-weight:700; border-radius:6px; padding:0.1rem 0.45rem; font-size:0.72rem; }
+    .wb-er-arrow { color:#2563eb; font-weight:700; }
+    @media (max-width: 1100px) {
+        .wb-shell { flex-direction:column; height:auto; }
+        .wb-left { width:100%; height:260px; }
+        .wb-join-grid { grid-template-columns:1fr; }
     }
-    .editor-mode-btn.active {
-        background: white;
-        color: var(--primary);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    .ide-textarea {
-        width: 100%;
-        height: 180px;
-        background: #F9FAFB;
-        color: var(--text);
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 1.25rem;
-        font-family: 'JetBrains Mono', 'Monaco', monospace;
-        font-size: 0.95rem;
-        line-height: 1.6;
-        resize: vertical;
-        outline: none;
-        transition: border-color 0.2s;
-    }
-    .ide-textarea:focus { border-color: var(--primary); background: white; }
-
-    .tree-source-header { font-weight: 700; padding: 0.5rem; color: var(--text); font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; }
-    .tree-schema { margin-left: 0.75rem; border-left: 1px solid var(--border); }
-    .tree-schema-header { padding: 0.4rem 0.75rem; color: var(--text-muted); font-size: 0.8rem; display: flex; align-items: center; gap: 0.4rem; font-weight: 600; }
-    .tree-table { margin-left: 1rem; padding: 0.3rem 0.75rem; cursor: pointer; font-size: 0.8rem; color: var(--text-muted); border-radius: 4px; display: flex; align-items: center; gap: 0.4rem; transition: 0.2s; }
-    .tree-table:hover { background: #EBF2FF; color: var(--primary); }
-    .tree-table i { font-size: 0.7rem; opacity: 0.7; }
 </style>
 
 <script>
-    let currentMode = 'SQL';
-    let allExplorerData = [];
+    let mode = 'SQL';
+    let explorerItems = [];
+    let selectedResource = null;
 
-    function setMode(mode) {
-        currentMode = mode;
-        document.getElementById('modeSql').classList.toggle('active', mode === 'SQL');
-        document.getElementById('modeConfig').classList.toggle('active', mode === 'CONFIG');
-        document.getElementById('sqlEditor').style.display = mode === 'SQL' ? 'block' : 'none';
-        document.getElementById('configEditor').style.display = mode === 'CONFIG' ? 'block' : 'none';
+    // Cap DOM rendering so a large result never freezes the tab.
+    const MAX_RENDER_ROWS = 500;
+    // Monotonic run token: results from a superseded run are ignored (fixes stale overwrite).
+    let runGeneration = 0;
+
+    // Escape untrusted datasource values before inserting into the DOM (fixes XSS + broken render).
+    function escapeHtml(v) {
+        if (v === null || v === undefined) return '';
+        const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
+        return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
-    async function loadExplorer() {
-        const explorer = document.getElementById('explorerTree');
-        try {
-            const sRes = await fetch(`${API_BASE}/metadata/sources`, { headers: getAuthHeaders() });
-            const sources = await sRes.json();
-            
-            allExplorerData = [];
-            for (const s of sources) {
-                const schemasRes = await fetch(`${API_BASE}/metadata/schemas?sourceId=${s.id}`, { headers: getAuthHeaders() });
-                const schemas = await schemasRes.json();
-                
-                const sourceNode = { ...s, schemas: [] };
-                for (const sch of schemas) {
-                    const tablesRes = await fetch(`${API_BASE}/metadata/tables?schemaId=${sch.schemaId}`, { headers: getAuthHeaders() });
-                    const tables = await tablesRes.json();
-                    sourceNode.schemas.push({ ...sch, tables });
-                }
-                allExplorerData.push(sourceNode);
+    function getRowLimit() {
+        const n = parseInt(document.getElementById('rowLimit').value, 10);
+        return Number.isFinite(n) && n > 0 ? n : 100;
+    }
+
+    // Strip SQL comments (-- line and /* block */) and whitespace to find the real statement.
+    function stripSqlComments(sql) {
+        return String(sql || '')
+            .replace(/\/\*[\s\S]*?\*\//g, ' ')
+            .replace(/--[^\n]*/g, ' ')
+            .trim();
+    }
+    // Is there an actual executable SQL statement (not just comments)?
+    function hasExecutableSql(sql) {
+        return stripSqlComments(sql).length > 0;
+    }
+
+    // Ensure a SELECT is bounded: append LIMIT only to a real SELECT/WITH with no LIMIT.
+    function applyLimitToSql(sql, limit) {
+        const body = stripSqlComments(sql);
+        if (/\blimit\s+\d+/i.test(body)) return sql;
+        // Only SELECT/WITH (read) statements get an auto-LIMIT; never comments, DDL, or calls.
+        if (!/^\s*(select|with)\b/i.test(body)) return sql;
+        const trimmed = sql.replace(/;\s*$/, '');
+        return `${trimmed}\nLIMIT ${limit};`;
+    }
+
+    function setBusy(on) {
+        document.getElementById('wbSpinner').style.display = on ? 'inline-block' : 'none';
+    }
+
+    function showError(msg) {
+        const el = document.getElementById('wbError');
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+    function clearBanners() {
+        document.getElementById('wbError').style.display = 'none';
+        document.getElementById('wbPlan').style.display = 'none';
+    }
+
+    // Extract { plan, warnings } from any of the response envelope shapes.
+    function extractMeta(payload) {
+        const p = payload || {};
+        return {
+            plan: p.plan || p.data?.plan || null,
+            warnings: p.warnings || p.data?.warnings || []
+        };
+    }
+
+    function showPlan(plan, warnings) {
+        const el = document.getElementById('wbPlan');
+        if (!plan && (!warnings || !warnings.length)) { el.style.display = 'none'; return; }
+        let html = '';
+        if (plan) {
+            html += `<span class="wb-plan-chip">Strategy: ${escapeHtml(plan.strategy)}</span>`;
+            html += (plan.pushed || []).map((p) => `<span class="wb-plan-note">${escapeHtml(p)}</span>`).join('');
+        }
+        if (warnings && warnings.length) {
+            html += warnings.map((w) => `<div class="wb-warn">⚠ ${escapeHtml(w)}</div>`).join('');
+        }
+        el.innerHTML = html;
+        el.style.display = 'flex';
+    }
+
+    function beginResults() {
+        document.getElementById('resultsHead').innerHTML = '';
+        document.getElementById('resultsBody').innerHTML = '<tr><td class="wb-muted" style="padding:2rem;">Running query…</td></tr>';
+    }
+
+    function tenantId() {
+        return localStorage.getItem('active_tenant') || 'tenant_A';
+    }
+
+    function toLogicalSchemaName(schemaName) {
+        if (!schemaName) return schemaName;
+        const prefix = `tenant_${tenantId()}_`;
+        return schemaName.startsWith(prefix) ? schemaName.slice(prefix.length) : schemaName;
+    }
+
+    const SELECTABLE = ['TABLE', 'VIEW', 'MATERIALIZED_VIEW', 'FOREIGN_TABLE'];
+    // A selectable object from a DIFFERENT source than the current selection — for cross-source examples.
+    function otherSourceObject() {
+        const sel = selectedResource;
+        return explorerItems.find(i => SELECTABLE.includes(i.resourceType) && (!sel || i.sourceName !== sel.sourceName));
+    }
+    function firstCol(fallback) { return (selectedResource?.columns && selectedResource.columns[0]?.name) || fallback; }
+
+    /**
+     * Context-aware, TYPE-APPLICABLE examples built from the ACTUAL selected object,
+     * its real columns, and the available sources — so nothing references tables that
+     * don't exist for this tenant, and cross-source options appear only when possible.
+     */
+    function buildExamples(next) {
+        const sel = selectedResource;
+        const selectable = sel && SELECTABLE.includes(sel.resourceType);
+        const other = otherSourceObject();
+        const list = [];
+        if (next === 'SQL') {
+            if (selectable && sel.sourceName === 'Fabric_Hub_Postgres') {
+                list.push({ v: 'sql_basic', label: `SELECT * FROM ${sel.name}` });
+                list.push({ v: 'sql_aggregate', label: `Aggregate: COUNT by ${firstCol('column')}` });
+                list.push({ v: 'sql_window', label: 'Window function (RANK OVER)' });
+            } else if (selectable) {
+                list.push({ v: 'sql_note_remote', label: `${sel.name} is remote — use AST to query it` });
+            } else {
+                list.push({ v: 'sql_basic', label: 'Basic SELECT (hub) — edit table' });
             }
-            renderExplorer();
-        } catch (e) {
-            explorer.innerHTML = '<p class="text-danger">Failed to load catalog.</p>';
+            list.push({ v: 'sql_recursive', label: 'Pattern: recursive hierarchy (CTE)' });
+        } else {
+            if (selectable) {
+                list.push({ v: 'ast_select', label: `SELECT ${sel.name} + filter & sort` });
+                list.push({ v: 'ast_aggregate', label: `Aggregate on ${sel.name} (GROUP BY ${firstCol('column')})` });
+            }
+            if (selectable && other) {
+                list.push({ v: 'ast_cross_union', label: `Cross-source UNION: ${sel.name} + ${other.name} @ ${other.sourceName}` });
+                list.push({ v: 'ast_cross_join', label: `Cross-source JOIN: ${sel.name} ⋈ ${other.name}` });
+            }
+            list.push({ v: 'ast_join_builder', label: 'Custom cross-source join builder' });
+        }
+        return list;
+    }
+
+    function renderTemplateOptions(next) {
+        const picker = document.getElementById('templatePicker');
+        const opts = buildExamples(next);
+        picker.innerHTML = '<option value="">Load example…</option>' +
+            opts.map(o => `<option value="${o.v}">${escapeHtml(o.label)}</option>`).join('');
+    }
+
+    function setMode(next) {
+        mode = next;
+        document.getElementById('modeSql').classList.toggle('active', next === 'SQL');
+        document.getElementById('modeAst').classList.toggle('active', next === 'AST');
+        document.getElementById('sqlEditor').style.display = next === 'SQL' ? 'block' : 'none';
+        document.getElementById('astEditor').style.display = next === 'AST' ? 'block' : 'none';
+        // Show only the examples that apply to this mode; hide the AST join builder in SQL.
+        renderTemplateOptions(next);
+        if (next === 'SQL') document.getElementById('joinBuilder').style.display = 'none';
+    }
+
+    function clearEditor() {
+        document.getElementById('sqlEditor').value = '';
+        document.getElementById('astEditor').value = '';
+        document.getElementById('resultsHead').innerHTML = '';
+        document.getElementById('resultsBody').innerHTML = '<tr><td class="wb-muted" style="padding:2rem;">Editor cleared.</td></tr>';
+    }
+
+    function normalizeRows(payload) {
+        if (Array.isArray(payload)) return payload;
+        if (Array.isArray(payload?.results)) return payload.results;
+        // /queries/exec (raw SQL) wraps rows as { results: { results: [...] } }.
+        if (Array.isArray(payload?.results?.results)) return payload.results.results;
+        if (Array.isArray(payload?.results?.rows)) return payload.results.rows;
+        if (Array.isArray(payload?.data)) return payload.data;
+        if (Array.isArray(payload?.data?.results)) return payload.data.results;
+        if (Array.isArray(payload?.rows)) return payload.rows;
+        if (Array.isArray(payload?.result)) return payload.result;
+        return [];
+    }
+
+    function renderRows(rows, metaText) {
+        const head = document.getElementById('resultsHead');
+        const body = document.getElementById('resultsBody');
+
+        if (!rows.length) {
+            document.getElementById('resultMeta').innerText = metaText;
+            head.innerHTML = '';
+            body.innerHTML = '<tr><td class="wb-muted" style="padding:2rem;">Empty result set.</td></tr>';
+            return;
+        }
+        const cols = Object.keys(rows[0]);
+        const shown = rows.slice(0, MAX_RENDER_ROWS);
+        head.innerHTML = `<tr>${cols.map(c => `<th>${escapeHtml(c)}</th>`).join('')}</tr>`;
+        body.innerHTML = shown.map(r => `<tr>${cols.map(c => `<td>${escapeHtml(r[c])}</td>`).join('')}</tr>`).join('');
+
+        document.getElementById('resultMeta').innerText = rows.length > MAX_RENDER_ROWS
+            ? `${metaText} • showing ${MAX_RENDER_ROWS} of ${rows.length} (capped)`
+            : metaText;
+    }
+
+    async function pollJob(jobId, endpoint, gen) {
+        const started = Date.now();
+        while (Date.now() - started < 120000) {
+            if (gen !== runGeneration) return; // superseded by a newer run
+            const res = await fetch(`${API_BASE}${endpoint}/${jobId}`, { headers: getAuthHeaders() });
+            if (!res.ok && res.status !== 202) {
+                let msg = `Job poll failed (HTTP ${res.status})`;
+                try { const b = await res.json(); msg = b.error || msg; } catch (_) {}
+                throw new Error(msg);
+            }
+            const data = await res.json();
+            if (data.status === 'COMPLETED') {
+                if (gen !== runGeneration) return;
+                const rows = normalizeRows(data.result);
+                const meta = extractMeta(data.result);
+                renderRows(rows, `Async complete • ${rows.length} rows • job ${jobId}`);
+                showPlan(meta.plan, meta.warnings);
+                return;
+            }
+            if (data.status === 'FAILED') {
+                throw new Error(data.error || 'Async job failed');
+            }
+            await new Promise(r => setTimeout(r, 1200));
+        }
+        throw new Error('Async query timed out while polling.');
+    }
+
+    async function runCurrent() {
+        const runBtn = document.getElementById('runBtn');
+        // Queries run synchronously; the async job path remains available via the API.
+        const execMode = document.getElementById('executionMode')?.value || 'sync';
+        const limit = getRowLimit();
+        const gen = ++runGeneration; // this run's token
+        runBtn.disabled = true;
+        runBtn.innerText = execMode === 'async' ? 'Submitting…' : 'Running…';
+        clearBanners();
+        setBusy(true);
+        beginResults();
+        const start = performance.now();
+
+        try {
+            if (mode === 'SQL') {
+                let sql = document.getElementById('sqlEditor').value.trim();
+                if (!sql) throw new Error('SQL editor is empty.');
+                // Guard: a comment-only editor (e.g. a "not executable via the fabric" note for a
+                // remote sequence/function) must NOT be sent — it produced a "syntax error at LIMIT".
+                if (!hasExecutableSql(sql)) {
+                    throw new Error('Nothing to run — this object is not executable via SQL here. For remote sequences/functions, use the source engine; for remote tables/views switch to AST mode.');
+                }
+                sql = applyLimitToSql(sql, limit);
+
+                if (execMode === 'async') {
+                    const dispatch = await fetch(`${API_BASE}/queries/exec`, {
+                        method: 'POST',
+                        headers: getAuthHeaders(),
+                        body: JSON.stringify({ sql, async: true })
+                    });
+                    const job = await dispatch.json();
+                    if (!dispatch.ok) throw new Error(job.error || 'Failed to dispatch async query');
+                    if (gen !== runGeneration) return;
+                    document.getElementById('resultMeta').innerText = `Async job accepted: ${job.queryId}`;
+                    await pollJob(job.queryId, '/queries/jobs', gen);
+                } else {
+                    const res = await fetch(`${API_BASE}/queries/exec`, {
+                        method: 'POST',
+                        headers: getAuthHeaders(),
+                        body: JSON.stringify({ sql })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'SQL execution failed');
+                    if (gen !== runGeneration) return;
+                    const rows = normalizeRows(data);
+                    renderRows(rows, `SQL sync • ${rows.length} rows • ${Math.round(performance.now() - start)}ms`);
+                }
+            } else {
+                const raw = document.getElementById('astEditor').value.trim();
+                if (!raw) throw new Error('AST editor is empty.');
+                let config;
+                try { config = JSON.parse(raw); }
+                catch (e) { throw new Error(`Invalid AST JSON: ${e.message}`); }
+                // Bound the query with the row limit unless the user set a smaller one.
+                if (typeof config.limit !== 'number' || config.limit > limit) config.limit = limit;
+
+                if (execMode === 'async') {
+                    const dispatch = await fetch(`${API_BASE}/analytics/query-async`, {
+                        method: 'POST',
+                        headers: getAuthHeaders(),
+                        body: JSON.stringify({ queryConfig: config })
+                    });
+                    const job = await dispatch.json();
+                    if (!dispatch.ok) throw new Error(job.error || 'Failed to dispatch async AST query');
+                    if (gen !== runGeneration) return;
+                    document.getElementById('resultMeta').innerText = `Async AST job accepted: ${job.jobId}`;
+                    await pollJob(job.jobId, '/analytics/jobs', gen);
+                } else {
+                    const res = await fetch(`${API_BASE}/analytics/query`, {
+                        method: 'POST',
+                        headers: getAuthHeaders(),
+                        body: JSON.stringify({ queryConfig: config })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'AST query failed');
+                    if (gen !== runGeneration) return;
+                    const rows = normalizeRows(data.data ?? data);
+                    const meta = extractMeta(data);
+                    renderRows(rows, `AST sync • ${rows.length} rows • ${Math.round(performance.now() - start)}ms`);
+                    showPlan(meta.plan, meta.warnings);
+                }
+            }
+        } catch (err) {
+            if (gen !== runGeneration) return; // don't surface errors from a superseded run
+            renderRows([], 'Query failed.');
+            showError(err.message);
+        } finally {
+            if (gen === runGeneration) {
+                setBusy(false);
+                runBtn.disabled = false;
+                runBtn.innerText = 'Run';
+            }
         }
     }
 
-    function renderExplorer(filter = '') {
-        const explorer = document.getElementById('explorerTree');
-        explorer.innerHTML = '';
-        
-        allExplorerData.forEach(s => {
-            const sourceEl = document.createElement('div');
-            sourceEl.style.marginBottom = '0.75rem';
-            sourceEl.innerHTML = `<div class="tree-source-header"><i class="fas fa-server" style="color:var(--primary)"></i> ${s.name}</div>`;
-            
-            let sourceVisible = false;
-            s.schemas.forEach(sch => {
-                const schemaEl = document.createElement('div');
-                schemaEl.className = 'tree-schema';
-                schemaEl.innerHTML = `<div class="tree-schema-header"><i class="fas fa-folder-open"></i> ${sch.name}</div>`;
-                
-                let schemaVisible = false;
-                sch.tables.forEach(t => {
-                    if (filter && !t.name.toLowerCase().includes(filter.toLowerCase())) return;
-                    schemaVisible = true;
-                    sourceVisible = true;
-                    const tableEl = document.createElement('div');
-                    tableEl.className = 'tree-table';
-                    tableEl.innerHTML = `<i class="fas fa-table"></i> ${t.name}`;
-                    tableEl.onclick = () => exploreTable(t.tableId, t.name, s.name);
-                    schemaEl.appendChild(tableEl);
-                });
-                if (schemaVisible) sourceEl.appendChild(schemaEl);
+    // Generate an example query from the ACTUAL selection (real object, columns, sources).
+    function applyTemplate(key) {
+        if (!key) return;
+        const sel = selectedResource;
+        const setSql = (v) => { setMode('SQL'); document.getElementById('sqlEditor').value = v; };
+        const setAst = (obj) => { setMode('AST'); document.getElementById('joinBuilder').style.display = 'none'; document.getElementById('astEditor').value = JSON.stringify(obj, null, 2); };
+        const col = firstCol('id');
+        const q = sel ? `"${sel.schemaPhysical}"."${sel.name}"` : `"your_schema"."your_table"`;
+        const schemaName = sel?.schemaName || 'default';
+
+        switch (key) {
+            case 'sql_basic':
+                setSql(`SELECT *\nFROM ${q}\nLIMIT 50;`); break;
+            case 'sql_aggregate':
+                setSql(`SELECT "${col}", COUNT(*) AS n\nFROM ${q}\nGROUP BY "${col}"\nORDER BY n DESC\nLIMIT 50;`); break;
+            case 'sql_window':
+                setSql(`SELECT *,\n       ROW_NUMBER() OVER (ORDER BY "${col}" DESC) AS rn\nFROM ${q}\nLIMIT 100;`); break;
+            case 'sql_note_remote':
+                setSql(`-- "${sel?.name}" lives on remote source "${sel?.sourceName}".\n-- Switch to AST mode and press Run to query it (federated).`); break;
+            case 'sql_recursive':
+                setSql(`-- Recursive hierarchy pattern (edit table & columns to match your data):\nWITH RECURSIVE tree AS (\n  SELECT id, parent_id, name, 1 AS depth\n  FROM ${q}\n  WHERE parent_id IS NULL\n  UNION ALL\n  SELECT c.id, c.parent_id, c.name, t.depth + 1\n  FROM ${q} c JOIN tree t ON c.parent_id = t.id\n)\nSELECT * FROM tree ORDER BY depth LIMIT 200;`); break;
+
+            case 'ast_select':
+                setAst({ type: 'SELECT', schema: schemaName, limit: 50, query: {
+                    select: ['*'], from: { resource: sel.name, source: sel.sourceName },
+                    where: [{ column: col, operator: 'EQ', value: '<value>' }],
+                    orderBy: [{ column: col, direction: 'DESC' }] } }); break;
+            case 'ast_aggregate':
+                setAst({ type: 'SELECT', schema: schemaName, limit: 50, query: {
+                    from: { resource: sel.name, source: sel.sourceName }, groupBy: [col],
+                    select: [col, { aggregate: 'COUNT', column: '*', alias: 'n' }] } }); break;
+            case 'ast_cross_union': {
+                const o = otherSourceObject();
+                setAst({ type: 'SELECT', schema: schemaName, limit: 100, query: { union: [
+                    { from: { resource: sel.name, source: sel.sourceName }, select: ['*'] },
+                    { from: { resource: o.name, source: o.sourceName }, select: ['*'] } ] } }); break;
+            }
+            case 'ast_cross_join': {
+                const o = otherSourceObject();
+                const oCol = (o.columns && o.columns[0]?.name) || col;
+                setAst({ type: 'SELECT', schema: schemaName, limit: 100, query: {
+                    from: { resource: sel.name, source: sel.sourceName, alias: 'a' },
+                    joins: [{ type: 'INNER', resource: o.name, source: o.sourceName, alias: 'b',
+                        on: { left: `a.${col}`, operator: 'EQ', right: `b.${oCol}` } }] } }); break;
+            }
+            case 'ast_join_builder':
+                setMode('AST');
+                document.getElementById('joinBuilder').style.display = 'block';
+                populateJoinBuilder();
+                break;
+        }
+    }
+
+    function populateJoinBuilder() {
+        const options = explorerItems
+            .filter(i => i.resourceType === 'TABLE' || i.resourceType.includes('VIEW'))
+            .map(i => `<option value="${escapeHtml(i.tableId)}">${escapeHtml(i.sourceName)} / ${escapeHtml(i.schemaName)} / ${escapeHtml(i.name)}</option>`)
+            .join('');
+        document.getElementById('joinPrimary').innerHTML = options;
+        document.getElementById('joinSecondary').innerHTML = options;
+    }
+
+    function buildJoinAst() {
+        const p = document.getElementById('joinPrimary').value;
+        const s = document.getElementById('joinSecondary').value;
+        const t = document.getElementById('joinType').value;
+        const on = document.getElementById('joinOn').value.trim();
+        if (!p || !s || !on) return alert('Primary, secondary, and join condition are required.');
+
+        const primary = explorerItems.find(i => i.tableId === p);
+        const secondary = explorerItems.find(i => i.tableId === s);
+        const ast = {
+            type: 'SELECT',
+            schema: primary?.schemaName,
+            limit: 100,
+            query: {
+                select: ['*'],
+                from: { resource: primary?.name, source: primary?.sourceName },
+                joins: [{
+                    type: t,
+                    resource: secondary?.name,
+                    source: secondary?.sourceName,
+                    on: { left: on.split('=')[0]?.trim() || '', operator: 'EQ', right: on.split('=')[1]?.trim() || '' }
+                }]
+            }
+        };
+        setMode('AST');
+        document.getElementById('astEditor').value = JSON.stringify(ast, null, 2);
+    }
+
+    function activateTreeRow(el) {
+        document.querySelectorAll('.tree-item').forEach(x => x.classList.remove('active'));
+        el.classList.add('active');
+    }
+
+    // Generate a starter query/action appropriate to the object's TYPE, so every
+    // discovered object (table, view, mview, sequence, function, procedure, enum) is
+    // immediately usable — not just SELECT *.
+    function chooseResource(item, el) {
+        selectedResource = item;
+        activateTreeRow(el);
+        const rt = item.resourceType || 'TABLE';
+        const q = `"${item.schemaPhysical}"."${item.name}"`;
+        const selectAst = JSON.stringify({
+            type: 'SELECT', schema: item.schemaName, limit: 50,
+            query: { select: ['*'], from: { resource: item.name, source: item.sourceName } }
+        }, null, 2);
+
+        // Raw SQL executes on the Fabric hub; only hub-local objects are reachable that
+        // way. Objects on a remote/connector source (Mongo, remote Postgres, MySQL, …)
+        // must go through the AST/federated path, which the planner routes to the source.
+        const isLocal = item.sourceName === 'Fabric_Hub_Postgres';
+        const selectable = ['TABLE', 'VIEW', 'MATERIALIZED_VIEW', 'FOREIGN_TABLE'].includes(rt);
+
+        let sql, ast = null, hint, mode;
+        if (selectable) {
+            // Federated SELECT works for BOTH hub and remote sources — default to AST.
+            ast = selectAst;
+            sql = isLocal
+                ? `SELECT *\nFROM ${q}\nLIMIT 50;`
+                : `-- "${item.name}" lives on source "${item.sourceName}" (not the hub).\n-- Raw SQL runs on the hub only — use AST mode (federated) to query it. Press Run.`;
+            mode = 'AST';
+            hint = rt === 'MATERIALIZED_VIEW'
+                ? `Materialized view on ${item.sourceName} — cached rows, queried via the fabric.`
+                : `${rt} on ${item.sourceName} — federated SELECT. Press Run.`;
+        } else if (isLocal) {
+            mode = 'SQL';
+            switch (rt) {
+                case 'SEQUENCE':
+                    sql = `SELECT nextval('${item.schemaPhysical}.${item.name}');`; hint = 'Sequence — nextval()/currval()/setval().'; break;
+                case 'FUNCTION':
+                    sql = `SELECT ${q}(/* args */);\n-- table-returning: SELECT * FROM ${q}(/* args */);`; hint = 'Function — call it.'; break;
+                case 'PROCEDURE':
+                    sql = `CALL ${q}(/* args */);`; hint = 'Procedure — CALL it.'; break;
+                case 'ENUM':
+                    sql = `SELECT unnest(enum_range(NULL::${item.schemaPhysical}.${item.name})) AS value;`; hint = 'Enum — list values.'; break;
+                default:
+                    sql = `-- ${rt} "${item.name}" — inspect in the Catalog studio.`; hint = `${rt} — metadata object.`;
+            }
+            ast = `// ${rt} objects are addressed via SQL (see SQL mode).`;
+        } else {
+            // Non-selectable object on a remote source — not executable through the fabric.
+            mode = 'SQL';
+            sql = `-- ${rt} "${item.name}" lives on remote source "${item.sourceName}".\n-- ${rt}s are engine-local and are not executed through the fabric.\n-- Use the source engine directly, or inspect it in the Catalog studio.`;
+            ast = `// ${rt} on a remote source is not federatable.`;
+            hint = `${rt} on ${item.sourceName} — engine-local (not federated).`;
+        }
+
+        document.getElementById('resultMeta').innerText = `${item.sourceName} / ${item.schemaName} / ${item.name} — ${hint}`;
+        document.getElementById('sqlEditor').value = sql;
+        document.getElementById('astEditor').value = ast;
+        setMode(mode);
+
+        // Detail panel: columns for relational objects; usage/signature for function/procedure/sequence/enum.
+        if (selectable) renderTableDetail(item);
+        else if (['FUNCTION', 'PROCEDURE', 'SEQUENCE', 'ENUM'].includes(rt)) renderObjectUsage(item, isLocal);
+        else document.getElementById('wbDetail').style.display = 'none';
+    }
+
+    // Usage/signature panel for non-relational objects — shows HOW to use them and
+    // pre-fills a runnable call (for hub objects) with the object's real arguments.
+    async function renderObjectUsage(item, isLocal) {
+        const panel = document.getElementById('wbDetail');
+        const titleEl = document.getElementById('wbDetailTitle');
+        const bodyEl = document.getElementById('wbDetailBody');
+        const btn = document.querySelector('.wb-detail-toggle');
+        bodyEl.classList.remove('collapsed'); if (btn) btn.textContent = '–';
+        panel.style.display = 'block';
+        titleEl.innerHTML = `${escapeHtml(item.name)}<span class="wb-cap">${escapeHtml(item.resourceType)}</span>`;
+        bodyEl.innerHTML = '<div class="wb-muted" style="padding:0.75rem;">Loading usage…</div>';
+        const gen = ++detailGeneration;
+        const q = `"${item.schemaPhysical}"."${item.name}"`;
+        try {
+            const res = await fetch(`${API_BASE}/metadata/resource/${encodeURIComponent(item.tableId)}`, { headers: getAuthHeaders() });
+            const r = await res.json();
+            if (gen !== detailGeneration) return;
+            const ast = r && r.definitionAst && typeof r.definitionAst === 'object' ? r.definitionAst : {};
+            const rt = item.resourceType;
+
+            if (rt === 'FUNCTION' || rt === 'PROCEDURE') {
+                const params = ast.arguments || ast.parameters || [];
+                const inParams = params.filter((p) => String(p.mode || 'IN').toUpperCase() !== 'OUT');
+                const rows = params.map((p) => `<tr><td>${escapeHtml(p.name)}</td><td class="wb-col-type">${escapeHtml(p.type)}</td><td>${escapeHtml(p.mode || 'IN')}</td></tr>`).join('')
+                    || '<tr><td colspan="3" class="wb-muted">no parameters</td></tr>';
+                bodyEl.innerHTML = `<div class="wb-usage">
+                    <div class="wb-usage-sig">${escapeHtml(item.name)}(${escapeHtml(inParams.map((p) => p.name + ' ' + p.type).join(', '))})${ast.returnType ? ' → ' + escapeHtml(ast.returnType) : ''}</div>
+                    <table class="wb-col-table"><thead><tr><th>Parameter</th><th>Type</th><th>Mode</th></tr></thead><tbody>${rows}</tbody></table>
+                    <div class="wb-muted" style="margin-top:0.4rem;">${isLocal ? 'Fill in the argument values below and press Run.' : 'Engine-local — run on the source engine.'}</div>
+                </div>`;
+                if (isLocal) {
+                    const argList = inParams.map((p) => `<${p.name}:${p.type}>`).join(', ');
+                    document.getElementById('sqlEditor').value = rt === 'PROCEDURE'
+                        ? `CALL ${q}(${argList});`
+                        : `SELECT ${q}(${argList});`;
+                }
+            } else if (rt === 'SEQUENCE') {
+                bodyEl.innerHTML = `<div class="wb-usage">
+                    <div class="wb-usage-sig">${escapeHtml(item.name)} — start ${escapeHtml(ast.start ?? 1)}, increment ${escapeHtml(ast.increment ?? 1)}</div>
+                    <div class="wb-muted">Usage: <code>SELECT nextval('${escapeHtml(item.schemaPhysical)}.${escapeHtml(item.name)}')</code> · currval() · setval()</div>
+                    <div class="wb-muted" style="margin-top:0.4rem;">${isLocal ? 'Press Run to get the next value.' : 'Engine-local — run on the source engine.'}</div>
+                </div>`;
+                if (isLocal) document.getElementById('sqlEditor').value = `SELECT nextval('${item.schemaPhysical}.${item.name}');`;
+            } else if (rt === 'ENUM') {
+                const vals = Array.isArray(ast.values) ? ast.values : [];
+                bodyEl.innerHTML = `<div class="wb-usage">
+                    <div class="wb-usage-sig">${escapeHtml(item.name)} — enum type</div>
+                    <div>${vals.map((v) => `<span class="wb-plan-note">${escapeHtml(v)}</span>`).join(' ') || '<span class="wb-muted">values loaded on run</span>'}</div>
+                </div>`;
+                if (isLocal) document.getElementById('sqlEditor').value = `SELECT unnest(enum_range(NULL::"${item.schemaPhysical}"."${item.name}")) AS value;`;
+            }
+        } catch (err) {
+            if (gen !== detailGeneration) return;
+            bodyEl.innerHTML = `<div class="wb-error" style="display:block;">Usage load failed: ${escapeHtml(err.message)}</div>`;
+        }
+    }
+
+    // Feature 1: table/view detail panel (columns + keys). Hidden for non-relational objects.
+    const WB_DETAIL_TYPES = ['TABLE', 'VIEW', 'MATERIALIZED_VIEW', 'FOREIGN_TABLE'];
+    let detailGeneration = 0;
+
+    function toggleDetail() {
+        const body = document.getElementById('wbDetailBody');
+        const btn = document.querySelector('.wb-detail-toggle');
+        const collapsed = body.classList.toggle('collapsed');
+        if (btn) btn.textContent = collapsed ? '+' : '–';
+    }
+
+    async function renderTableDetail(item) {
+        const panel = document.getElementById('wbDetail');
+        if (!item || !WB_DETAIL_TYPES.includes(item.resourceType) || !item.tableId) {
+            panel.style.display = 'none';
+            return;
+        }
+        const titleEl = document.getElementById('wbDetailTitle');
+        const bodyEl = document.getElementById('wbDetailBody');
+        const btn = document.querySelector('.wb-detail-toggle');
+        bodyEl.classList.remove('collapsed');
+        if (btn) btn.textContent = '–';
+        panel.style.display = 'block';
+        titleEl.innerHTML = `${escapeHtml(item.name)}`;
+        bodyEl.innerHTML = '<div class="wb-muted" style="padding:1rem;">Loading columns…</div>';
+
+        const gen = ++detailGeneration;
+        try {
+            const res = await fetch(`${API_BASE}/metadata/columns?tableId=${encodeURIComponent(item.tableId)}`, { headers: getAuthHeaders() });
+            const data = await res.json();
+            if (gen !== detailGeneration) return; // superseded by a newer selection
+            if (!res.ok) throw new Error(data.error || `Failed to load columns (HTTP ${res.status})`);
+            const cols = Array.isArray(data.columns) ? data.columns : [];
+            // Remember the real columns so examples can be generated against them.
+            if (selectedResource && selectedResource.tableId === item.tableId) {
+                selectedResource.columns = cols;
+                renderTemplateOptions(mode); // refresh examples now that we know the columns
+            }
+            titleEl.innerHTML = `${escapeHtml(item.name)}<span class="wb-cap">${escapeHtml(item.resourceType)} • ${escapeHtml(data.source || 'metadata')}</span>`;
+            if (!cols.length) {
+                bodyEl.innerHTML = '<div class="wb-muted" style="padding:1rem;">No columns reported.</div>';
+                return;
+            }
+            const rowsHtml = cols.map((c) => `<tr>
+                <td>${escapeHtml(c.name)}</td>
+                <td class="wb-col-type">${escapeHtml(c.type)}</td>
+                <td>${c.nullable ? 'YES' : 'NO'}</td>
+                <td>${c.primaryKey ? '🔑' : ''}</td>
+            </tr>`).join('');
+            bodyEl.innerHTML = `<table class="wb-col-table">
+                <thead><tr><th>Column</th><th>Type</th><th>Nullable</th><th>Key</th></tr></thead>
+                <tbody>${rowsHtml}</tbody>
+            </table>`;
+        } catch (err) {
+            if (gen !== detailGeneration) return;
+            bodyEl.innerHTML = `<div class="wb-error" style="display:block;">Column load failed: ${escapeHtml(err.message)}</div>`;
+        }
+    }
+
+    // Feature 2: relationship / ER diagram modal.
+    function closeRelationships() {
+        document.getElementById('wbErModal').style.display = 'none';
+    }
+
+    async function openRelationships() {
+        const modal = document.getElementById('wbErModal');
+        const body = document.getElementById('wbErBody');
+        modal.style.display = 'flex';
+        body.innerHTML = '<div class="wb-muted">Loading relationships…</div>';
+        try {
+            const res = await fetch(`${API_BASE}/metadata/relationships`, { headers: getAuthHeaders() });
+            const data = await res.json();
+            if (!res.ok) throw new Error((data && data.error) || `Failed to load relationships (HTTP ${res.status})`);
+            const rels = Array.isArray(data) ? data : [];
+            if (!rels.length) {
+                body.innerHTML = '<div class="wb-muted">No relationships defined for this tenant.</div>';
+                return;
+            }
+            // Distinct tables across both endpoints.
+            const tables = new Map();
+            const keyOf = (schema, table) => `${schema || ''}.${table || ''}`;
+            rels.forEach((r) => {
+                tables.set(keyOf(r.sourceSchema, r.sourceTable), { schema: r.sourceSchema, table: r.sourceTable });
+                tables.set(keyOf(r.targetSchema, r.targetTable), { schema: r.targetSchema, table: r.targetTable });
             });
-            if (sourceVisible || !filter) explorer.appendChild(sourceEl);
-        });
+            const boxesHtml = [...tables.values()].map((t) => `<div class="wb-er-box">${escapeHtml(t.table)}<small>${escapeHtml(t.schema || '')}</small></div>`).join('');
+            const edgesHtml = rels.map((r) => `<div class="wb-er-edge">
+                <span class="wb-er-node">${escapeHtml(r.sourceTable)}.${escapeHtml(r.sourceColumn)}</span>
+                <span class="wb-er-arrow">──</span>
+                <span class="wb-er-card">${escapeHtml(r.cardinality || '?')}</span>
+                <span class="wb-er-arrow">──▶</span>
+                <span class="wb-er-node">${escapeHtml(r.targetTable)}.${escapeHtml(r.targetColumn)}</span>
+                ${r.name ? `<span class="wb-muted" style="font-size:0.72rem;">(${escapeHtml(r.name)})</span>` : ''}
+            </div>`).join('');
+            body.innerHTML = `<div class="wb-er-tables">${boxesHtml}</div><div class="wb-er-edges">${edgesHtml}</div>`;
+        } catch (err) {
+            body.innerHTML = `<div class="wb-error" style="display:block;">${escapeHtml(err.message)}</div>`;
+        }
     }
 
     function filterExplorer() {
-        renderExplorer(document.getElementById('explorerSearch').value);
+        const q = (document.getElementById('explorerSearch').value || '').toLowerCase().trim();
+        document.querySelectorAll('.tree-source, .tree-schema, .tree-item').forEach(el => {
+            const txt = (el.textContent || '').toLowerCase();
+            el.style.display = !q || txt.includes(q) ? '' : 'none';
+        });
     }
 
-    function exploreTable(tableId, tableName, sourceName) {
-        document.getElementById('sourceBadge').style.display = 'inline-flex';
-        document.getElementById('sourceBadge').innerText = `${sourceName} / ${tableName}`;
-        
-        const config = { type: 'SELECT', tableId: tableId, limit: 50 };
-        document.getElementById('configInput').value = JSON.stringify(config, null, 2);
-        document.getElementById('sqlInput').value = `SELECT * FROM "${tableName}" LIMIT 50;`;
-    }
+    // Object-type presentation: glyph + plural category label + ordering.
+    const WB_TYPES = {
+        TABLE:             { icon: '▦', label: 'Tables',             order: 1 },
+        VIEW:              { icon: '◫', label: 'Views',              order: 2 },
+        MATERIALIZED_VIEW: { icon: '⚡', label: 'Materialized Views', order: 3 },
+        FOREIGN_TABLE:     { icon: '🔗', label: 'Foreign Tables',     order: 4 },
+        SEQUENCE:          { icon: '#', label: 'Sequences',          order: 5 },
+        FUNCTION:          { icon: 'ƒ', label: 'Functions',          order: 6 },
+        PROCEDURE:         { icon: '⚙', label: 'Procedures',         order: 7 },
+        ENUM:              { icon: '≡', label: 'Enums',              order: 8 },
+        TRIGGER:           { icon: '»', label: 'Triggers',           order: 9 },
+        POLICY:            { icon: '⛨', label: 'Policies',            order: 10 },
+    };
+    function wbTypeMeta(rt) { return WB_TYPES[rt] || { icon: '•', label: (rt || 'Objects'), order: 99 }; }
 
-    function newQuery() {
-        document.getElementById('sourceBadge').style.display = 'none';
-        document.getElementById('sqlInput').value = '';
-        document.getElementById('configInput').value = '';
-        document.getElementById('resultsHead').innerHTML = '';
-        document.getElementById('resultsBody').innerHTML = '<tr><td style="text-align:center; padding:5rem; color:var(--text-muted);">Editor cleared. Write a query to begin.</td></tr>';
-        document.getElementById('execTime').innerText = '';
-    }
-
-    async function executeCurrentQuery() {
-        const btn = document.getElementById('runBtn');
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executing...';
-
+    const getJson = async (url, timeoutMs = 10000) => {
+        // Bound each request so a slow/stuck hub can never leave the Explorer
+        // hanging on "Loading…" forever — it falls through to the error path instead.
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), timeoutMs);
         try {
-            if (currentMode === 'SQL') {
-                const sql = document.getElementById('sqlInput').value;
-                if (!sql.trim()) return showModal('Query Error', 'SQL editor is empty.');
-                await executeSql(sql);
-            } else {
-                const configStr = document.getElementById('configInput').value;
-                if (!configStr.trim()) return showModal('Query Error', 'JSON editor is empty.');
-                const config = JSON.parse(configStr);
-                await executeConfigQuery(config);
-            }
-        } catch (e) {
-            showModal('JSON Error', 'Failed to parse Unified Query JSON.');
+            const r = await fetch(url, { headers: getAuthHeaders(), signal: ctrl.signal });
+            const d = await r.json();
+            return Array.isArray(d) ? d : [];
         } finally {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-play"></i> Run Query';
+            clearTimeout(timer);
         }
-    }
+    };
 
-    async function executeSql(sql) {
-        const start = performance.now();
+    async function loadExplorer() {
+        const tree = document.getElementById('explorerTree');
+        tree.innerHTML = '<div class="wb-muted" style="padding:1rem;">Loading explorer…</div>';
         try {
-            const res = await fetch(`${API_BASE}/queries/exec`, {
-                method: 'POST',
-                headers: getAuthHeaders(),
-                body: JSON.stringify({ sql })
-            });
-            const data = await res.json();
-            renderResults(data.results, performance.now() - start, data.error);
-        } catch (e) { renderResults(null, 0, 'Fabric API connection failed.'); }
-    }
+            const sources = await getJson(`${API_BASE}/metadata/sources`);
+            // Fetch every source's schemas, and every schema's objects, IN PARALLEL
+            // (was a slow sequential N+1 chain against the hub). Render in order after.
+            const sourceData = await Promise.all(sources.map(async (s) => {
+                let schemas;
+                try { schemas = await getJson(`${API_BASE}/metadata/schemas?sourceId=${encodeURIComponent(s.id)}`); }
+                catch { return { s, error: true }; }
+                const schemaData = await Promise.all(schemas.map(async (sch) => {
+                    try { return { sch, rows: await getJson(`${API_BASE}/metadata/tables?schemaId=${encodeURIComponent(sch.schemaId)}`) }; }
+                    catch { return { sch, rows: null }; }
+                }));
+                return { s, schemaData };
+            }));
 
-    async function executeConfigQuery(config) {
-        const start = performance.now();
-        try {
-            const res = await fetch(`${API_BASE}/queries/engine`, {
-                method: 'POST',
-                headers: getAuthHeaders(),
-                body: JSON.stringify(config)
-            });
-            const data = await res.json();
-            const results = Array.isArray(data) ? data : (data.results || [data]);
-            renderResults(results, performance.now() - start, data.error);
-        } catch (e) { renderResults(null, 0, 'Fabric Engine connection failed.'); }
-    }
-
-    function renderResults(results, duration, error) {
-        const head = document.getElementById('resultsHead');
-        const body = document.getElementById('resultsBody');
-        const timeEl = document.getElementById('execTime');
-        
-        timeEl.innerText = `${Math.round(duration)}ms`;
-        head.innerHTML = '';
-        
-        if (error) {
-            body.innerHTML = `<tr><td style="color:var(--danger); padding:2rem; text-align:center;"><i class="fas fa-exclamation-circle"></i> Error: ${error}</td></tr>`;
-            return;
+            let html = '';
+            explorerItems = [];
+            for (const sd of sourceData) {
+                const s = sd.s;
+                html += `<div class="tree-source">${escapeHtml(s.name)} <span class="wb-muted" style="font-size:0.72rem;">(${escapeHtml(s.type)})</span></div>`;
+                if (sd.error) { html += `<div class="tree-schema wb-muted" style="color:#b91c1c;">schema load failed</div>`; continue; }
+                for (const { sch, rows } of sd.schemaData) {
+                    html += `<div class="tree-schema">${escapeHtml(toLogicalSchemaName(sch.name))}</div>`;
+                    if (rows === null) { html += `<div class="tree-item wb-muted" style="color:#b91c1c;">objects load failed</div>`; continue; }
+                    if (rows.length === 0) { html += `<div class="tree-item wb-muted">(empty)</div>`; continue; }
+                    const groups = {};
+                    rows.forEach((r) => { const rt = r.resourceType || 'TABLE'; (groups[rt] ||= []).push(r); });
+                    Object.keys(groups)
+                        .sort((a, b) => wbTypeMeta(a).order - wbTypeMeta(b).order)
+                        .forEach((rt) => {
+                            const meta = wbTypeMeta(rt);
+                            html += `<div class="tree-cat">${escapeHtml(meta.label)} <span class="wb-muted">${groups[rt].length}</span></div>`;
+                            groups[rt].forEach((r) => {
+                                const item = {
+                                    tableId: r.tableId, name: r.name, resourceType: rt,
+                                    schemaName: toLogicalSchemaName(sch.name),
+                                    schemaPhysical: sch.physicalName || sch.name,
+                                    sourceName: s.name,
+                                };
+                                explorerItems.push(item);
+                                html += `<div class="tree-item" title="${escapeHtml(rt)}" data-table-id="${escapeHtml(item.tableId)}" data-name="${escapeHtml(item.name)}" data-source="${escapeHtml(item.sourceName)}" data-schema="${escapeHtml(item.schemaName)}" data-schema-physical="${escapeHtml(item.schemaPhysical)}" data-rtype="${escapeHtml(rt)}" onclick="chooseResourceFromDom(this)"><span class="tree-ico">${meta.icon}</span> ${escapeHtml(item.name)}${(['TABLE','VIEW','MATERIALIZED_VIEW','FOREIGN_TABLE'].includes(rt) && Number(r.rowCount) > 0) ? ` <span class="wb-muted" style="font-size:0.68rem;">${escapeHtml(r.rowCount)} rows</span>` : ''}</div>`;
+                            });
+                        });
+                }
+            }
+            tree.innerHTML = html || '<div class="wb-muted" style="padding:1rem;">No catalog resources found.</div>';
+            populateJoinBuilder();
+        } catch (err) {
+            tree.innerHTML = `<div class="wb-muted" style="padding:1rem; color:#b91c1c;">Explorer load failed: ${escapeHtml(err.message)}</div>`;
         }
-
-        if (!results || results.length === 0) {
-            body.innerHTML = '<tr><td style="text-align:center; padding:2rem; color:var(--text-muted);">Query executed successfully but returned no rows.</td></tr>';
-            return;
-        }
-
-        const cols = Object.keys(results[0]);
-        head.innerHTML = `<tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr>`;
-        body.innerHTML = results.map(row => `
-            <tr>${cols.map(c => `<td>${row[c] !== null ? row[c] : '<span style="opacity:0.3">null</span>'}</td>`).join('')}</tr>
-        `).join('');
     }
 
+    function chooseResourceFromDom(el) {
+        const item = {
+            tableId: el.dataset.tableId,
+            name: el.dataset.name,
+            sourceName: el.dataset.source,
+            schemaName: el.dataset.schema,
+            schemaPhysical: el.dataset.schemaPhysical,
+            resourceType: el.dataset.rtype
+        };
+        chooseResource(item, el);
+    }
+
+    setMode('SQL');
     loadExplorer();
 </script>
 

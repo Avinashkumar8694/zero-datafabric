@@ -1,9 +1,24 @@
 import { pool } from '../../config/database';
 import { ConnectorFactory } from '../metadata/connectors/factory';
 
+/**
+ * SyncService (integration module) — physical ("SYNC"/CDC-style) data
+ * ingestion: crawls every schema/table a connector exposes and copies rows
+ * into tenant-local Hub tables, as opposed to the zero-copy FDW virtualization
+ * path handled elsewhere in (@link IntegrationService).
+ */
 export class SyncService {
     /**
-     * Initializes a sync process for a data source
+     * Run a one-shot full sync of a data source: discovers every schema and
+     * table the connector exposes, then copies each table's rows into the
+     * tenant's Hub schema via (@link SyncService.syncTable). Always closes the
+     * connector connection, even on failure.
+     * @param tenantId - Owning tenant (target schema is `tenant_<tenantId>`).
+     * @param sourceName - Name of the data source (used as a table-name prefix in the Hub).
+     * @param syncType - Sync type label (used only for logging here).
+     * @param config - Connector configuration; `config.type` selects the connector (defaults to `'postgres'`).
+     * @returns Resolves once every discovered table has been synced.
+     * @throws Re-throws any connector/discovery/query error after logging it.
      */
     static async initializeSync(tenantId: string, sourceName: string, syncType: string, config: any) {
         console.log(`[SyncService] Initializing ${syncType} for ${sourceName} (Tenant: ${tenantId})`);
@@ -27,6 +42,20 @@ export class SyncService {
         }
     }
 
+    /**
+     * Copy up to 1000 rows of a single source table into a tenant Hub table,
+     * creating the target schema/table on first use. All columns are created
+     * as TEXT (a simple, lossless-but-untyped landing format), and inserts use
+     * `ON CONFLICT DO NOTHING` so re-running the sync is idempotent for rows
+     * that already exist. A no-op if the source table has zero rows (the
+     * target table is not even created in that case).
+     * @param tenantId - Owning tenant; sanitized and used to derive the target schema `tenant_<cleanTenant>`.
+     * @param sourceName - Name of the data source; combined with `table` (sanitized) for the target table name.
+     * @param schema - Source schema name to read from.
+     * @param table - Source table name to read from.
+     * @param connector - The connector instance used to query the source (must implement `query(schema, table, opts)`).
+     * @returns Resolves once the batch has been inserted (or immediately if the source table is empty).
+     */
     private static async syncTable(tenantId: string, sourceName: string, schema: string, table: string, connector: any) {
         const cleanTenant = tenantId.replace(/[^a-zA-Z0-9_]/g, '');
         const targetSchema = `tenant_${cleanTenant}`;

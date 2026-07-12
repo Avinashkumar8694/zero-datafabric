@@ -59,18 +59,20 @@
                 return;
             }
 
-            body.innerHTML = data.map(t => `
+            body.innerHTML = data.slice(0, 500).map(t => `
                 <tr class="fade-in">
-                    <td><code>${t.id}</code></td>
-                    <td><strong>${t.name}</strong></td>
-                    <td><span class="dot-online" style="background: ${t.status === 'ACTIVE' ? 'var(--success)' : 'var(--warning)'}"></span> ${t.status}</td>
+                    <td><code>${escapeHtml(t.id)}</code></td>
+                    <td><strong>${escapeHtml(t.name)}</strong></td>
+                    <td><span class="dot-online" style="background: ${t.status === 'ACTIVE' ? 'var(--success)' : 'var(--warning)'}"></span> ${escapeHtml(t.status)}</td>
                     <td>
-                        <button onclick="updateTenantStatus('${t.id}', '${t.name}', '${t.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE'}')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
+                        <button onclick="updateTenantStatus('${escapeJs(t.id)}', '${escapeJs(t.name)}', '${t.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE'}')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
                             ${t.status === 'ACTIVE' ? 'Suspend' : 'Resume'}
                         </button>
                     </td>
                 </tr>
-            `).join('');
+            `).join('') + (data.length > 500
+                ? `<tr><td colspan="4" style="text-align:center; color: var(--text-muted)">Showing 500 of ${escapeHtml(data.length)} namespaces</td></tr>`
+                : '');
         } catch (err) {
             console.error('Fetch Error:', err);
             body.innerHTML = '<tr><td colspan="4" style="color: var(--danger)">Connection Error: Orchestrator Offline</td></tr>';
@@ -79,13 +81,21 @@
 
     async function updateTenantStatus(id, name, status) {
         try {
-            await fetch(`${API_BASE}/admin/tenants/${id}`, {
+            const response = await fetch(`${API_BASE}/admin/tenants/${id}`, {
                 method: 'PUT',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ name, status })
             });
+            if (!response.ok) {
+                let msg = 'Failed to update tenant status.';
+                try { const err = await response.json(); msg = err.error || msg; } catch (_) {}
+                showModal('Status Update Failed', msg);
+                return;
+            }
             loadTenants();
-        } catch (e) {}
+        } catch (e) {
+            showModal('Error', 'Status update failed: Orchestrator unreachable.');
+        }
     }
 
     document.getElementById('tenantForm').addEventListener('submit', async (e) => {
@@ -93,6 +103,8 @@
         const id = document.getElementById('tenantId').value;
         const name = document.getElementById('tenantName').value;
         const statusEl = document.getElementById('tenantStatus');
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
 
         try {
             const response = await fetch(`${API_BASE}/admin/tenants`, {
@@ -112,6 +124,8 @@
             }
         } catch (err) {
             statusEl.innerText = 'API Connection Error';
+        } finally {
+            if (submitBtn) submitBtn.disabled = false;
         }
     });
 

@@ -13,7 +13,16 @@ import authRoutes from './routes/authRoutes';
 import queryRoutes from './routes/queryRoutes';
 import metadataRoutes from './routes/metadataRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
+import triggerRoutes from './routes/triggerRoutes';
+import policyRoutes from './routes/policyRoutes';
+import constraintRoutes from './routes/constraintRoutes';
+import grantRoutes from './routes/grantRoutes';
+import savedAnalyticsRoutes from './routes/savedAnalyticsRoutes';
+import queryLogRoutes from './routes/queryLogRoutes';
+import dataRoutes from './routes/dataRoutes';
 import * as metadataController from './controllers/metadataController';
+import { ElasticsearchMutationWorker } from './modules/metadata/es_mutation_worker';
+import { initCache } from './config/cache';
 
 import morgan from 'morgan';
 
@@ -21,7 +30,11 @@ const app = express();
 const server = http.createServer(app);
 const PORT = 4000;
 
-app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] }));
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant-id']
+}));
 app.use(express.json());
 app.use(morgan('dev'));
 
@@ -62,7 +75,12 @@ const requireAdmin = (req: express.Request, res: express.Response, next: express
 };
 
 // --- BASE ROUTES ---
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customSiteTitle: 'Zero Data Fabric API',
+  swaggerOptions: { docExpansion: 'none', filter: true, tryItOutEnabled: true },
+}));
+// Raw OpenAPI spec for tooling / client generation.
+app.get('/api-docs.json', (_req, res) => { res.json(swaggerSpec); });
 
 app.get('/api/health', async (req, res) => {
   const uptime = process.uptime();
@@ -93,6 +111,13 @@ app.use('/api/admin', requireAdmin, adminRoutes);
 app.use('/api/queries', requireAuth, queryRoutes);
 app.use('/api/metadata', requireAuth, metadataRoutes);
 app.use('/api/analytics', requireAuth, analyticsRoutes);
+app.use('/api/data', requireAuth, dataRoutes);
+app.use('/api/triggers', requireAuth, triggerRoutes);
+app.use('/api/policies', requireAuth, policyRoutes);
+app.use('/api/constraints', requireAuth, constraintRoutes);
+app.use('/api/grants', requireAuth, grantRoutes);
+app.use('/api/saved-analytics', requireAuth, savedAnalyticsRoutes);
+app.use('/api/query-logs', requireAuth, queryLogRoutes);
 
 // Shared Global Events API
 app.get('/api/events', requireAuth, metadataController.getEvents);
@@ -105,6 +130,10 @@ if (process.env.NODE_ENV !== 'test') {
       await pool.query('SELECT 1');
       server.listen(PORT, '0.0.0.0', () => {
         console.log(`\x1b[32m✔ Industrial Data Fabric Orchestrator running on port ${PORT}\x1b[0m`);
+        ElasticsearchMutationWorker.start();
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        require('./modules/sync/physical_sync.service').PhysicalSync.startCdcPoller();
+        initCache();
       });
     } catch (err: any) {
       console.error(`\x1b[31m[FATAL] Database Connectivity Failed: ${err.message}\x1b[0m`);

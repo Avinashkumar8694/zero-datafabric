@@ -1,9 +1,21 @@
 import { pool } from '../../config/database';
 
+/**
+ * EventService — real-time change notification and outbound event dispatch.
+ *
+ * Attaches Postgres `LISTEN`/`NOTIFY`-driven triggers so row changes are
+ * published on the `fabric_events` channel, and provides helpers for
+ * dispatching outbound webhooks and recording emitted events to the audit log.
+ */
 export class EventService {
   /**
-   * Orchestrates a real-time event trigger for a specific table
-   * Industrial Grade: This uses the 'fabric_events' LISTEN/NOTIFY channel
+   * Attach (or replace) a row-change notification trigger on a table so
+   * INSERT/UPDATE/DELETE events are published via the shared
+   * `notify_data_change()` trigger function (which builds a JSON payload of
+   * the NEW/OLD record and NOTIFYs the `fabric_events` channel).
+   * @param schemaName - Schema containing the target table.
+   * @param tableName - Table to attach the trigger to (also used to derive the trigger name `trg_notify_<tableName>`).
+   * @returns `(status: 'TRIGGER_ATTACHED', table)`.
    */
   static async attachEventTrigger(schemaName: string, tableName: string) {
     const client = await pool.connect();
@@ -25,7 +37,14 @@ export class EventService {
   }
 
   /**
-   * Dispatches a webhook with signature (Security)
+   * Dispatch an outbound webhook for an event, signed with an HMAC secret so
+   * the receiver can verify authenticity. Currently a stub: logs the intent
+   * to dispatch but does not sign or POST the payload — in production this
+   * would be wrapped in a durable (e.g. BullMQ) job for retry/at-least-once delivery.
+   * @param url - The destination webhook URL.
+   * @param payload - The event payload to deliver.
+   * @param secret - The HMAC signing secret shared with the receiver.
+   * @returns Resolves once the dispatch has been logged/initiated.
    */
   static async dispatchWebhook(url: string, payload: any, secret: string) {
     // Logic to sign payload with HMAC and POST to the URL
@@ -34,7 +53,14 @@ export class EventService {
   }
 
   /**
-   * Internal Event Emitter
+   * Internal event emitter: records an event as an audit-log row. In
+   * production this would instead (or additionally) publish to `fabric_events`
+   * or a message broker for real-time subscribers.
+   * @param eventType - The event's type/action label (stored as `action`).
+   * @param payload - Event payload; `payload.table`/`payload.tenantId` are
+   *   used for the log's `table_name`/`tenant_id` (default to `'SYSTEM'`), and
+   *   the full payload is stored as `new_data`.
+   * @returns Resolves once the audit log row is written.
    */
   static async emit(eventType: string, payload: any) {
     console.log(`[Events] Emitting ${eventType}:`, JSON.stringify(payload));

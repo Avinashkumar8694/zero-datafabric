@@ -1,0 +1,297 @@
+<%- include('partials/header') %>
+
+<style>
+  /* Keep the analytics page fully contained — no horizontal overflow, grids that
+     shrink instead of pushing the layout wide. */
+  .fade-in { max-width: 100%; overflow-x: hidden; box-sizing: border-box; }
+  .fade-in .glass-card { max-width: 100%; box-sizing: border-box; overflow: hidden; }
+  .fade-in .glass-card > * { min-width: 0; }
+  #kpiRow > .glass-card { overflow: hidden; }
+  #kpiRow > .glass-card > div:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .table-wrapper { max-width: 100%; overflow: auto; }
+  .an-vars-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .an-vars-table th, .an-vars-table td { padding: 0.3rem 0.4rem; text-align: left; }
+  .an-vars-table input, .an-vars-table select { width: 100%; box-sizing: border-box; }
+  .an-code { width: 100%; min-height: 160px; box-sizing: border-box; font-family: monospace; font-size: 0.8rem; }
+</style>
+
+<div class="fade-in">
+  <div class="glass-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+      <h3 style="margin:0;">Analytics Dashboard</h3>
+      <a href="/analytics/custom" class="btn-outline" style="font-size:0.8rem;"><i class="fas fa-wand-magic-sparkles"></i> Custom analytics →</a>
+    </div>
+    <p class="text-muted" style="margin-bottom: 1rem;">
+      Configurable analytics over federated sources. Every query shows its execution plan — which engine ran what,
+      how many rows each source returned, and total time — so you can see the fabric pushing work down and merging only the result.
+    </p>
+
+    <!-- Top executed analytics (from saved analytics, ranked by run count) -->
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-top:0.75rem;">
+      <label class="text-muted" style="font-size:0.75rem;">Top analytics · click to run</label>
+      <a href="/analytics/custom" class="text-muted" style="font-size:0.72rem;">manage →</a>
+    </div>
+    <div id="presetRow" style="display:flex; flex-wrap:wrap; gap:0.5rem; margin:0.35rem 0 0.25rem;"></div>
+  </div>
+
+  <!-- Configurable query builder -->
+  <div class="glass-card" style="margin-top:1rem;">
+    <h4>Build an analytic</h4>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:0.75rem; align-items:end; margin-top:0.75rem;">
+      <div>
+        <label class="text-muted" style="font-size:0.75rem;">Source</label>
+        <select id="cfgSource" class="context-select" style="width:100%;"></select>
+      </div>
+      <div>
+        <label class="text-muted" style="font-size:0.75rem;">Resource</label>
+        <select id="cfgResource" class="context-select" style="width:100%;"></select>
+      </div>
+      <div>
+        <label class="text-muted" style="font-size:0.75rem;">Dimension (group by)</label>
+        <select id="cfgDimension" class="context-select" style="width:100%;"></select>
+      </div>
+      <div>
+        <label class="text-muted" style="font-size:0.75rem;">Aggregate</label>
+        <select id="cfgAgg" class="context-select" style="width:100%;">
+          <option value="COUNT">COUNT</option><option value="SUM">SUM</option>
+          <option value="AVG">AVG</option><option value="MIN">MIN</option><option value="MAX">MAX</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-muted" style="font-size:0.75rem;">Measure (column)</label>
+        <select id="cfgMeasure" class="context-select" style="width:100%;"></select>
+      </div>
+      <div>
+        <button onclick="runBuilder()" class="btn-primary" style="width:100%;">Run</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI cards -->
+  <div id="kpiRow" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; margin-top:1rem; display:none;"></div>
+
+  <!-- Chart + Table -->
+  <div class="glass-card" id="resultCard" style="margin-top:1rem; display:none;">
+    <h4 id="resultTitle">Result</h4>
+    <div id="chart" style="margin:1rem 0;"></div>
+    <div class="table-wrapper" style="max-height:340px; overflow:auto;">
+      <table id="resultTable"><thead id="resultHead"></thead><tbody id="resultBody"></tbody></table>
+    </div>
+  </div>
+
+  <!-- Execution plan / trace -->
+  <div class="glass-card" id="planCard" style="margin-top:1rem; display:none; border-left:3px solid var(--primary);">
+    <h4>Execution plan <span id="planStrategy" class="badge-sync" style="background:var(--primary);"></span></h4>
+    <div id="planSummary" class="text-muted" style="font-size:0.85rem; margin:0.5rem 0;"></div>
+    <div id="planLegs"></div>
+    <div id="planWarnings" style="margin-top:0.5rem;"></div>
+  </div>
+</div>
+
+<script>
+  const AGG_LABELS = { COUNT:'count', SUM:'total', AVG:'avg', MIN:'min', MAX:'max' };
+  let TOP = [];  // top executed saved analytics for this tenant
+
+  function num(v){ const n = Number(v); return Number.isFinite(n) ? n : null; }
+
+  async function api(path, body){
+    const res = await fetch(`${API_BASE}${path}`, { method:'POST', headers:getAuthHeaders(), body:JSON.stringify(body) });
+    return res.json();
+  }
+  async function getJson(path){
+    const res = await fetch(`${API_BASE}${path}`, { headers:getAuthHeaders() });
+    return res.json();
+  }
+
+  // ---------- population ----------
+  let SOURCES = [];
+  async function loadSources(){
+    SOURCES = await getJson('/metadata/sources');
+    const sel = document.getElementById('cfgSource');
+    sel.innerHTML = SOURCES.map(s => `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)} (${escapeHtml(s.type)})</option>`).join('');
+    sel.addEventListener('change', onSourceChange);
+    await onSourceChange();
+  }
+
+  async function onSourceChange(){
+    const name = document.getElementById('cfgSource').value;
+    const src = SOURCES.find(s => s.name === name);
+    const resSel = document.getElementById('cfgResource');
+    resSel.innerHTML = '<option>…</option>';
+    if(!src){ return; }
+    // sources -> schemas -> tables
+    const schemas = await getJson(`/metadata/schemas?sourceId=${encodeURIComponent(src.id)}`);
+    let resources = [];
+    for(const sc of (Array.isArray(schemas)?schemas:[])){
+      const tables = await getJson(`/metadata/tables?schemaId=${encodeURIComponent(sc.schemaId||sc.id)}`);
+      for(const t of (Array.isArray(tables)?tables:[])){
+        const rt = (t.resourceType||t.resource_type||'TABLE');
+        if(['TABLE','VIEW','MATERIALIZED_VIEW','FOREIGN_TABLE'].includes(rt)) resources.push(t.name);
+      }
+    }
+    resources = [...new Set(resources)];
+    resSel.innerHTML = resources.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('') || '<option value="">(none)</option>';
+    resSel.onchange = onResourceChange;
+    await onResourceChange();
+  }
+
+  async function onResourceChange(){
+    const source = document.getElementById('cfgSource').value;
+    const resource = document.getElementById('cfgResource').value;
+    const dimSel = document.getElementById('cfgDimension');
+    const meaSel = document.getElementById('cfgMeasure');
+    dimSel.innerHTML = ''; meaSel.innerHTML = '<option value="">(none — COUNT rows)</option>';
+    if(!resource) return;
+    try {
+      const cols = await getJson(`/metadata/columns?source=${encodeURIComponent(source)}&resource=${encodeURIComponent(resource)}`);
+      const list = Array.isArray(cols) ? cols : (cols.columns || cols.data || []);
+      for(const c of list){
+        const name = c.name || c.column_name || c;
+        dimSel.innerHTML += `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
+        meaSel.innerHTML += `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
+      }
+    } catch(e){ /* columns optional */ }
+  }
+
+  // ---------- run ----------
+  function buildAggQuery(source, resource, dim, agg, measure){
+    return { type:'SELECT', schema:'public', limit:200, query:{
+      from:{ resource, source }, groupBy:[dim],
+      select:[ dim, { aggregate:agg, column: measure || '*', alias:'value' } ],
+    }};
+  }
+
+  let lastBuilderConfig = null;
+  async function runBuilder(){
+    const source = document.getElementById('cfgSource').value;
+    const resource = document.getElementById('cfgResource').value;
+    const dim = document.getElementById('cfgDimension').value;
+    const agg = document.getElementById('cfgAgg').value;
+    const measure = document.getElementById('cfgMeasure').value || null;
+    if(!resource || !dim){ showModal('Pick fields','Choose a resource and a dimension to group by.'); return; }
+    const title = `${AGG_LABELS[agg]}${measure?`(${measure})`:''} of ${resource} by ${dim} — ${source}`;
+    lastBuilderConfig = buildAggQuery(source, resource, dim, agg, measure);
+    await runAndRender(lastBuilderConfig, { dim, title, source });
+  }
+
+  // ---------- top executed analytics (real, tenant-scoped) ----------
+  async function loadTopAnalytics(){
+    const row = document.getElementById('presetRow');
+    try { TOP = await getJson('/saved-analytics/top?limit=10'); } catch(e){ TOP = []; }
+    if(!Array.isArray(TOP) || !TOP.length){
+      row.innerHTML = `<span class="text-muted" style="font-size:0.8rem;">No saved analytics yet — build one in <a href="/analytics/custom">Custom Analytics</a>, run it, and your most-used ones appear here.</span>`;
+      return;
+    }
+    row.innerHTML = TOP.map((a,i)=>{
+      const runs = a.runCount ? ` <span style="opacity:0.6;">· ${a.runCount}×</span>` : '';
+      return `<button class="btn-outline" style="font-size:0.8rem;" onclick="runTop(${i})">${escapeHtml(a.name)}${runs}</button>`;
+    }).join('');
+  }
+
+  async function runTop(i){
+    const a = TOP[i];
+    // Fill defaults for any variables; ask only if a required one has no default.
+    const vals = {};
+    const missing = [];
+    for(const v of (a.variables||[])){
+      if(v.default!==undefined && v.default!==null && v.default!=='') vals[v.name]=v.default;
+      else if(v.required) missing.push(v.name);
+    }
+    if(missing.length){
+      showModal('Inputs needed', `"${a.name}" needs value(s) for: ${missing.join(', ')}. Open it in Custom Analytics → Play to provide them.`);
+      return;
+    }
+    document.getElementById('resultTitle').innerText = a.name;
+    try {
+      const res = await fetch(`${API_BASE}/saved-analytics/${a.id}/run`, { method:'POST', headers:getAuthHeaders(), body:JSON.stringify({ variables: vals }) });
+      const r = await res.json();
+      if(!res.ok || r.error){ showModal('Run failed', r.error || 'error'); return; }
+      const dim = (a.variables && a.variables[0] && a.variables[0].name) || null;
+      renderKpis(r, { title:a.name });
+      renderChartTable(r, { title:a.name, dim: (r.data && r.data[0] && ('value' in r.data[0])) ? Object.keys(r.data[0]).find(k=>k!=='value') : null });
+      renderPlan(r);
+    } catch(e){ showModal('Error', e.message); }
+  }
+
+  async function runAndRender(queryConfig, opts){
+    document.getElementById('resultTitle').innerText = opts.title;
+    try {
+      const r = await api('/analytics/query', { queryConfig });
+      if(r.error){ showModal('Query failed', r.error); return; }
+      renderKpis(r, opts);
+      renderChartTable(r, opts);
+      renderPlan(r);
+    } catch(e){ showModal('Error', e.message); }
+  }
+
+  function renderKpis(r, opts){
+    const rows = r.data || [];
+    const p = r.plan || {};
+    let grand = null;
+    if(!opts.noChart){ grand = rows.reduce((s,row)=>{ const v=num(row.value); return v!==null?s+v:s; }, 0); }
+    const cards = [
+      { label:'Rows returned', value: r.rowCount ?? rows.length },
+      ...(grand!==null ? [{ label:'Grand total', value: grand.toLocaleString(undefined,{maximumFractionDigits:2}) }] : []),
+      { label:'Execution time', value: (p.executionMs ?? '—') + ' ms' },
+      { label:'Rows pulled from sources', value: p.rowsScannedAcrossSources ?? '—' },
+      { label:'Strategy', value: p.strategy || '—' },
+    ];
+    const row = document.getElementById('kpiRow');
+    row.style.display = 'grid';
+    row.innerHTML = cards.map(c => `
+      <div class="glass-card" style="background:var(--bg); text-align:center; padding:1rem;">
+        <div style="font-size:1.6rem; font-weight:700;">${escapeHtml(c.value)}</div>
+        <div class="text-muted" style="font-size:0.75rem;">${escapeHtml(c.label)}</div>
+      </div>`).join('');
+  }
+
+  function renderChartTable(r, opts){
+    const rows = r.data || [];
+    document.getElementById('resultCard').style.display = 'block';
+    // chart
+    const chart = document.getElementById('chart');
+    if(opts.noChart || !opts.dim){ chart.innerHTML = ''; }
+    else {
+      const items = rows.map(row => ({ label: row[opts.dim], value: num(row.value) ?? 0 }))
+        .sort((a,b)=>b.value-a.value).slice(0,15);
+      const max = Math.max(1, ...items.map(i=>i.value));
+      chart.innerHTML = items.map(i => `
+        <div style="display:flex; align-items:center; gap:0.5rem; margin:0.25rem 0;">
+          <div style="width:140px; font-size:0.8rem; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(i.label)}</div>
+          <div style="flex:1; background:var(--surface-hover); border-radius:4px;">
+            <div style="width:${(i.value/max*100).toFixed(1)}%; background:var(--primary); height:18px; border-radius:4px;"></div>
+          </div>
+          <div style="width:90px; font-size:0.8rem; font-variant-numeric:tabular-nums;">${escapeHtml(i.value.toLocaleString(undefined,{maximumFractionDigits:2}))}</div>
+        </div>`).join('');
+    }
+    // table
+    const cols = rows.length ? Object.keys(rows[0]) : [];
+    document.getElementById('resultHead').innerHTML = '<tr>' + cols.map(c=>`<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
+    document.getElementById('resultBody').innerHTML = rows.slice(0,200).map(row =>
+      '<tr>' + cols.map(c=>`<td>${escapeHtml(row[c])}</td>`).join('') + '</tr>').join('');
+  }
+
+  function renderPlan(r){
+    const p = r.plan || {};
+    document.getElementById('planCard').style.display = 'block';
+    document.getElementById('planStrategy').innerText = p.strategy || '';
+    document.getElementById('planSummary').innerText =
+      `Total ${p.executionMs ?? '—'} ms · ${(p.legs||[]).length} leg(s) · ${p.rowsScannedAcrossSources ?? '—'} rows pulled from sources`;
+    document.getElementById('planLegs').innerHTML = (p.legs||[]).map(l => `
+      <div style="background:var(--bg); border-radius:6px; padding:0.6rem 0.8rem; margin:0.4rem 0; font-size:0.82rem;">
+        <div><strong>${escapeHtml(l.source)}</strong>
+          <span class="badge-sync" style="background:var(--surface-hover);">${escapeHtml(l.engine)}/${escapeHtml(l.mode)}</span>
+          <span class="text-muted">${escapeHtml(l.operation)}</span>
+          → <strong>${escapeHtml(l.rowsReturned)}</strong> rows in ${escapeHtml(l.ms)}ms</div>
+        <code style="display:block; margin-top:0.3rem; color:var(--text-muted); white-space:pre-wrap; word-break:break-all;">${escapeHtml(l.query)}</code>
+      </div>`).join('') || '<div class="text-muted">No per-leg detail.</div>';
+    const warns = r.warnings || [];
+    document.getElementById('planWarnings').innerHTML = warns.length
+      ? warns.map(w=>`<div style="color:var(--warning,#d97706); font-size:0.8rem;">⚠ ${escapeHtml(w)}</div>`).join('') : '';
+  }
+
+  // ---------- init ----------
+  document.addEventListener('DOMContentLoaded', () => { loadSources(); loadTopAnalytics(); });
+</script>
+
+<%- include('partials/footer') %>

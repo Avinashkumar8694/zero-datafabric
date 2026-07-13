@@ -16,6 +16,7 @@ const DOC_LIST = [
   { id: 'crud-update.md', title: 'API: Update' },
   { id: 'crud-delete.md', title: 'API: Delete' },
   { id: 'complex-crud-examples.md', title: 'Complex CRUD Scenarios' },
+  { id: 'polyglot-integration-examples.md', title: 'Polyglot Integration (SQL/Mongo/ES)' },
   { id: 'queries-cookbook.md', title: 'Queries Cookbook' },
   { id: 'manifests-cookbook.md', title: 'Manifests Cookbook' },
   { id: 'schema-specification.md', title: 'Schema Specification' },

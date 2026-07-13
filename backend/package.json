@@ -5,7 +5,12 @@
   "scripts": {
     "start": "ts-node src/index.ts",
     "dev": "ts-node src/index.ts",
-    "db:migrate": "ts-node src/config/migrate.ts",
+    "typeorm": "ts-node ./node_modules/typeorm/cli.js",
+    "db:migrate":        "ts-node ./node_modules/typeorm/cli.js migration:run -d src/config/data-source.ts",
+    "migration:run":     "ts-node ./node_modules/typeorm/cli.js migration:run -d src/config/data-source.ts",
+    "migration:revert":  "ts-node ./node_modules/typeorm/cli.js migration:revert -d src/config/data-source.ts",
+    "migration:status":  "ts-node ./node_modules/typeorm/cli.js migration:show -d src/config/data-source.ts",
+    "migration:create":  "ts-node ./node_modules/typeorm/cli.js migration:create",
     "db:seed": "ts-node src/seed_admin.ts",
     "db:verify": "ts-node src/verify_login.ts",
     "test": "jest",
@@ -35,9 +40,11 @@
     "oracledb": "^7.0.0",
     "pg": "^8.20.0",
     "pg-query-stream": "^4.16.0",
+    "reflect-metadata": "^0.2.2",
     "socket.io": "^4.8.3",
     "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "typeorm": "^1.0.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",

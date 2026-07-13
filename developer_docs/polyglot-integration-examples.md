@@ -1,6 +1,6 @@
 # Polyglot Relational Integration (Postgres, Mongo, ES, MySQL, Oracle)
 
-This document is a comprehensive guide to query routing, federation, and dialect compilation across different database engines (PostgreSQL, MongoDB, Elasticsearch, MySQL, and Oracle DB) under the Zero Data Fabric.
+This document is a comprehensive guide to query routing, federation, and dialect compilation across different database engines (PostgreSQL, MongoDB, Elasticsearch, MySQL, and Oracle DB) under the Zero Data Fabric, complete with executable `curl` commands.
 
 ---
 
@@ -18,52 +18,62 @@ This document is a comprehensive guide to query routing, federation, and dialect
 
 ## 2. Master Polyglot Query Scenarios
 
+To run any of these federated queries, send the payloads to the query execution endpoint:
+
+* **Endpoint**: `POST /api/analytics/query`
+* **Headers**:
+  * `Authorization: Bearer $JWT_TOKEN`
+  * `x-tenant-id: tenant_A`
+  * `Content-Type: application/json`
+
 ---
 
 ### Scenario A: Complex Bind-Join (Oracle DB ⋈ MongoDB ⋈ PostgreSQL)
+
 Join Oracle warehouse products with MongoDB customer events logs and PostgreSQL local user records.
 
-#### The Goal:
-Retrieve orders where the customer is active in PostgreSQL, the event activity is logged in MongoDB, and the catalog price is retrieved from Oracle DB.
-
-#### Relational AST Query:
-```json
-{
-  "queryConfig": {
-    "type": "SELECT",
-    "schema": "public",
-    "limit": 100,
-    "query": {
-      "select": [
-        "u.name",
-        "u.email",
-        "m.event_name",
-        "o.product_name",
-        "o.price"
-      ],
-      "from": { "resource": "users", "source": "Fabric_Hub_Postgres", "alias": "u" },
-      "joins": [
-        {
-          "type": "INNER",
-          "resource": "web_events",
-          "source": "Web_Analytics_Mongo",
-          "alias": "m",
-          "on": { "left": "u.id", "operator": "EQ", "right": "m.user_id" }
-        },
-        {
-          "type": "INNER",
-          "resource": "catalog_products",
-          "source": "Oracle_ERP",
-          "alias": "o",
-          "on": { "left": "m.product_sku", "operator": "EQ", "right": "o.sku" }
-        }
-      ],
-      "where": [
-        { "column": "u.status", "operator": "EQ", "value": "ACTIVE" }
-      ]
+#### Curl Command:
+```bash
+curl -X POST http://localhost:4000/api/analytics/query \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "x-tenant-id: tenant_A" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "queryConfig": {
+      "type": "SELECT",
+      "schema": "public",
+      "limit": 100,
+      "query": {
+        "select": [
+          "u.name",
+          "u.email",
+          "m.event_name",
+          "o.product_name",
+          "o.price"
+        ],
+        "from": { "resource": "users", "source": "Fabric_Hub_Postgres", "alias": "u" },
+        "joins": [
+          {
+            "type": "INNER",
+            "resource": "web_events",
+            "source": "Web_Analytics_Mongo",
+            "alias": "m",
+            "on": { "left": "u.id", "operator": "EQ", "right": "m.user_id" }
+          },
+          {
+            "type": "INNER",
+            "resource": "catalog_products",
+            "source": "Oracle_ERP",
+            "alias": "o",
+            "on": { "left": "m.product_sku", "operator": "EQ", "right": "o.sku" }
+          }
+        ],
+        "where": [
+          { "column": "u.status", "operator": "EQ", "value": "ACTIVE" }
+        ]
+      }
     }
-  }
-}
+  }'
 ```
 
 #### Compiled Step-by-Step Executions:
@@ -81,36 +91,39 @@ Retrieve orders where the customer is active in PostgreSQL, the event activity i
    ```sql
    SELECT sku, product_name, price FROM RETAIL.catalog_products WHERE sku IN ('SKU-100', 'SKU-205', 'SKU-409');
    ```
-4. **Federated Merge**:
-   The coordinator links keys in-memory and returns the unified records.
 
 ---
 
 ### Scenario B: Multi-Source Aggregations (MySQL ∪ Oracle DB)
+
 Compute total sales partitioned by category running on MySQL and Oracle DB in parallel.
 
-#### Relational AST Query:
-```json
-{
-  "queryConfig": {
-    "type": "SELECT",
-    "schema": "public",
-    "query": {
-      "union": [
-        {
-          "from": { "resource": "sales_historical", "source": "MySQL_Archive" },
-          "groupBy": ["category"],
-          "select": ["category", { "aggregate": "SUM", "column": "amount", "alias": "total" }]
-        },
-        {
-          "from": { "resource": "sales_live", "source": "Oracle_ERP" },
-          "groupBy": ["category"],
-          "select": ["category", { "aggregate": "SUM", "column": "amount", "alias": "total" }]
-        }
-      ]
+#### Curl Command:
+```bash
+curl -X POST http://localhost:4000/api/analytics/query \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "x-tenant-id: tenant_A" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "queryConfig": {
+      "type": "SELECT",
+      "schema": "public",
+      "query": {
+        "union": [
+          {
+            "from": { "resource": "sales_historical", "source": "MySQL_Archive" },
+            "groupBy": ["category"],
+            "select": ["category", { "aggregate": "SUM", "column": "amount", "alias": "total" }]
+          },
+          {
+            "from": { "resource": "sales_live", "source": "Oracle_ERP" },
+            "groupBy": ["category"],
+            "select": ["category", { "aggregate": "SUM", "column": "amount", "alias": "total" }]
+          }
+        ]
+      }
     }
-  }
-}
+  }'
 ```
 
 #### Compiled Database Actions:
@@ -126,43 +139,48 @@ Compute total sales partitioned by category running on MySQL and Oracle DB in pa
 ---
 
 ### Scenario C: Hierarchical Organization Chart (PostgreSQL CTE)
+
 Trace nested employee hierarchies recursively (PostgreSQL-specific).
 
-#### Relational AST Query:
-```json
-{
-  "queryConfig": {
-    "type": "SELECT",
-    "schema": "public",
-    "query": {
-      "with": [
-        {
-          "name": "org_tree",
-          "columns": ["id", "name", "manager_id", "level"],
-          "base": {
-            "select": ["id", "name", "manager_id", { "expression": "1", "alias": "level" }],
-            "from": { "resource": "employees", "source": "Fabric_Hub_Postgres" },
-            "where": [{ "column": "manager_id", "operator": "IS_NULL" }]
-          },
-          "unionAll": {
-            "select": ["e.id", "e.name", "e.manager_id", { "expression": "ot.level + 1" }],
-            "from": { "resource": "employees", "source": "Fabric_Hub_Postgres", "alias": "e" },
-            "joins": [
-              {
-                "type": "INNER",
-                "resource": "org_tree",
-                "alias": "ot",
-                "on": { "left": "e.manager_id", "operator": "EQ", "right": "ot.id" }
-              }
-            ]
+#### Curl Command:
+```bash
+curl -X POST http://localhost:4000/api/analytics/query \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "x-tenant-id: tenant_A" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "queryConfig": {
+      "type": "SELECT",
+      "schema": "public",
+      "query": {
+        "with": [
+          {
+            "name": "org_tree",
+            "columns": ["id", "name", "manager_id", "level"],
+            "base": {
+              "select": ["id", "name", "manager_id", { "expression": "1", "alias": "level" }],
+              "from": { "resource": "employees", "source": "Fabric_Hub_Postgres" },
+              "where": [{ "column": "manager_id", "operator": "IS_NULL" }]
+            },
+            "unionAll": {
+              "select": ["e.id", "e.name", "e.manager_id", { "expression": "ot.level + 1" }],
+              "from": { "resource": "employees", "source": "Fabric_Hub_Postgres", "alias": "e" },
+              "joins": [
+                {
+                  "type": "INNER",
+                  "resource": "org_tree",
+                  "alias": "ot",
+                  "on": { "left": "e.manager_id", "operator": "EQ", "right": "ot.id" }
+                }
+              ]
+            }
           }
-        }
-      ],
-      "select": ["*"],
-      "from": { "resource": "org_tree" }
+        ],
+        "select": ["*"],
+        "from": { "resource": "org_tree" }
+      }
     }
-  }
-}
+  }'
 ```
 
 #### Compiled Database Action:
@@ -179,31 +197,36 @@ SELECT * FROM org_tree;
 ---
 
 ### Scenario D: Text Search (Elasticsearch Index Query)
+
 Hit Elasticsearch search engines directly to query structured log records.
 
-#### Relational AST Query:
-```json
-{
-  "queryConfig": {
-    "type": "SELECT",
-    "schema": "public",
-    "limit": 20,
-    "query": {
-      "select": ["id", "log_level", "message"],
-      "from": { "resource": "system_logs", "source": "Log_Elasticsearch" },
-      "where": [
-        { "column": "log_level", "operator": "EQ", "value": "ERROR" },
-        {
-          "search": {
-            "column": "message",
-            "type": "FULL_TEXT",
-            "query": "out of memory"
+#### Curl Command:
+```bash
+curl -X POST http://localhost:4000/api/analytics/query \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "x-tenant-id: tenant_A" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "queryConfig": {
+      "type": "SELECT",
+      "schema": "public",
+      "limit": 20,
+      "query": {
+        "select": ["id", "log_level", "message"],
+        "from": { "resource": "system_logs", "source": "Log_Elasticsearch" },
+        "where": [
+          { "column": "log_level", "operator": "EQ", "value": "ERROR" },
+          {
+            "search": {
+              "column": "message",
+              "type": "FULL_TEXT",
+              "query": "out of memory"
+            }
           }
-        }
-      ]
+        ]
+      }
     }
-  }
-}
+  }'
 ```
 
 #### Compiled Elasticsearch DSL:
@@ -224,23 +247,28 @@ Hit Elasticsearch search engines directly to query structured log records.
 ---
 
 ### Scenario E: Procedural PL/SQL calls (Oracle DB Function)
+
 Invoke custom procedures registered on Oracle Database.
 
-#### Relational AST Query:
-```json
-{
-  "queryConfig": {
-    "type": "CALL",
-    "schema": "public",
-    "query": {
-      "procedure": "process_inventory_audit",
-      "source": "Oracle_ERP",
-      "arguments": [
-        { "name": "p_store_id", "type": "NUMBER", "value": 501 }
-      ]
+#### Curl Command:
+```bash
+curl -X POST http://localhost:4000/api/analytics/query \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "x-tenant-id: tenant_A" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "queryConfig": {
+      "type": "CALL",
+      "schema": "public",
+      "query": {
+        "procedure": "process_inventory_audit",
+        "source": "Oracle_ERP",
+        "arguments": [
+          { "name": "p_store_id", "type": "NUMBER", "value": 501 }
+        ]
+      }
     }
-  }
-}
+  }'
 ```
 
 #### Compiled Oracle PL/SQL Action:

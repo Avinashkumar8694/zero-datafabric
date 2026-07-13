@@ -1,6 +1,6 @@
 # Data Governance & Row-Level Security (RLS) Guide
 
-This document describes how to configure role-based access control, Row-Level Security (RLS) policies, and dynamic column masking on data resources inside the Zero Data Fabric.
+This document describes how to configure role-based access control, Row-Level Security (RLS) policies, and dynamic column masking on data resources inside the Zero Data Fabric, complete with executable `curl` commands.
 
 ---
 
@@ -8,37 +8,62 @@ This document describes how to configure role-based access control, Row-Level Se
 
 RLS policies filter table records dynamically during select, update, and delete queries depending on user session attributes (like tenant ID, region, or department).
 
-### Scenario: Tenant Isolation & Status Gating
-Apply rules ensuring users only read records matching their active tenant session and hide deleted records.
+### A. Manifest Configuration (`manifest.json`)
+Apply rules ensuring users only read records matching their active tenant session:
 
 ```json
-"security": {
-  "enable_rls": true,
-  "policies": [
+{
+  "version": "4.0",
+  "namespace": "Governance_Core",
+  "targetSource": "Fabric_Hub_Postgres",
+  "schemas": [
     {
-      "name": "tenant_isolation",
-      "roles": ["fabric_user"],
-      "using": "tenant_id = current_setting('\''app.current_tenant_id'\'')"
-    },
-    {
-      "name": "hide_soft_deleted",
-      "using": "deleted_at IS NULL"
+      "name": "public",
+      "resources": [
+        {
+          "type": "TABLE",
+          "name": "shipments",
+          "columns": [
+            { "name": "id", "type": "UUID", "strategy": "UUID_V7", "primaryKey": true },
+            { "name": "tenant_id", "type": "STRING", "nullable": false },
+            { "name": "region", "type": "STRING", "length": 10 },
+            { "name": "deleted_at", "type": "TIMESTAMP", "nullable": true }
+          ],
+          "security": {
+            "enable_rls": true,
+            "policies": [
+              {
+                "name": "tenant_isolation",
+                "roles": ["fabric_user"],
+                "using": "tenant_id = current_setting('\''app.current_tenant_id'\'')"
+              },
+              {
+                "name": "hide_soft_deleted",
+                "using": "deleted_at IS NULL"
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }
 ```
 
-### Compiled Database Action:
-When a query is dispatched, the coordinator sets session properties inside the database connection transaction context:
+### B. Applying Policies via API
+Submit the manifest to activate RLS:
 
-```sql
--- Coordinator pre-query setup
-SET LOCAL app.current_tenant_id = 'tenant_A';
+* **Endpoint**: `POST /api/metadata/apply`
+* **Headers**:
+  * `Authorization: Bearer $JWT_TOKEN`
+  * `x-tenant-id: tenant_A`
+  * `Content-Type: multipart/form-data`
 
--- The query is compiled with the policy conditions appended automatically
-SELECT * FROM "public"."shipments" 
-WHERE ("tenant_id" = current_setting('app.current_tenant_id'))
-  AND ("deleted_at" IS NULL);
+```bash
+curl -X POST http://localhost:4000/api/metadata/apply \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "x-tenant-id: tenant_A" \
+  -F "file=@manifest.json"
 ```
 
 ---
@@ -47,30 +72,67 @@ WHERE ("tenant_id" = current_setting('app.current_tenant_id'))
 
 Column masking allows administrators to redact or hash sensitive fields (like emails, phone numbers, or metadata payloads) for specific user roles.
 
-### Scenario: Redacting client metadata for viewers
-A role of type `logistics_viewer` can select shipments, but the `metadata` JSON column must be masked.
+### A. Manifest Configuration (`manifest.json`)
+Mask the `metadata` column for the `logistics_viewer` role:
 
 ```json
-"security": {
-  "masking": [
+{
+  "version": "4.0",
+  "namespace": "Governance_Core",
+  "targetSource": "Fabric_Hub_Postgres",
+  "schemas": [
     {
-      "column": "metadata",
-      "roles": ["logistics_viewer"],
-      "expression": "'\''REDACTED'\''::jsonb"
+      "name": "public",
+      "resources": [
+        {
+          "type": "TABLE",
+          "name": "shipments",
+          "columns": [
+            { "name": "id", "type": "UUID", "strategy": "UUID_V7", "primaryKey": true },
+            { "name": "region", "type": "STRING", "length": 10 },
+            { "name": "metadata", "type": "JSONB" }
+          ],
+          "security": {
+            "masking": [
+              {
+                "column": "metadata",
+                "roles": ["logistics_viewer"],
+                "expression": "'\''REDACTED'\''::jsonb"
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }
 ```
 
-### Compiled Query Evaluation:
-If the active session caller maps to the `logistics_viewer` role, the engine rewrites the projection list before executing:
+### B. Querying to Verify Masking
+Execute a select query using the `logistics_viewer` token:
 
-```sql
--- Original SELECT id, region, metadata FROM shipments;
--- Compiled representation:
-SELECT "id", "region", 'REDACTED'::jsonb AS "metadata" 
-FROM "public"."shipments" 
-WHERE ("deleted_at" IS NULL);
+* **Endpoint**: `POST /api/analytics/query`
+* **Headers**:
+  * `Authorization: Bearer $LOGISTICS_VIEWER_JWT_TOKEN`
+  * `x-tenant-id: tenant_A`
+  * `Content-Type: application/json`
+
+```bash
+curl -X POST http://localhost:4000/api/analytics/query \
+  -H "Authorization: Bearer $LOGISTICS_VIEWER_JWT_TOKEN" \
+  -H "x-tenant-id: tenant_A" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "queryConfig": {
+      "type": "SELECT",
+      "schema": "public",
+      "limit": 10,
+      "query": {
+        "select": ["id", "region", "metadata"],
+        "from": { "resource": "shipments" }
+      }
+    }
+  }'
 ```
 
 ---

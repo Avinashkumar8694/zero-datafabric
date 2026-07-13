@@ -37,13 +37,17 @@ Provide variable maps with standard configuration properties:
 ```json
 "variables": [
   { "name": "region", "type": "string", "required": true },
-  { "name": "sales_limit", "type": "number", "default": 10 }
+  { "name": "row_limit", "type": "number", "default": 10 }
 ]
 ```
 
 ### Step 3: Register via API
-Submit the payload to the registry endpoint:
-<code class="docs-badge">POST /api/saved-analytics</code>
+
+* **Endpoint**: `POST /api/saved-analytics`
+* **Headers**:
+  * `Authorization: Bearer $JWT_TOKEN`
+  * `x-tenant-id: tenant_A`
+  * `Content-Type: application/json`
 
 #### Example Request: AST Mode Widget
 Create a regional sales dashboard widget tracking categories:
@@ -71,6 +75,9 @@ curl -X POST http://localhost:4000/api/saved-analytics \
         "select": [
           "category",
           { "aggregate": "SUM", "column": "total_amount", "alias": "revenue" }
+        ],
+        "where": [
+          { "column": "region", "operator": "EQ", "value": "{{region}}" }
         ],
         "orderBy": [{ "column": "revenue", "direction": "DESC" }]
       }
@@ -104,10 +111,12 @@ curl -X POST http://localhost:4000/api/saved-analytics \
 
 To execute the registered analytical metrics from the frontend client, post the inputs payload to the run endpoint:
 
-<code class="docs-badge">POST /api/saved-analytics/:id/run</code>
+* **Endpoint**: `POST /api/saved-analytics/:id/run`
+* **Headers**:
+  * `Authorization: Bearer $JWT_TOKEN`
+  * `Content-Type: application/json`
 
 ```bash
-# Executing by passing the variable inputs
 curl -X POST http://localhost:4000/api/saved-analytics/12c3d4/run \
   -H "Authorization: Bearer $JWT_TOKEN" \
   -H "Content-Type: application/json" \

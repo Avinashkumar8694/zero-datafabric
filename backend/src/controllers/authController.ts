@@ -1,8 +1,7 @@
 /**
  * @module controllers/authController
  * @description Authentication endpoints: username/password login (issues the
- * initial bearer token) and tenant-scoped token exchange ("act as this tenant")
- * for users who belong to / administer more than one tenant.
+ * initial bearer token), tenant-scoped token exchange, and OIDC/SSO flow.
  */
 
 import { Request, Response } from 'express';
@@ -13,18 +12,14 @@ import { TenantService } from '../modules/tenant/tenant.service';
 import { pool } from '../config/database';
 import crypto from 'crypto';
 
+const IDS_BASE     = process.env.IDS_BASE_URL      || 'http://localhost:3000';
+const API_BASE     = process.env.API_BASE_URL       || 'http://localhost:4000';
+const UI_BASE      = process.env.UI_BASE_URL        || 'http://localhost:3001';
+const OIDC_CLIENT  = process.env.OIDC_CLIENT_ID     || 'zero-datafabric';
+const OIDC_SECRET  = process.env.OIDC_CLIENT_SECRET || 'super-secret-key-fabric';
+
 /**
  * Authenticate a user with a username/password pair and issue a bearer token.
- *
- * Delegates credential verification and token minting to `AuthService.login`.
- * Does not require an existing session — this is the public entry point used
- * by the login form.
- *
- * @param req - Express request. `req.body.username` and `req.body.password` are required.
- * @param res - Express response.
- * @returns 200 with the `AuthService.login` result (typically `(token, user)`) on success;
- *   401 `(error: 'Invalid credentials')` when the credentials don't match; 500 `(error)`
- *   on unexpected failures (e.g. database errors).
  */
 export const login = async (req: Request, res: Response) => {
   const { username, password } = req.body;
@@ -39,21 +34,7 @@ export const login = async (req: Request, res: Response) => {
 
 /**
  * Exchange the caller's current session for a new bearer token scoped to a
- * specific tenant. Used by multi-tenant users/admins to switch the active
- * tenant without re-entering credentials.
- *
- * Requires an already-authenticated request (populated by the auth
- * middleware onto `req.user`); the new token carries the same internal role
- * and username but is scoped to `tenantId`.
- *
- * @param req - Express request. Requires `(req as any).user` (from auth middleware,
- *   with `username` and `internal_role`). `req.body.tenantId` is required — the tenant
- *   to scope the new token to.
- * @param res - Express response.
- * @returns 200 `(token)` with the newly minted, tenant-scoped bearer token.
- * @throws Responds 401 `(error: 'Authentication required')` when there is no
- *   authenticated user on the request; 400 `(error: 'tenantId is required')` when
- *   `tenantId` is missing from the body.
+ * specific tenant.
  */
 export const refreshToken = (req: Request, res: Response) => {
   const user = (req as any).user;
@@ -73,13 +54,19 @@ export const refreshToken = (req: Request, res: Response) => {
  * Redirect user to OIDC provider login interface.
  */
 export const sso = (req: Request, res: Response) => {
-  const oidcUrl = `http://localhost:3000/oidc/auth?client_id=zero-datafabric&redirect_uri=http://localhost:4000/api/auth/sso/callback&response_type=code&scope=openid email profile&state=state_datafabric`;
+  const redirectUri = encodeURIComponent(`${API_BASE}/api/auth/sso/callback`);
+  const oidcUrl = `${IDS_BASE}/oidc/auth?client_id=${OIDC_CLIENT}&redirect_uri=${redirectUri}&response_type=code&scope=openid%20email%20profile&state=state_datafabric`;
   res.redirect(oidcUrl);
 };
 
 /**
- * Handle OIDC authentication callback, exchange authorization code,
- * auto-provision tenant/user, issue JWT and redirect back to UI.
+ * Handle OIDC authentication callback:
+ *  1. Exchange code for tokens
+ *  2. Try to get email from ID token
+ *  3. If not present, call userinfo (/oidc/me) with the access_token
+ *  4. Fall back to sub-based identifier if still no email
+ *  5. Auto-provision tenant + user if first login
+ *  6. Issue fabric JWT and redirect to UI
  */
 export const ssoCallback = async (req: Request, res: Response) => {
   const { code } = req.query;
@@ -88,96 +75,125 @@ export const ssoCallback = async (req: Request, res: Response) => {
   }
 
   try {
+    // ── Step 1: Exchange authorization code for tokens ──────────────────────
     const params = new URLSearchParams();
     params.append('grant_type', 'authorization_code');
     params.append('code', String(code));
-    params.append('redirect_uri', 'http://localhost:4000/api/auth/sso/callback');
-    params.append('client_id', 'zero-datafabric');
-    params.append('client_secret', 'super-secret-key-fabric');
+    params.append('redirect_uri', `${API_BASE}/api/auth/sso/callback`);
+    params.append('client_id', OIDC_CLIENT);
+    params.append('client_secret', OIDC_SECRET);
 
-    const tokenRes = await axios.post('http://localhost:3000/oidc/token', params, {
+    const tokenRes = await axios.post(`${IDS_BASE}/oidc/token`, params, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
     });
 
-    const { id_token } = tokenRes.data;
+    const { id_token, access_token } = tokenRes.data;
     if (!id_token) {
       throw new Error('Identity provider did not return an ID token');
     }
 
+    // ── Step 2: Decode ID token — email may or may not be present ───────────
     const decoded = jwt.decode(id_token) as any;
-    if (!decoded || !decoded.email) {
-      throw new Error('Could not decode user information from ID token');
+    console.log('[SSO] ID token claims:', JSON.stringify(decoded));
+
+    let email: string | null = decoded?.email?.toLowerCase() || null;
+    let sub: string = decoded?.sub || '';
+
+    // ── Step 3: If email missing, call userinfo endpoint ────────────────────
+    if (!email && access_token) {
+      try {
+        const userInfoRes = await axios.get(`${IDS_BASE}/oidc/me`, {
+          headers: { Authorization: `Bearer ${access_token}` }
+        });
+        console.log('[SSO] Userinfo claims:', JSON.stringify(userInfoRes.data));
+        email = userInfoRes.data?.email?.toLowerCase() || null;
+        sub   = userInfoRes.data?.sub || sub;
+      } catch (uiErr: any) {
+        console.warn('[SSO] Userinfo endpoint failed:', uiErr.message);
+      }
     }
 
-    const email = decoded.email.toLowerCase();
-    
-    // Check if user exists in public.users
-    const userRes = await pool.query('SELECT * FROM public.users WHERE username = $1', [email]);
-    
-    let user;
+    // ── Step 4: Build stable identifier — email preferred, sub as fallback ──
+    if (!email) {
+      if (!sub) {
+        throw new Error('Could not determine user identity from ID token or userinfo endpoint');
+      }
+      email = `${sub}@sso.local`;
+      console.warn(`[SSO] No email claim — using sub-based identifier: ${email}`);
+    }
+
+    const userEmail = email as string;
+
+    // ── Step 5: Lookup or auto-provision user ───────────────────────────────
+    const userRes = await pool.query('SELECT * FROM public.users WHERE username = $1', [userEmail]);
+
+    let user: any;
+
+    const isAdminEmail = userEmail === 'admin@fabrixly.com' || userEmail === 'admin@system.com';
+
     if (userRes.rows.length > 0) {
       user = userRes.rows[0];
-      // Special case: make sure admin@fabrixly.com is ADMIN
-      if (email === 'admin@fabrixly.com' && user.role !== 'ADMIN') {
-        await pool.query("UPDATE public.users SET role = 'ADMIN', tenant_id = 'tenant_A' WHERE id = $1", [user.id]);
+      // Always keep system admin as ADMIN under tenant_A
+      if (isAdminEmail && (user.role !== 'ADMIN' || user.tenant_id !== 'tenant_A')) {
+        await pool.query(
+          "UPDATE public.users SET role = 'ADMIN', tenant_id = 'tenant_A' WHERE id = $1",
+          [user.id]
+        );
         user.role = 'ADMIN';
         user.tenant_id = 'tenant_A';
       }
     } else {
-      // Auto-provision tenant & user
+      // First-time SSO login — auto-provision
       let tenantId = 'tenant_A';
-      let role = 'ADMIN';
+      let role     = 'ADMIN';
 
-      if (email !== 'admin@fabrixly.com') {
-        const usernamePart = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-        const domainPart = email.split('@')[1]?.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase() || '';
+      if (!isAdminEmail) {
+        const parts = userEmail.split('@');
+        const usernamePart = (parts[0] || 'user').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+        const domainPart   = (parts[1] || '').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
         tenantId = `t_${usernamePart}_${domainPart}`;
-        role = 'USER';
+        role     = 'USER';
 
-        // 1. Create Tenant (if not exists)
-        const tenantRes = await pool.query('SELECT * FROM public.tenants WHERE id = $1', [tenantId]);
-        if (tenantRes.rows.length === 0) {
+        // Create tenant namespace if needed
+        const tenantRow = await pool.query('SELECT id FROM public.tenants WHERE id = $1', [tenantId]);
+        if (tenantRow.rows.length === 0) {
           try {
-            await TenantService.createTenant(tenantId, `${email} Workspace`, 'trial');
-            console.log(`Auto-provisioned tenant namespace: ${tenantId}`);
+            await TenantService.createTenant(tenantId, `${userEmail} Workspace`, 'trial');
+            console.log(`[SSO] Auto-provisioned tenant: ${tenantId}`);
           } catch (tErr: any) {
-            console.error(`Failed to create tenant ${tenantId}:`, tErr.message);
-            // Fallback: insert directly into public.tenants if function fails
+            console.error(`[SSO] Tenant create error:`, tErr.message);
             await pool.query(
               "INSERT INTO public.tenants (id, name, tier) VALUES ($1, $2, 'trial') ON CONFLICT DO NOTHING",
-              [tenantId, `${email} Workspace`]
+              [tenantId, `${userEmail} Workspace`]
             );
           }
 
-          // 2. Subscribe the tenant to the default trial plan
+          // Subscribe to trial plan
           try {
             const trialPlan = await pool.query("SELECT id FROM public.plans WHERE name = 'trial'");
             if (trialPlan.rows.length > 0) {
-              const planId = trialPlan.rows[0].id;
               await pool.query(
                 "INSERT INTO public.subscriptions (tenant_id, plan_id, status) VALUES ($1, $2, 'active') ON CONFLICT (tenant_id) DO NOTHING",
-                [tenantId, planId]
+                [tenantId, trialPlan.rows[0].id]
               );
-              console.log(`Subscribed tenant ${tenantId} to trial plan.`);
+              console.log(`[SSO] Subscribed ${tenantId} to trial plan`);
             }
           } catch (subErr: any) {
-            console.error(`Failed to subscribe tenant ${tenantId} to trial:`, subErr.message);
+            console.error(`[SSO] Subscription error:`, subErr.message);
           }
         }
       }
 
-      // 3. Create User in public.users
       const randomPassword = crypto.randomBytes(16).toString('hex');
-      user = await AuthService.createUser(email, randomPassword, tenantId, role);
-      console.log(`Auto-created user profile: ${email} under tenant ${tenantId} as ${role}`);
+      user = await AuthService.createUser(userEmail, randomPassword, tenantId, role);
+      console.log(`[SSO] Auto-created user: ${userEmail} -> tenant=${tenantId} role=${role}`);
     }
 
-    // Generate JWT
+    // ── Step 6: Issue fabric JWT and redirect to UI ─────────────────────────
     const token = AuthService.generateToken(user.tenant_id, user.role, user.username);
-    console.log(`SSO Login successful for ${email}, Tenant: ${user.tenant_id}, Role: ${user.role}`);
-    
-    // Redirect back to UI login page with the token
-    res.redirect(`http://localhost:3001/login?token=${token}`);
+    console.log(`[SSO] Login successful: ${userEmail} tenant=${user.tenant_id} role=${user.role}`);
+
+    res.redirect(`${UI_BASE}/login?token=${token}`);
   } catch (err: any) {
     console.error('[SSO Callback] Error:', err.message);
     res.status(500).json({ error: 'SSO Login failed', details: err.message });

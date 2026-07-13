@@ -1,0 +1,228 @@
+version: '3.8'
+
+services:
+  # Master Coordinator Node
+  db:
+    image: citusdata/citus:latest
+    container_name: datafabric-hub-dev
+    environment:
+      POSTGRES_USER: fabric_admin
+      POSTGRES_PASSWORD: fabric_password
+      POSTGRES_DB: datafabric
+    ports:
+      - "5434:5432"
+    restart: unless-stopped
+    networks:
+      - dev-network
+
+  # Redis for Event Queues and Caching
+  redis:
+    image: redis:7-alpine
+    container_name: datafabric-redis-dev
+    ports:
+      - "6379:6379"
+    networks:
+      - dev-network
+
+  # PostgREST for instant Data API
+  postgrest:
+    image: postgrest/postgrest:v12.0.0
+    container_name: datafabric-postgrest-dev
+    ports:
+      - "3005:3000"
+    environment:
+      PGRST_DB_URI: postgres://authenticator:fabric_password@db:5432/datafabric
+      PGRST_DB_SCHEMA: public
+      PGRST_DB_ANON_ROLE: web_anon
+      PGRST_JWT_SECRET: "reallyreallyreallyreallyverysecret"
+    depends_on:
+      - db
+    restart: unless-stopped
+    networks:
+      - dev-network
+
+  # Kafka Stack for CDC
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: datafabric-zookeeper-dev
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - dev-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: datafabric-kafka-dev
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - dev-network
+
+  # Remote Datasource for Virtualization Testing
+  remote_db:
+    image: postgres:15-alpine
+    container_name: datafabric-remote-dev
+    environment:
+      POSTGRES_USER: remote_admin
+      POSTGRES_PASSWORD: remote_password
+      POSTGRES_DB: remote_warehouse
+    ports:
+      - "5436:5432"
+    restart: unless-stopped
+    networks:
+      - dev-network
+
+  # NoSQL Datasource for Federated Query Testing
+  mongodb:
+    image: mongo:6.0
+    container_name: datafabric-mongodb-dev
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: mongo_password
+    restart: unless-stopped
+    networks:
+      - dev-network
+
+  # Relational Datasource (MySQL) for Federated Query Testing
+  mysql:
+    image: mysql:8.0
+    container_name: datafabric-mysql-dev
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql_password
+      MYSQL_DATABASE: retail
+    ports:
+      - "3307:3306"
+    command: --default-authentication-plugin=mysql_native_password
+    restart: unless-stopped
+    networks:
+      - dev-network
+
+  # Oracle Database source (Oracle Free 23c)
+  oracle:
+    image: gvenzl/oracle-free:23-slim
+    container_name: datafabric-oracle-dev
+    environment:
+      ORACLE_PASSWORD: oracle_password
+      APP_USER: retail
+      APP_USER_PASSWORD: retail_password
+    ports:
+      - "1521:1521"
+    restart: unless-stopped
+    networks:
+      - dev-network
+
+  # Search Engine for Downstream Provisioning
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    container_name: datafabric-elasticsearch-dev
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    restart: unless-stopped
+    networks:
+      - dev-network
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.4
+    container_name: datafabric-kibana-dev
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+    networks:
+      - dev-network
+
+  # Datafabric Backend (Local Build)
+  backend:
+    build:
+      context: ../
+      dockerfile: backend/Dockerfile
+    container_name: datafabric-backend-dev
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: development
+      PORT: "4000"
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USERNAME: fabric_admin
+      DB_PASSWORD: fabric_password
+      DB_DATABASE: datafabric
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      KAFKA_BROKERS: "kafka:29092"
+      REPLICATION_ENGINE_EXTERNAL: "true"
+    depends_on:
+      - db
+      - redis
+      - kafka
+    networks:
+      - dev-network
+
+  # Datafabric UI (Local Build)
+  ui:
+    build:
+      context: ../
+      dockerfile: ui/Dockerfile
+    container_name: datafabric-ui-dev
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      PORT: "3001"
+      BACKEND_URL: http://backend:4000
+    depends_on:
+      - backend
+    networks:
+      - dev-network
+
+  # Trigger Engine (Local Build)
+  trigger-engine:
+    build:
+      context: ../
+      dockerfile: trigger-engine/Dockerfile
+    container_name: datafabric-trigger-dev
+    ports:
+      - "4001:4001"
+    environment:
+      PORT: "4001"
+      DATABASE_URL: postgresql://fabric_admin:fabric_password@db:5432/datafabric
+    depends_on:
+      - db
+    networks:
+      - dev-network
+
+  # Replication Engine (Local Build)
+  replication-engine:
+    build:
+      context: ../
+      dockerfile: replication-engine/Dockerfile
+    container_name: datafabric-replication-dev
+    environment:
+      DATABASE_URL: postgresql://fabric_admin:fabric_password@db:5432/datafabric
+    depends_on:
+      - db
+    networks:
+      - dev-network
+
+networks:
+  dev-network:
+    driver: bridge

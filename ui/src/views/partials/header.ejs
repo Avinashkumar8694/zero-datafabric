@@ -10,7 +10,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
     <script>
         // Global Industrial API Orchestration
-        const API_BASE = `http://${window.location.hostname}:4000/api`;
+        const API_BASE = window.location.hostname.includes('fabrixly.com') 
+            ? `/api`
+            : `http://${window.location.hostname}:4000/api`;
         function getToken() {
             return localStorage.getItem('token');
         }
@@ -19,8 +21,12 @@
             localStorage.removeItem('active_tenant');
             window.location.href = '/logout';
         }
-        if (!getToken() && !window.location.pathname.includes('/login') && !window.location.pathname.includes('/logout')) {
-            window.location.href = '/logout';
+        {
+            const publicPaths = ['/', '/login', '/logout'];
+            const isPublic = publicPaths.some(p => window.location.pathname === p || window.location.pathname.startsWith(p + '?'));
+            if (!getToken() && !isPublic) {
+                window.location.href = '/login';
+            }
         }
 
         // Industrial Identity Propagation Helper
@@ -47,16 +53,16 @@
         const nativeFetch = window.fetch.bind(window);
         window.fetch = async (...args) => {
             const response = await nativeFetch(...args);
-            if (response.status === 401 || response.status === 403) {
+            if (response.status === 401) {
                 performLogout();
             }
             return response;
         };
     </script>
 </head>
-<body class="light-theme <%= title.includes('Login') ? 'login-page' : '' %>">
+<body class="<%= title.includes('Login') || title.includes('Home') ? 'login-page' : '' %>">
     <div class="app-layout">
-        <% if (!title.includes('Login')) { %>
+        <% if (!title.includes('Login') && !title.includes('Home') && !title.includes('Logout')) { %>
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="sidebar-header">
@@ -96,7 +102,7 @@
 
         <!-- Main Content Area -->
         <main class="main-content">
-            <% if (!title.includes('Login')) { %>
+            <% if (!title.includes('Login') && !title.includes('Home') && !title.includes('Logout')) { %>
             <header class="top-bar">
                 <div class="top-bar-left">
                     <h2><%= title.split(' - ')[1] %></h2>

@@ -68,7 +68,6 @@ async function seed() {
 
         // 3. Seed Data Sources (Industrial GSC v4.0 Connections)
         const sources = [
-            { name: 'Fabric_Hub_Postgres', type: 'POSTGRES', sync_type: 'VIRTUAL', config: { host: 'localhost', port: 5432, user: 'fabric_admin', database: 'datafabric' } },
             { name: 'Activity_Mongo', type: 'MONGODB', sync_type: 'VIRTUAL', config: { uri: 'mongodb://admin:mongo_password@localhost:27017' } },
             { name: 'External_Warehouse', type: 'POSTGRES', sync_type: 'CDC', config: { host: 'localhost', port: 5436, user: 'remote_admin', database: 'remote_warehouse' } },
             { name: 'Elastic_Search', type: 'ELASTICSEARCH', sync_type: 'VIRTUAL', config: { host: 'localhost', port: 9200, connectionString: 'http://localhost:9200' } }

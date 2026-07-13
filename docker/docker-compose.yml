@@ -1,0 +1,217 @@
+version: '3.8'
+
+services:
+  # Master Coordinator Node (Postgres/Citus)
+  db:
+    image: citusdata/citus:latest
+    container_name: datafabric-hub-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-fabric_admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-fabric_password}
+      POSTGRES_DB: ${DB_NAME:-datafabric}
+    volumes:
+      - datafabric_pgdata:/var/lib/postgresql/data
+    networks:
+      - datafabric_network
+
+  # Redis for Event Queues and Caching
+  redis:
+    image: redis:7-alpine
+    container_name: datafabric-redis-prod
+    restart: unless-stopped
+    networks:
+      - datafabric_network
+
+  # PostgREST for instant Data API
+  postgrest:
+    image: postgrest/postgrest:v12.0.0
+    container_name: datafabric-postgrest-prod
+    restart: unless-stopped
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${DB_PASSWORD:-fabric_password}@db:5432/${DB_NAME:-datafabric}
+      PGRST_DB_SCHEMA: public
+      PGRST_DB_ANON_ROLE: web_anon
+      PGRST_JWT_SECRET: ${JWT_SECRET:-reallyreallyreallyreallyverysecret}
+    depends_on:
+      - db
+    networks:
+      - datafabric_network
+
+  # Kafka Stack for CDC
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: datafabric-zookeeper-prod
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - datafabric_network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: datafabric-kafka-prod
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - datafabric_network
+
+  # ── External Target Databases (Commented out in production — connect to existing external sources instead) ──
+  # remote_db:
+  #   image: postgres:15-alpine
+  #   container_name: datafabric-remote-prod
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: remote_admin
+  #     POSTGRES_PASSWORD: remote_password
+  #     POSTGRES_DB: remote_warehouse
+  #   volumes:
+  #     - datafabric_remote_pgdata:/var/lib/postgresql/data
+  #   networks:
+  #     - datafabric_network
+
+  # mongodb:
+  #   image: mongo:6.0
+  #   container_name: datafabric-mongodb-prod
+  #   restart: unless-stopped
+  #   environment:
+  #     MONGO_INITDB_ROOT_USERNAME: admin
+  #     MONGO_INITDB_ROOT_PASSWORD: mongo_password
+  #   volumes:
+  #     - datafabric_mongo_data:/data/db
+  #   networks:
+  #     - datafabric_network
+
+  # mysql:
+  #   image: mysql:8.0
+  #   container_name: datafabric-mysql-prod
+  #   restart: unless-stopped
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: mysql_password
+  #     MYSQL_DATABASE: retail
+  #   volumes:
+  #     - datafabric_mysql_data:/var/lib/mysql
+  #   command: --default-authentication-plugin=mysql_native_password
+  #   networks:
+  #     - datafabric_network
+
+  # elasticsearch:
+  #   image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+  #   container_name: datafabric-elasticsearch-prod
+  #   restart: unless-stopped
+  #   environment:
+  #     discovery.type: single-node
+  #     xpack.security.enabled: "false"
+  #     ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+  #   volumes:
+  #     - datafabric_es_data:/usr/share/elasticsearch/data
+  #   networks:
+  #     - datafabric_network
+
+  # Datafabric Backend
+  backend:
+    image: kumaravinit/zero:datafabric-backend-1.0.0
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: "4000"
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USERNAME: ${DB_USERNAME:-fabric_admin}
+      DB_PASSWORD: ${DB_PASSWORD:-fabric_password}
+      DB_DATABASE: ${DB_NAME:-datafabric}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      KAFKA_BROKERS: "kafka:29092"
+      REPLICATION_ENGINE_EXTERNAL: "true"
+    depends_on:
+      - db
+      - redis
+      - kafka
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.datafabric-backend.rule=Host(`fabric.fabrixly.com`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.datafabric-backend.entrypoints=web,websecure"
+      - "traefik.http.routers.datafabric-backend.tls=true"
+      - "traefik.http.routers.datafabric-backend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.datafabric-backend.loadbalancer.server.port=4000"
+    extra_hosts:
+      - "localhost:host-gateway"
+    networks:
+      - datafabric_network
+      - traefik_network
+
+  # Datafabric UI (Web Landing Console)
+  ui:
+    image: kumaravinit/zero:datafabric-ui-1.0.0
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: "3001"
+      BACKEND_URL: http://backend:4000
+    depends_on:
+      - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.datafabric-ui.rule=Host(`fabric.fabrixly.com`)"
+      - "traefik.http.routers.datafabric-ui.entrypoints=web,websecure"
+      - "traefik.http.routers.datafabric-ui.tls=true"
+      - "traefik.http.routers.datafabric-ui.tls.certresolver=letsencrypt"
+      - "traefik.http.services.datafabric-ui.loadbalancer.server.port=3001"
+    extra_hosts:
+      - "localhost:host-gateway"
+    networks:
+      - datafabric_network
+      - traefik_network
+
+  # Trigger Engine microservice
+  trigger-engine:
+    image: kumaravinit/zero:datafabric-trigger-engine-1.0.0
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: "4001"
+      DATABASE_URL: postgresql://${DB_USERNAME:-fabric_admin}:${DB_PASSWORD:-fabric_password}@db:5432/${DB_NAME:-datafabric}
+    depends_on:
+      - db
+    networks:
+      - datafabric_network
+
+  # Replication Engine microservice
+  replication-engine:
+    image: kumaravinit/zero:datafabric-replication-engine-1.0.0
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${DB_USERNAME:-fabric_admin}:${DB_PASSWORD:-fabric_password}@db:5432/${DB_NAME:-datafabric}
+    depends_on:
+      - db
+    networks:
+      - datafabric_network
+
+volumes:
+  datafabric_pgdata:
+  # datafabric_remote_pgdata:
+  # datafabric_mongo_data:
+  # datafabric_mysql_data:
+  # datafabric_es_data:
+
+networks:
+  datafabric_network:
+    driver: bridge
+  traefik_network:
+    name: ${TRAEFIK_NETWORK:-web}
+    external: true

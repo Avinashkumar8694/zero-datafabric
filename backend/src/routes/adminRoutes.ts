@@ -19,12 +19,12 @@ const requireAdmin = (req: any, res: any, next: any) => {
     next();
 };
 
-// Tenant Management (Admin-only)
-router.get('/tenants', requireAdmin, adminController.getTenants); // GET /api/admin/tenants — list all tenants
-router.post('/tenants', requireAdmin, adminController.createTenant); // POST /api/admin/tenants — provision a new tenant
-router.put('/tenants/:id', requireAdmin, adminController.updateTenant); // PUT /api/admin/tenants/:id — update tenant name/status
-router.patch('/tenants/:id', requireAdmin, adminController.updateTenant); // PATCH /api/admin/tenants/:id — same as PUT, partial update
-router.delete('/tenants/:id', requireAdmin, adminController.deleteTenant); // DELETE /api/admin/tenants/:id — permanently remove a tenant
+// Tenant Management
+router.get('/tenants', adminController.getTenants); // GET /api/admin/tenants — list all tenants
+router.post('/tenants', adminController.createTenant); // POST /api/admin/tenants — provision a new tenant
+router.put('/tenants/:id', adminController.updateTenant); // PUT /api/admin/tenants/:id — update tenant name/status
+router.patch('/tenants/:id', adminController.updateTenant); // PATCH /api/admin/tenants/:id — same as PUT, partial update
+router.delete('/tenants/:id', adminController.deleteTenant); // DELETE /api/admin/tenants/:id — permanently remove a tenant
 
 // Connection Management (Tenant-scoped, open to trial/users)
 router.get('/connections', adminController.getConnections); // GET /api/admin/connections — list data sources with live status probe

@@ -26,7 +26,7 @@ async function main() {
 
   await call('Register 3 sources', async () => {
     const payloads = [
-      { name: 'Fabric_Hub_Postgres', config: { type: 'postgres', host: 'localhost', port: 5434, dbName: 'datafabric', user: 'fabric_admin', pass: 'fabric_password', syncType: 'VIRTUAL' } },
+      { name: 'Fabric_Hub_Postgres', config: { type: 'postgres', host: 'localhost', port: 5436, dbName: 'remote_warehouse', user: 'remote_admin', pass: 'remote_password', syncType: 'VIRTUAL' } },
       { name: 'Activity_Mongo', config: { type: 'mongodb', host: 'localhost', port: 27017, dbName: 'admin', user: 'admin', pass: 'mongo_password', syncType: 'VIRTUAL' } },
       { name: 'Elastic_Search', config: { type: 'elasticsearch', host: 'localhost', port: 9200, connectionString: 'http://localhost:9200', syncType: 'VIRTUAL' } }
     ];
@@ -44,24 +44,24 @@ async function main() {
 
   // Direct admin-level DB preparation to ensure examples can mutate (grants + demo tables)
   await call('Admin DB grants/seeding preparation', async () => {
-    const dbUrl = process.env.DATABASE_URL || 'postgresql://fabric_admin:fabric_password@localhost:5434/datafabric';
-    const client = new Client({ connectionString: dbUrl });
-    await client.connect();
+    const hubUrl = 'postgresql://fabric_admin:fabric_password@localhost:5434/datafabric';
+    const remoteUrl = 'postgresql://remote_admin:remote_password@localhost:5436/remote_warehouse';
+
+    // 1. Create schemas and tables on the remote/external database
+    const remoteClient = new Client({ connectionString: remoteUrl });
+    await remoteClient.connect();
     const rootSchema = `tenant_${TENANT_ID}_Global_Supply_Chain`;
     const logSchema = `tenant_${TENANT_ID}_Activity_Logs`;
     const extSchema = `tenant_${TENANT_ID}_External_Archive`;
-    const sql = `
+
+    const remoteSql = `
       CREATE SCHEMA IF NOT EXISTS "${rootSchema}";
       CREATE SCHEMA IF NOT EXISTS "${logSchema}";
       CREATE SCHEMA IF NOT EXISTS "${extSchema}";
 
-      GRANT USAGE ON SCHEMA "${rootSchema}" TO fabric_user;
-      GRANT USAGE ON SCHEMA "${logSchema}" TO fabric_user;
-      GRANT USAGE ON SCHEMA "${extSchema}" TO fabric_user;
-
-      ALTER DEFAULT PRIVILEGES IN SCHEMA "${rootSchema}" GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO fabric_user;
-      ALTER DEFAULT PRIVILEGES IN SCHEMA "${rootSchema}" GRANT USAGE, SELECT ON SEQUENCES TO fabric_user;
-
+      CREATE TABLE IF NOT EXISTS "${rootSchema}"."employees" ("id" uuid primary key, "name" text, "manager_id" uuid);
+      CREATE TABLE IF NOT EXISTS "${rootSchema}"."shipments" ("id" uuid primary key, "region" text, "status" text, "total_amount" numeric);
+      CREATE TABLE IF NOT EXISTS "${rootSchema}"."shipment_details" ("id" uuid primary key, "shipment_id" uuid REFERENCES "${rootSchema}"."shipments"(id), "notes" text);
       CREATE TABLE IF NOT EXISTS "${rootSchema}"."local_inventory" ("sku" text, "stock" int);
       CREATE TABLE IF NOT EXISTS "${rootSchema}"."remote_depot_mongo" ("item_id" text, "qty" int);
       CREATE TABLE IF NOT EXISTS "${rootSchema}"."active_products" ("sku" text);
@@ -77,17 +77,29 @@ async function main() {
       UNION ALL
       SELECT item_id AS sku, qty FROM "${rootSchema}"."remote_depot_mongo";
 
-      DROP MATERIALIZED VIEW IF EXISTS "${rootSchema}"."regional_volume_stats";
-      CREATE MATERIALIZED VIEW "${rootSchema}"."regional_volume_stats" AS
-      SELECT region, COUNT(*)::bigint AS shipment_count, COALESCE(SUM(total_amount),0) AS total_amount
-      FROM "${rootSchema}"."shipments"
-      GROUP BY region;
-
       CREATE OR REPLACE PROCEDURE "${rootSchema}"."process_delivery"() AS $$
       BEGIN
         NULL;
       END;
       $$ LANGUAGE plpgsql;
+    `;
+    await remoteClient.query(remoteSql);
+    await remoteClient.end();
+
+    // 2. Grant permissions on the local hub database
+    const hubClient = new Client({ connectionString: hubUrl });
+    await hubClient.connect();
+    const hubSql = `
+      CREATE SCHEMA IF NOT EXISTS "${rootSchema}";
+      CREATE SCHEMA IF NOT EXISTS "${logSchema}";
+      CREATE SCHEMA IF NOT EXISTS "${extSchema}";
+
+      GRANT USAGE ON SCHEMA "${rootSchema}" TO fabric_user;
+      GRANT USAGE ON SCHEMA "${logSchema}" TO fabric_user;
+      GRANT USAGE ON SCHEMA "${extSchema}" TO fabric_user;
+
+      ALTER DEFAULT PRIVILEGES IN SCHEMA "${rootSchema}" GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO fabric_user;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA "${rootSchema}" GRANT USAGE, SELECT ON SEQUENCES TO fabric_user;
 
       GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "${rootSchema}" TO fabric_user;
       GRANT SELECT ON ALL TABLES IN SCHEMA "${rootSchema}" TO fabric_user;
@@ -95,18 +107,19 @@ async function main() {
       GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "${extSchema}" TO fabric_user;
       GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "${rootSchema}" TO fabric_user;
     `;
-    await client.query(sql);
-    await client.end();
+    await hubClient.query(hubSql);
+    await hubClient.end();
+
     return { data: { ok: true } };
   }, { allowFail: true });
 
   // Seed demo rows directly via pg.Client so FK ordering is guaranteed
   await call('Seed demo rows (direct DB)', async () => {
-    const dbUrl = process.env.DATABASE_URL || 'postgresql://fabric_admin:fabric_password@localhost:5434/datafabric';
-    const client = new Client({ connectionString: dbUrl });
+    const remoteUrl = 'postgresql://remote_admin:remote_password@localhost:5436/remote_warehouse';
+    const client = new Client({ connectionString: remoteUrl });
     await client.connect();
     const sc = `tenant_${TENANT_ID}_Global_Supply_Chain`;
-    // Set search_path so generate_custom_id() and tracking_seq resolve for triggers
+    // Set search_path so tracking_seq resolves
     await client.query(`SET search_path TO "${sc}", public`);
 
     // multi-source inventory rows
@@ -135,8 +148,8 @@ async function main() {
     `);
     await client.query(`
       INSERT INTO "${sc}"."shipment_details" ("id","shipment_id","notes") VALUES
-      ('00000000-0000-0000-0000-000000030001','00000000-0000-0000-0000-000000020001','priority'),
-      ('00000000-0000-0000-0000-000000030002','00000000-0000-0000-0000-000000020002','normal')
+      ('00000000-0000-0000-0000-000000030001','00000000-0000-0000-0000-000000020001','notes-1'),
+      ('00000000-0000-0000-0000-000000030002','00000000-0000-0000-0000-000000020002','notes-2')
       ON CONFLICT (id) DO NOTHING
     `);
 

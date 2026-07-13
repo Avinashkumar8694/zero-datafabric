@@ -1,11 +1,715 @@
 <%- include('partials/header') %>
 
-<main class="hero">
-    <div class="container">
-        <h1>Architecting Enterprise PostgreSQL Data Fabric</h1>
-        <p>Integrate disparate SQL and NoSQL sources into a unified, secure, and real-time data layer with Zero Data Fabric.</p>
-        <a href="/login" class="btn-secondary">Get Started</a>
+<style>
+  /* ── Reset for full-bleed home page ── */
+  body { overflow-y: auto !important; }
+  .app-layout { display: block !important; }
+  .main-content { width: 100% !important; padding: 0 !important; overflow: visible !important; }
+  .content-wrapper { padding: 0 !important; overflow: visible !important; }
+
+  /* ── Design tokens ── */
+  :root {
+    --home-bg:     #04060f;
+    --home-bg2:    #080d1a;
+    --home-accent: #0061FF;
+    --home-accent2:#6366f1;
+    --home-glow:   rgba(0,97,255,0.18);
+    --home-text:   #f0f4ff;
+    --home-muted:  #8b9cb8;
+    --home-border: rgba(99,125,175,0.2);
+    --home-card:   rgba(255,255,255,0.04);
+    --home-card-hover: rgba(255,255,255,0.07);
+    --home-radius: 16px;
+    --home-font:   'Inter', sans-serif;
+    --home-heading:'Outfit', sans-serif;
+  }
+
+  /* ── Base ── */
+  .home-page {
+    font-family: var(--home-font);
+    background: var(--home-bg);
+    color: var(--home-text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Animated grid background ── */
+  .home-page::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,97,255,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,97,255,0.05) 1px, transparent 1px);
+    background-size: 60px 60px;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* ── Glowing orbs ── */
+  .orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.25;
+    pointer-events: none;
+    z-index: 0;
+    animation: orb-drift 18s ease-in-out infinite alternate;
+  }
+  .orb-1 { width: 600px; height: 600px; background: #0061FF; top: -200px; left: -150px; animation-delay: 0s; }
+  .orb-2 { width: 500px; height: 500px; background: #6366f1; bottom: -100px; right: -150px; animation-delay: -6s; }
+  .orb-3 { width: 350px; height: 350px; background: #06b6d4; top: 40%; left: 50%; transform: translateX(-50%); animation-delay: -12s; }
+
+  @keyframes orb-drift {
+    0%   { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(40px, 30px) scale(1.08); }
+  }
+
+  /* ── Navbar ── */
+  .home-nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4rem;
+    height: 72px;
+    background: rgba(4,6,15,0.7);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--home-border);
+    transition: background 0.3s;
+  }
+
+  .home-nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--home-heading);
+    font-weight: 800;
+    font-size: 1.3rem;
+    color: var(--home-text);
+    text-decoration: none;
+  }
+
+  .home-logo-icon {
+    width: 34px; height: 34px;
+    background: linear-gradient(135deg, #0061FF, #6366f1);
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem; font-weight: 800; color: #fff;
+    box-shadow: 0 0 20px rgba(0,97,255,0.5);
+  }
+
+  .home-nav-links {
+    display: flex;
+    align-items: center;
+    gap: 2.5rem;
+    list-style: none;
+  }
+
+  .home-nav-links a {
+    color: var(--home-muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: color 0.2s;
+  }
+  .home-nav-links a:hover { color: var(--home-text); }
+
+  .home-nav-cta {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  /* ── Buttons ── */
+  .btn-home-ghost {
+    padding: 0.55rem 1.4rem;
+    border: 1px solid var(--home-border);
+    border-radius: 8px;
+    color: var(--home-text);
+    background: transparent;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.25s;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-home-ghost:hover {
+    border-color: var(--home-accent);
+    background: rgba(0,97,255,0.08);
+    color: #fff;
+  }
+
+  .btn-home-primary {
+    padding: 0.65rem 1.6rem;
+    background: linear-gradient(135deg, #0061FF, #6366f1);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: all 0.25s;
+    box-shadow: 0 0 24px rgba(0,97,255,0.35);
+    position: relative; overflow: hidden;
+  }
+  .btn-home-primary::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: rgba(255,255,255,0);
+    transition: background 0.25s;
+  }
+  .btn-home-primary:hover { transform: translateY(-2px); box-shadow: 0 0 36px rgba(0,97,255,0.5); }
+  .btn-home-primary:hover::after { background: rgba(255,255,255,0.07); }
+
+  /* ── Hero ── */
+  .hero-section {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 120px 2rem 80px;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0.4rem 1.2rem;
+    background: rgba(0,97,255,0.1);
+    border: 1px solid rgba(0,97,255,0.3);
+    border-radius: 100px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #60a5fa;
+    margin-bottom: 2rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    animation: fade-up 0.6s ease both;
+  }
+
+  .hero-badge span.dot {
+    width: 6px; height: 6px;
+    background: #60a5fa;
+    border-radius: 50%;
+    animation: pulse-dot 2s infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.7); }
+  }
+
+  .hero-h1 {
+    font-family: var(--home-heading);
+    font-size: clamp(2.8rem, 6vw, 5.5rem);
+    font-weight: 800;
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+    max-width: 900px;
+    animation: fade-up 0.7s 0.1s ease both;
+  }
+
+  .hero-h1 .gradient-text {
+    background: linear-gradient(135deg, #60a5fa, #818cf8, #06b6d4);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-sub {
+    margin-top: 1.5rem;
+    font-size: clamp(1rem, 2vw, 1.2rem);
+    color: var(--home-muted);
+    max-width: 640px;
+    line-height: 1.7;
+    animation: fade-up 0.7s 0.2s ease both;
+  }
+
+  .hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 2.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    animation: fade-up 0.7s 0.3s ease both;
+  }
+
+  .btn-hero-cta {
+    padding: 0.9rem 2.2rem;
+    background: linear-gradient(135deg, #0061FF, #6366f1);
+    border: none;
+    border-radius: 12px;
+    color: #fff;
+    font-size: 1.05rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex; align-items: center; gap: 10px;
+    transition: all 0.3s;
+    box-shadow: 0 0 40px rgba(0,97,255,0.4), 0 8px 32px rgba(0,0,0,0.4);
+    letter-spacing: -0.01em;
+  }
+  .btn-hero-cta:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 0 60px rgba(0,97,255,0.55), 0 16px 48px rgba(0,0,0,0.4);
+  }
+
+  .btn-hero-secondary {
+    padding: 0.9rem 2rem;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--home-border);
+    border-radius: 12px;
+    color: var(--home-text);
+    font-size: 1.05rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: all 0.25s;
+    backdrop-filter: blur(8px);
+  }
+  .btn-hero-secondary:hover {
+    background: rgba(255,255,255,0.09);
+    border-color: rgba(99,125,175,0.45);
+    transform: translateY(-2px);
+  }
+
+  /* ── SSO Arrow Icon ── */
+  .arrow-icon { font-size: 1.1rem; transition: transform 0.25s; }
+  .btn-hero-cta:hover .arrow-icon { transform: translateX(4px); }
+
+  /* ── Stats bar ── */
+  .stats-bar {
+    display: flex;
+    align-items: center;
+    gap: 3rem;
+    margin-top: 4rem;
+    padding: 1.5rem 2.5rem;
+    background: var(--home-card);
+    border: 1px solid var(--home-border);
+    border-radius: var(--home-radius);
+    backdrop-filter: blur(12px);
+    flex-wrap: wrap;
+    justify-content: center;
+    animation: fade-up 0.7s 0.4s ease both;
+  }
+
+  .stat-item {
+    text-align: center;
+  }
+  .stat-num {
+    font-family: var(--home-heading);
+    font-size: 1.8rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #60a5fa, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .stat-label {
+    font-size: 0.78rem;
+    color: var(--home-muted);
+    margin-top: 0.2rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .stat-divider {
+    width: 1px; height: 40px;
+    background: var(--home-border);
+  }
+
+  /* ── Features grid ── */
+  .section {
+    position: relative; z-index: 1;
+    padding: 6rem 4rem;
+  }
+
+  .section-label {
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #60a5fa;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 1rem;
+  }
+
+  .section-title {
+    font-family: var(--home-heading);
+    font-size: clamp(2rem, 3.5vw, 2.8rem);
+    font-weight: 800;
+    text-align: center;
+    letter-spacing: -0.03em;
+    margin-bottom: 0.8rem;
+  }
+
+  .section-sub {
+    text-align: center;
+    color: var(--home-muted);
+    font-size: 1rem;
+    line-height: 1.7;
+    max-width: 600px;
+    margin: 0 auto 3.5rem;
+  }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 900px) { .features-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 600px) { .features-grid { grid-template-columns: 1fr; } }
+
+  .feature-card {
+    background: var(--home-card);
+    border: 1px solid var(--home-border);
+    border-radius: var(--home-radius);
+    padding: 2rem;
+    transition: all 0.3s;
+    cursor: default;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .feature-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 30% 0%, rgba(0,97,255,0.08), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.35s;
+  }
+
+  .feature-card:hover {
+    background: var(--home-card-hover);
+    border-color: rgba(0,97,255,0.3);
+    transform: translateY(-4px);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.3), 0 0 0 1px rgba(0,97,255,0.15);
+  }
+
+  .feature-card:hover::before { opacity: 1; }
+
+  .feature-icon {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem;
+    margin-bottom: 1.2rem;
+  }
+
+  .feature-title {
+    font-family: var(--home-heading);
+    font-weight: 700;
+    font-size: 1.05rem;
+    margin-bottom: 0.6rem;
+    color: var(--home-text);
+  }
+
+  .feature-desc {
+    color: var(--home-muted);
+    font-size: 0.88rem;
+    line-height: 1.65;
+  }
+
+  /* ── CTA Section ── */
+  .cta-section {
+    position: relative; z-index: 1;
+    padding: 5rem 2rem;
+    text-align: center;
+  }
+
+  .cta-card {
+    max-width: 780px;
+    margin: 0 auto;
+    background: linear-gradient(135deg, rgba(0,97,255,0.12), rgba(99,102,241,0.12));
+    border: 1px solid rgba(0,97,255,0.25);
+    border-radius: 24px;
+    padding: 4rem 3rem;
+    backdrop-filter: blur(20px);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cta-card::before {
+    content: '';
+    position: absolute;
+    top: -100px; left: 50%; transform: translateX(-50%);
+    width: 500px; height: 300px;
+    background: radial-gradient(ellipse, rgba(0,97,255,0.2), transparent 70%);
+    pointer-events: none;
+  }
+
+  .cta-h2 {
+    font-family: var(--home-heading);
+    font-size: clamp(1.8rem, 3vw, 2.6rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 1rem;
+  }
+
+  .cta-sub {
+    color: var(--home-muted);
+    font-size: 1rem;
+    line-height: 1.7;
+    margin-bottom: 2.2rem;
+  }
+
+  /* ── Footer ── */
+  .home-footer {
+    position: relative; z-index: 1;
+    border-top: 1px solid var(--home-border);
+    padding: 2rem 4rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--home-muted);
+    font-size: 0.82rem;
+  }
+
+  .home-footer a { color: var(--home-muted); text-decoration: none; }
+  .home-footer a:hover { color: var(--home-text); }
+
+  /* ── Animations ── */
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(28px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .feature-card { animation: fade-up 0.6s ease both; }
+  .feature-card:nth-child(1) { animation-delay: 0.05s; }
+  .feature-card:nth-child(2) { animation-delay: 0.12s; }
+  .feature-card:nth-child(3) { animation-delay: 0.19s; }
+  .feature-card:nth-child(4) { animation-delay: 0.26s; }
+  .feature-card:nth-child(5) { animation-delay: 0.33s; }
+  .feature-card:nth-child(6) { animation-delay: 0.40s; }
+
+  /* ── Responsive nav ── */
+  @media (max-width: 768px) {
+    .home-nav { padding: 0 1.5rem; }
+    .home-nav-links { display: none; }
+    .section { padding: 4rem 1.5rem; }
+    .stats-bar { gap: 1.5rem; padding: 1rem 1.5rem; }
+    .stat-divider { display: none; }
+    .hero-section { padding: 100px 1.5rem 60px; }
+    .home-footer { flex-direction: column; gap: 0.8rem; text-align: center; }
+  }
+</style>
+
+<div class="home-page">
+  <!-- Ambient orbs -->
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <!-- ── Navbar ── -->
+  <nav class="home-nav">
+    <a href="/" class="home-nav-logo">
+      <div class="home-logo-icon">ZF</div>
+      Zero Fabric
+    </a>
+    <ul class="home-nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#plans">Plans</a></li>
+      <li><a href="https://github.com" target="_blank">Docs</a></li>
+    </ul>
+    <div class="home-nav-cta">
+      <a href="javascript:void(0)" id="navLoginBtn" class="btn-home-ghost">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Sign In with SSO
+      </a>
+      <a href="javascript:void(0)" id="navDashBtn" class="btn-home-primary" style="display:none">
+        Go to Dashboard →
+      </a>
     </div>
-</main>
+  </nav>
+
+  <!-- ── Hero ── -->
+  <section class="hero-section">
+    <div class="hero-badge">
+      <span class="dot"></span>
+      Enterprise Data Fabric Platform
+    </div>
+
+    <h1 class="hero-h1">
+      Unify Every Data Source<br>
+      <span class="gradient-text">Into One Intelligent Fabric</span>
+    </h1>
+
+    <p class="hero-sub">
+      Connect PostgreSQL, MongoDB, Elasticsearch and more into a single governed,
+      real-time data layer — with triggers, replication, analytics, and SSO built in.
+    </p>
+
+    <div class="hero-actions">
+      <a href="javascript:void(0)" id="heroLoginBtn" class="btn-hero-cta">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Sign in with SSO
+        <span class="arrow-icon">→</span>
+      </a>
+      <a href="#features" class="btn-hero-secondary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+        Explore Features
+      </a>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat-item">
+        <div class="stat-num">6+</div>
+        <div class="stat-label">Data Sources</div>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <div class="stat-num">Real-time</div>
+        <div class="stat-label">CDC & Replication</div>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <div class="stat-num">SSO</div>
+        <div class="stat-label">OIDC / OAuth2</div>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <div class="stat-num">Row-level</div>
+        <div class="stat-label">Tenant Isolation</div>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <div class="stat-num">TypeORM</div>
+        <div class="stat-label">Versioned Migrations</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Features ── -->
+  <section class="section" id="features">
+    <div class="section-label">Capabilities</div>
+    <h2 class="section-title">Everything in one platform</h2>
+    <p class="section-sub">
+      From multi-source federation to real-time triggers and governed analytics —
+      Zero Fabric handles the entire data layer so your team doesn't have to.
+    </p>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon" style="background: rgba(0,97,255,0.15);">🔗</div>
+        <div class="feature-title">Multi-Source Federation</div>
+        <div class="feature-desc">Connect Postgres, MongoDB, Elasticsearch, MySQL, Oracle and remote Postgres sources through a unified virtual layer — no ETL pipelines.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon" style="background: rgba(99,102,241,0.15);">⚡</div>
+        <div class="feature-title">Real-time Trigger Engine</div>
+        <div class="feature-desc">Define BEFORE/AFTER triggers with webhook, email, Telegram or audit actions. Scheduled and event-driven — fully declarative via manifest.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon" style="background: rgba(6,182,212,0.15);">🔄</div>
+        <div class="feature-title">Replication & CDC</div>
+        <div class="feature-desc">Physical SYNC, CDC refresh, and source-to-source replication with per-plan limits, checkpoint recovery, and horizontal worker scaling.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon" style="background: rgba(16,185,129,0.15);">🔐</div>
+        <div class="feature-title">SSO & Row-level Security</div>
+        <div class="feature-desc">OIDC/OAuth2 SSO with automatic tenant provisioning. Every query is scoped by tenant with Postgres RLS — zero data leakage by design.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon" style="background: rgba(245,158,11,0.15);">📊</div>
+        <div class="feature-title">Analytics & Workbench</div>
+        <div class="feature-desc">SQL and AST-based query engine with async dispatch, window functions, CTEs, federated JOINs across sources, and a visual query workbench.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon" style="background: rgba(239,68,68,0.15);">🗂️</div>
+        <div class="feature-title">Schema Orchestration</div>
+        <div class="feature-desc">Apply schemas as versioned JSON manifests. TypeORM-tracked migrations ensure incremental, idempotent deployments — safe in production.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA ── -->
+  <section class="cta-section" id="plans">
+    <div class="cta-card">
+      <div class="hero-badge" style="margin: 0 auto 1.5rem;">
+        <span class="dot"></span>
+        Free Trial · No Credit Card
+      </div>
+      <h2 class="cta-h2">Ready to unify your data?</h2>
+      <p class="cta-sub">
+        Start on the free trial plan — 2 connections, 5 tables, 1000 records per table,
+        3 triggers, full SSO. Upgrade to self-host for unlimited everything.
+      </p>
+      <a href="javascript:void(0)" id="ctaLoginBtn" class="btn-hero-cta" style="margin: 0 auto; width: fit-content;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Sign in with SSO — it's free
+        <span class="arrow-icon">→</span>
+      </a>
+    </div>
+  </section>
+
+  <!-- ── Footer ── -->
+  <footer class="home-footer">
+    <div>© 2025 Zero Data Fabric. Built for engineers.</div>
+    <div style="display:flex; gap:1.5rem;">
+      <a href="/login">Login</a>
+      <a href="#">Docs</a>
+      <a href="#">GitHub</a>
+      <a href="#">Status</a>
+    </div>
+  </footer>
+</div>
+
+<script>
+  // ── SSO redirect: all login buttons go directly to the SSO endpoint ──
+  const API_BASE_URL = window.location.hostname.includes('fabrixly.com')
+      ? `/api`
+      : `http://${window.location.hostname}:4000/api`;
+
+  function redirectToSSO() {
+    window.location.href = `${API_BASE_URL}/auth/sso`;
+  }
+
+  document.getElementById('heroLoginBtn').addEventListener('click', redirectToSSO);
+  document.getElementById('navLoginBtn').addEventListener('click', redirectToSSO);
+  document.getElementById('ctaLoginBtn').addEventListener('click', redirectToSSO);
+
+  // If already logged in, swap nav button to "Go to Dashboard"
+  if (localStorage.getItem('token')) {
+    document.getElementById('navLoginBtn').style.display = 'none';
+    document.getElementById('navDashBtn').style.display = 'inline-flex';
+    document.getElementById('heroLoginBtn').textContent = 'Go to Dashboard →';
+    document.getElementById('heroLoginBtn').addEventListener('click', () => {
+      window.location.href = '/dashboard';
+    }, { once: true });
+    document.getElementById('ctaLoginBtn').textContent = 'Go to Dashboard →';
+    document.getElementById('ctaLoginBtn').addEventListener('click', () => {
+      window.location.href = '/dashboard';
+    }, { once: true });
+  }
+
+  // Handle SSO callback token (IDS redirects back here with ?token=...)
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+  if (token) {
+    localStorage.setItem('token', token);
+    window.location.href = '/dashboard';
+  }
+</script>
 
 <%- include('partials/footer') %>

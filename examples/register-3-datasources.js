@@ -13,10 +13,10 @@ async function main() {
       config: {
         type: 'postgres',
         host: 'localhost',
-        port: 5434,
-        dbName: 'datafabric',
-        user: 'fabric_admin',
-        pass: 'fabric_password',
+        port: 5436,
+        dbName: 'remote_warehouse',
+        user: 'remote_admin',
+        pass: 'remote_password',
         syncType: 'VIRTUAL'
       }
     },

@@ -24,7 +24,47 @@ Within your metadata manifest, the `security` block inside a `TABLE` resource su
 
 ---
 
-## 2. Security Configuration Scenarios
+## 2. Exhaustive Mapping Reference (Allowed Values & Enums)
+
+To map security parameters correctly, utilize the following predefined enums, system variables, and role keys:
+
+### A. Allowed Privileges (DML Grants)
+The `privileges` array under `grants` only supports the following exact SQL operation strings:
+* **`"SELECT"`** — Grant read authorization.
+* **`"INSERT"`** — Grant record creation authorization.
+* **`"UPDATE"`** — Grant record modification authorization.
+* **`"DELETE"`** — Grant record deletion/soft-deletion authorization.
+
+### B. Predefined Database Roles
+You can map policies and grants to system-defined or user-defined tenant roles:
+* **`"fabric_user"`** — Standard application database user role.
+* **`"logistics_viewer"`** — Read-only role for carrier-focused endpoints.
+* **`"support_agent"`** — Role assigned to customer support technicians.
+* **`"operations_admin"`** — Role assigned to operational administrators.
+* **`"compliance_role"`** — Auditor role with bypass authorization (e.g., bypasses soft-deletes).
+* **`"analytics_viewer"`** — Read-only analytical reporter role.
+* **`"viewer"`** — Global read-only role.
+* **`"admin"`** — Tenant administrator role.
+
+### C. Supported Session Settings (Context Settings)
+Inside `using` and `withCheck` expressions, query the connection's session settings set dynamically by the coordinator on each query leg:
+* **`current_setting('app.current_tenant_id')`** — Evaluates to the active tenant ID string (e.g. `'tenant_A'`).
+* **`current_setting('app.current_region')`** — Evaluates to the operator's current location region string (e.g. `'US'`, `'EU'`).
+* **`current_setting('app.current_user_id')`** — Evaluates to the active UUID user key.
+* **`current_setting('app.current_role')`** — Evaluates to the active session role string.
+
+### D. Common Column Masking SQL Expressions
+Configure the `expression` property to evaluate valid database function targets:
+* **Literal Redaction**: `"'REDACTED'"` or `"'REDACTED'::jsonb"`
+* **MD5 Hashing**: `"md5(column_name)"` or `"md5(column_name) || '@masked.com'"`
+* **SHA256 Hashing**: `"encode(sha256(column_name::bytea), 'hex')"`
+* **Partial Mask (Substrings)**: `"'XXXX-XXXX-XXXX-' || right(column_name, 4)"`
+* **Zero Out (Numeric)**: `"0"` or `"0.00"`
+* **Null Out**: `"NULL"`
+
+---
+
+## 3. Security Configuration Scenarios
 
 ---
 

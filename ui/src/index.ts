@@ -1,11 +1,33 @@
 import express from 'express';
 import path from 'path';
-import dotenv from 'dotenv';
+import fs from 'fs';
+import { marked } from 'marked';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.UI_PORT || 3001;
+
+const DOC_LIST = [
+  { id: 'api-overview.md', title: 'API Overview' },
+  { id: 'concepts.md', title: 'Core Concepts' },
+  { id: 'query-language.md', title: 'AST Query Language' },
+  { id: 'recursive-and-window-queries.md', title: 'Recursive & Windowing' },
+  { id: 'metadata-manifests.md', title: 'Metadata & Manifests' },
+  { id: 'connectors.md', title: 'Data Source Connectors' },
+  { id: 'sync-and-cdc.md', title: 'Sync & CDC Pipelines' },
+  { id: 'replication.md', title: 'Downstream Replication' },
+  { id: 'triggers-api.md', title: 'Event Triggers API' },
+  { id: 'data-crud-api.md', title: 'Data CRUD Operations' },
+  { id: 'governance-api.md', title: 'Data Governance' },
+  { id: 'analytics-api.md', title: 'Analytics Engine' },
+  { id: 'saved-analytics-api.md', title: 'Saved Analytics' },
+  { id: 'admin-api.md', title: 'Administration API' },
+  { id: 'authentication-and-tenancy.md', title: 'Security & Tenancy' },
+  { id: 'observability-api.md', title: 'Observability & Metrics' },
+  { id: 'streaming-responses.md', title: 'Streaming Responses' },
+  { id: 'README.md', title: 'Developer Getting Started' }
+];
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -47,8 +69,25 @@ app.get('/workbench', (req, res) => {
   res.render('workbench', { title: 'Zero Data Fabric - Workbench' });
 });
 
-app.get('/workbench/docs', (req, res) => {
-  res.render('workbench_docs', { title: 'Zero Data Fabric - Workbench Docs' });
+app.get('/workbench/docs', async (req, res) => {
+  const docParam = (req.query.doc as string) || 'api-overview.md';
+  const activeDoc = DOC_LIST.find(d => d.id === docParam) || DOC_LIST[0];
+
+  try {
+    const docPath = path.join(__dirname, 'views', '../../../developer_docs', activeDoc.id);
+    const markdown = fs.readFileSync(docPath, 'utf8');
+    const htmlContent = await marked.parse(markdown);
+
+    res.render('workbench_docs', {
+      title: `Zero Data Fabric - Docs: ${activeDoc.title}`,
+      htmlContent,
+      currentDoc: activeDoc.id,
+      docList: DOC_LIST
+    });
+  } catch (error) {
+    console.error('Error loading markdown doc:', error);
+    res.status(500).send('Error loading documentation file');
+  }
 });
 
 app.get('/iam', (req, res) => {

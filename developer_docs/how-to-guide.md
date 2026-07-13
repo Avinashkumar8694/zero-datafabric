@@ -1,6 +1,6 @@
 # How-To Developer Guide
 
-A step-by-step developer tutorial demonstrating how to connect data sources, provision relational structures, run federated queries, and sync downstream indices.
+A step-by-step developer tutorial demonstrating how to connect data sources, provision relational structures, run federated queries, and sync downstream indices, complete with executable `curl` commands.
 
 ---
 
@@ -8,19 +8,27 @@ A step-by-step developer tutorial demonstrating how to connect data sources, pro
 
 To connect an external database instance (e.g. MySQL) to the fabric, register its connection details:
 
+* **Endpoint**: `POST /api/connections`
+* **Headers**:
+  * `Authorization: Bearer $JWT_TOKEN`
+  * `x-tenant-id: tenant_A`
+  * `Content-Type: application/json`
+
+### Curl Command:
 ```bash
 curl -X POST http://localhost:4000/api/connections \
   -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "x-tenant-id: tenant_A" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Retail_MySQL",
+    "name": "Warehouse_MySQL",
     "type": "mysql",
     "config": {
-      "host": "mysql-endpoint-dns",
+      "host": "mysql-prod-endpoint",
       "port": 3306,
-      "username": "fabric_user",
+      "username": "fabric_reader",
       "password": "secure_password",
-      "database": "retail_db"
+      "database": "warehouse_db"
     }
   }'
 ```
@@ -29,7 +37,7 @@ curl -X POST http://localhost:4000/api/connections \
 
 ## Step 2: Provision Schemas with Manifests
 
-Write a metadata manifest file (`manifest.json`) defining your target database structures:
+Create a metadata manifest file (`manifest.json`) defining your target database structures:
 
 ```json
 {
@@ -56,60 +64,83 @@ Write a metadata manifest file (`manifest.json`) defining your target database s
 }
 ```
 
-### Dry-Run the Changes (Diff)
+### A. Dry-Run the Changes (Diff)
 Generate a migration roadmap showing what actions the orchestrator will take without writing changes:
+
+* **Endpoint**: `POST /api/metadata/diff`
+* **Headers**:
+  * `Authorization: Bearer $JWT_TOKEN`
+  * `x-tenant-id: tenant_A`
+  * `Content-Type: multipart/form-data`
+
 ```bash
-curl -F "file=@manifest.json" \
+curl -X POST http://localhost:4000/api/metadata/diff \
   -H "Authorization: Bearer $JWT_TOKEN" \
-  http://localhost:4000/api/metadata/diff
+  -H "x-tenant-id: tenant_A" \
+  -F "file=@manifest.json"
 ```
 
-### Apply the Changes
+### B. Apply the Changes
 Execute the migration roadmap across connected sources:
+
+* **Endpoint**: `POST /api/metadata/apply`
+* **Headers**: Same as diff.
+
 ```bash
-curl -F "file=@manifest.json" \
+curl -X POST http://localhost:4000/api/metadata/apply \
   -H "Authorization: Bearer $JWT_TOKEN" \
-  http://localhost:4000/api/metadata/apply
+  -H "x-tenant-id: tenant_A" \
+  -F "file=@manifest.json"
 ```
 
 ---
 
 ## Step 3: Execute Federated Queries
 
-Once the schema structures are active, query across separate physical endpoints in a single relational AST query. 
+Once the schema structures are active, query across separate physical endpoints in a single relational AST query.
 
-### Example: Join PostgreSQL `products` with MongoDB `order_details`
-Submit this AST payload to `POST /api/analytics/query`:
+* **Endpoint**: `POST /api/analytics/query`
+* **Headers**:
+  * `Authorization: Bearer $JWT_TOKEN`
+  * `x-tenant-id: tenant_A`
+  * `Content-Type: application/json`
 
-```json
-{
-  "queryConfig": {
-    "type": "SELECT",
-    "schema": "Inventory",
-    "limit": 100,
-    "query": {
-      "select": [
-        "p.sku",
-        "p.stock_count",
-        "o.customer_id",
-        "o.quantity"
-      ],
-      "from": { "resource": "products", "source": "Fabric_Hub_Postgres", "alias": "p" },
-      "joins": [
-        {
-          "type": "INNER",
-          "resource": "orders",
-          "source": "Sales_Mongo",
-          "alias": "o",
-          "on": { "left": "p.id", "operator": "EQ", "right": "o.product_id" }
-        }
-      ],
-      "where": [
-        { "column": "p.stock_count", "operator": "GT", "value": 0 }
-      ]
+### Example: Join PostgreSQL `products` with MongoDB `orders`
+Submit this AST payload:
+
+```bash
+curl -X POST http://localhost:4000/api/analytics/query \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "x-tenant-id: tenant_A" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "queryConfig": {
+      "type": "SELECT",
+      "schema": "Inventory",
+      "limit": 100,
+      "query": {
+        "select": [
+          "p.sku",
+          "p.stock_count",
+          "o.customer_id",
+          "o.quantity"
+        ],
+        "from": { "resource": "products", "source": "Fabric_Hub_Postgres", "alias": "p" },
+        "joins": [
+          {
+            "type": "INNER",
+            "resource": "orders",
+            "source": "Sales_Mongo",
+            "alias": "o",
+            "on": { "left": "p.id", "operator": "EQ", "right": "o.product_id" }
+          }
+        ],
+        "where": [
+          { "column": "p.stock_count", "operator": "GT", "value": 0 }
+        ]
+      }
     }
-  }
-}
+  }'
 ```
 
 ---
@@ -118,16 +149,49 @@ Submit this AST payload to `POST /api/analytics/query`:
 
 Enable downstream replication to Elasticsearch to accelerate text searches.
 
-1. Add the Elasticsearch downstream block to your `manifest.json` under the root level:
+### A. Register Downstream in Manifest (`manifest.json`)
+Add the `downstream` block to your manifest:
+
 ```json
-"downstream": [
-  {
-    "type": "ELASTICSEARCH",
-    "enabled": true,
-    "fallback": "PRIMARY_SQL"
-  }
-]
+{
+  "version": "4.0",
+  "namespace": "Production_Core",
+  "targetSource": "Fabric_Hub_Postgres",
+  "downstream": [
+    {
+      "type": "ELASTICSEARCH",
+      "enabled": true,
+      "fallback": "PRIMARY_SQL"
+    }
+  ],
+  "schemas": [
+    {
+      "name": "Inventory",
+      "targetSource": "Fabric_Hub_Postgres",
+      "resources": [
+        {
+          "type": "TABLE",
+          "name": "products",
+          "columns": [
+            { "name": "id", "type": "UUID", "strategy": "UUID_V7", "primaryKey": true },
+            { "name": "sku", "type": "STRING", "length": 50, "unique": true },
+            { "name": "stock_count", "type": "BIGINT", "default": "0" }
+          ]
+        }
+      ]
+    }
+  ]
+}
 ```
 
-2. Apply the manifest. The **Replication Engine** will subscribe to the PostgreSQL replication slot, capture mutations in real-time, and index them into Elasticsearch automatically.
-3. Queries requesting search mappings can now hit Elasticsearch dynamically, avoiding heavy transactional queries on the hub.
+### B. Apply Manifest to Trigger Downstream Sync
+Submit the updated manifest file:
+
+```bash
+curl -X POST http://localhost:4000/api/metadata/apply \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "x-tenant-id: tenant_A" \
+  -F "file=@manifest.json"
+```
+
+The Replication Engine automatically subscribes to write-ahead logs, captures updates in real-time, and streams them into the Elasticsearch index. Subsequent queries matching search requirements are routed to Elasticsearch dynamically.

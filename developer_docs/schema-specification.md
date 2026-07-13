@@ -1,155 +1,179 @@
-# Relational Schema & AST Specification
+# Relational Schema, DDL & AST Query Specification
 
-This document provides the formal JSON schema specification for both the **AST Query Language** and the **Metadata Manifests** utilized inside the Zero Data Fabric.
+This document provides the formal JSON schema specification for both the **QueryConfig (Envelope)**, the **AST Query Language**, and the **Metadata Manifests** utilized inside the Zero Data Fabric.
 
 ---
 
-## 1. AST Query Schema
+## 1. QueryConfig Root Schema (DML & DDL Envelope)
 
-AST queries are submitted as a JSON payload to `POST /api/analytics/query`.
+Every query request sent to `POST /api/analytics/query` or `/api/queries/engine` maps to this envelope.
 
 ```json
 {
-  "queryConfig": {
-    "type": "SELECT",
-    "schema": "logical_schema_name",
-    "limit": 100,
-    "query": {
-      "select": ["column_name", { "aggregate": "SUM", "column": "amount", "alias": "total" }],
-      "from": { "resource": "table_name", "source": "datasource_name", "alias": "alias_name" },
-      "joins": [
-        {
-          "type": "INNER",
-          "resource": "joined_table",
-          "source": "joined_datasource",
-          "alias": "joined_alias",
-          "on": { "left": "alias_name.key", "operator": "EQ", "right": "joined_alias.key" }
-        }
-      ],
-      "where": [
-        { "column": "alias_name.field", "operator": "EQ", "value": "match_value" }
-      ],
-      "groupBy": ["alias_name.field"],
-      "orderBy": [
-        { "column": "alias_name.field", "direction": "DESC" }
-      ],
-      "offset": 0
-    }
+  "type": "SELECT",
+  "schema": "Global_Supply_Chain",
+  "source": "Fabric_Hub_Postgres",
+  "resource": "shipments",
+  "limit": 100,
+  "offset": 0,
+  "data": {
+    "status": "PENDING"
+  },
+  "query": {
+    "select": ["*"],
+    "from": { "resource": "shipments" }
   }
 }
 ```
 
-### AST Query Property Validation
-* **`type`**: `String` | Must equal `"SELECT"`.
-* **`schema`**: `String` | The logical namespace to resolve (e.g. `Global_Supply_Chain`).
-* **`limit`**: `Integer` | Enforces top-level row pagination constraint (maximum `1000` rows).
-* **`query.from`**: `Object` | Base driving resource.
-  * `resource`: `String` | Target table or collection name.
-  * `source`: `String` | Physical connection name registered in Data Fabric connections.
-  * `alias`: `String` | Local query namespace qualifier (must match references in joins and filters).
-* **`query.select`**: `Array` | List of items to project:
-  * Bare strings matching valid column expressions (e.g., `["id", "name"]` or `["*"]`).
-  * Aggregation maps: `{"aggregate": "COUNT"|"SUM"|"AVG"|"MIN"|"MAX"|"COUNT_DISTINCT", "column": "column_name", "alias": "alias_name"}`.
-* **`query.joins`**: `Array` | Collection of join parameters:
-  * `type`: `String` | Supported: `INNER` or `LEFT`.
-  * `resource` / `source` / `alias`: Matches same validation rules as driving `from`.
-  * `on`: `Object` | Join key map: `{"left": "a.col", "operator": "EQ", "right": "b.col"}`.
-* **`query.where`**: `Array` | List of filter maps:
-  * `column`: `String` | Column reference qualified with alias if joining.
-  * `operator`: `String` | Allowed comparison operator enums.
-  * `value`: `Any` | Match value corresponding to column type.
-* **`query.groupBy`**: `Array` | String columns to partition aggregates.
-* **`query.orderBy`**: `Array` | Sorting configurations:
-  * `column`: `String` | Target sort projection.
-  * `direction`: `String` | Must equal `ASC` or `DESC`.
+### Root Fields:
+* **`type`**: `String` | Required. The action mapping category:
+  * DML/Query: `'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE'`
+  * DDL schema commands: `'CREATE_SCHEMA' | 'CREATE_TABLE' | 'CREATE_FOREIGN_TABLE' | 'ALTER_TABLE' | 'DROP_TABLE' | 'CREATE_INDEX' | 'CREATE_VIEW' | 'CREATE_SEQUENCE'`
+* **`schema`**: `String` | Optional. Logical schema context (resolved into tenant physical schema).
+* **`source`**: `String` | Optional. Registered database connection name.
+* **`resource`** (or **`table`**): `String` | Optional. Table, collection, or index target.
+* **`limit`**: `Integer` | Optional. Row-count boundary.
+* **`offset`**: `Integer` | Optional. Pagination offset index.
+* **`data`**: `Object` | `Array` | Optional. Map or array of record changes (used exclusively for inserts and updates).
 
----
+### DDL Configurations:
 
-## 2. Metadata Manifest Schema
-
-Metadata manifests define the target state of schemas, columns, constraints, and relationships. Submitted to `POST /api/metadata/apply`.
-
+#### A. `schemaDef` (For `type: "CREATE_TABLE"`)
+Describes column definitions:
 ```json
-{
-  "version": "4.0",
-  "namespace": "Logical_Namespace",
-  "targetSource": "Fabric_Hub_Postgres",
-  "consistencyMode": "SAGA",
-  "extensions": ["uuid-ossp", "pgcrypto"],
-  "downstream": [
-    { "type": "ELASTICSEARCH", "enabled": true, "fallback": "PRIMARY_SQL" }
-  ],
-  "schemas": [
-    {
-      "name": "Logical_Schema_Name",
-      "targetSource": "Fabric_Hub_Postgres",
-      "resources": [
-        {
-          "type": "TABLE",
-          "name": "table_name",
-          "comment": "Description of resource metadata",
-          "columns": [
-            {
-              "name": "column_name",
-              "type": "UUID",
-              "strategy": "UUID_V7",
-              "primaryKey": true,
-              "nullable": false
-            }
-          ],
-          "constraints": [
-            { "name": "check_rule", "type": "CHECK", "expression": "price > 0" }
-          ],
-          "security": {
-            "enable_rls": true,
-            "policies": [
-              { "name": "row_isolation", "using": "tenant_id = current_setting('app.tenant_id')" }
-            ],
-            "masking": [
-              { "column": "secret_field", "roles": ["viewer"], "expression": "'REDACTED'" }
-            ],
-            "grants": [
-              { "role": "viewer", "privileges": ["SELECT"] }
-            ]
-          }
-        }
-      ]
-    }
-  ],
-  "relationships": [
-    {
-      "name": "rel_name",
-      "cardinality": "1:M",
-      "from": { "resource": "parents", "field": "id" },
-      "to": { "resource": "children", "field": "parent_id" }
-    }
+"schemaDef": {
+  "columns": [
+    { "name": "id", "type": "UUID", "constraints": "PRIMARY KEY" },
+    { "name": "name", "type": "VARCHAR(100)", "constraints": "NOT NULL" }
   ]
 }
 ```
 
-### Manifest Property Validation
+#### B. `indexDef` (For `type: "CREATE_INDEX"`)
+```json
+"indexDef": {
+  "name": "idx_shipment_region",
+  "columns": ["region"],
+  "unique": false
+}
+```
 
-#### Top-Level Parameters
-* **`version`**: `String` | Manifest version (currently `4.0`).
-* **`namespace`**: `String` | Global metadata classification domain.
-* **`targetSource`**: `String` | Core database connection mapping for provisioning.
-* **`consistencyMode`**: `String` | `SAGA` (coordinated rollback transactions) or `EVENTUAL`.
-* **`extensions`**: `Array` | Required database engine extensions.
-* **`downstream`**: `Array` | Downstream replication config objects (Elasticsearch/Snowflake).
+#### C. `alterDef` (For `type: "ALTER_TABLE"`)
+```json
+"alterDef": {
+  "action": "ADD_COLUMN",
+  "columnName": "delivery_date",
+  "columnType": "TIMESTAMP"
+}
+```
+* `action`: Must equal `'ADD_COLUMN'` or `'DROP_COLUMN'`.
 
-#### Column Configuration Maps
-* **`name`**: `String` | Column naming pattern.
-* **`type`**: `String` | Relational type enum (e.g. `UUID`, `STRING`, `BIGINT`, `JSONB`).
-* **`nullable`**: `Boolean` | Allows `NULL` entries (defaults to `true`).
-* **`primaryKey`**: `Boolean` | Identifies primary unique record identifiers.
-* **`unique`**: `Boolean` | Applies unique constraint on values.
-* **`default`**: `String` | Default SQL statement value (e.g. `NOW()`, `0`).
-* **`strategy`**: `String` | Key generation method.
-* **`generated`**: `String` | Expression for computed/virtual fields.
-* **`stored`**: `Boolean` | Persist generated output in storage instead of running on reads.
+#### D. `viewDef` (For `type: "CREATE_VIEW"`)
+```json
+"viewDef": {
+  "name": "active_shipments",
+  "query": "SELECT * FROM shipments WHERE status = 'ACTIVE'",
+  "materialized": false
+}
+```
 
-#### Relationships
-* **`name`**: `String` | Relation identification key.
-* **`cardinality`**: `String` | Entitled mapping scopes: `1:1`, `1:M`, or `M:N`.
-* **`bridge`**: `String` | Bridge table name required exclusively for `M:N` relations.
-* **`from`** / **`to`**: `Object` | Connection ends identifying `resource` and linking `field`.
+---
+
+## 2. AST Query Schema (The `query` Object)
+
+The core relational AST specified in `queryConfig.query` when executing reads or complex queries.
+
+```jsonc
+{
+  "select": [
+    "id",
+    { "aggregate": "SUM", "column": "total_amount", "alias": "revenue" },
+    { "window": "RANK", "partitionBy": ["region"], "orderBy": [{"column": "total_amount", "direction": "DESC"}], "alias": "rank" }
+  ],
+  "from": { "resource": "shipments", "source": "Fabric_Hub_Postgres", "alias": "s" },
+  "joins": [ ... ],
+  "where": [ ... ],
+  "groupBy": ["region"],
+  "orderBy": [
+    { "column": "revenue", "direction": "DESC" }
+  ]
+}
+```
+
+### Projections (`select` Array):
+Can contain three types of values:
+1. **String**: Identifies column projections (e.g. `["*"]` or `["id", "region"]`).
+2. **Aggregate Map**:
+   * `aggregate`: `String` | `'COUNT' | 'SUM' | 'AVG' | 'MIN' | 'MAX' | 'COUNT_DISTINCT'`
+   * `column`: `String` | Column name (use `*` for COUNT)
+   * `alias`: `String` | Output column header.
+3. **Window Function Map**:
+   * `window`: `String` | `'RANK' | 'DENSE_RANK' | 'ROW_NUMBER' | 'LEAD' | 'LAG'`
+   * `partitionBy`: `Array` | Grouping partition columns.
+   * `orderBy`: `Array` | Ordering configurations.
+   * `alias`: `String` | Output column header.
+4. **Expression Map**:
+   * `expression`: `String` | Raw SQL statement evaluation (e.g. `{"expression": "ep.level + 1", "alias": "level"}`).
+
+### Driving Target (`from` Object):
+* `resource`: `String` | Table or collection.
+* `source`: `String` | Physical connection source.
+* `alias`: `String` | Qualifier alias.
+
+### Predicates (`where` Array):
+List of filter maps combined with logical `AND`. Can be of two shapes:
+
+#### Relational Predicate:
+* `column`: `String` | Qualified column name.
+* `operator`: `String` | `'EQ' | 'NE' | 'GT' | 'GTE' | 'LT' | 'LTE' | 'LIKE' | 'ILIKE' | 'IN' | 'IS_NULL' | 'IS_NOT_NULL'`
+* `value`: `Any` | Match value (omit for Null checks).
+
+#### Full-Text Search:
+* `search`: `Object`
+  * `column`: `String` | Target text vector column.
+  * `type`: `String` | Must equal `'FULL_TEXT'`.
+  * `query`: `String` | Keywords to find.
+
+### Recursive CTE Views (`with` Array):
+Recursively parses hierarchies:
+```json
+"with": [
+  {
+    "name": "org_tree",
+    "columns": ["id", "name", "manager_id", "level"],
+    "base": {
+      "select": ["id", "name", "manager_id", { "expression": "1", "alias": "level" }],
+      "from": { "resource": "employees" },
+      "where": [{ "column": "manager_id", "operator": "IS_NULL" }]
+    },
+    "unionAll": {
+      "select": ["e.id", "e.name", "e.manager_id", { "expression": "ot.level + 1" }],
+      "from": { "resource": "employees", "alias": "e" },
+      "joins": [
+        {
+          "type": "INNER",
+          "resource": "org_tree",
+          "alias": "ot",
+          "on": { "left": "e.manager_id", "operator": "EQ", "right": "ot.id" }
+        }
+      ]
+    }
+  }
+]
+```
+* `name`: `String` | Local recursive alias.
+* `columns`: `Array` | Projected column list.
+* `base`: `Object` | Base query step.
+* `unionAll`: `Object` | Recursive loop step joined to base.
+
+### Set Operations:
+Cross-engine combinations using `union`, `intersect`, or `except` arrays containing AST sub-queries:
+```json
+{
+  "union": [
+    { "select": ["id"], "from": { "resource": "sales_us" } },
+    { "select": ["id"], "from": { "resource": "sales_eu" } }
+  ]
+}
+```

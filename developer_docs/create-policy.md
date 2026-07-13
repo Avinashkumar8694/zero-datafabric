@@ -4,7 +4,7 @@ This guide describes the supported parameters, enums, rules, and configuration s
 
 ---
 
-## 1. Supported Parameters & Mapping Values
+## 1. Supported Security Parameters & Rules
 
 Within your metadata manifest, the `security` block inside a `TABLE` resource supports:
 
@@ -22,24 +22,49 @@ Within your metadata manifest, the `security` block inside a `TABLE` resource su
   * `role`: `String` | Target database role.
   * `privileges`: `Array` | Allowed DML: `['SELECT', 'INSERT', 'UPDATE', 'DELETE']`.
 
-### Predefined Database Roles (Enums)
-* `"fabric_user"` — Standard tenant user.
-* `"support_agent"` — Customer support technician.
-* `"logistics_viewer"` — Logistics viewer.
-* `"compliance_role"` — Compliance auditor.
-* `"analytics_viewer"` — Analytical reporter.
-* `"viewer"` — Read-only role.
-* `"admin"` — Tenant admin.
+---
 
-### Predefined Session Variables
-* `current_setting('app.current_tenant_id')` — Active tenant ID.
-* `current_setting('app.current_region')` — Operator location region.
-* `current_setting('app.current_user_id')` — Active user UUID.
-* `current_setting('app.current_role')` — Active session role.
+## 2. Exhaustive Mapping Reference (Allowed Values & Enums)
+
+To map security parameters correctly, utilize the following predefined enums, system variables, and role keys:
+
+### A. Allowed Privileges (DML Grants)
+The `privileges` array under `grants` only supports the following exact SQL operation strings:
+* **`"SELECT"`** — Grant read authorization.
+* **`"INSERT"`** — Grant record creation authorization.
+* **`"UPDATE"`** — Grant record modification authorization.
+* **`"DELETE"`** — Grant record deletion/soft-deletion authorization.
+
+### B. Predefined Database Roles
+You can map policies and grants to system-defined or user-defined tenant roles:
+* **`"fabric_user"`** — Standard application database user role.
+* **`"logistics_viewer"`** — Read-only role for carrier-focused endpoints.
+* **`"support_agent"`** — Role assigned to customer support technicians.
+* **`"operations_admin"`** — Role assigned to operational administrators.
+* **`"compliance_role"`** — Auditor role with bypass authorization (e.g., bypasses soft-deletes).
+* **`"analytics_viewer"`** — Read-only analytical reporter role.
+* **`"viewer"`** — Global read-only role.
+* **`"admin"`** — Tenant administrator role.
+
+### C. Supported Session Settings (Context Settings)
+Inside `using` and `withCheck` expressions, query the connection's session settings set dynamically by the coordinator on each query leg:
+* **`current_setting('app.current_tenant_id')`** — Evaluates to the active tenant ID string (e.g. `'tenant_A'`).
+* **`current_setting('app.current_region')`** — Evaluates to the operator's current location region string (e.g. `'US'`, `'EU'`).
+* **`current_setting('app.current_user_id')`** — Evaluates to the active UUID user key.
+* **`current_setting('app.current_role')`** — Evaluates to the active session role string.
+
+### D. Common Column Masking SQL Expressions
+Configure the `expression` property to evaluate valid database function targets:
+* **Literal Redaction**: `"'REDACTED'"` or `"'REDACTED'::jsonb"`
+* **MD5 Hashing**: `"md5(column_name)"` or `"md5(column_name) || '@masked.com'"`
+* **SHA256 Hashing**: `"encode(sha256(column_name::bytea), 'hex')"`
+* **Partial Mask (Substrings)**: `"'XXXX-XXXX-XXXX-' || right(column_name, 4)"`
+* **Zero Out (Numeric)**: `"0"` or `"0.00"`
+* **Null Out**: `"NULL"`
 
 ---
 
-## 2. 10 Enterprise Policy Scenarios
+## 3. 10 Enterprise Policy Scenarios
 
 To apply any of the manifests below, write the JSON to a file (e.g., `manifest.json`) and run the metadata apply API call:
 

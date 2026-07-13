@@ -22,6 +22,7 @@ import { Transpiler } from './transpiler';
 import { MetadataManifest } from './types';
 import { DownstreamService } from './downstream_service';
 import { HeterogeneousDispatcher } from './dispatcher';
+import { EngineCapabilityRegistry, EngineType, ENGINE_CAPABILITIES } from './engine_capabilities';
 import { PolicyService } from '../security/policy.service';
 import { ConstraintService } from '../query-engine/constraint.service';
 import { GrantService } from '../security/grant.service';
@@ -96,12 +97,32 @@ export class MetadataOrchestrator {
 
             for (const diff of plan.changes) {
                 const targetSource = diff.targetSource || manifest.targetSource || 'Fabric_Hub_Postgres';
-                const isMongo = targetSource.toLowerCase().includes('mongo');
-                const sqls = isMongo ? [] : await Transpiler.toSql(diff, tenantId, manifest);
+                const engineType: EngineType = diff.engineType || this.inferEngineType(targetSource);
+                const isHub = targetSource === 'Fabric_Hub_Postgres';
+                const isFabricCompensation = ['REGISTER_FABRIC_SEQUENCE', 'REGISTER_HUB_FUNCTION', 'REGISTER_FABRIC_ENUM', 'REGISTER_VIRTUAL_VIEW'].includes(diff.action);
                 
                 const resourceName = diff.table || diff.name || (diff as any).resource;
                 const schemaName = diff.schema || (diff.action === 'CREATE_SCHEMA' ? diff.name : null);
-                
+
+                // Compile diff to engine-native DDL/ops based on engine type
+                let sqls: string[] = [];
+                let ops: any[] = [];
+
+                if (isFabricCompensation) {
+                    // Fabric compensation actions always execute on the Hub Postgres
+                    sqls = await Transpiler.toFabricCompensation(diff, tenantId, manifest);
+                } else {
+                    switch (engineType) {
+                        case 'POSTGRES':   sqls = await Transpiler.toSql(diff, tenantId, manifest); break;
+                        case 'MYSQL':      sqls = await Transpiler.toMysql(diff, tenantId, manifest); break;
+                        case 'ORACLE':     sqls = await Transpiler.toOracle(diff, tenantId, manifest); break;
+                        case 'SNOWFLAKE':  sqls = await Transpiler.toSnowflake(diff, tenantId, manifest); break;
+                        case 'MONGODB':    ops = await Transpiler.toMongo(diff, tenantId, manifest); break;
+                        case 'ELASTICSEARCH': ops = await Transpiler.toElasticsearch(diff, tenantId, manifest); break;
+                        default:           sqls = await Transpiler.toSql(diff, tenantId, manifest); break;
+                    }
+                }
+
                 // 1. Capture Technical Specifications
                 if (resourceName && schemaName) {
                     const key = `${schemaName}.${resourceName}`;
@@ -113,41 +134,46 @@ export class MetadataOrchestrator {
 
                 // 2. Physical Deployment.
                 // Hub (local Postgres) DDL is transactional and MUST succeed (fatal on error).
-                // Remote engines (Mongo / warehouse) are dispatched best-effort (SAGA): a remote
-                // outage must NOT roll back the core Postgres provisioning — it degrades instead.
+                // Fabric compensation actions also execute on the hub (transactional).
+                // Remote engines are dispatched best-effort (SAGA): a remote outage
+                // must NOT roll back the core Postgres provisioning — it degrades instead.
                 let deployStatus = 'SUCCESS';
-                if (isMongo) {
-                    // The local Postgres namespace (catalog/metadata home) is created transactionally.
-                    if (diff.action === 'CREATE_SCHEMA') {
-                        await client.query(`CREATE SCHEMA IF NOT EXISTS "tenant_${tenantId}_${diff.name}"`);
-                    }
-                    try {
-                        const ops = await Transpiler.toMongo(diff, tenantId, manifest);
-                        await HeterogeneousDispatcher.execute(tenantId, targetSource, ops);
-                    } catch (e: any) {
-                        deployStatus = 'DEGRADED';
-                        console.warn(`[Orchestrator] Remote(Mongo) dispatch degraded for ${resourceName}@${targetSource}: ${e.message}`);
-                    }
-                } else if (targetSource === 'Fabric_Hub_Postgres') {
+
+                if (isHub || isFabricCompensation) {
+                    // Hub-local or fabric compensation: transactional, fatal on error
                     for (const sql of sqls) {
                         console.log(`[Orchestrator:Hub] Executing: ${sql}`);
                         await client.query(sql);
                     }
-                } else {
-                    // Remote non-Mongo (e.g. warehouse Postgres): local namespace transactional, dispatch best-effort.
+                } else if (engineType === 'MONGODB' || engineType === 'ELASTICSEARCH') {
+                    // Document/search engines: local namespace transactional, remote best-effort
                     if (diff.action === 'CREATE_SCHEMA') {
-                        const schemaName = `tenant_${tenantId}_${diff.name}`;
-                        await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+                        await client.query(`CREATE SCHEMA IF NOT EXISTS "tenant_${tenantId}_${diff.name}"`);
+                    }
+                    try {
+                        if (ops.length > 0) {
+                            await HeterogeneousDispatcher.execute(tenantId, targetSource, ops);
+                        }
+                    } catch (e: any) {
+                        deployStatus = 'DEGRADED';
+                        console.warn(`[Orchestrator] Remote(${engineType}) dispatch degraded for ${resourceName}@${targetSource}: ${e.message}`);
+                    }
+                } else {
+                    // Remote SQL engines (MySQL, Oracle, Snowflake, remote Postgres):
+                    // local namespace transactional, remote dispatch best-effort.
+                    if (diff.action === 'CREATE_SCHEMA') {
+                        const localSchemaName = `tenant_${tenantId}_${diff.name}`;
+                        await client.query(`CREATE SCHEMA IF NOT EXISTS "${localSchemaName}"`);
                     }
                     try {
                         await HeterogeneousDispatcher.execute(tenantId, targetSource, sqls);
                     } catch (e: any) {
                         deployStatus = 'DEGRADED';
-                        console.warn(`[Orchestrator] Remote dispatch degraded for ${resourceName}@${targetSource}: ${e.message}`);
+                        console.warn(`[Orchestrator] Remote(${engineType}) dispatch degraded for ${resourceName}@${targetSource}: ${e.message}`);
                     }
                 }
 
-                results.push({ action: diff.action, name: resourceName, targetSource, status: deployStatus });
+                results.push({ action: diff.action, name: resourceName, targetSource, engineType, status: deployStatus });
             }
 
             // 3. Catalog Synchronization (Universal Refresh)
@@ -289,12 +315,19 @@ export class MetadataOrchestrator {
     private static CORE_EXTENSIONS = ['uuid-ossp', 'pg_stat_statements', 'pgcrypto', 'btree_gist'];
 
     /**
-     * Ensures the platform-level infrastructure every manifest apply depends
-     * on exists before any tenant DDL runs: the core extensions
-     * (`CORE_EXTENSIONS`), the `fabric_system` schema, and the fabric
-     * primitive functions/sequence (`ensureFabricPrimitives`). Idempotent.
-     * @param client Open Postgres client/pool to run the setup statements on.
+     * Infers engine type from a source name when the diff doesn't carry `engineType`
+     * (backward compatibility with pre-capability-registry diffs).
      */
+    private inferEngineType(sourceName: string): EngineType {
+        const lower = sourceName.toLowerCase();
+        if (lower.includes('mongo'))         return 'MONGODB';
+        if (lower.includes('mysql'))         return 'MYSQL';
+        if (lower.includes('elastic') || lower.includes('opensearch')) return 'ELASTICSEARCH';
+        if (lower.includes('oracle'))        return 'ORACLE';
+        if (lower.includes('snowflake'))     return 'SNOWFLAKE';
+        return 'POSTGRES';
+    }
+
     private async ensureBaseInfrastructure(client: any) {
         for (const ext of MetadataOrchestrator.CORE_EXTENSIONS) {
             await client.query(`CREATE EXTENSION IF NOT EXISTS "${ext}"`);
@@ -369,7 +402,8 @@ export class MetadataOrchestrator {
                     highRisk: diffs.filter(d => d.risk === 'HIGH').length,
                     quarantine: diffs.filter(d => d.action === 'QUARANTINE_TABLE').length
                 },
-                changes: diffs
+                changes: diffs,
+                diffs: diffs // backward compatibility for legacy callers/tests
             };
         } finally {
             client.release();

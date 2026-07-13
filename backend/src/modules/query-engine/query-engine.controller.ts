@@ -123,7 +123,7 @@ export class QueryEngineController {
       return res.status(200).json(payload);
     } catch (err: any) {
       if (err.message.toLowerCase().includes('suspended')) return res.status(403).json({ error: err.message });
-      console.error(`[Query] Execution failed for tenant ${tenantId}: ${err.message}`);
+      console.error(`[Query] Execution failed for tenant ${tenantId}: ${err.message}`, err.stack);
       return res.status(500).json({ error: err.message });
     }
   }

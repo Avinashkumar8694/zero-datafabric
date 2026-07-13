@@ -311,7 +311,9 @@ export class QueryPlanner {
       allConnector &&
       fingerprints.size === 1 &&
       engineTokens.size === 1 &&
-      SQL_RELATIONAL.has(normEngine(firstEngine));
+      (SQL_RELATIONAL.has(normEngine(firstEngine)) || normEngine(firstEngine) === 'MONGODB');
+
+    console.log(`[QueryPlanner] allConnector=${allConnector} fingerprints=${Array.from(fingerprints)} engineTokens=${Array.from(engineTokens)} coLocatable=${coLocatable}`);
 
     // Nested forms (CTE / derived-table subquery) execute either as ONE native
     // statement pushed to a single co-located source, or — when every leg is the

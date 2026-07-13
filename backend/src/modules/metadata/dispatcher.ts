@@ -26,8 +26,8 @@ export class HeterogeneousDispatcher {
      * matching engine (Postgres, MySQL, or MongoDB) and closing it afterward.
      * @param tenantId Tenant scope used to resolve the data source.
      * @param targetSourceName Name of the data source, as registered in `public.data_sources`.
-     * @param commands For SQL engines: an array of SQL statement strings. For MongoDB: an array of op descriptors (`(action, name/collection, keys?, options?)`).
-     * @throws {Error} If no data source named `targetSourceName` is registered for the tenant, or if its engine `type` is not one of POSTGRES/MYSQL/MONGODB.
+     * @param commands For SQL engines: an array of SQL statement strings. For MongoDB: an array of op descriptors (`(action, name/collection, keys?, options?)`). For Elasticsearch: an array of index op descriptors.
+     * @throws {Error} If no data source named `targetSourceName` is registered for the tenant, or if its engine `type` is unsupported.
      */
     static async execute(tenantId: string, targetSourceName: string, commands: any[]): Promise<void> {
         console.log(`[Dispatcher] Dispatching ${commands.length} commands to source: ${targetSourceName}`);
@@ -39,16 +39,30 @@ export class HeterogeneousDispatcher {
         }
 
         const { type, config } = rows[0];
+        const normalizedType = this.normalizeEngineType(type);
 
-        if (type === 'POSTGRES') {
-            await this.executePostgres(config, commands);
-        } else if (type === 'MYSQL') {
-            await this.executeMysql(config, commands);
-        } else if (type === 'MONGODB') {
-            await this.executeMongo(config, commands);
-        } else {
-            throw new Error(`Industrial Dispatch Error: Engine '${type}' not supported for direct orchestration yet.`);
+        switch (normalizedType) {
+            case 'POSTGRES':       await this.executePostgres(config, commands); break;
+            case 'MYSQL':          await this.executeMysql(config, commands); break;
+            case 'MONGODB':        await this.executeMongo(config, commands); break;
+            case 'ORACLE':         await this.executeOracle(config, commands); break;
+            case 'SNOWFLAKE':      await this.executeSnowflake(config, commands); break;
+            case 'ELASTICSEARCH':  await this.executeElasticsearch(config, commands); break;
+            default:
+                throw new Error(`Industrial Dispatch Error: Engine '${type}' not supported for direct orchestration.`);
         }
+    }
+
+    /**
+     * Normalizes engine type strings, handling aliases used in data_sources table.
+     */
+    private static normalizeEngineType(type: string): string {
+        const t = String(type).toUpperCase();
+        if (t === 'POSTGRESQL') return 'POSTGRES';
+        if (t === 'MONGO') return 'MONGODB';
+        if (t === 'ELASTIC' || t === 'ES') return 'ELASTICSEARCH';
+        if (t === 'ORACLEDB') return 'ORACLE';
+        return t;
     }
 
     /**
@@ -164,6 +178,113 @@ export class HeterogeneousDispatcher {
             }
         } finally {
             await client.close();
+        }
+    }
+
+    /**
+     * Opens a short-lived Oracle connection and executes each SQL statement,
+     * committing at the end and closing the connection.
+     */
+    private static async executeOracle(config: any, sqls: string[]) {
+        const oracledb = require('oracledb');
+        oracledb.outFormat = oracledb.OUT_FORMAT_OBJECT;
+        const svc = config.serviceName || config.service || config.dbName || config.database || config.sid || 'FREEPDB1';
+        const connectString = config.connectString || config.connectionString || `${config.host || 'localhost'}:${config.port || 1521}/${svc}`;
+        const conn = await oracledb.getConnection({
+            user: config.user || config.username,
+            password: config.password || config.pass,
+            connectString,
+        });
+        try {
+            for (const sql of sqls) {
+                console.log(`[Dispatcher:Oracle] Executing: ${sql}`);
+                await conn.execute(sql);
+            }
+            await conn.commit();
+        } finally {
+            await conn.close();
+        }
+    }
+
+    /**
+     * Opens a short-lived Snowflake connection and executes each SQL statement,
+     * destroying the connection at the end.
+     */
+    private static async executeSnowflake(config: any, sqls: string[]) {
+        const snowflake = require('snowflake-sdk');
+        const connection = snowflake.createConnection({
+            account: config.account,
+            username: config.user || config.username,
+            password: config.password || config.pass,
+            warehouse: config.warehouse,
+            role: config.role,
+            database: config.dbName || config.database,
+            schema: config.schema,
+        });
+        await new Promise<void>((resolve, reject) => connection.connect((err: any) => (err ? reject(err) : resolve())));
+        try {
+            for (const sql of sqls) {
+                console.log(`[Dispatcher:Snowflake] Executing: ${sql}`);
+                await new Promise<void>((resolve, reject) => {
+                    connection.execute({
+                        sqlText: sql,
+                        complete: (err: any) => (err ? reject(err) : resolve())
+                    });
+                });
+            }
+        } finally {
+            await new Promise<void>((resolve) => connection.destroy(() => resolve()));
+        }
+    }
+
+    /**
+     * Uses axios to issue HTTP requests against the Elasticsearch REST API to
+     * provision indices and index mappings.
+     */
+    private static async executeElasticsearch(config: any, ops: any[]) {
+        const axios = require('axios');
+        const host = config.host || 'localhost';
+        const port = config.port || 9200;
+        const base = (config.uri || config.url || config.connectionString || `http://${host}:${port}`).replace(/\/$/, '');
+        const user = config.user || config.username;
+        const pass = config.pass || config.password;
+        const auth = user ? { username: String(user), password: String(pass || '') } : undefined;
+
+        for (const op of ops) {
+            console.log(`[Dispatcher:ES] Executing: ${op.action} on ${op.name}`);
+            if (op.action === 'createIndex') {
+                try {
+                    await axios({
+                        method: 'PUT',
+                        url: `${base}/${op.name}`,
+                        data: { mappings: op.mappings },
+                        auth,
+                        headers: { 'Content-Type': 'application/json' },
+                        timeout: 10000
+                    });
+                } catch (e: any) {
+                    if (e.response && e.response.status === 400 && e.response.data?.error?.type === 'resource_already_exists_exception') {
+                        // Already exists: safe to tolerate for idempotency
+                    } else {
+                        throw e;
+                    }
+                }
+            } else if (op.action === 'dropIndex' || op.action === 'dropCollection') {
+                try {
+                    await axios({
+                        method: 'DELETE',
+                        url: `${base}/${op.name}`,
+                        auth,
+                        timeout: 10000
+                    });
+                } catch (e: any) {
+                    if (e.response && e.response.status === 404) {
+                        // Not found: safe to ignore
+                    } else {
+                        throw e;
+                    }
+                }
+            }
         }
     }
 }

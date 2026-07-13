@@ -505,6 +505,36 @@ export class QueryEngineService {
         const only = plan.legs[0]!;
         const conn: any = ConnectorFactory.getConnector(only.engine, only.config);
         try {
+          if (only.engine === 'MONGODB') {
+            const pipeline = PushdownCompiler.toMongoJoin(ast);
+            console.log(`[QueryEngine] co-located MongoDB pushdown → "${plan.coLocatedSource}": ${JSON.stringify(pipeline)}`);
+            const startedAt = Date.now();
+            let rows: any[];
+            try {
+              rows = await conn.query(schemaName, ast.from.resource, { pipeline });
+            } finally {
+              await conn.close();
+            }
+            const executionMs = Date.now() - startedAt;
+            return {
+              data: rows,
+              rowCount: rows.length,
+              plan: {
+                strategy: 'SINGLE_CONNECTOR',
+                pushed: plan.pushed,
+                executionMs,
+                legs: [{
+                  source: plan.coLocatedSource, engine: only.engine, mode: 'connector',
+                  operation: 'colocated-mongo-pushdown', target: plan.coLocatedSource,
+                  query: JSON.stringify(pipeline), params: [],
+                  rowsReturned: rows.length, ms: executionMs,
+                }],
+                rowsScannedAcrossSources: rows.length,
+              },
+              warnings: plan.warnings,
+            };
+          }
+
           if (typeof conn.rawQuery !== 'function') throw new Error(`${only.engine} connector has no rawQuery`);
           // Grants + policy gate across every distinct table the query touches.
           let policyBlocks = false;

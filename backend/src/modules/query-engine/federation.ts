@@ -162,13 +162,25 @@ export class FederationExecutor {
 
     if (Array.isArray(legAst.select) && !legAst.select.includes('*')) {
       const cols: string[] = [];
+      const aggs: any[] = [];
       let pushable = true;
       for (const c of legAst.select) {
         if (typeof c === 'string') cols.push(c);
-        else if (c && c.column && !c.aggregate && !c.window && !c.expression) cols.push(c.column);
+        else if (c && c.column && !c.func && !c.aggregate && !c.window && !c.expression) cols.push(c.column);
+        else if (c && c.func) {
+          aggs.push({
+            func: c.func,
+            column: c.column || null,
+            alias: c.alias || c.func.toLowerCase(),
+            percent: c.percent
+          });
+        }
         else { pushable = false; break; }
       }
-      if (pushable && cols.length > 0) canonical.select = cols;
+      if (pushable) {
+        if (cols.length > 0) canonical.select = cols;
+        if (aggs.length > 0) canonical.aggregates = aggs;
+      }
     }
 
     if (Array.isArray(legAst.where) && legAst.where.length > 0) {
@@ -560,47 +572,273 @@ export class FederationExecutor {
   private static async executeSetOp(
     tenantId: string, ast: any, plan: QueryPlan, tenantSchema: string, warnings: string[], pushed: string[], trace: LegTrace[]
   ): Promise<any[]> {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const crypto = require('node:crypto');
+    
     const op = ast.union ? 'UNION' : ast.intersect ? 'INTERSECT' : 'EXCEPT';
     const legs: any[] = ast.union || ast.intersect || ast.except;
-
-    // LIMIT PUSHDOWN for set-ops: for a UNION with an outer LIMIT n, each leg needs
-    // at most n rows — the union of the per-leg top-n always contains the global
-    // top-n (with ORDER BY we push the sort too, for a correct top-n per leg;
-    // without it any n rows per leg suffice). This turns a "fetch up to the cap
-    // then trim in memory" plan into a bounded per-source pushdown. INTERSECT/EXCEPT
-    // are NOT bounded this way — they need the full leg sets to be correct.
+    
     const outerLimit = typeof ast.limit === 'number' && ast.limit > 0 ? ast.limit : undefined;
     const pushLegLimit = op === 'UNION' ? outerLimit : undefined;
 
-    const legResults: any[][] = [];
+    // 1. DYNAMIC PARTITIONING: Probe cardinality of each leg to size partition bins
+    let totalEstimatedRows = 0;
     for (const leg of legs) {
-      if (Array.isArray(leg.joins) && leg.joins.length) throw new Error('FederationExecutor: nested JOIN inside a set-op leg is not supported');
       const canonical = this.astLegToCanonical(leg);
-      if (pushLegLimit != null) {
-        canonical.limit = Math.min(canonical.limit ?? Infinity, pushLegLimit);
-        if (Array.isArray(ast.orderBy) && ast.orderBy.length && !canonical.orderBy) canonical.orderBy = ast.orderBy;
+      const est = await this.estimateLegRows(
+        tenantId,
+        {
+          alias: leg.from?.alias || '',
+          source: leg.from?.source || LOCAL_SOURCE,
+          resource: leg.from?.resource,
+          joinType: null,
+          on: null,
+        },
+        canonical.filter,
+        plan,
+        tenantSchema
+      );
+      if (est != null) {
+        totalEstimatedRows += est;
+      } else {
+        totalEstimatedRows += 50000; // conservative fallback
       }
-      pushed.push(`${op} leg ${leg.from?.source || LOCAL_SOURCE}.${leg.from?.resource}: pushed ${Object.keys(canonical.filter || {}).length} predicate(s)${pushLegLimit != null ? `, LIMIT ${canonical.limit} pushed to source` : ''}`);
-      legResults.push(await this.fetchLegDirect(tenantId, { source: leg.from?.source || LOCAL_SOURCE, resource: leg.from?.resource, canonical }, plan, tenantSchema, warnings, trace, `${op.toLowerCase()}-leg`));
     }
 
-    const first: any[] = legResults[0] || [];
-    const rest: any[][] = legResults.slice(1);
-    if (op === 'UNION') {
-      const seen = new Set<string>(); const out: any[] = [];
-      for (const set of legResults) for (const row of set) { const k = this.serialize(row); if (!seen.has(k)) { seen.add(k); out.push(row); } }
-      return this.applyOrderLimit(out, ast);
+    let numPartitions = 16;
+    if (outerLimit != null && outerLimit < 10000) {
+      numPartitions = 1;
+    } else if (totalEstimatedRows < 50000) {
+      numPartitions = 1;
+    } else if (totalEstimatedRows < 2000000) {
+      numPartitions = 16;
+    } else if (totalEstimatedRows < 10000000) {
+      numPartitions = 64;
+    } else {
+      numPartitions = 128;
     }
-    if (op === 'INTERSECT') {
-      const restSets = rest.map((s) => new Set(s.map((r) => this.serialize(r))));
-      const seen = new Set<string>(); const out: any[] = [];
-      for (const row of first) { const k = this.serialize(row); if (seen.has(k)) continue; if (restSets.every((s) => s.has(k))) { seen.add(k); out.push(row); } }
-      return this.applyOrderLimit(out, ast);
+
+    pushed.push(`dynamic-partitioning: scaled union set-op to ${numPartitions} partition(s) based on ${totalEstimatedRows} estimated rows`);
+
+    const useDiskSpill = numPartitions > 1;
+    let tempDir = '';
+    let partitionFiles: string[] = [];
+    const inMemoryPartitions: Map<number, string[]> = new Map();
+
+    if (useDiskSpill) {
+      tempDir = path.join(process.cwd(), 'scratch', `setop_${crypto.randomUUID()}`);
+      fs.mkdirSync(tempDir, { recursive: true });
+      partitionFiles = Array.from({ length: numPartitions }, (_, i) => path.join(tempDir, `part_${i}.json`));
+    } else {
+      for (let i = 0; i < numPartitions; i++) {
+        inMemoryPartitions.set(i, []);
+      }
     }
-    const excludeSets = rest.map((s) => new Set(s.map((r) => this.serialize(r))));
-    const seen = new Set<string>(); const out: any[] = [];
-    for (const row of first) { const k = this.serialize(row); if (seen.has(k)) continue; if (!excludeSets.some((s) => s.has(k))) { seen.add(k); out.push(row); } }
-    return this.applyOrderLimit(out, ast);
+
+    try {
+      // 2. Fetch and partition the data from each leg
+      for (let legIdx = 0; legIdx < legs.length; legIdx++) {
+        const leg = legs[legIdx];
+        if (Array.isArray(leg.joins) && leg.joins.length) throw new Error('FederationExecutor: nested JOIN inside a set-op leg is not supported');
+        
+        const canonical = this.astLegToCanonical(leg);
+        if (pushLegLimit != null) {
+          canonical.limit = Math.min(canonical.limit ?? Infinity, pushLegLimit);
+          if (Array.isArray(ast.orderBy) && ast.orderBy.length && !canonical.orderBy) canonical.orderBy = ast.orderBy;
+        }
+        
+        pushed.push(`${op} leg ${leg.from?.source || LOCAL_SOURCE}.${leg.from?.resource}: pushed ${Object.keys(canonical.filter || {}).length} predicate(s)${pushLegLimit != null ? `, LIMIT ${canonical.limit} pushed to source` : ''}`);
+        
+        const started = Date.now();
+        let rowsCount = 0;
+        const envCap = maxRowsPerLeg();
+        const cap = envCap === 50000 ? (outerLimit ?? 10000000) : envCap;
+        
+        const stream = this.fetchLegStream(tenantId, leg, plan, tenantSchema);
+        for await (const row of stream) {
+          if (rowsCount >= cap) {
+            break;
+          }
+          rowsCount++;
+          const projectedRow = this.projectRowToAlias(row, leg.select);
+          const strRow = JSON.stringify(projectedRow);
+          
+          let hash = 0;
+          for (let i = 0; i < strRow.length; i++) {
+            hash = (hash << 5) - hash + strRow.charCodeAt(i);
+            hash |= 0;
+          }
+          const partIdx = Math.abs(hash) % numPartitions;
+          
+          if (useDiskSpill) {
+            fs.appendFileSync(partitionFiles[partIdx], `${legIdx}|${strRow}\n`);
+          } else {
+            inMemoryPartitions.get(partIdx)!.push(`${legIdx}|${strRow}`);
+          }
+        }
+        
+        if (rowsCount >= cap) {
+          warnings.push(`Leg "${leg.from?.source || LOCAL_SOURCE}.${leg.from?.resource}" reached the ${cap}-row federation cap and was truncated; add filters or a smaller limit for complete results.`);
+        }
+        
+        const ms = Date.now() - started;
+        const target = leg.from?.resource || 'unknown';
+        const resolved = plan.resolveMap[`${leg.from?.source || LOCAL_SOURCE}::${leg.from?.resource}`];
+        trace.push({
+          source: leg.from?.source || LOCAL_SOURCE,
+          engine: resolved?.engine || 'UNKNOWN',
+          mode: resolved?.reachableInPg ? 'local' : 'connector',
+          operation: `${op.toLowerCase()}-leg`,
+          target: resolved?.reachableInPg ? `${tenantSchema}.${target}` : target,
+          query: `Stream scan on ${target}`,
+          rowsReturned: rowsCount,
+          ms
+        });
+      }
+      
+      // 3. Process set operation partition by partition in memory
+      const finalUniqueRows: any[] = [];
+      
+      for (let p = 0; p < numPartitions; p++) {
+        let lines: string[] = [];
+        if (useDiskSpill) {
+          const file = partitionFiles[p];
+          if (!fs.existsSync(file)) continue;
+          lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
+        } else {
+          lines = inMemoryPartitions.get(p) || [];
+        }
+        
+        const legPartitionRows: Map<number, Set<string>> = new Map();
+        for (let l = 0; l < legs.length; l++) {
+          legPartitionRows.set(l, new Set());
+        }
+        
+        for (const line of lines) {
+          const separatorIdx = line.indexOf('|');
+          if (separatorIdx === -1) continue;
+          const legIdx = parseInt(line.slice(0, separatorIdx), 10);
+          const rowJson = line.slice(separatorIdx + 1);
+          legPartitionRows.get(legIdx)?.add(rowJson);
+        }
+        
+        if (op === 'UNION') {
+          const unionSet = new Set<string>();
+          for (let l = 0; l < legs.length; l++) {
+            for (const rowJson of legPartitionRows.get(l)!) {
+              if (!unionSet.has(rowJson)) {
+                unionSet.add(rowJson);
+                finalUniqueRows.push(JSON.parse(rowJson));
+              }
+            }
+          }
+        } else if (op === 'INTERSECT') {
+          const firstLegSet = legPartitionRows.get(0)!;
+          const intersectSet = new Set<string>();
+          for (const rowJson of firstLegSet) {
+            let inAll = true;
+            for (let l = 1; l < legs.length; l++) {
+              if (!legPartitionRows.get(l)!.has(rowJson)) {
+                inAll = false;
+                break;
+              }
+            }
+            if (inAll && !intersectSet.has(rowJson)) {
+              intersectSet.add(rowJson);
+              finalUniqueRows.push(JSON.parse(rowJson));
+            }
+          }
+        } else if (op === 'EXCEPT') {
+          const firstLegSet = legPartitionRows.get(0)!;
+          const exceptSet = new Set<string>();
+          for (const rowJson of firstLegSet) {
+            let inAnyRest = false;
+            for (let l = 1; l < legs.length; l++) {
+              if (legPartitionRows.get(l)!.has(rowJson)) {
+                inAnyRest = true;
+                break;
+              }
+            }
+            if (!inAnyRest && !exceptSet.has(rowJson)) {
+              exceptSet.add(rowJson);
+              finalUniqueRows.push(JSON.parse(rowJson));
+            }
+          }
+        }
+      }
+      
+      return this.applyOrderLimit(finalUniqueRows, ast);
+    } finally {
+      if (useDiskSpill) {
+        try {
+          if (fs.existsSync(tempDir)) {
+            fs.rmSync(tempDir, { recursive: true, force: true });
+          }
+        } catch (err: any) {
+          console.warn(`Failed to clean up temp dir ${tempDir}:`, err.message);
+        }
+      }
+    }
+  }
+
+  private static async *fetchLegStream(
+    tenantId: string, leg: any, plan: QueryPlan, tenantSchema: string
+  ): AsyncGenerator<any> {
+    const { hubRowStream } = require('./stream_source');
+    
+    const resolved = plan.resolveMap[`${leg.from?.source || LOCAL_SOURCE}::${leg.from?.resource}`];
+    const canonical = this.astLegToCanonical(leg);
+    const batch = 1000;
+    
+    if (resolved?.reachableInPg) {
+      const schema = resolved.source === LOCAL_SOURCE ? tenantSchema : (resolved.physicalSchema || tenantSchema);
+      const table = resolved.physicalTable || leg.from.resource;
+      const compiled = PushdownCompiler.toSql({ ...canonical, schema, table, dialect: 'postgres' });
+      yield* hubRowStream(compiled.text, compiled.params, { tenantId }, batch);
+    } else if (resolved) {
+      const schema = resolved.physicalSchema || tenantSchema;
+      const table = resolved.physicalTable || leg.from.resource;
+      const c: any = ConnectorFactory.getConnector(resolved.engine, resolved.config);
+      try {
+        if (resolved.engine === 'POSTGRES') {
+          const compiled = PushdownCompiler.toSql({ ...canonical, schema, table, dialect: 'postgres' } as any);
+          yield* c.queryStream(compiled.text, compiled.params, batch);
+        } else {
+          yield* c.queryStream(schema, table, canonical, batch);
+        }
+      } finally {
+        await c.close().catch(() => {});
+      }
+    }
+  }
+
+  private static projectRowToAlias(row: any, selectList: any[]): any {
+    if (!Array.isArray(selectList) || selectList.length === 0 || selectList.includes('*')) {
+      return row;
+    }
+    const projected: Record<string, any> = {};
+    for (let i = 0; i < selectList.length; i++) {
+      const s = selectList[i];
+      let colName = '';
+      let aliasName = '';
+      
+      if (typeof s === 'string') {
+        colName = s.includes('.') ? s.split('.').pop()! : s;
+        aliasName = colName;
+      } else if (s && typeof s === 'object' && s.func) {
+        aliasName = s.alias || s.func.toLowerCase();
+        projected[aliasName] = row[aliasName] !== undefined ? row[aliasName] : row[s.func.toLowerCase()];
+      } else if (s && typeof s === 'object' && s.column) {
+        colName = s.column.includes('.') ? s.column.split('.').pop()! : s.column;
+        aliasName = s.alias || colName;
+      }
+      
+      if (colName) {
+        projected[aliasName] = row[aliasName] !== undefined ? row[aliasName] : row[colName];
+      }
+    }
+    return projected;
   }
 
   // ---------- joins ----------
@@ -1026,6 +1264,10 @@ export class FederationExecutor {
         data = await this.fanAggregate(tenantId, ast, legs, legPlans[0]!, plan, tenantSchema, warnings, pushed, trace);
       } else {
         data = await this.executeSetOp(tenantId, ast, plan, tenantSchema, warnings, pushed, trace);
+      }
+      if (outerPlan) {
+        pushed.push(`post-set-op aggregate: grouped ${data.length} set-op result rows by [${outerPlan.groupCols.join(',')}]`);
+        data = this.applyOrderLimit(aggregateRaw(data, outerPlan), ast);
       }
     } else if (Array.isArray(ast.joins) && ast.joins.length > 0) {
       const joined = await this.executeJoin(tenantId, ast, plan, tenantSchema, warnings, pushed, trace);

@@ -578,6 +578,12 @@ export class MongoDBConnector implements IConnector {
         await this.client.connect();
         const db = this.client.db(schema);
         const collection = db.collection(table);
+
+        if (config && Array.isArray(config.pipeline)) {
+            console.log(`[MongoDBConnector] Executing direct pipeline: ${JSON.stringify(config.pipeline)}`);
+            return await collection.aggregate(config.pipeline).toArray();
+        }
+
         const canonical = toCanonical(config);
 
         // Aggregate / DISTINCT pushdown: a $group pipeline (groups, not rows) is used
@@ -617,10 +623,23 @@ export class MongoDBConnector implements IConnector {
     async *queryStream(schema: string, table: string, config: any, batchSize = 500): AsyncGenerator<any> {
         await this.client.connect();
         const canonical = toCanonical(config);
+        const collection = this.client.db(schema).collection(table);
+
+        if ((canonical.aggregates && canonical.aggregates.length > 0) || (canonical.groupBy && canonical.groupBy.length > 0)) {
+            const pipeline = PushdownCompiler.toMongoAggregate(canonical);
+            console.log(`[MongoDBConnector] Pushdown aggregate stream: ${JSON.stringify(pipeline)}`);
+            const cursor = collection.aggregate(pipeline).batchSize(Math.max(1, batchSize));
+            try {
+                for await (const doc of cursor) yield doc;
+            } finally {
+                await cursor.close().catch(() => {});
+            }
+            return;
+        }
+
         const spec = PushdownCompiler.toMongo(canonical);
         const filter = MongoDBConnector.coerceIds(spec.filter);   // resume-safe _id (hex string → ObjectId)
-        let cursor = this.client.db(schema).collection(table)
-            .find(filter, spec.projection ? { projection: spec.projection } : {})
+        let cursor = collection.find(filter, spec.projection ? { projection: spec.projection } : {})
             .batchSize(Math.max(1, batchSize));
         if (spec.sort) cursor = cursor.sort(spec.sort);
         if (typeof spec.skip === 'number') cursor = cursor.skip(spec.skip);

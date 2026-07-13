@@ -646,4 +646,102 @@ export class PushdownCompiler {
 
     return pipeline;
   }
+
+  /**
+   * Compiles a co-located multi-collection query (joins, filters, projections)
+   * into a native MongoDB aggregation pipeline using $lookup, $unwind, $match, and $project.
+   * Enables executing join queries natively on a single MongoDB connection.
+   */
+  static toMongoJoin(ast: any): any[] {
+    const pipeline: any[] = [];
+    const fromResource = ast.from?.resource;
+    if (!fromResource) throw new Error('toMongoJoin: missing FROM resource');
+
+    // 1. Process Joins using $lookup and $unwind
+    if (Array.isArray(ast.joins)) {
+      for (const j of ast.joins) {
+        const rightResource = j.resource;
+        const alias = j.alias || rightResource;
+        const on = j.on || {};
+        
+        // Strip alias prefixes to get clean field names (e.g. inv.sku -> sku)
+        const leftCol = String(on.left || '').includes('.') ? String(on.left).split('.').slice(1).join('.') : on.left;
+        const rightCol = String(on.right || '').includes('.') ? String(on.right).split('.').slice(1).join('.') : on.right;
+        
+        pipeline.push({
+          $lookup: {
+            from: rightResource,
+            localField: leftCol,
+            foreignField: rightCol,
+            as: alias
+          }
+        });
+        
+        pipeline.push({
+          $unwind: {
+            path: `$${alias}`,
+            preserveNullAndEmptyArrays: j.type === 'LEFT'
+          }
+        });
+      }
+    }
+
+    // 2. Process Filters ($match)
+    if (Array.isArray(ast.where) && ast.where.length > 0) {
+      const matchObj: Record<string, any> = {};
+      for (const w of ast.where) {
+        if (!w || !w.column) continue;
+        const colPath = w.column;
+        const parts = colPath.split('.');
+        const cleanCol = parts.length > 1 && parts[0] === ast.from?.alias ? parts.slice(1).join('.') : colPath;
+        
+        const rawOp = String(w.operator || 'EQ').toUpperCase();
+        const op = rawOp === 'EQ' ? '$eq' : rawOp === 'NE' ? '$ne' : rawOp === 'GT' ? '$gt' : rawOp === 'GTE' ? '$gte' : rawOp === 'LT' ? '$lt' : rawOp === 'LTE' ? '$lte' : rawOp === 'IN' ? '$in' : null;
+        const val = (rawOp === 'IS_NULL' || rawOp === 'IS_NOT_NULL') ? null : w.value;
+        
+        if (op) {
+          matchObj[cleanCol] = { [op]: val };
+        }
+      }
+      if (Object.keys(matchObj).length > 0) {
+        pipeline.push({ $match: matchObj });
+      }
+    }
+
+    // 3. Process Projections ($project)
+    if (Array.isArray(ast.select) && ast.select.length > 0 && !ast.select.includes('*')) {
+      const projectObj: Record<string, any> = { _id: 0 };
+      for (const s of ast.select) {
+        if (typeof s === 'string') {
+          const parts = s.split('.');
+          const cleanCol = parts.length > 1 && parts[0] === ast.from?.alias ? parts.slice(1).join('.') : s;
+          projectObj[cleanCol] = `$${cleanCol}`;
+        } else if (s && typeof s === 'object' && s.column) {
+          const alias = s.alias || s.column;
+          const parts = s.column.split('.');
+          const cleanCol = parts.length > 1 && parts[0] === ast.from?.alias ? parts.slice(1).join('.') : s.column;
+          projectObj[alias] = `$${cleanCol}`;
+        }
+      }
+      pipeline.push({ $project: projectObj });
+    }
+
+    // 4. Process Sorting ($sort)
+    if (Array.isArray(ast.orderBy) && ast.orderBy.length > 0) {
+      const sortObj: Record<string, 1 | -1> = {};
+      for (const o of ast.orderBy) {
+        const parts = o.column.split('.');
+        const cleanCol = parts.length > 1 && parts[0] === ast.from?.alias ? parts.slice(1).join('.') : o.column;
+        sortObj[cleanCol] = o.direction === 'DESC' ? -1 : 1;
+      }
+      pipeline.push({ $sort: sortObj });
+    }
+
+    // 5. Process Limit ($limit)
+    if (typeof ast.limit === 'number' && ast.limit > 0) {
+      pipeline.push({ $limit: Math.floor(ast.limit) });
+    }
+
+    return pipeline;
+  }
 }

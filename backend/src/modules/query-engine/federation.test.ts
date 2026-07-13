@@ -1,5 +1,8 @@
 jest.mock('../../config/database', () => ({
-  pool: { query: jest.fn() },
+  pool: {
+    query: jest.fn(),
+    connect: jest.fn(),
+  },
   queryWithContext: jest.fn(),
 }));
 jest.mock('../metadata/connectors/factory', () => ({
@@ -7,11 +10,16 @@ jest.mock('../metadata/connectors/factory', () => ({
 }));
 
 import { FederationExecutor } from './federation';
-import { queryWithContext } from '../../config/database';
+import { pool, queryWithContext } from '../../config/database';
 import { ConnectorFactory } from '../metadata/connectors/factory';
 
 const qwc = queryWithContext as jest.Mock;
 const getConnector = ConnectorFactory.getConnector as jest.Mock;
+
+const mockClient = {
+  query: jest.fn(),
+  release: jest.fn(),
+};
 
 const localLeg = (resource: string) => ({
   source: 'Fabric_Hub_Postgres', resource, engine: 'POSTGRES', syncType: 'VIRTUAL',
@@ -29,13 +37,36 @@ function planFrom(...legs: any[]) {
 }
 
 function mockConnectorReturning(rows: any[]) {
-  const connector = { query: jest.fn().mockResolvedValue(rows), close: jest.fn().mockResolvedValue(undefined) };
+  const connector = {
+    query: jest.fn().mockResolvedValue(rows),
+    queryStream: jest.fn().mockImplementation(async function* () {
+      for (const r of rows) yield r;
+    }),
+    close: jest.fn().mockResolvedValue(undefined)
+  };
   getConnector.mockReturnValue(connector);
   return connector;
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
+  (global as any).mockClientRows = [];
+  (pool.connect as jest.Mock).mockImplementation(() => Promise.resolve(mockClient));
+  (mockClient.query as jest.Mock).mockImplementation((arg1) => {
+    const rows = (global as any).mockClientRows || [];
+    if (typeof arg1 === 'string') {
+      if (arg1.includes('information_schema.schemata')) {
+        return Promise.resolve({ rows: [{ schema_name: 'tenant_tenant_x' }] });
+      }
+      return Promise.resolve({ rows });
+    }
+    return {
+      [Symbol.asyncIterator]: async function* () {
+        for (const r of rows) yield r;
+      },
+      destroy: jest.fn(),
+    };
+  });
   delete process.env.FABRIC_FED_MAX_ROWS_PER_LEG;
   delete process.env.FABRIC_FED_COST_PROBE;
   delete process.env.FABRIC_FED_BROADCAST_MAX;
@@ -52,6 +83,7 @@ describe('FederationExecutor', () => {
       ],
       limit: 100,
     };
+    (global as any).mockClientRows = [{ sku: 'A' }, { sku: 'B' }];
     qwc.mockResolvedValue({ rows: [{ sku: 'A' }, { sku: 'B' }] });
     mockConnectorReturning([{ sku: 'B' }, { sku: 'C' }]);
 
@@ -71,6 +103,7 @@ describe('FederationExecutor', () => {
       ],
       limit: 100,
     };
+    (global as any).mockClientRows = [{ x: 1 }];
     qwc.mockResolvedValue({ rows: [{ x: 1 }] });
     mockConnectorReturning([{ x: 2 }, { x: 3 }]); // exactly the cap
 

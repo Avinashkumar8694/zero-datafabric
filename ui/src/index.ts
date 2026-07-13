@@ -25,6 +25,7 @@ const DOC_LIST = [
   { id: 'create-sequence.md', title: 'Provision: Sequences' },
   { id: 'create-view.md', title: 'Provision: Views & MViews' },
   { id: 'create-recursion.md', title: 'Provision: Recursive Views' },
+  { id: 'create-function-and-sequence-usage.md', title: 'Provision: Functions & Sequences Usage' },
   { id: 'queries-cookbook.md', title: 'Queries Cookbook' },
   { id: 'manifests-cookbook.md', title: 'Manifests Cookbook' },
   { id: 'schema-specification.md', title: 'Schema Specification' },

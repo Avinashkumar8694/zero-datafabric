@@ -10,6 +10,7 @@ const PORT = process.env.UI_PORT || 3001;
 
 const DOC_LIST = [
   { id: 'how-to-guide.md', title: 'How-To Developer Guide' },
+  { id: 'rules-and-guidelines.md', title: 'Rules & Design Guidelines' },
   { id: 'creating-analytics.md', title: 'Creating Analytics & Widgets' },
   { id: 'crud-create.md', title: 'API: Create (Insert)' },
   { id: 'crud-read.md', title: 'API: Read (Fetch)' },

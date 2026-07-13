@@ -15,6 +15,7 @@ const DOC_LIST = [
   { id: 'crud-read.md', title: 'API: Read (Fetch)' },
   { id: 'crud-update.md', title: 'API: Update' },
   { id: 'crud-delete.md', title: 'API: Delete' },
+  { id: 'complex-crud-examples.md', title: 'Complex CRUD Scenarios' },
   { id: 'queries-cookbook.md', title: 'Queries Cookbook' },
   { id: 'manifests-cookbook.md', title: 'Manifests Cookbook' },
   { id: 'schema-specification.md', title: 'Schema Specification' },

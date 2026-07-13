@@ -9,6 +9,9 @@ const app = express();
 const PORT = process.env.UI_PORT || 3001;
 
 const DOC_LIST = [
+  { id: 'how-to-guide.md', title: 'How-To Developer Guide' },
+  { id: 'schema-specification.md', title: 'Schema Specification' },
+  { id: 'type-and-enum-reference.md', title: 'Type & Enum Reference' },
   { id: 'api-overview.md', title: 'API Overview' },
   { id: 'concepts.md', title: 'Core Concepts' },
   { id: 'query-language.md', title: 'AST Query Language' },
@@ -70,7 +73,7 @@ app.get('/workbench', (req, res) => {
 });
 
 app.get('/workbench/docs', async (req, res) => {
-  const docParam = (req.query.doc as string) || 'api-overview.md';
+  const docParam = (req.query.doc as string) || 'how-to-guide.md';
   const activeDoc = DOC_LIST.find(d => d.id === docParam) || DOC_LIST[0];
 
   try {

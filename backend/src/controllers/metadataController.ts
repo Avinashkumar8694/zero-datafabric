@@ -21,6 +21,7 @@ import { ConnectorFactory } from '../modules/metadata/connectors/factory';
 import { renderFabricDdl, renderFabricAst } from '../modules/metadata/ddl_render';
 import { PhysicalSync } from '../modules/sync/physical_sync.service';
 import { CopyJobEngine } from '../modules/jobs/copy_job_engine';
+import { LicensingService } from '../services/licensing.service';
 
 const orchestrator = new MetadataOrchestrator();
 // Catalog reads change ONLY on sync (crawl/apply/register/remove), and every such
@@ -550,6 +551,23 @@ export const applyMetadata = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
         if (!user) return res.status(401).json({ error: 'Authentication required' });
+
+        // Enforce max tables limit for non-admin users
+        if (user.internal_role !== 'ADMIN') {
+            const currentTablesRes = await queryWithContext(
+                `SELECT COUNT(*) FROM public.catalog_tables t
+                 JOIN public.catalog_schemas s ON t.schema_id = s.id
+                 JOIN public.data_sources d ON s.source_id = d.id
+                 WHERE d.tenant_id = $1`,
+                [user.tenant_id],
+                { tenantId: user.tenant_id, username: user.username }
+            );
+            const currentCount = parseInt(currentTablesRes.rows[0].count);
+            const allowed = await LicensingService.checkLimit(user.tenant_id, 'max_tables', currentCount);
+            if (!allowed) {
+                return res.status(400).json({ error: 'Table limit exceeded. Your plan restricts you to a maximum of 5 tables.' });
+            }
+        }
         
         let content = '';
         if (req.file) {
@@ -633,6 +651,24 @@ export const rollbackMetadata = async (req: Request, res: Response) => {
 export const migrateMetadata = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
+
+        // Enforce max tables limit for non-admin users
+        if (user.internal_role !== 'ADMIN') {
+            const currentTablesRes = await queryWithContext(
+                `SELECT COUNT(*) FROM public.catalog_tables t
+                 JOIN public.catalog_schemas s ON t.schema_id = s.id
+                 JOIN public.data_sources d ON s.source_id = d.id
+                 WHERE d.tenant_id = $1`,
+                [user.tenant_id],
+                { tenantId: user.tenant_id, username: user.username }
+            );
+            const currentCount = parseInt(currentTablesRes.rows[0].count);
+            const allowed = await LicensingService.checkLimit(user.tenant_id, 'max_tables', currentCount);
+            if (!allowed) {
+                return res.status(400).json({ error: 'Table limit exceeded. Your plan restricts you to a maximum of 5 tables.' });
+            }
+        }
+
         const { migrationPlan } = req.body;
         const results = await MetadataService.migrateMetadata(user.tenant_id, migrationPlan);
         res.json({ results });

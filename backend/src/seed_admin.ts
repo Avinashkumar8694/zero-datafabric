@@ -1,7 +1,51 @@
 import { pool } from './config/database';
+import { Client } from 'pg';
 
 async function seed() {
     console.log('--- Manual Industrial Seeding ---');
+    
+    // Register OIDC client inside the identity server database container
+    try {
+        console.log('Registering OIDC client in zero-identity-server DB...');
+        const idsClient = new Client({
+            connectionString: 'postgresql://admin:admin123@localhost:5422/identity_server'
+        });
+        await idsClient.connect();
+        await idsClient.query(`
+            INSERT INTO client (
+                client_id,
+                client_secret,
+                client_name,
+                redirect_uris,
+                grant_types,
+                response_types,
+                requires_consent,
+                token_endpoint_auth_method,
+                skip_team_check,
+                skip_org_check,
+                auth_mode
+            ) VALUES (
+                'zero-datafabric',
+                'super-secret-key-fabric',
+                'Zero Data Fabric',
+                'http://localhost:4000/api/auth/sso/callback',
+                'authorization_code,refresh_token',
+                'code',
+                false,
+                'client_secret_post',
+                true,
+                true,
+                'flexible'
+            ) ON CONFLICT (client_id) DO UPDATE SET
+                redirect_uris = EXCLUDED.redirect_uris,
+                token_endpoint_auth_method = EXCLUDED.token_endpoint_auth_method
+        `);
+        await idsClient.end();
+        console.log('OIDC client zero-datafabric successfully registered.');
+    } catch (idsErr: any) {
+        console.warn('[Warning] Could not register OIDC client in zero-identity-server (is it running?):', idsErr.message);
+    }
+
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
@@ -10,13 +54,17 @@ async function seed() {
         await client.query("INSERT INTO public.tenants (id, name) VALUES ('tenant_A', 'System Admin') ON CONFLICT (id) DO NOTHING");
         console.log('Tenant A ensured.');
         
-        // 2. Seed Admin User
+        // 2. Seed Admin User and admin@fabrixly.com
         const passwordHash = '$2b$10$CxBK2AyOtIyt4hCsEZPqEOhGQloahPxyalyChP9hNprweiD/4PZY2'; // 'admin'
         await client.query(
             "INSERT INTO public.users (username, password_hash, tenant_id, role) VALUES ('admin', $1, 'tenant_A', 'ADMIN') ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash",
             [passwordHash]
         );
-        console.log('Admin user seeded.');
+        await client.query(
+            "INSERT INTO public.users (username, password_hash, tenant_id, role) VALUES ('admin@fabrixly.com', $1, 'tenant_A', 'ADMIN') ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash",
+            [passwordHash]
+        );
+        console.log('Admin users seeded.');
 
         // 3. Seed Data Sources (Industrial GSC v4.0 Connections)
         const sources = [

@@ -14,11 +14,31 @@
             </div>
             <button type="submit" class="btn-primary">Sign In</button>
         </form>
+        <div style="margin: 1.5rem 0; text-align: center; color: var(--text-muted); font-size: 0.9rem; position: relative;">
+            <span style="background: var(--surface); padding: 0 10px; position: relative; z-index: 1;">OR</span>
+            <div style="position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: var(--border); z-index: 0;"></div>
+        </div>
+        <button id="ssoBtn" type="button" class="btn-sso" style="width: 100%; padding: 1rem; background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-shield"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            Sign In with SSO
+        </button>
         <p id="message"></p>
     </div>
 </div>
 
 <script>
+    // Check for SSO callback token in query params
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    if (token) {
+        localStorage.setItem('token', token);
+        window.location.href = '/dashboard';
+    }
+
+    document.getElementById('ssoBtn').addEventListener('click', () => {
+        window.location.href = `${API_BASE}/auth/sso`;
+    });
+
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const username = document.getElementById('username').value;
@@ -97,6 +117,10 @@
     }
     .btn-primary:hover {
         background: var(--primary-dark);
+    }
+    .btn-sso:hover {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border-color: var(--primary) !important;
     }
     #message {
         margin-top: 1rem;

@@ -8,6 +8,7 @@
 
 import { Request, Response } from 'express';
 import { TriggerService } from '../modules/triggers/trigger.service';
+import { LicensingService } from '../services/licensing.service';
 
 /**
  * List all triggers defined for the caller's tenant.
@@ -45,6 +46,13 @@ export const listTriggers = async (req: Request, res: Response) => {
 export const createTrigger = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
+    if (user.internal_role !== 'ADMIN') {
+      const currentTriggers = await TriggerService.listTriggers(user.tenant_id);
+      const allowed = await LicensingService.checkLimit(user.tenant_id, 'max_triggers', currentTriggers.length);
+      if (!allowed) {
+        return res.status(400).json({ error: 'Trigger limit exceeded. Your plan restricts you to a maximum of 3 triggers.' });
+      }
+    }
     const created = await TriggerService.createTrigger(user.tenant_id, user.username, req.body);
     res.status(201).json(created);
   } catch (err: any) {

@@ -51,6 +51,7 @@ import { RecursiveExecutor, RecursiveSpec, LevelFetch } from './recursive';
 import { parseAggregates, aggregateRaw } from './aggregate';
 import { ConstraintService } from './constraint.service';
 import { GrantService, Privilege } from '../security/grant.service';
+import { LicensingService } from '../../services/licensing.service';
 
 /**
  * Unified query/DML/DDL request shape accepted by (@link QueryEngineService.executeQuery).
@@ -1006,6 +1007,30 @@ export class QueryEngineService {
     }
     const dataRows = Array.isArray(data) ? data : data ? [data] : [];
     for (const row of dataRows) this.assertSafeKeys(row, 'data');
+
+    // Enforce records per table limit for non-admin tenants
+    if (op === 'create' && tenantId !== 'tenant_A') {
+      const licensingCheck = await LicensingService.getTenantSubscription(tenantId);
+      const maxRecords = licensingCheck.limits.max_records_per_table;
+      if (maxRecords !== -1) {
+        try {
+          const context = { tenantId, username: session?.username || 'system' };
+          const countRes = await queryWithContext(`SELECT COUNT(*) FROM ${resource}`, [], context);
+          const currentRows = parseInt(countRes.rows[0].count);
+          const incomingCount = dataRows.length;
+          
+          const allowed = await LicensingService.checkLimit(tenantId, 'max_records_per_table', currentRows + incomingCount - 1);
+          if (!allowed) {
+            throw new Error(`Plan limit exceeded: Your plan restricts you to a maximum of ${maxRecords} records per table.`);
+          }
+        } catch (countErr: any) {
+          if (countErr.message.includes('Plan limit exceeded')) {
+            throw countErr;
+          }
+        }
+      }
+    }
+
     if ((op === 'update' || op === 'delete') && (!where || Object.keys(where).length === 0)) {
       throw new Error('SAFETY: update/delete require a "where" filter to avoid unrestricted mutations.');
     }

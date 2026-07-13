@@ -28,7 +28,7 @@ services:
     image: postgrest/postgrest:v12.0.0
     container_name: datafabric-postgrest
     ports:
-      - "3000:3000"
+      - "3005:3000"
     environment:
       PGRST_DB_URI: postgres://authenticator:fabric_password@db:5432/datafabric
       PGRST_DB_SCHEMA: public

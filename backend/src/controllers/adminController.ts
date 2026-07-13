@@ -15,6 +15,7 @@ import { TenantService } from '../modules/tenant/tenant.service';
 import { AuthService } from '../modules/auth/auth.service';
 import { pool, queryWithContext } from '../config/database';
 import { invalidateTenant } from '../config/cache';
+import { LicensingService } from '../services/licensing.service';
 
 // --- Tenant Management ---
 
@@ -163,6 +164,23 @@ export const createConnection = async (req: Request, res: Response) => {
   const user = (req as any).user;
   if (!name || !config) return res.status(400).json({ error: 'name and config are required' });
   try {
+    // Enforce connections limit for non-admin users
+    if (user.internal_role !== 'ADMIN') {
+      const context = { tenantId: user.tenant_id, username: user.username };
+      const existing = await queryWithContext('SELECT COUNT(*) FROM public.data_sources', [], context);
+      const currentCount = parseInt(existing.rows[0].count);
+      
+      const existsCheck = await queryWithContext('SELECT id FROM public.data_sources WHERE name = $1', [name], context);
+      const isNew = existsCheck.rows.length === 0;
+
+      if (isNew) {
+        const allowed = await LicensingService.checkLimit(user.tenant_id, 'max_connections', currentCount);
+        if (!allowed) {
+          return res.status(400).json({ error: 'Connection limit exceeded. Your current plan restricts you to a maximum of 2 connections.' });
+        }
+      }
+    }
+
     const result = await IntegrationService.registerRemoteSource(user.tenant_id, name, config, { username: user.username });
     await invalidateTenant(user.tenant_id);
     const statusCode = result.status === 'RE-INTEGRATED' ? 200 : 201;
@@ -315,17 +333,32 @@ export const deleteUser = async (req: Request, res: Response) => {
 export const getDashboardStats = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
-    const [tenants, connections, audits] = await Promise.all([
-      pool.query('SELECT COUNT(*) FROM public.tenants'),
-      pool.query('SELECT COUNT(*) FROM public.data_sources'),
-      pool.query("SELECT COUNT(*) FROM public.audit_logs WHERE changed_at > NOW() - INTERVAL '24 hours'")
-    ]);
-    
-    res.json({
-      tenants: parseInt(tenants.rows[0].count),
-      connections: parseInt(connections.rows[0].count),
-      audits: parseInt(audits.rows[0].count)
-    });
+    if (user.internal_role === 'ADMIN') {
+      const [tenants, connections, audits] = await Promise.all([
+        pool.query('SELECT COUNT(*) FROM public.tenants'),
+        pool.query('SELECT COUNT(*) FROM public.data_sources'),
+        pool.query("SELECT COUNT(*) FROM public.audit_logs WHERE changed_at > NOW() - INTERVAL '24 hours'")
+      ]);
+      
+      res.json({
+        tenants: parseInt(tenants.rows[0].count),
+        connections: parseInt(connections.rows[0].count),
+        audits: parseInt(audits.rows[0].count)
+      });
+    } else {
+      const context = { tenantId: user.tenant_id, username: user.username };
+      const [tenants, connections, audits] = await Promise.all([
+        queryWithContext('SELECT COUNT(*) FROM public.tenants', [], context),
+        queryWithContext('SELECT COUNT(*) FROM public.data_sources', [], context),
+        queryWithContext("SELECT COUNT(*) FROM public.audit_logs WHERE changed_at > NOW() - INTERVAL '24 hours'", [], context)
+      ]);
+      
+      res.json({
+        tenants: parseInt(tenants.rows[0].count),
+        connections: parseInt(connections.rows[0].count),
+        audits: parseInt(audits.rows[0].count)
+      });
+    }
   } catch (err: any) { 
     console.error(`[Admin] Error in ${req.url}:`, err.message);
     res.status(500).json({ error: err.message }); 

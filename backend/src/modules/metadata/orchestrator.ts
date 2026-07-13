@@ -253,7 +253,7 @@ export class MetadataOrchestrator {
                 throw new Error(`Industrial Orchestration Failed: Referenced Data Source "${sourceName}" not found in Catalog.`);
             }
 
-            if (rows[0].status !== 'ACTIVE') {
+            if (rows[0].status !== 'ACTIVE' && rows[0].status !== 'CONNECTED') {
                 throw new Error(`Industrial Orchestration Failed: Referenced Data Source "${sourceName}" is currently ${rows[0].status}. Connectivity required.`);
             }
         }

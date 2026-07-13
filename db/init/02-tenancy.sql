@@ -62,7 +62,7 @@ BEGIN
     END IF;
     
     -- Import remote schema into tenant namespace (Excluding system and core fabric tables)
-    EXECUTE format('IMPORT FOREIGN SCHEMA public EXCEPT (citus_schemas, citus_tables, pg_stat_statements, pg_stat_statements_info, data_sources, tenants, audit_logs, users, catalog_schemas, catalog_tables, metadata_catalog) FROM SERVER %I INTO %I', 
+    EXECUTE format('IMPORT FOREIGN SCHEMA public EXCEPT (citus_schemas, citus_tables, pg_stat_statements, pg_stat_statements_info, data_sources, tenants, audit_logs, users, catalog_schemas, catalog_tables, metadata_catalog, discovery_catalog, discovery_fields, docs_posts, es_mutation_jobs, fabric_docs, notification_channels, plans, subscriptions, trigger_execution_logs, trigger_jobs, trigger_registry, discovery_tree_view) FROM SERVER %I INTO %I', 
                     v_server_name, v_schema_name);
 
     RAISE NOTICE 'Successfully integrated remote source % for tenant %', p_source_name, p_tenant_id;

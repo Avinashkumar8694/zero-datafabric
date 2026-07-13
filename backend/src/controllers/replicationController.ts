@@ -7,6 +7,10 @@
 import { Request, Response } from 'express';
 import { ReplicationService } from '../modules/replication/replication.service';
 import { CopyJobEngine } from '../modules/jobs/copy_job_engine';
+import { pool } from '../config/database';
+import { LicensingService } from '../services/licensing.service';
+import { ConnectorFactory } from '../modules/metadata/connectors/factory';
+import { countRows } from '../modules/sync/copy_util';
 
 /** Pull the per-job copy config (page size etc.) off a request body, dropping blanks. */
 const copyConfig = (b: any) => {
@@ -53,6 +57,61 @@ export const runJob = async (req: Request, res: Response) => {
   try {
     const tenant = tenantOf(req);
     const id = req.params.id as string;
+    
+    // Check replication limits if user is not an admin
+    const user = (req as any).user;
+    if (user && user.internal_role !== 'ADMIN') {
+      const licensingCheck = await LicensingService.getTenantSubscription(tenant);
+      const maxTables = licensingCheck.limits.max_replication_tables;
+      const maxRows = licensingCheck.limits.max_replication_rows;
+
+      if (maxTables !== -1 || maxRows !== -1) {
+        // Fetch job details to get the source database
+        const jobRes = await pool.query(`SELECT * FROM fabric_system.replication_jobs WHERE tenant_id=$1 AND id=$2`, [tenant, id]);
+        if (jobRes.rows.length > 0) {
+          const job = jobRes.rows[0];
+          
+          // Fetch source configuration details
+          const srcRes = await pool.query(`SELECT type, config FROM public.data_sources WHERE tenant_id=$1 AND name=$2`, [tenant, job.source_name]);
+          if (srcRes.rows.length > 0) {
+            const src = srcRes.rows[0];
+            const reader = ConnectorFactory.getConnector(src.type, src.config);
+            
+            try {
+              const schemas = (await reader.discoverSchemas()).filter((s: any) => 
+                !['information_schema', 'performance_schema', 'mysql', 'sys', 'admin', 'config', 'local', 'pg_catalog', 'fabric_cdc'].includes(String(s.name).toLowerCase())
+              );
+              
+              let tableCount = 0;
+              let totalRows = 0;
+
+              for (const s of schemas) {
+                const tables = (await reader.discoverTables(s.name)).filter((t: any) => 
+                  (t.resourceType || 'TABLE') === 'TABLE' && !/^fabric_cdc/i.test(t.name)
+                );
+                tableCount += tables.length;
+                
+                for (const t of tables) {
+                  const rCount = await countRows(reader, s.name, t.name);
+                  totalRows += (rCount || 0);
+                }
+              }
+
+              if (maxTables !== -1 && tableCount > maxTables) {
+                return res.status(400).json({ error: `Replication limit exceeded: Your plan restricts you to a maximum of ${maxTables} tables for replication. Current source has ${tableCount} tables.` });
+              }
+
+              if (maxRows !== -1 && totalRows > maxRows) {
+                return res.status(400).json({ error: `Replication limit exceeded: Your plan restricts you to a maximum of ${maxRows} rows for replication. Current source has ${totalRows} rows.` });
+              }
+            } finally {
+              await reader.close().catch(() => {});
+            }
+          }
+        }
+      }
+    }
+
     // Request body overrides the job's stored copy config. `full:true` forces a full snapshot
     // now (the on-demand "Full sync" action) regardless of the job's INCREMENTAL strategy.
     const config = { ...(await ReplicationService.copyConfigFor(tenant, id)), ...copyConfig(req.body), forceFull: !!req.body?.full };

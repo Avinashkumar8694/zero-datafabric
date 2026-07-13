@@ -24,6 +24,7 @@ import dataRoutes from './routes/dataRoutes';
 import * as metadataController from './controllers/metadataController';
 import { ElasticsearchMutationWorker } from './modules/metadata/es_mutation_worker';
 import { initCache } from './config/cache';
+import { licensingMiddleware } from './middleware/licensing.middleware';
 
 import morgan from 'morgan';
 
@@ -108,18 +109,18 @@ app.get('/api/health', async (req, res) => {
 
 // --- RESOURCE ROUTERS ---
 app.use('/api/auth', authRoutes);
-app.use('/api/admin', requireAdmin, adminRoutes);
-app.use('/api/queries', requireAuth, queryRoutes);
-app.use('/api/metadata', requireAuth, metadataRoutes);
-app.use('/api/analytics', requireAuth, analyticsRoutes);
-app.use('/api/data', requireAuth, dataRoutes);
-app.use('/api/triggers', requireAuth, triggerRoutes);
+app.use('/api/admin', requireAuth, adminRoutes);
+app.use('/api/queries', requireAuth, licensingMiddleware, queryRoutes);
+app.use('/api/metadata', requireAuth, licensingMiddleware, metadataRoutes);
+app.use('/api/analytics', requireAuth, licensingMiddleware, analyticsRoutes);
+app.use('/api/data', requireAuth, licensingMiddleware, dataRoutes);
+app.use('/api/triggers', requireAuth, licensingMiddleware, triggerRoutes);
 app.use('/api/policies', requireAuth, policyRoutes);
 app.use('/api/constraints', requireAuth, constraintRoutes);
 app.use('/api/grants', requireAuth, grantRoutes);
-app.use('/api/saved-analytics', requireAuth, savedAnalyticsRoutes);
+app.use('/api/saved-analytics', requireAuth, licensingMiddleware, savedAnalyticsRoutes);
 app.use('/api/query-logs', requireAuth, queryLogRoutes);
-app.use('/api/replication', requireAuth, replicationRoutes);
+app.use('/api/replication', requireAuth, licensingMiddleware, replicationRoutes);
 
 // Shared Global Events API
 app.get('/api/events', requireAuth, metadataController.getEvents);

@@ -100,49 +100,49 @@ async function main() {
     return { data: { ok: true } };
   }, { allowFail: true });
 
-  // Inserts first: seed rows used by example scripts
-  const seeds = [
-    {
-      name: 'Seed demo multi-source rows',
-      sql: `
-      INSERT INTO "tenant_${TENANT_ID}_Global_Supply_Chain"."local_inventory" ("sku","stock")
-      VALUES ('SKU-100', 20), ('SKU-200', 40) ON CONFLICT DO NOTHING;
-      INSERT INTO "tenant_${TENANT_ID}_Global_Supply_Chain"."remote_depot_mongo" ("item_id","qty")
-      VALUES ('SKU-100', 8), ('SKU-300', 19) ON CONFLICT DO NOTHING;
-      INSERT INTO "tenant_${TENANT_ID}_Global_Supply_Chain"."active_products" ("sku")
-      VALUES ('SKU-100'), ('SKU-200') ON CONFLICT DO NOTHING;
-      INSERT INTO "tenant_${TENANT_ID}_Global_Supply_Chain"."mongo_product_catalog" ("product_id")
-      VALUES ('SKU-100'), ('SKU-400') ON CONFLICT DO NOTHING;
-      INSERT INTO "tenant_${TENANT_ID}_Global_Supply_Chain"."quarantined_items" ("sku")
-      VALUES ('SKU-400') ON CONFLICT DO NOTHING;
-      `
-    },
-    {
-      name: 'Seed employees',
-      sql: `
-      INSERT INTO "tenant_${TENANT_ID}_Global_Supply_Chain"."employees" ("id","name","manager_id")
-      VALUES
+  // Seed demo rows directly via pg.Client so FK ordering is guaranteed
+  await call('Seed demo rows (direct DB)', async () => {
+    const dbUrl = process.env.DATABASE_URL || 'postgresql://fabric_admin:fabric_password@localhost:5434/datafabric';
+    const client = new Client({ connectionString: dbUrl });
+    await client.connect();
+    const sc = `tenant_${TENANT_ID}_Global_Supply_Chain`;
+    // Set search_path so generate_custom_id() and tracking_seq resolve for triggers
+    await client.query(`SET search_path TO "${sc}", public`);
+
+    // multi-source inventory rows
+    await client.query(`INSERT INTO "${sc}"."local_inventory" ("sku","stock") VALUES ('SKU-100',20),('SKU-200',40) ON CONFLICT DO NOTHING`);
+    await client.query(`INSERT INTO "${sc}"."remote_depot_mongo" ("item_id","qty") VALUES ('SKU-100',8),('SKU-300',19) ON CONFLICT DO NOTHING`);
+    await client.query(`INSERT INTO "${sc}"."active_products" ("sku") VALUES ('SKU-100'),('SKU-200') ON CONFLICT DO NOTHING`);
+    await client.query(`INSERT INTO "${sc}"."mongo_product_catalog" ("product_id") VALUES ('SKU-100'),('SKU-400') ON CONFLICT DO NOTHING`);
+    await client.query(`INSERT INTO "${sc}"."quarantined_items" ("sku") VALUES ('SKU-400') ON CONFLICT DO NOTHING`);
+
+    // employees (self-referential hierarchy)
+    await client.query(`
+      INSERT INTO "${sc}"."employees" ("id","name","manager_id") VALUES
       ('00000000-0000-0000-0000-000000010001','CEO',NULL),
       ('00000000-0000-0000-0000-000000010002','Manager','00000000-0000-0000-0000-000000010001'),
       ('00000000-0000-0000-0000-000000010003','Engineer','00000000-0000-0000-0000-000000010002')
-      ON CONFLICT DO NOTHING;
-      `
-    },
-    {
-      name: 'Seed shipment_details',
-      sql: `
-      INSERT INTO "tenant_${TENANT_ID}_Global_Supply_Chain"."shipment_details" ("id","shipment_id","notes")
-      VALUES
+      ON CONFLICT (id) DO NOTHING
+    `);
+
+    // shipments FIRST (distinct regions to avoid GIST exclude_overlapping_shipments constraint),
+    // then shipment_details (FK child after parent)
+    await client.query(`
+      INSERT INTO "${sc}"."shipments" ("id","region","status","total_amount") VALUES
+      ('00000000-0000-0000-0000-000000020001','US','PENDING',100.00),
+      ('00000000-0000-0000-0000-000000020002','EU','PENDING',250.00)
+      ON CONFLICT (id) DO NOTHING
+    `);
+    await client.query(`
+      INSERT INTO "${sc}"."shipment_details" ("id","shipment_id","notes") VALUES
       ('00000000-0000-0000-0000-000000030001','00000000-0000-0000-0000-000000020001','priority'),
       ('00000000-0000-0000-0000-000000030002','00000000-0000-0000-0000-000000020002','normal')
-      ON CONFLICT DO NOTHING;
-      `
-    }
-  ];
+      ON CONFLICT (id) DO NOTHING
+    `);
 
-  for (const s of seeds) {
-    await call(s.name, () => axios.post(`${BASE_URL}/queries/exec`, { sql: s.sql }, { headers }), { allowFail: true });
-  }
+    await client.end();
+    return { data: { ok: true } };
+  }, { allowFail: true });
 }
 
 main().catch((e) => {

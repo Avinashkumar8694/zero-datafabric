@@ -1,16 +1,22 @@
 # Create (Insert) API Guide
 
-This document describes how to execute single and batch record insertions via the Data Fabric Create API.
+This document describes how to execute single and batch record insertions via the Data Fabric Create API and AST Query Engine, complete with executable `curl` commands.
 
 ---
 
-## 1. REST Endpoint: `POST /api/data/create`
+## 1. REST Endpoint: Single Record Create
 
-Insert one or many rows into a target resource.
+* **Endpoint**: `POST /api/data/create`
+* **Headers**:
+  * `Authorization: Bearer $JWT_TOKEN`
+  * `x-tenant-id: tenant_A`
+  * `Content-Type: application/json`
 
+### Curl Command:
 ```bash
 curl -X POST http://localhost:4000/api/data/create \
   -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "x-tenant-id: tenant_A" \
   -H "Content-Type: application/json" \
   -d '{
     "source": "Fabric_Hub_Postgres",
@@ -18,65 +24,88 @@ curl -X POST http://localhost:4000/api/data/create \
     "data": {
       "region": "US",
       "status": "PENDING",
-      "total_amount": 450.00
+      "total_amount": 450.00,
+      "metadata": {
+        "priority": "high",
+        "notes": "Verify loading dock schedule before dispatch"
+      }
     }
   }'
 ```
 
-### JSON Fields reference:
-* **`source`**: `String` | Target registered datasource connection.
-* **`resource`**: `String` | Target table or collection name.
-* **`data`**: `Object` | Column-value mappings of the row to insert.
-
 ---
 
-## 2. Batch Creation (Multi-row Insertions)
+## 2. REST Endpoint: Batch (Bulk) Record Create
 
-To perform bulk inserts, pass a JSON **array** of objects inside the `data` parameter:
+* **Endpoint**: `POST /api/data/create`
+* **Headers**: Same as single create.
 
-```json
-{
-  "source": "Fabric_Hub_Postgres",
-  "resource": "shipments",
-  "data": [
-    { "region": "US", "status": "PENDING", "total_amount": 120.0 },
-    { "region": "EU", "status": "PENDING", "total_amount": 250.0 }
-  ]
-}
+### Curl Command:
+```bash
+curl -X POST http://localhost:4000/api/data/create \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "x-tenant-id: tenant_A" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "Fabric_Hub_Postgres",
+    "resource": "shipments",
+    "data": [
+      {
+        "region": "US",
+        "status": "PENDING",
+        "total_amount": 120.00,
+        "metadata": { "priority": "normal" }
+      },
+      {
+        "region": "EU",
+        "status": "PENDING",
+        "total_amount": 250.50,
+        "metadata": { "priority": "urgent" }
+      }
+    ]
+  }'
 ```
 
 ---
 
-## 3. AST Query Equivalent: `INSERT`
+## 3. AST Query Engine equivalent: `INSERT`
 
-Alternatively, submit a structured AST query block to `POST /api/analytics/query`:
+* **Endpoint**: `POST /api/analytics/query` (or `POST /api/queries/engine`)
+* **Headers**: Same as above.
 
-```json
-{
-  "queryConfig": {
-    "type": "INSERT",
-    "schema": "Global_Supply_Chain",
-    "query": {
-      "into": { "resource": "shipments", "source": "Fabric_Hub_Postgres" },
-      "columns": ["region", "status", "total_amount"],
-      "values": [
-        ["US", "PENDING", 120.0],
-        ["EU", "PENDING", 250.0]
-      ]
+### Curl Command:
+```bash
+curl -X POST http://localhost:4000/api/analytics/query \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "x-tenant-id: tenant_A" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "queryConfig": {
+      "type": "INSERT",
+      "schema": "Global_Supply_Chain",
+      "query": {
+        "into": { "resource": "shipments", "source": "Fabric_Hub_Postgres" },
+        "columns": ["region", "status", "total_amount", "metadata"],
+        "values": [
+          ["US", "PENDING", 120.00, { "priority": "normal" }],
+          ["EU", "PENDING", 250.50, { "priority": "urgent" }]
+        ]
+      }
     }
-  }
-}
+  }'
 ```
 
 ---
 
 ## 4. Native SQL Translation
 
-The orchestrator compiles the AST or REST request into target dialect instructions executed on the database source:
+The orchestrator compiles the request into target dialect instructions executed on the database source:
 
 ```sql
--- Compiled PostgreSQL statement
-INSERT INTO "public"."shipments" ("region", "status", "total_amount")
-VALUES ('US', 'PENDING', 120.0), ('EU', 'PENDING', 250.0)
+-- Compiled PostgreSQL statement executed under Citus Hub
+INSERT INTO "public"."shipments" ("region", "status", "total_amount", "metadata")
+VALUES 
+  ('US', 'PENDING', 120.00, '{"priority":"normal"}'), 
+  ('EU', 'PENDING', 250.50, '{"priority":"urgent"}')
 RETURNING *;
 ```

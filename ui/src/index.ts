@@ -10,6 +10,7 @@ const PORT = process.env.UI_PORT || 3001;
 
 const DOC_LIST = [
   { id: 'how-to-guide.md', title: 'How-To Developer Guide' },
+  { id: 'creating-analytics.md', title: 'Creating Analytics & Widgets' },
   { id: 'queries-cookbook.md', title: 'Queries Cookbook' },
   { id: 'manifests-cookbook.md', title: 'Manifests Cookbook' },
   { id: 'schema-specification.md', title: 'Schema Specification' },

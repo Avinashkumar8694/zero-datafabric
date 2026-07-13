@@ -1,66 +1,67 @@
-# How to Create RLS & Masking Policies
+# How to Create RLS & Masking Policies (Scenario Guide)
 
-This guide describes how to declare Row-Level Security (RLS) policies and column-level masking rules inside your metadata manifests, complete with executable `curl` commands.
+This guide describes the supported features, rules, and configuration steps for Row-Level Security (RLS) and column-masking policies in the Zero Data Fabric, based on realistic enterprise scenarios.
 
 ---
 
-## 1. Defining Policies in Manifest
+## 1. Supported Security Features & Rules
 
-Add the `security` configuration block inside a `TABLE` resource definition.
+Within your metadata manifest, the `security` block inside a `TABLE` resource supports:
 
+* **`enable_rls`**: `Boolean` | Activates Row-Level Security on the database table.
+* **`policies`**: `Array` | Relational filter restrictions:
+  * `name`: `String` | Unique policy identifier.
+  * `roles`: `Array` | List of role names the policy applies to (omit to apply to all roles).
+  * `using`: `String` | SQL boolean check expression applied to `SELECT` and `DELETE` filters.
+  * `withCheck`: `String` | SQL boolean check expression validated during `INSERT` and `UPDATE` writes.
+* **`masking`**: `Array` | Dynamic projection overrides:
+  * `column`: `String` | Column to mask.
+  * `roles`: `Array` | Target roles to mask (other roles see the unmasked values).
+  * `expression`: `String` | Output replacement SQL expression (e.g. `'REDACTED'`, `md5(email)`).
+* **`grants`**: `Array` | Table privileges mapping:
+  * `role`: `String` | Target database role.
+  * `privileges`: `Array` | Allowed DML: `['SELECT', 'INSERT', 'UPDATE', 'DELETE']`.
+
+---
+
+## 2. Security Configuration Scenarios
+
+---
+
+### Scenario A: Multi-Tenant Data Isolation
+**Requirement**: In a B2B SaaS environment, a tenant's users must only read and write records belonging to their active tenant ID.
+
+#### Manifest Configuration:
 ```json
 {
   "type": "TABLE",
-  "name": "shipments",
+  "name": "orders",
   "columns": [
     { "name": "id", "type": "UUID", "strategy": "UUID_V7", "primaryKey": true },
-    { "name": "region", "type": "STRING", "length": 10 },
-    { "name": "metadata", "type": "JSONB" },
-    { "name": "deleted_at", "type": "TIMESTAMP", "nullable": true }
+    { "name": "tenant_id", "type": "STRING", "nullable": false },
+    { "name": "amount", "type": "NUMERIC" }
   ],
   "security": {
     "enable_rls": true,
     "policies": [
       {
-        "name": "regional_isolation",
+        "name": "tenant_isolation",
         "roles": ["fabric_user"],
-        "using": "region = current_setting('\''app.current_region'\'')"
-      },
-      {
-        "name": "hide_deleted",
-        "using": "deleted_at IS NULL"
-      }
-    ],
-    "masking": [
-      {
-        "column": "metadata",
-        "roles": ["logistics_viewer"],
-        "expression": "'\''REDACTED'\''::jsonb"
-      }
-    ],
-    "grants": [
-      {
-        "role": "logistics_viewer",
-        "privileges": ["SELECT"]
+        "using": "tenant_id = current_setting('\''app.current_tenant_id'\'')",
+        "withCheck": "tenant_id = current_setting('\''app.current_tenant_id'\'')"
       }
     ]
   }
 }
 ```
 
----
-
-## 2. API Endpoints
-
-To apply the security policies defined in your manifest, submit the manifest file (`manifest.json`):
-
+#### API Apply Endpoint:
 * **Endpoint**: `POST /api/metadata/apply`
 * **Headers**:
   * `Authorization: Bearer $JWT_TOKEN`
   * `x-tenant-id: tenant_A`
   * `Content-Type: multipart/form-data`
 
-### Curl Command:
 ```bash
 curl -X POST http://localhost:4000/api/metadata/apply \
   -H "Authorization: Bearer $JWT_TOKEN" \
@@ -68,25 +69,134 @@ curl -X POST http://localhost:4000/api/metadata/apply \
   -F "file=@manifest.json"
 ```
 
+#### Compiled Database Commands:
+```sql
+ALTER TABLE "public"."orders" ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON "public"."orders"
+  FOR ALL TO fabric_user
+  USING (tenant_id = current_setting('app.current_tenant_id'))
+  WITH CHECK (tenant_id = current_setting('app.current_tenant_id'));
+```
+
 ---
 
-## 3. Compiled Database Commands
+### Scenario B: Column-Level PII Masking (Hashed vs. Redacted)
+**Requirement**: Mask customer emails (md5 hashed) and credit card info (fully redacted) for users with the `support_agent` role, while leaving them fully visible for the `admin` role.
 
-The Metadata Engine translates the policy declarations into native security constraints:
+#### Manifest Configuration:
+```json
+{
+  "type": "TABLE",
+  "name": "customers",
+  "columns": [
+    { "name": "id", "type": "UUID", "strategy": "UUID_V7", "primaryKey": true },
+    { "name": "email", "type": "STRING" },
+    { "name": "card_number", "type": "STRING" }
+  ],
+  "security": {
+    "enable_rls": false,
+    "masking": [
+      {
+        "column": "card_number",
+        "roles": ["support_agent"],
+        "expression": "'\''XXXX-XXXX-XXXX-'\'' || right(card_number, 4)"
+      },
+      {
+        "column": "email",
+        "roles": ["support_agent"],
+        "expression": "md5(email) || '\''@masked.com'\''"
+      }
+    ],
+    "grants": [
+      { "role": "support_agent", "privileges": ["SELECT"] }
+    ]
+  }
+}
+```
+
+#### Compiled Projection Rewrite:
+When a user acting as `support_agent` queries the customer table, the query engine rewrites the projection list dynamically:
 
 ```sql
--- 1. Enable Row-Level Security
+-- Original AST select: SELECT email, card_number FROM customers;
+-- Compiled execution:
+SELECT 
+  md5("email") || '@masked.com' AS "email", 
+  'XXXX-XXXX-XXXX-' || right("card_number", 4) AS "card_number" 
+FROM "public"."customers";
+```
+
+---
+
+### Scenario C: Soft-Delete Auto-Filtering
+**Requirement**: Soft-delete records when deleted. Hide these records from regular views automatically, but allow compliance auditors (`compliance_role`) to see them.
+
+#### Manifest Configuration:
+```json
+{
+  "type": "TABLE",
+  "name": "shipments",
+  "columns": [
+    { "name": "id", "type": "UUID", "strategy": "UUID_V7", "primaryKey": true },
+    { "name": "deleted_at", "type": "TIMESTAMP", "nullable": true, "strategy": "SOFT_DELETE" }
+  ],
+  "security": {
+    "enable_rls": true,
+    "policies": [
+      {
+        "name": "hide_deleted_from_regular_users",
+        "roles": ["fabric_user"],
+        "using": "deleted_at IS NULL"
+      }
+    ]
+  }
+}
+```
+
+#### Compiled Database Actions:
+```sql
 ALTER TABLE "public"."shipments" ENABLE ROW LEVEL SECURITY;
 
--- 2. Create isolation policies
-CREATE POLICY regional_isolation ON "public"."shipments" 
-  FOR ALL TO fabric_user 
-  USING (region = current_setting('app.current_region'));
-
-CREATE POLICY hide_deleted ON "public"."shipments" 
-  FOR ALL 
+CREATE POLICY hide_deleted_from_regular_users ON "public"."shipments"
+  FOR SELECT TO fabric_user
   USING (deleted_at IS NULL);
+```
 
--- 3. Apply grants
-GRANT SELECT ON TABLE "public"."shipments" TO logistics_viewer;
+---
+
+### Scenario D: Region-Based Write Restrictions
+**Requirement**: Regional operators can only register or modify orders situated in their own assigned region.
+
+#### Manifest Configuration:
+```json
+{
+  "type": "TABLE",
+  "name": "orders",
+  "columns": [
+    { "name": "id", "type": "UUID", "strategy": "UUID_V7", "primaryKey": true },
+    { "name": "region", "type": "STRING", "length": 5 }
+  ],
+  "security": {
+    "enable_rls": true,
+    "policies": [
+      {
+        "name": "regional_write_lock",
+        "roles": ["regional_operator"],
+        "using": "region = current_setting('\''app.current_region'\'')",
+        "withCheck": "region = current_setting('\''app.current_region'\'')"
+      }
+    ]
+  }
+}
+```
+
+#### Compiled Database Action:
+```sql
+ALTER TABLE "public"."orders" ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY regional_write_lock ON "public"."orders"
+  FOR ALL TO regional_operator
+  USING (region = current_setting('app.current_region'))
+  WITH CHECK (region = current_setting('app.current_region'));
 ```

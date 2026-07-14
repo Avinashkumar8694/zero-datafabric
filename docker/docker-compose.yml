@@ -183,7 +183,7 @@ services:
       - .env
     environment:
       PORT: "4001"
-      DATABASE_URL: postgres://${DB_USERNAME:-fabric_admin}:${DB_PASSWORD:-fabric_password}@db:5432/${DB_NAME:-datafabric}
+      DATABASE_URL: postgres://${DB_USERNAME:-fabric_admin}:${DB_PASSWORD:-fabric_password}@${DB_HOST:-db}:${DB_PORT:-5432}/${DB_NAME:-datafabric}
     depends_on:
       - db
     networks:
@@ -196,7 +196,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgres://${DB_USERNAME:-fabric_admin}:${DB_PASSWORD:-fabric_password}@db:5432/${DB_NAME:-datafabric}
+      DATABASE_URL: postgres://${DB_USERNAME:-fabric_admin}:${DB_PASSWORD:-fabric_password}@${DB_HOST:-db}:${DB_PORT:-5432}/${DB_NAME:-datafabric}
     depends_on:
       - db
     networks:

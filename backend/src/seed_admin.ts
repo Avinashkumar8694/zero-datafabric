@@ -4,19 +4,35 @@ import { Client } from 'pg';
 async function seed() {
     console.log('--- Manual Industrial Seeding ---');
     
-    // Register OIDC client inside the identity server database container
+    // Register OIDC client inside the identity server database
     try {
         console.log('Registering OIDC client in zero-identity-server DB...');
-        const idsClient = new Client({
-            connectionString: 'postgresql://admin:admin123@localhost:5422/identity_server'
-        });
+        // IDS DB connection — use env var or fallback for local dev
+        const idsConnStr = process.env.IDS_DB_URL || 'postgresql://zero_db_admin:admin@zero-identity-server-postgres-1:5432/identity_server';
+        const idsClient = new Client({ connectionString: idsConnStr });
         await idsClient.connect();
+
+        // Build redirect URIs: always include both production and localhost
+        const apiBase = process.env.API_BASE_URL || 'http://localhost:4000';
+        const prodCallback = `${apiBase}/api/auth/sso/callback`;
+        const redirectUris = [
+            prodCallback,
+            'http://localhost:4000/api/auth/sso/callback',
+        ].filter((v, i, a) => a.indexOf(v) === i).join(',');
+
+        const uiBase = process.env.UI_BASE_URL || 'http://localhost:3001';
+        const logoutUris = [uiBase, 'http://localhost:3001']
+            .filter((v, i, a) => a.indexOf(v) === i).join(',');
+
+        const clientSecret = process.env.OIDC_CLIENT_SECRET || 'super-secret-key-fabric';
+
         await idsClient.query(`
             INSERT INTO client (
                 client_id,
                 client_secret,
                 client_name,
                 redirect_uris,
+                post_logout_redirect_uris,
                 grant_types,
                 response_types,
                 requires_consent,
@@ -26,9 +42,10 @@ async function seed() {
                 auth_mode
             ) VALUES (
                 'zero-datafabric',
-                'super-secret-key-fabric',
+                $1,
                 'Zero Data Fabric',
-                'http://localhost:4000/api/auth/sso/callback',
+                $2,
+                $3,
                 'authorization_code,refresh_token',
                 'code',
                 false,
@@ -38,10 +55,12 @@ async function seed() {
                 'flexible'
             ) ON CONFLICT (client_id) DO UPDATE SET
                 redirect_uris = EXCLUDED.redirect_uris,
+                post_logout_redirect_uris = EXCLUDED.post_logout_redirect_uris,
+                client_secret = EXCLUDED.client_secret,
                 token_endpoint_auth_method = EXCLUDED.token_endpoint_auth_method
-        `);
+        `, [clientSecret, redirectUris, logoutUris]);
         await idsClient.end();
-        console.log('OIDC client zero-datafabric successfully registered.');
+        console.log(`OIDC client zero-datafabric registered with redirect: ${redirectUris}`);
     } catch (idsErr: any) {
         console.warn('[Warning] Could not register OIDC client in zero-identity-server (is it running?):', idsErr.message);
     }

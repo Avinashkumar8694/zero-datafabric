@@ -12,7 +12,7 @@
  */
 import { canonicalType } from '../metadata/ddl_render';
 
-export type DestKind = 'PG' | 'MYSQL' | 'ORACLE' | 'MONGO' | 'ES';
+export type DestKind = 'PG' | 'MYSQL' | 'ORACLE' | 'MONGO' | 'ES' | 'SNOWFLAKE';
 
 export function destKindOf(engine: string): DestKind | null {
   const e = String(engine).toUpperCase();
@@ -21,6 +21,7 @@ export function destKindOf(engine: string): DestKind | null {
   if (['ORACLE', 'ORACLEDB'].includes(e)) return 'ORACLE';
   if (['MONGODB', 'MONGO'].includes(e)) return 'MONGO';
   if (['ELASTICSEARCH', 'ELASTIC', 'ES'].includes(e)) return 'ES';
+  if (e === 'SNOWFLAKE') return 'SNOWFLAKE';
   return null;
 }
 
@@ -55,6 +56,17 @@ function oracleType(canonical: string): string {
   if (/BYTEA|BLOB|BINARY/.test(t)) return 'BLOB';
   return 'VARCHAR2(4000)';
 }
+/** Fabric-canonical → Snowflake column type. */
+function snowflakeType(canonical: string): string {
+  const t = String(canonical).toUpperCase();
+  if (/BIGINT|SMALLINT|INT|NUMERIC|DECIMAL|DOUBLE|REAL|FLOAT/.test(t)) return 'NUMBER';
+  if (/BOOL/.test(t)) return 'BOOLEAN';
+  if (/TIMESTAMP|DATETIME/.test(t)) return 'TIMESTAMP_NTZ';
+  if (/DATE/.test(t)) return 'DATE';
+  if (/JSON/.test(t)) return 'VARIANT';
+  if (/BYTEA|BLOB|BINARY/.test(t)) return 'BINARY';
+  return 'VARCHAR';
+}
 
 export class DestOps {
   /** Create the target table/collection/index (drop first when `fresh`). */
@@ -77,6 +89,13 @@ export class DestOps {
       const pk = pkCols.length ? `, CONSTRAINT ${orq(table + '_pk')} PRIMARY KEY (${pkCols.map(orq).join(', ')})` : '';
       if (fresh) { try { await w.rawQuery(`DROP TABLE ${orq(table)} CASCADE CONSTRAINTS`); } catch { /* ORA-00942: not there */ } }
       try { await w.rawQuery(`CREATE TABLE ${orq(table)} (${defs.join(', ')}${pk})`); } catch (e: any) { if (!/ORA-00955/.test(e.message)) throw e; /* already exists */ }
+    } else if (kind === 'SNOWFLAKE') {
+      const sfq = pgq;
+      const defs = cols.map((c) => `${sfq(c.name)} ${snowflakeType(canonicalType(c.type))}`);
+      const pk = pkCols.length ? `, PRIMARY KEY (${pkCols.map(sfq).join(', ')})` : '';
+      await w.rawQuery(`CREATE SCHEMA IF NOT EXISTS ${sfq(schema)}`);
+      if (fresh) { await w.rawQuery(`DROP TABLE IF EXISTS ${sfq(schema)}.${sfq(table)}`); await w.rawQuery(`CREATE TABLE ${sfq(schema)}.${sfq(table)} (${defs.join(', ')}${pk})`); }
+      else await w.rawQuery(`CREATE TABLE IF NOT EXISTS ${sfq(schema)}.${sfq(table)} (${defs.join(', ')}${pk})`);
     } else if (kind === 'MONGO') {
       if (fresh) await w.clearCollection(schema, table);
     } else if (kind === 'ES') {
@@ -115,6 +134,19 @@ export class DestOps {
         await w.rawQuery(`MERGE INTO ${orq(table)} t USING (SELECT ${srcSel} FROM dual) s ON (${onC})` +
           `${upd ? ` WHEN MATCHED THEN UPDATE SET ${upd}` : ''} WHEN NOT MATCHED THEN INSERT (${insCols}) VALUES (${insVals})`, p);
       }
+    } else if (kind === 'SNOWFLAKE') {
+      const sfq = pgq;
+      const setCols = colNames.filter((c) => c !== pk);
+      for (const row of rows) {
+        const p: any[] = colNames.map((c) => jsonSafe(row[c]));
+        const srcSel = colNames.map((c, i) => `? AS ${sfq(c)}`).join(', ');
+        const onC = `t.${sfq(pk)} = s.${sfq(pk)}`;
+        const upd = setCols.map((c) => `t.${sfq(c)} = s.${sfq(c)}`).join(', ');
+        const insCols = colNames.map(sfq).join(', ');
+        const insVals = colNames.map((c) => `s.${sfq(c)}`).join(', ');
+        await w.rawQuery(`MERGE INTO ${sfq(schema)}.${sfq(table)} t USING (SELECT ${srcSel}) s ON (${onC})` +
+          `${upd ? ` WHEN MATCHED THEN UPDATE SET ${upd}` : ''} WHEN NOT MATCHED THEN INSERT (${insCols}) VALUES (${insVals})`, p);
+      }
     } else if (kind === 'MONGO') {
       await w.upsertDocs(schema, table, rows.map((r) => ({ _id: r[pk], ...r })));
     } else if (kind === 'ES') {
@@ -127,6 +159,7 @@ export class DestOps {
     if (kind === 'PG') await w.rawQuery(`DELETE FROM ${pgq(schema)}.${pgq(table)} WHERE ${pgq(pk)}=$1`, [pkValue]);
     else if (kind === 'MYSQL') await w.rawQuery(`DELETE FROM ${myq(schema)}.${myq(table)} WHERE ${myq(pk)}=?`, [pkValue]);
     else if (kind === 'ORACLE') await w.rawQuery(`DELETE FROM ${orq(table)} WHERE ${orq(pk)}=:1`, [pkValue]);
+    else if (kind === 'SNOWFLAKE') await w.rawQuery(`DELETE FROM ${pgq(schema)}.${pgq(table)} WHERE ${pgq(pk)}=?`, [pkValue]);
     else if (kind === 'MONGO') await w.deleteById(schema, table, pkValue);
     else if (kind === 'ES') await w.deleteDoc(table, String(pkValue));   // `table` = index
   }

@@ -62,6 +62,7 @@ export class HeterogeneousDispatcher {
         if (t === 'MONGO') return 'MONGODB';
         if (t === 'ELASTIC' || t === 'ES') return 'ELASTICSEARCH';
         if (t === 'ORACLEDB') return 'ORACLE';
+        if (t === 'MARIADB') return 'MYSQL';
         return t;
     }
 

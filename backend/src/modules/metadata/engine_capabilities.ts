@@ -141,6 +141,19 @@ export const ENGINE_CAPABILITIES: Record<EngineType, EngineCapability> = {
  */
 export class EngineCapabilityRegistry {
     /**
+     * Normalizes engine type strings, handling aliases used in data_sources table.
+     */
+    private static normalizeEngineType(type: string): EngineType {
+        const t = String(type).toUpperCase();
+        if (t === 'POSTGRESQL') return 'POSTGRES';
+        if (t === 'MONGO') return 'MONGODB';
+        if (t === 'ELASTIC' || t === 'ES') return 'ELASTICSEARCH';
+        if (t === 'ORACLEDB') return 'ORACLE';
+        if (t === 'MARIADB') return 'MYSQL';
+        return t as EngineType;
+    }
+
+    /**
      * Resolve the engine type for a given data source name.
      * Fast-paths the well-known hub name (`Fabric_Hub_Postgres`) without a DB query.
      * For all other sources, queries `public.data_sources` to find the registered engine type.
@@ -162,10 +175,11 @@ export class EngineCapabilityRegistry {
             throw new Error(`EngineCapabilityRegistry: Source '${sourceName}' not found for tenant '${tenantId}'`);
         }
 
-        const engineType = (rows[0].type as string).toUpperCase() as EngineType;
+        const rawType = rows[0].type as string;
+        const engineType = this.normalizeEngineType(rawType);
 
         if (!ENGINE_CAPABILITIES[engineType]) {
-            throw new Error(`EngineCapabilityRegistry: Unsupported engine type '${engineType}' for source '${sourceName}'`);
+            throw new Error(`EngineCapabilityRegistry: Unsupported engine type '${engineType}' (raw: '${rawType}') for source '${sourceName}'`);
         }
 
         return engineType;

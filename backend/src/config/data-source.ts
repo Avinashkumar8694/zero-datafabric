@@ -20,9 +20,18 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
  *   npm run migration:status  — list which migrations have / haven't run
  *   npm run migration:create  — scaffold a new migration file
  */
+const buildUrl = () => {
+  const host = process.env.DB_HOST || 'localhost';
+  const port = process.env.DB_PORT || '5432';
+  const user = process.env.DB_USERNAME || 'fabric_admin';
+  const pass = process.env.DB_PASSWORD || 'fabric_password';
+  const db   = process.env.DB_DATABASE || process.env.DB_NAME || 'datafabric';
+  return `postgres://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}:${port}/${db}`;
+};
+
 export const AppDataSource = new DataSource({
   type: 'postgres',
-  url: process.env.DATABASE_URL || 'postgresql://fabric_admin:fabric_password@localhost:5434/datafabric',
+  url: process.env.DATABASE_URL || buildUrl(),
 
   // Migration files — loaded by ts-node at runtime (no build step needed in dev)
   migrations: [path.join(__dirname, '../migrations/*.ts')],

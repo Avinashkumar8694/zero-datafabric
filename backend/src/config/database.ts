@@ -16,8 +16,22 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Build the connection string from individual DB_* vars if DATABASE_URL is not set.
+// This ensures the replication-engine (which imports this module) works in Docker
+// even when DATABASE_URL is not explicitly defined in the environment file.
+const buildConnectionString = () => {
+  const host = process.env.DB_HOST || 'localhost';
+  const port = process.env.DB_PORT || '5432';
+  const user = process.env.DB_USERNAME || 'fabric_admin';
+  const pass = process.env.DB_PASSWORD || 'super_secret_password';
+  const db   = process.env.DB_DATABASE || process.env.DB_NAME || 'datafabric';
+  return `postgres://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}:${port}/${db}`;
+};
+
+const connectionString = process.env.DATABASE_URL || buildConnectionString();
+
 const pool = new Pool({
-  connectionString: String(process.env.DATABASE_URL || 'postgres://fabric_admin:super_secret_password@localhost:5432/datafabric'),
+  connectionString,
   statement_timeout: 10000, // 10 seconds industrial timeout
 });
 

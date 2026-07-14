@@ -1,0 +1,8 @@
+**/node_modules
+**/.env
+**/.env.*
+**/.git
+**/.vscode
+**/.idea
+**/dist
+**/build

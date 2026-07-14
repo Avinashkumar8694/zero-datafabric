@@ -35,11 +35,10 @@ async function poll() {
     // Claim one pending copy_job atomically (safe with multiple replicas).
     const res = await client.query(`
       UPDATE fabric_system.copy_jobs
-         SET status = 'RUNNING', started_at = NOW(), worker_id = $1
+         SET status = 'RUNNING', started_at = NOW(), claimed_by = $1, heartbeat_at = NOW()
        WHERE id = (
          SELECT id FROM fabric_system.copy_jobs
-          WHERE status = 'PENDING'
-            AND (next_run_at IS NULL OR next_run_at <= NOW())
+          WHERE status = 'QUEUED'
           ORDER BY created_at
           LIMIT 1
           FOR UPDATE SKIP LOCKED
@@ -50,12 +49,12 @@ async function poll() {
     if (res.rows.length === 0) return; // nothing to do right now
 
     const job = res.rows[0];
-    console.log(`[replication-engine] Claimed job ${job.id} (${job.job_type})`);
+    console.log(`[replication-engine] Claimed job ${job.id} (${job.kind})`);
 
     // Mark complete — real copy logic is delegated to the backend service
     // when running in embedded mode (REPLICATION_ENGINE_EXTERNAL=false).
     await client.query(
-      `UPDATE fabric_system.copy_jobs SET status = 'DONE', completed_at = NOW() WHERE id = $1`,
+      `UPDATE fabric_system.copy_jobs SET status = 'COMPLETED', finished_at = NOW() WHERE id = $1`,
       [job.id]
     );
   } catch (err: any) {

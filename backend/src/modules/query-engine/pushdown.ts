@@ -613,7 +613,7 @@ export class PushdownCompiler {
 
     // Mongo groups by plain fields; a date-bucket group entry degrades to its field
     // (date_histogram is an ES/SQL feature — documented).
-    const groupFields = groupBy.map((g) => (g && typeof g === 'object' ? g.field : g));
+    const groupFields = groupBy.map((g) => (typeof g === 'string' ? g : g.field));
     const id: Record<string, string> = {};
     for (const g of groupFields) id[this.ident(g)] = `$${g}`;
 

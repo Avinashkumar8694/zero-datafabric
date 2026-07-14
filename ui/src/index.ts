@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { marked } from 'marked';
+import dotenv from 'dotenv';
 
 dotenv.config();
 
@@ -92,7 +93,7 @@ app.get('/workbench', (req, res) => {
 
 app.get('/workbench/docs', async (req, res) => {
   const docParam = (req.query.doc as string) || 'how-to-guide.md';
-  const activeDoc = DOC_LIST.find(d => d.id === docParam) || DOC_LIST[0];
+  const activeDoc = DOC_LIST.find(d => d.id === docParam) || DOC_LIST[0]!;
 
   try {
     const docPath = path.join(__dirname, 'views', '../../../developer_docs', activeDoc.id);

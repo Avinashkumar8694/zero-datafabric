@@ -12,7 +12,7 @@ export class CoreSchema1000000000001 implements MigrationInterface {
       DO $$
       BEGIN
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'authenticator') THEN
-          CREATE ROLE authenticator NOINHERIT LOGIN PASSWORD 'fabric_password';
+          CREATE ROLE authenticator NOINHERIT LOGIN PASSWORD 'mqh6A5GJWdwJZmHyc1fm3luB';
         END IF;
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'web_anon') THEN
           CREATE ROLE web_anon NOLOGIN;

@@ -12,9 +12,9 @@ import { TenantService } from '../modules/tenant/tenant.service';
 import { pool } from '../config/database';
 import crypto from 'crypto';
 
-const IDS_BASE     = process.env.IDS_BASE_URL      || 'http://localhost:3000';
+const IDS_BASE     = process.env.IDS_BASE_URL      || 'https://ids.fabrixly.com';
 const API_BASE     = process.env.API_BASE_URL       || 'http://localhost:4000';
-const UI_BASE      = process.env.UI_BASE_URL        || 'http://localhost:3001';
+const UI_BASE      = process.env.UI_BASE_URL        || 'http://localhost:3006';
 const OIDC_CLIENT  = process.env.OIDC_CLIENT_ID     || 'zero-datafabric';
 const OIDC_SECRET  = process.env.OIDC_CLIENT_SECRET || 'super-secret-key-fabric';
 
@@ -22,10 +22,15 @@ const OIDC_SECRET  = process.env.OIDC_CLIENT_SECRET || 'super-secret-key-fabric'
  * Authenticate a user with a username/password pair and issue a bearer token.
  */
 export const login = async (req: Request, res: Response) => {
-  const { username, password } = req.body;
+  const { username, password, timezone } = req.body;
   try {
     const result = await AuthService.login(username, password);
-    if (result) return res.json(result);
+    if (result) {
+      if (timezone) {
+        await pool.query('UPDATE public.users SET timezone = $1 WHERE id = $2', [timezone, result.user.id]);
+      }
+      return res.json(result);
+    }
     res.status(401).json({ error: 'Invalid credentials' });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -36,7 +41,7 @@ export const login = async (req: Request, res: Response) => {
  * Exchange the caller's current session for a new bearer token scoped to a
  * specific tenant.
  */
-export const refreshToken = (req: Request, res: Response) => {
+export const refreshToken = async (req: Request, res: Response) => {
   const user = (req as any).user;
   if (!user) return res.status(401).json({ error: 'Authentication required' });
 
@@ -45,17 +50,63 @@ export const refreshToken = (req: Request, res: Response) => {
     console.warn(`[Auth] Token exchange failed: missing tenantId for user ${user.username}`);
     return res.status(400).json({ error: 'tenantId is required' });
   }
-  const token = AuthService.generateToken(tenantId, user.internal_role, user.username || 'unknown');
+
+  // Security Check: If standard user, verify they own this tenant
+  if (user.internal_role !== 'ADMIN') {
+    try {
+      const { rows } = await pool.query(
+        'SELECT id FROM public.tenants WHERE id = $1 AND user_id = $2',
+        [tenantId, user.id]
+      );
+      if (rows.length === 0) {
+        console.warn(`[Auth] Tenant exchange access denied: user ${user.username} tried to access tenant ${tenantId}`);
+        return res.status(403).json({ error: 'Access denied to this tenant' });
+      }
+    } catch (dbErr: any) {
+      console.error('[Auth] Database error checking tenant ownership:', dbErr.message);
+      return res.status(500).json({ error: 'Database check failed' });
+    }
+  }
+
+  const token = AuthService.generateToken(tenantId, user.internal_role, user.username || 'unknown', user.id);
   console.log(`[Auth] Issued tenant-scoped token for ${user.username} -> ${tenantId}`);
   res.json({ token });
 };
 
+async function getOidcSettings() {
+  try {
+    const { rows } = await pool.query("SELECT value FROM public.settings WHERE key = 'custom_login'");
+    const defaults = {
+      issuer: process.env.IDS_BASE_URL || 'https://ids.fabrixly.com',
+      client_id: process.env.OIDC_CLIENT_ID || 'zero-datafabric',
+      client_secret: process.env.OIDC_CLIENT_SECRET || 'super-secret-key-fabric'
+    };
+    
+    if (rows.length > 0) {
+      const custom = rows[0].value || {};
+      return {
+        issuer: custom.oidc_issuer || defaults.issuer,
+        client_id: custom.oidc_client_id || defaults.client_id,
+        client_secret: custom.oidc_client_secret || defaults.client_secret
+      };
+    }
+    return defaults;
+  } catch {
+    return {
+      issuer: process.env.IDS_BASE_URL || 'https://ids.fabrixly.com',
+      client_id: process.env.OIDC_CLIENT_ID || 'zero-datafabric',
+      client_secret: process.env.OIDC_CLIENT_SECRET || 'super-secret-key-fabric'
+    };
+  }
+}
+
 /**
  * Redirect user to OIDC provider login interface.
  */
-export const sso = (req: Request, res: Response) => {
+export const sso = async (req: Request, res: Response) => {
+  const oidc = await getOidcSettings();
   const redirectUri = encodeURIComponent(`${API_BASE}/api/auth/sso/callback`);
-  const oidcUrl = `${IDS_BASE}/oidc/auth?client_id=${OIDC_CLIENT}&redirect_uri=${redirectUri}&response_type=code&scope=openid%20email%20profile&state=state_datafabric`;
+  const oidcUrl = `${oidc.issuer}/oidc/auth?client_id=${oidc.client_id}&redirect_uri=${redirectUri}&response_type=code&scope=openid%20email%20profile&state=state_datafabric`;
   res.redirect(oidcUrl);
 };
 
@@ -75,15 +126,16 @@ export const ssoCallback = async (req: Request, res: Response) => {
   }
 
   try {
+    const oidc = await getOidcSettings();
     // ── Step 1: Exchange authorization code for tokens ──────────────────────
     const params = new URLSearchParams();
     params.append('grant_type', 'authorization_code');
     params.append('code', String(code));
     params.append('redirect_uri', `${API_BASE}/api/auth/sso/callback`);
-    params.append('client_id', OIDC_CLIENT);
-    params.append('client_secret', OIDC_SECRET);
+    params.append('client_id', oidc.client_id);
+    params.append('client_secret', oidc.client_secret);
 
-    const tokenRes = await axios.post(`${IDS_BASE}/oidc/token`, params, {
+    const tokenRes = await axios.post(`${oidc.issuer}/oidc/token`, params, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
     });
 
@@ -102,7 +154,7 @@ export const ssoCallback = async (req: Request, res: Response) => {
     // ── Step 3: If email missing, call userinfo endpoint ────────────────────
     if (!email && access_token) {
       try {
-        const userInfoRes = await axios.get(`${IDS_BASE}/oidc/me`, {
+        const userInfoRes = await axios.get(`${oidc.issuer}/oidc/me`, {
           headers: { Authorization: `Bearer ${access_token}` }
         });
         console.log('[SSO] Userinfo claims:', JSON.stringify(userInfoRes.data));
@@ -129,7 +181,7 @@ export const ssoCallback = async (req: Request, res: Response) => {
 
     let user: any;
 
-    const isAdminEmail = userEmail === 'admin@fabrixly.com' || userEmail === 'admin@system.com';
+    const isAdminEmail = userEmail === 'admin@fabrixly.com' || userEmail === 'admin@system.com' || userEmail === 'arjunkumargupta108@gmail.com';
 
     if (userRes.rows.length > 0) {
       user = userRes.rows[0];
@@ -154,7 +206,26 @@ export const ssoCallback = async (req: Request, res: Response) => {
         tenantId = `t_${usernamePart}_${domainPart}`;
         role     = 'USER';
 
-        // Create tenant namespace if needed
+        // Create user first (without tenant binding)
+        const randomPassword = crypto.randomBytes(16).toString('hex');
+        const newUser = await AuthService.createUser(userEmail, randomPassword, null, role);
+        user = newUser;
+
+        // Assign default trial plan to user
+        try {
+          const trialPlan = await pool.query("SELECT id FROM public.plans WHERE name = 'trial'");
+          if (trialPlan.rows.length > 0) {
+            await pool.query(
+              "INSERT INTO public.subscriptions (user_id, plan_id, status) VALUES ($1, $2, 'active') ON CONFLICT (user_id) DO NOTHING",
+              [newUser.id, trialPlan.rows[0].id]
+            );
+            console.log(`[SSO] Subscribed user ${userEmail} to trial plan`);
+          }
+        } catch (subErr: any) {
+          console.error(`[SSO] Subscription error:`, subErr.message);
+        }
+
+        // Create tenant namespace if needed, linked to the user
         const tenantRow = await pool.query('SELECT id FROM public.tenants WHERE id = $1', [tenantId]);
         if (tenantRow.rows.length === 0) {
           try {
@@ -163,39 +234,52 @@ export const ssoCallback = async (req: Request, res: Response) => {
           } catch (tErr: any) {
             console.error(`[SSO] Tenant create error:`, tErr.message);
             await pool.query(
-              "INSERT INTO public.tenants (id, name, tier) VALUES ($1, $2, 'trial') ON CONFLICT DO NOTHING",
-              [tenantId, `${userEmail} Workspace`]
+              "INSERT INTO public.tenants (id, name, tier, user_id) VALUES ($1, $2, 'trial', $3) ON CONFLICT DO NOTHING",
+              [tenantId, `${userEmail} Workspace`, newUser.id]
             );
           }
-
-          // Subscribe to trial plan
-          try {
-            const trialPlan = await pool.query("SELECT id FROM public.plans WHERE name = 'trial'");
-            if (trialPlan.rows.length > 0) {
-              await pool.query(
-                "INSERT INTO public.subscriptions (tenant_id, plan_id, status) VALUES ($1, $2, 'active') ON CONFLICT (tenant_id) DO NOTHING",
-                [tenantId, trialPlan.rows[0].id]
-              );
-              console.log(`[SSO] Subscribed ${tenantId} to trial plan`);
-            }
-          } catch (subErr: any) {
-            console.error(`[SSO] Subscription error:`, subErr.message);
-          }
         }
-      }
 
-      const randomPassword = crypto.randomBytes(16).toString('hex');
-      user = await AuthService.createUser(userEmail, randomPassword, tenantId, role);
-      console.log(`[SSO] Auto-created user: ${userEmail} -> tenant=${tenantId} role=${role}`);
+        // Update user with tenant_id
+        await pool.query('UPDATE public.users SET tenant_id = $1 WHERE id = $2', [tenantId, newUser.id]);
+      } else {
+        // Admin user
+        const adminRow = await pool.query('SELECT id FROM public.users WHERE username = $1', [userEmail]);
+        if (adminRow.rows.length === 0) {
+          const randomPassword = crypto.randomBytes(16).toString('hex');
+          user = await AuthService.createUser(userEmail, randomPassword, 'tenant_A', 'ADMIN');
+        } else {
+          user = adminRow.rows[0];
+        }
+        user.role = 'ADMIN';
+        user.tenant_id = 'tenant_A';
+      }
     }
 
     // ── Step 6: Issue fabric JWT and redirect to UI ─────────────────────────
-    const token = AuthService.generateToken(user.tenant_id, user.role, user.username);
+    const token = AuthService.generateToken(user.tenant_id, user.role, user.username, user.id);
     console.log(`[SSO] Login successful: ${userEmail} tenant=${user.tenant_id} role=${user.role}`);
 
     res.redirect(`${UI_BASE}/login?token=${token}`);
   } catch (err: any) {
     console.error('[SSO Callback] Error:', err.message);
     res.status(500).json({ error: 'SSO Login failed', details: err.message });
+  }
+};
+
+/**
+ * Save user's local timezone.
+ */
+export const saveTimezone = async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const { timezone } = req.body;
+  if (!user) return res.status(401).json({ error: 'Authentication required' });
+  if (!timezone) return res.status(400).json({ error: 'timezone is required' });
+
+  try {
+    await pool.query('UPDATE public.users SET timezone = $1 WHERE id = $2', [timezone, user.id]);
+    res.json({ message: 'Timezone updated successfully' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 };

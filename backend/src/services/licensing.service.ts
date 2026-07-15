@@ -1,5 +1,6 @@
 import { pool } from '../config/database';
 import { cacheEnabled } from '../config/cache';
+import { verifyLicense } from '../utils/licensing';
 
 export interface SubscriptionSnapshot {
   limits: {
@@ -23,38 +24,16 @@ export class LicensingService {
   private static inMemoryStore = new Map<string, { count: number, expiresAt: number }>();
 
   /**
-   * Fetch active subscription for a tenant.
-   * If tenant has no subscription, check if they are the admin tenant (tenant_A),
-   * which gets selfhost unlimited plan.
-   * For other tenants, return a default trial subscription.
+   * Fetch active subscription for a user.
+   * If user has no subscription, return a default trial subscription.
    */
-  static async getTenantSubscription(tenantId: string): Promise<{ start_date: Date; limits: any; features: any }> {
-    if (tenantId === 'tenant_A') {
-      return {
-        start_date: new Date(2000, 0, 1),
-        limits: {
-          max_connections: -1,
-          max_records_per_table: -1,
-          max_tables: -1,
-          max_triggers: -1,
-          max_replication_tables: -1,
-          max_replication_rows: -1,
-          rate_limit_per_min: -1,
-          rate_limit_per_hour: -1,
-          rate_limit_per_day: -1
-        },
-        features: {
-          trial_period_days: -1
-        }
-      };
-    }
-
+  static async getUserSubscription(userId: string): Promise<{ start_date: Date; limits: any; features: any }> {
     const { rows } = await pool.query(
       `SELECT s.start_date, s.snapshot, p.limits as plan_limits, p.features as plan_features
        FROM public.subscriptions s
        JOIN public.plans p ON s.plan_id = p.id
-       WHERE s.tenant_id = $1 AND s.status = 'active'`,
-      [tenantId]
+       WHERE s.user_id = $1 AND s.status = 'active'`,
+      [userId]
     );
 
     if (rows.length > 0) {
@@ -77,21 +56,85 @@ export class LicensingService {
       max_triggers: 3,
       max_replication_tables: 2,
       max_replication_rows: 500,
+      max_replication_rows_per_table: 250,
+      max_replications: 2,
       rate_limit_per_min: 10,
       rate_limit_per_hour: 100,
-      rate_limit_per_day: 1000
+      rate_limit_per_day: 1000,
+      rate_limit_per_month: 10000,
+      max_tenants: 3
     };
     const features = trialPlan.rows[0]?.features || { trial_period_days: 7 };
 
-    // Find tenant creation date as the start date
-    const tenantRow = await pool.query('SELECT created_at FROM public.tenants WHERE id = $1', [tenantId]);
-    const startDate = tenantRow.rows[0] ? new Date(tenantRow.rows[0].created_at) : new Date();
-
     return {
-      start_date: startDate,
+      start_date: new Date(),
       limits,
       features
     };
+  }
+
+  /**
+   * Fetch active subscription for a tenant by looking up the tenant owner.
+   * Maintains backward compatibility with tenant-based lookups.
+   */
+  static async getTenantSubscription(tenantId: string): Promise<{ start_date: Date; limits: any; features: any }> {
+    // Look up the tenant's owner user
+    const tenantRow = await pool.query('SELECT user_id FROM public.tenants WHERE id = $1', [tenantId]);
+    if (tenantRow.rows.length > 0 && tenantRow.rows[0].user_id) {
+      return this.getUserSubscription(tenantRow.rows[0].user_id);
+    }
+
+    // Fallback to trial if tenant has no owner
+    const trialPlan = await pool.query("SELECT * FROM public.plans WHERE name = 'trial'");
+    const limits = trialPlan.rows[0]?.limits || {
+      max_connections: 2,
+      max_records_per_table: 1000,
+      max_tables: 5,
+      max_triggers: 3,
+      max_replication_tables: 2,
+      max_replication_rows: 500,
+      max_replication_rows_per_table: 250,
+      max_replications: 2,
+      rate_limit_per_min: 10,
+      rate_limit_per_hour: 100,
+      rate_limit_per_day: 1000,
+      rate_limit_per_month: 10000,
+      max_tenants: 3
+    };
+    const features = trialPlan.rows[0]?.features || { trial_period_days: 7 };
+
+    return {
+      start_date: new Date(),
+      limits,
+      features
+    };
+  }
+
+  /**
+   * Check if a user can create another tenant based on their plan limits.
+   */
+  static async canCreateTenant(userId: string): Promise<{ allowed: boolean; reason?: string }> {
+    const sub = await this.getUserSubscription(userId);
+    const maxTenants = sub.limits?.max_tenants;
+
+    if (maxTenants === undefined || maxTenants === null || maxTenants === -1) {
+      return { allowed: true };
+    }
+
+    const { rows } = await pool.query(
+      'SELECT COUNT(*) FROM public.tenants WHERE user_id = $1',
+      [userId]
+    );
+
+    const currentCount = parseInt(rows[0]?.count || '0');
+    if (currentCount >= maxTenants) {
+      return {
+        allowed: false,
+        reason: `Tenant limit reached. Your plan allows maximum ${maxTenants} tenant(s). Please upgrade your plan.`
+      };
+    }
+
+    return { allowed: true };
   }
 
   /**
@@ -123,7 +166,8 @@ export class LicensingService {
     const rateLimits = [
       { key: 'min', limit: limits.rate_limit_per_min, windowMs: 60 * 1000 },
       { key: 'hour', limit: limits.rate_limit_per_hour, windowMs: 60 * 60 * 1000 },
-      { key: 'day', limit: limits.rate_limit_per_day, windowMs: 24 * 60 * 60 * 1000 }
+      { key: 'day', limit: limits.rate_limit_per_day, windowMs: 24 * 60 * 60 * 1000 },
+      { key: 'month', limit: limits.rate_limit_per_month || limits.request_per_month, windowMs: 30 * 24 * 60 * 60 * 1000 }
     ];
 
     for (const r of rateLimits) {
@@ -193,5 +237,50 @@ export class LicensingService {
       return true; // Unlimited
     }
     return currentValue < limit;
+  }
+
+  /**
+   * Determine if the user has an active self-host plan.
+   */
+  static async isSelfHost(userId: string): Promise<boolean> {
+    try {
+      // 1. Try Cryptographic License Validation via Environment Variable
+      const envLicense = process.env.LICENSE_KEY;
+      if (envLicense) {
+        const payload = verifyLicense(envLicense);
+        if (payload && payload.selfHosted === true) {
+          return true; // Cryptographically valid self-host license key is installed via env!
+        }
+      }
+
+      // 2. Try Cryptographic License Validation via Settings Table
+      const { rows: settingsRows } = await pool.query(
+        "SELECT value FROM public.settings WHERE key = 'license_key'"
+      );
+      if (settingsRows.length > 0) {
+        const val = settingsRows[0].value || {};
+        if (val.license_key) {
+          const payload = verifyLicense(val.license_key);
+          if (payload && payload.selfHosted === true) {
+            return true; // Cryptographically valid self-host license key is installed via settings!
+          }
+        }
+      }
+
+      // 3. Fallback to subscription plan check
+      const { rows } = await pool.query(
+        `SELECT p.name
+         FROM public.subscriptions s
+         JOIN public.plans p ON s.plan_id = p.id
+         WHERE s.user_id = $1 AND s.status = 'active'`,
+        [userId]
+      );
+      if (rows.length > 0) {
+        return rows[0].name === 'selfhost';
+      }
+      return false;
+    } catch {
+      return false;
+    }
   }
 }

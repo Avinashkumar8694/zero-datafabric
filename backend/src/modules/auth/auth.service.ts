@@ -54,7 +54,7 @@ export class AuthService {
       return null;
     }
 
-    const token = this.generateToken(user.tenant_id, user.role, user.username);
+    const token = this.generateToken(user.tenant_id, user.role, user.username, user.id);
     console.log(`[Auth] Login successful for: ${username}, Tenant: ${user.tenant_id}, Role: ${user.role}`);
     return { token, user: { id: user.id, username: user.username, tenant_id: user.tenant_id } };
   }
@@ -67,13 +67,15 @@ export class AuthService {
    * @param tenantId - Tenant the session is scoped to.
    * @param internalRole - The user's application role (e.g. ADMIN/USER); defaults to `'USER'`.
    * @param username - The authenticated username; defaults to `'unknown'`.
+   * @param userId - The authenticated user's ID.
    * @returns A signed JWT string.
    */
-  static generateToken(tenantId: string, internalRole: string = 'USER', username: string = 'unknown') {
+  static generateToken(tenantId: string | null, internalRole: string = 'USER', username: string = 'unknown', userId?: string) {
     // Map internal roles to DB roles for PostgREST
     const dbRole = 'fabric_user';
 
     const payload = {
+      id: userId,
       role: dbRole, // This is the role PostgREST will switch to
       internal_role: internalRole, // Store actual role for app logic
       tenant_id: tenantId,
@@ -107,7 +109,7 @@ export class AuthService {
    * @returns The created user row (id, username, tenant_id, role, status).
    * @throws Propagates any database error, e.g. a unique-constraint violation on username.
    */
-  static async createUser(username: string, password_raw: string, tenantId: string, role: string) {
+  static async createUser(username: string, password_raw: string, tenantId: string | null, role: string) {
     const hash = await bcrypt.hash(password_raw, 10);
     const { rows } = await pool.query(
       'INSERT INTO public.users (username, password_hash, tenant_id, role) VALUES ($1, $2, $3, $4) RETURNING id, username, tenant_id, role, status',
@@ -127,7 +129,7 @@ export class AuthService {
    * @param role - New application role.
    * @returns The updated user row (id, username, tenant_id, role, status).
    */
-  static async updateUser(id: string, username: string, password_raw: string | null, tenantId: string, role: string) {
+  static async updateUser(id: string, username: string, password_raw: string | null, tenantId: string | null, role: string) {
     if (password_raw) {
       const hash = await bcrypt.hash(password_raw, 10);
       const { rows } = await pool.query(

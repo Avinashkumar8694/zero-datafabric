@@ -48,7 +48,7 @@ export const createTrigger = async (req: Request, res: Response) => {
     const user = (req as any).user;
     if (user.internal_role !== 'ADMIN') {
       const currentTriggers = await TriggerService.listTriggers(user.tenant_id);
-      const allowed = await LicensingService.checkLimit(user.tenant_id, 'max_triggers', currentTriggers.length);
+      const allowed = await LicensingService.checkLimit(user.id, 'max_triggers', currentTriggers.length);
       if (!allowed) {
         return res.status(400).json({ error: 'Trigger limit exceeded. Your plan restricts you to a maximum of 3 triggers.' });
       }

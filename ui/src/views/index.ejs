@@ -1,5 +1,6 @@
 <%- include('partials/header') %>
 
+
 <style>
   /* ── Reset for full-bleed home page ── */
   body { overflow-y: auto !important; }
@@ -532,7 +533,7 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         Sign In with SSO
       </a>
-      <a href="javascript:void(0)" id="navDashBtn" class="btn-home-primary" style="display:none">
+      <a href="/dashboard" id="navDashBtn" class="btn-home-primary" style="display:none">
         Go to Dashboard →
       </a>
     </div>
@@ -652,8 +653,8 @@
       </div>
       <h2 class="cta-h2">Ready to unify your data?</h2>
       <p class="cta-sub">
-        Start on the free trial plan — 2 connections, 5 tables, 1000 records per table,
-        3 triggers, full SSO. Upgrade to self-host for unlimited everything.
+        Start on the free trial plan — <span id="dynTrialConnections">2</span> connections, <span id="dynTrialTables">5</span> tables, <span id="dynTrialRecords">1000</span> records per table,
+        <span id="dynTrialTriggers">3</span> triggers, full SSO. Upgrade to self-host for unlimited everything.
       </p>
       <a href="javascript:void(0)" id="ctaLoginBtn" class="btn-hero-cta" style="margin: 0 auto; width: fit-content;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -682,7 +683,7 @@
       : `http://${window.location.hostname}:4000/api`;
 
   function redirectToSSO() {
-    window.location.href = `${API_BASE_URL}/auth/sso`;
+    window.location.href = '/login';
   }
 
   document.getElementById('heroLoginBtn').addEventListener('click', redirectToSSO);
@@ -710,6 +711,27 @@
     localStorage.setItem('token', token);
     window.location.href = '/dashboard';
   }
+
+  // Fetch plan limits dynamically from the backend
+  async function loadDynamicLimits() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/plans`);
+      if (res.ok) {
+        const plans = await res.json();
+        const trial = plans.find(p => p.name === 'trial' || p.id === 'e16e28c8-869f-409f-867b-99f44021adc2');
+        if (trial && trial.limits) {
+          const lim = trial.limits;
+          document.getElementById('dynTrialConnections').innerText = lim.max_connections !== undefined ? lim.max_connections : '2';
+          document.getElementById('dynTrialTables').innerText = lim.max_tables !== undefined ? lim.max_tables : '5';
+          document.getElementById('dynTrialRecords').innerText = lim.max_records_per_table !== undefined ? lim.max_records_per_table : '1000';
+          document.getElementById('dynTrialTriggers').innerText = lim.max_triggers !== undefined ? lim.max_triggers : '3';
+        }
+      }
+    } catch (e) {
+      console.warn('[Home] Failed to load dynamic plan limits:', e);
+    }
+  }
+  loadDynamicLimits();
 </script>
 
 <%- include('partials/footer') %>

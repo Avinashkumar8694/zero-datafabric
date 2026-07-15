@@ -563,7 +563,7 @@ export const applyMetadata = async (req: Request, res: Response) => {
                 { tenantId: user.tenant_id, username: user.username }
             );
             const currentCount = parseInt(currentTablesRes.rows[0].count);
-            const allowed = await LicensingService.checkLimit(user.tenant_id, 'max_tables', currentCount);
+            const allowed = await LicensingService.checkLimit(user.id, 'max_tables', currentCount);
             if (!allowed) {
                 return res.status(400).json({ error: 'Table limit exceeded. Your plan restricts you to a maximum of 5 tables.' });
             }
@@ -663,7 +663,7 @@ export const migrateMetadata = async (req: Request, res: Response) => {
                 { tenantId: user.tenant_id, username: user.username }
             );
             const currentCount = parseInt(currentTablesRes.rows[0].count);
-            const allowed = await LicensingService.checkLimit(user.tenant_id, 'max_tables', currentCount);
+            const allowed = await LicensingService.checkLimit(user.id, 'max_tables', currentCount);
             if (!allowed) {
                 return res.status(400).json({ error: 'Table limit exceeded. Your plan restricts you to a maximum of 5 tables.' });
             }

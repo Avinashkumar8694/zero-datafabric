@@ -44,7 +44,7 @@
     async function loadTenants() {
         const body = document.getElementById('tenantsBody');
         try {
-            const response = await fetch(`${API_BASE}/admin/tenants`, {
+            const response = await fetch(`${API_BASE}/tenants`, {
                 headers: getAuthHeaders()
             });
             const data = await response.json();
@@ -81,7 +81,7 @@
 
     async function updateTenantStatus(id, name, status) {
         try {
-            const response = await fetch(`${API_BASE}/admin/tenants/${id}`, {
+            const response = await fetch(`${API_BASE}/tenants/${id}`, {
                 method: 'PUT',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ name, status })
@@ -107,7 +107,7 @@
         if (submitBtn) submitBtn.disabled = true;
 
         try {
-            const response = await fetch(`${API_BASE}/admin/tenants`, {
+            const response = await fetch(`${API_BASE}/tenants`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ id, name })

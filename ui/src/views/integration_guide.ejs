@@ -1,0 +1,411 @@
+<%- include('partials/header') %>
+
+<style>
+    /* Integration Guide Portal */
+    .integration-wrapper {
+        display: flex;
+        gap: 1.5rem;
+        max-width: 1300px;
+        margin: 0 auto;
+        padding: 1rem 0;
+        min-height: calc(100vh - 140px);
+    }
+
+    /* Left Navigation Sidebar */
+    .integration-nav {
+        width: 300px;
+        flex-shrink: 0;
+        position: sticky;
+        top: 90px;
+        height: calc(100vh - 140px);
+        overflow-y: auto;
+        background: var(--surface, #FFFFFF);
+        border: 1px solid var(--border, #E5E7EB);
+        border-radius: 12px;
+        padding: 1.25rem 0.75rem;
+    }
+
+    .integration-nav-group {
+        margin-bottom: 1.25rem;
+    }
+
+    .integration-nav-group-title {
+        font-family: 'Outfit', sans-serif;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: var(--primary, #6366f1);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 0.5rem;
+        padding: 0 0.75rem;
+        opacity: 0.9;
+    }
+
+    .integration-nav-list {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+    }
+
+    .integration-nav-link {
+        display: block;
+        padding: 0.5rem 0.75rem;
+        border-radius: 8px;
+        color: #94a3b8;
+        font-size: 0.825rem;
+        font-weight: 500;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: pointer;
+        border: none;
+        background: transparent;
+        width: 100%;
+        text-align: left;
+    }
+
+    .integration-nav-link:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.04);
+    }
+
+    .integration-nav-link.active {
+        color: #fff;
+        background: rgba(99, 102, 241, 0.18);
+        border-left: 3px solid var(--primary, #6366f1);
+        padding-left: calc(0.75rem - 3px);
+        font-weight: 600;
+    }
+
+    /* Right Main Content Pane */
+    .integration-content {
+        flex: 1;
+        background: var(--surface, #FFFFFF);
+        border: 1px solid var(--border, #E5E7EB);
+        border-radius: 16px;
+        padding: 2.5rem 3rem;
+        min-width: 0;
+        box-shadow: var(--shadow, 0 4px 6px -1px rgba(0, 0, 0, 0.1));
+    }
+
+    .integration-content .markdown-body {
+        color: var(--text, #111827);
+        font-size: 0.95rem;
+        line-height: 1.75;
+    }
+
+    .integration-content .markdown-body h1 {
+        font-family: 'Outfit', sans-serif;
+        font-size: 2rem;
+        font-weight: 800;
+        color: var(--text, #111827);
+        margin-bottom: 1.25rem;
+        border-bottom: 1px solid var(--border, #E5E7EB);
+        padding-bottom: 0.6rem;
+    }
+
+    .integration-content .markdown-body h2 {
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: var(--text, #111827);
+        margin: 2rem 0 0.75rem 0;
+        border-bottom: 1px solid var(--border, #E5E7EB);
+        padding-bottom: 0.3rem;
+    }
+
+    .integration-content .markdown-body h3 {
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: var(--text, #111827);
+        margin: 1.5rem 0 0.5rem 0;
+    }
+
+    .integration-content .markdown-body p {
+        margin-bottom: 1rem;
+        color: var(--text, #111827);
+    }
+
+    .integration-content .markdown-body ul,
+    .integration-content .markdown-body ol {
+        margin-bottom: 1rem;
+        padding-left: 1.5rem;
+    }
+
+    .integration-content .markdown-body li {
+        margin-bottom: 0.35rem;
+        color: var(--text, #111827);
+    }
+
+    .integration-content .markdown-body pre {
+        background: #F3F4F6 !important;
+        border: 1px solid var(--border, #E5E7EB);
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        overflow-x: auto;
+        margin: 1rem 0;
+        font-family: 'Fira Code', 'Courier New', Courier, monospace;
+        font-size: 0.85rem;
+    }
+
+    .integration-content .markdown-body code {
+        background: #F3F4F6;
+        color: var(--text, #111827);
+        padding: 0.15rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        font-family: 'Fira Code', monospace;
+    }
+
+    .integration-content .markdown-body pre code {
+        background: transparent;
+        padding: 0;
+        border-radius: 0;
+        font-size: inherit;
+        color: inherit;
+    }
+
+    .integration-content .markdown-body blockquote {
+        background: #EFF6FF;
+        border-left: 4px solid var(--primary, #0061FF);
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        margin: 1rem 0;
+        color: var(--text, #111827);
+    }
+
+    .integration-content .markdown-body blockquote p {
+        margin-bottom: 0;
+    }
+
+    .integration-content .markdown-body table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1rem 0;
+        font-size: 0.9rem;
+    }
+
+    .integration-content .markdown-body th {
+        background: var(--surface-hover, #F3F4F6);
+        color: var(--text, #111827);
+        font-weight: 600;
+        padding: 0.6rem 0.75rem;
+        border-bottom: 2px solid var(--border, #E5E7EB);
+        text-align: left;
+    }
+
+    .integration-content .markdown-body td {
+        padding: 0.6rem 0.75rem;
+        border-bottom: 1px solid var(--border, #E5E7EB);
+        color: var(--text, #111827);
+        vertical-align: top;
+    }
+
+    .integration-content .markdown-body tr:hover {
+        background: var(--surface-hover, #F3F4F6);
+    }
+
+    .integration-content .markdown-body a {
+        color: var(--primary, #0061FF);
+        text-decoration: none;
+    }
+
+    .integration-content .markdown-body a:hover {
+        text-decoration: underline;
+    }
+
+    .integration-content .markdown-body hr {
+        border: none;
+        border-top: 1px solid var(--border, #E5E7EB);
+        margin: 1.5rem 0;
+    }
+
+    /* Breadcrumb */
+    .integration-breadcrumb {
+        margin-bottom: 1.25rem;
+        font-size: 0.85rem;
+        color: var(--text-muted, #6B7280);
+    }
+
+    .integration-breadcrumb a {
+        color: var(--primary, #0061FF);
+        text-decoration: none;
+        cursor: pointer;
+    }
+
+    .integration-breadcrumb a:hover {
+        text-decoration: underline;
+    }
+
+    .integration-breadcrumb span {
+        color: var(--text-muted, #6B7280);
+    }
+
+    /* Loading & Error */
+    .integration-loading {
+        color: var(--text-muted, #6B7280);
+        font-size: 0.9rem;
+        padding: 2rem;
+    }
+
+    .integration-error {
+        color: #DC2626;
+        font-size: 0.9rem;
+        padding: 2rem;
+    }
+
+    /* Nav link active state for light theme */
+    .integration-nav-link.active {
+        color: var(--text, #111827);
+        background: rgba(0, 97, 255, 0.08);
+        border-left: 3px solid var(--primary, #0061FF);
+        padding-left: calc(0.75rem - 3px);
+        font-weight: 600;
+    }
+
+    .integration-nav-link:hover {
+        color: var(--text, #111827);
+        background: var(--surface-hover, #F3F4F6);
+    }
+
+    .integration-nav-group-title {
+        color: var(--primary, #0061FF);
+    }
+</style>
+
+<div class="integration-wrapper fade-in">
+    <!-- Left Navigation Sidebar -->
+    <aside class="integration-nav">
+        <div class="integration-nav-group">
+            <div class="integration-nav-group-title">Integration Guide</div>
+            <ul class="integration-nav-list" id="integrationNavList">
+                <li class="integration-loading">Loading docs...</li>
+            </ul>
+        </div>
+    </aside>
+
+    <!-- Right Reading Pane -->
+    <main class="integration-content">
+        <div class="integration-breadcrumb">
+            <a onclick="window.location.href='/dashboard'">Console</a>
+            <span> / </span>
+            <span>Integration Guide</span>
+            <span> / </span>
+            <span id="integrationCurrentTitle">Select a document</span>
+        </div>
+        <div class="markdown-body" id="integrationDocContent">
+            <div class="integration-loading">Select a document from the sidebar to view its content.</div>
+        </div>
+    </main>
+</div>
+
+<script>
+(function() {
+    const API_BASE = window.location.hostname.includes('fabrixly.com')
+        ? `/api`
+        : `http://${window.location.hostname}:4000/api`;
+    const DOCS_API = API_BASE + '/developer-docs';
+    const navList = document.getElementById('integrationNavList');
+    const contentDiv = document.getElementById('integrationDocContent');
+    const titleSpan = document.getElementById('integrationCurrentTitle');
+
+    function getQueryParam(name) {
+        const params = new URLSearchParams(window.location.search);
+        return params.get(name);
+    }
+
+    function setQueryParam(name, value) {
+        const url = new URL(window.location.href);
+        url.searchParams.set(name, value);
+        window.history.pushState({}, '', url);
+    }
+
+    async function loadDocList() {
+        try {
+            const res = await fetch(DOCS_API, { headers: getAuthHeaders ? getAuthHeaders() : {} });
+            if (!res.ok) throw new Error('Failed to load docs');
+            const data = await res.json();
+            renderNav(data.groups || []);
+        } catch (err) {
+            navList.innerHTML = '<li class="integration-error">Error loading docs</li>';
+        }
+    }
+
+    function renderNav(groups) {
+        navList.innerHTML = '';
+        groups.forEach(function(group) {
+            const groupLi = document.createElement('li');
+            groupLi.className = 'integration-nav-group';
+            const groupTitle = document.createElement('div');
+            groupTitle.className = 'integration-nav-group-title';
+            groupTitle.textContent = group.label;
+            groupTitle.style.padding = '0 0.75rem';
+            groupLi.appendChild(groupTitle);
+
+            const ul = document.createElement('ul');
+            ul.className = 'integration-nav-list';
+
+            group.docs.forEach(function(doc) {
+                const li = document.createElement('li');
+                const a = document.createElement('button');
+                a.className = 'integration-nav-link';
+                a.textContent = doc.title;
+                a.title = doc.title;
+                a.addEventListener('click', function() {
+                    document.querySelectorAll('.integration-nav-link').forEach(function(el) {
+                        el.classList.remove('active');
+                    });
+                    a.classList.add('active');
+                    setQueryParam('doc', doc.id);
+                    loadDoc(doc.id, doc.title);
+                });
+                li.appendChild(a);
+                ul.appendChild(li);
+            });
+
+            groupLi.appendChild(ul);
+            navList.appendChild(groupLi);
+        });
+
+        const initialDoc = getQueryParam('doc');
+        if (initialDoc) {
+            const allDocs = groups.flatMap(function(g) { return g.docs; });
+            const found = allDocs.find(function(d) { return d.id === initialDoc; });
+            if (found) {
+                const btn = Array.from(document.querySelectorAll('.integration-nav-link')).find(function(el) {
+                    return el.textContent === found.title;
+                });
+                if (btn) btn.classList.add('active');
+                loadDoc(found.id, found.title);
+                return;
+            }
+        }
+
+        const firstDoc = groups[0] && groups[0].docs[0];
+        if (firstDoc) {
+            loadDoc(firstDoc.id, firstDoc.title);
+        }
+    }
+
+    async function loadDoc(docId, title) {
+        titleSpan.textContent = title || docId;
+        contentDiv.innerHTML = '<div class="integration-loading">Loading...</div>';
+        try {
+            const res = await fetch(DOCS_API + '/' + encodeURIComponent(docId), { headers: getAuthHeaders ? getAuthHeaders() : {} });
+            if (!res.ok) throw new Error('Failed to load doc');
+            const data = await res.json();
+            contentDiv.innerHTML = data.htmlContent || '<div class="integration-error">Empty document</div>';
+        } catch (err) {
+            contentDiv.innerHTML = '<div class="integration-error">Error loading document</div>';
+        }
+    }
+
+    loadDocList();
+})();
+</script>
+
+<%- include('partials/footer') %>

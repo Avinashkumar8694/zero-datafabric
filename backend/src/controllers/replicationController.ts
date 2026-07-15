@@ -26,6 +26,83 @@ const tenantOf = (req: Request) => {
   return u?.internal_role === 'ADMIN' && req.body?.tenantId ? req.body.tenantId : u.tenant_id;
 };
 
+/**
+ * Helper to verify replication source / database limits.
+ * Checks max_replication_tables, max_replication_rows, and max_replication_rows_per_table.
+ * Returns { allowed: boolean, reason?: string }
+ */
+const verifyReplicationLimits = async (
+  tenant: string,
+  dataSourceName: string,
+  limits: any
+): Promise<{ allowed: boolean; reason?: string }> => {
+  const maxTables = limits.max_replication_tables ?? -1;
+  const maxRows = limits.max_replication_rows ?? -1;
+  const maxRowsPerTable = limits.max_replication_rows_per_table ?? -1;
+
+  if (maxTables === -1 && maxRows === -1 && maxRowsPerTable === -1) {
+    return { allowed: true };
+  }
+
+  const srcRes = await pool.query(
+    `SELECT type, config FROM public.data_sources WHERE tenant_id=$1 AND name=$2`,
+    [tenant, dataSourceName]
+  );
+  if (srcRes.rows.length === 0) {
+    return { allowed: true };
+  }
+
+  const src = srcRes.rows[0];
+  const reader = ConnectorFactory.getConnector(src.type, src.config);
+  
+  try {
+    const schemas = (await reader.discoverSchemas()).filter((s: any) => 
+      !['information_schema', 'performance_schema', 'mysql', 'sys', 'admin', 'config', 'local', 'pg_catalog', 'fabric_cdc'].includes(String(s.name).toLowerCase())
+    );
+    
+    let tableCount = 0;
+    let totalRows = 0;
+
+    for (const s of schemas) {
+      const tables = (await reader.discoverTables(s.name)).filter((t: any) => 
+        (t.resourceType || 'TABLE') === 'TABLE' && !/^fabric_cdc/i.test(t.name)
+      );
+      tableCount += tables.length;
+      
+      for (const t of tables) {
+        const rCount = await countRows(reader, s.name, t.name);
+        const finalRCount = rCount || 0;
+        totalRows += finalRCount;
+
+        if (maxRowsPerTable !== -1 && finalRCount > maxRowsPerTable) {
+          return {
+            allowed: false,
+            reason: `Replication limit exceeded: Your plan restricts you to a maximum of ${maxRowsPerTable} rows per table. Table ${s.name}.${t.name} has ${finalRCount} rows.`
+          };
+        }
+      }
+    }
+
+    if (maxTables !== -1 && tableCount > maxTables) {
+      return {
+        allowed: false,
+        reason: `Replication limit exceeded: Your plan restricts you to a maximum of ${maxTables} tables. Current database has ${tableCount} tables.`
+      };
+    }
+
+    if (maxRows !== -1 && totalRows > maxRows) {
+      return {
+        allowed: false,
+        reason: `Replication limit exceeded: Your plan restricts you to a maximum of ${maxRows} rows in total. Current database has ${totalRows} rows.`
+      };
+    }
+  } finally {
+    await reader.close().catch(() => {});
+  }
+
+  return { allowed: true };
+};
+
 /** List the tenant's replication jobs. */
 export const listJobs = async (req: Request, res: Response) => {
   try { res.json(await ReplicationService.list(tenantOf(req))); }
@@ -37,8 +114,24 @@ export const createJob = async (req: Request, res: Response) => {
   try {
     const b = req.body || {};
     if (!b.name || !b.sourceName || !b.destName) return res.status(400).json({ error: 'name, sourceName and destName are required' });
+    
+    const tenant = tenantOf(req);
+
+    // Check max_replications limit
+    const user = (req as any).user;
+    if (user && user.internal_role !== 'ADMIN') {
+      const licensingCheck = await LicensingService.getTenantSubscription(tenant);
+      const maxReplications = licensingCheck.limits.max_replications;
+      if (maxReplications !== undefined && maxReplications !== null && maxReplications !== -1) {
+        const jobs = await ReplicationService.list(tenant);
+        if (jobs.length >= maxReplications) {
+          return res.status(403).json({ error: `Replication limit reached: Your plan allows a maximum of ${maxReplications} replication job(s).` });
+        }
+      }
+    }
+
     const job = await ReplicationService.create({
-      tenantId: tenantOf(req), name: b.name, sourceName: b.sourceName, destName: b.destName,
+      tenantId: tenant, name: b.name, sourceName: b.sourceName, destName: b.destName,
       mode: b.mode === 'TWO_WAY' ? 'TWO_WAY' : 'ONE_WAY',
       strategy: ['INCREMENTAL', 'CDC'].includes(b.strategy) ? b.strategy : 'FULL',
       cdcColumn: b.cdcColumn, destSchema: b.destSchema, scheduleMs: b.scheduleMs,
@@ -62,52 +155,12 @@ export const runJob = async (req: Request, res: Response) => {
     const user = (req as any).user;
     if (user && user.internal_role !== 'ADMIN') {
       const licensingCheck = await LicensingService.getTenantSubscription(tenant);
-      const maxTables = licensingCheck.limits.max_replication_tables;
-      const maxRows = licensingCheck.limits.max_replication_rows;
-
-      if (maxTables !== -1 || maxRows !== -1) {
-        // Fetch job details to get the source database
-        const jobRes = await pool.query(`SELECT * FROM fabric_system.replication_jobs WHERE tenant_id=$1 AND id=$2`, [tenant, id]);
-        if (jobRes.rows.length > 0) {
-          const job = jobRes.rows[0];
-          
-          // Fetch source configuration details
-          const srcRes = await pool.query(`SELECT type, config FROM public.data_sources WHERE tenant_id=$1 AND name=$2`, [tenant, job.source_name]);
-          if (srcRes.rows.length > 0) {
-            const src = srcRes.rows[0];
-            const reader = ConnectorFactory.getConnector(src.type, src.config);
-            
-            try {
-              const schemas = (await reader.discoverSchemas()).filter((s: any) => 
-                !['information_schema', 'performance_schema', 'mysql', 'sys', 'admin', 'config', 'local', 'pg_catalog', 'fabric_cdc'].includes(String(s.name).toLowerCase())
-              );
-              
-              let tableCount = 0;
-              let totalRows = 0;
-
-              for (const s of schemas) {
-                const tables = (await reader.discoverTables(s.name)).filter((t: any) => 
-                  (t.resourceType || 'TABLE') === 'TABLE' && !/^fabric_cdc/i.test(t.name)
-                );
-                tableCount += tables.length;
-                
-                for (const t of tables) {
-                  const rCount = await countRows(reader, s.name, t.name);
-                  totalRows += (rCount || 0);
-                }
-              }
-
-              if (maxTables !== -1 && tableCount > maxTables) {
-                return res.status(400).json({ error: `Replication limit exceeded: Your plan restricts you to a maximum of ${maxTables} tables for replication. Current source has ${tableCount} tables.` });
-              }
-
-              if (maxRows !== -1 && totalRows > maxRows) {
-                return res.status(400).json({ error: `Replication limit exceeded: Your plan restricts you to a maximum of ${maxRows} rows for replication. Current source has ${totalRows} rows.` });
-              }
-            } finally {
-              await reader.close().catch(() => {});
-            }
-          }
+      const jobRes = await pool.query(`SELECT * FROM fabric_system.replication_jobs WHERE tenant_id=$1 AND id=$2`, [tenant, id]);
+      if (jobRes.rows.length > 0) {
+        const job = jobRes.rows[0];
+        const limitCheck = await verifyReplicationLimits(tenant, job.source_name, licensingCheck.limits);
+        if (!limitCheck.allowed) {
+          return res.status(400).json({ error: limitCheck.reason });
         }
       }
     }
@@ -130,6 +183,21 @@ export const restoreJob = async (req: Request, res: Response) => {
     if (!target) return res.status(400).json({ error: 'targetSource is required' });
     const tenant = tenantOf(req);
     const id = req.params.id as string;
+
+    // Check replication limits on the replica destination before restore if user is not admin
+    const user = (req as any).user;
+    if (user && user.internal_role !== 'ADMIN') {
+      const licensingCheck = await LicensingService.getTenantSubscription(tenant);
+      const jobRes = await pool.query(`SELECT * FROM fabric_system.replication_jobs WHERE tenant_id=$1 AND id=$2`, [tenant, id]);
+      if (jobRes.rows.length > 0) {
+        const job = jobRes.rows[0];
+        const limitCheck = await verifyReplicationLimits(tenant, job.dest_name, licensingCheck.limits);
+        if (!limitCheck.allowed) {
+          return res.status(400).json({ error: limitCheck.reason });
+        }
+      }
+    }
+
     const config = { ...(await ReplicationService.copyConfigFor(tenant, id)), ...copyConfig(req.body) };
     const run = await CopyJobEngine.enqueue(tenant, 'RESTORE', { jobRef: id, targetSource: target, config });
     res.status(202).json({ status: 'QUEUED', runId: run.id, run });

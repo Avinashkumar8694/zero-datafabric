@@ -75,15 +75,51 @@ async function seed() {
         
         // 2. Seed Admin User and admin@fabrixly.com
         const passwordHash = '$2b$10$CxBK2AyOtIyt4hCsEZPqEOhGQloahPxyalyChP9hNprweiD/4PZY2'; // 'admin'
-        await client.query(
-            "INSERT INTO public.users (username, password_hash, tenant_id, role) VALUES ('admin', $1, 'tenant_A', 'ADMIN') ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash",
+        const adminRes = await client.query(
+            "INSERT INTO public.users (username, password_hash, tenant_id, role) VALUES ('admin', $1, 'tenant_A', 'ADMIN') ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash RETURNING id",
             [passwordHash]
         );
-        await client.query(
-            "INSERT INTO public.users (username, password_hash, tenant_id, role) VALUES ('admin@fabrixly.com', $1, 'tenant_A', 'ADMIN') ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash",
+        const adminEmailRes = await client.query(
+            "INSERT INTO public.users (username, password_hash, tenant_id, role) VALUES ('admin@fabrixly.com', $1, 'tenant_A', 'ADMIN') ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash RETURNING id",
+            [passwordHash]
+        );
+        const adminArjunRes = await client.query(
+            "INSERT INTO public.users (username, password_hash, tenant_id, role) VALUES ('arjunkumargupta108@gmail.com', $1, 'tenant_A', 'ADMIN') ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash, tenant_id = 'tenant_A', role = 'ADMIN' RETURNING id",
             [passwordHash]
         );
         console.log('Admin users seeded.');
+
+        const adminId = adminRes.rows[0]?.id || (await client.query("SELECT id FROM public.users WHERE username = 'admin'")).rows[0]?.id;
+        const adminEmailId = adminEmailRes.rows[0]?.id || (await client.query("SELECT id FROM public.users WHERE username = 'admin@fabrixly.com'")).rows[0]?.id;
+        const adminArjunId = adminArjunRes.rows[0]?.id || (await client.query("SELECT id FROM public.users WHERE username = 'arjunkumargupta108@gmail.com'")).rows[0]?.id;
+
+        // Associate user_id with the 'tenant_A' tenant registry record
+        await client.query("UPDATE public.tenants SET user_id = $1 WHERE id = 'tenant_A'", [adminId]);
+
+        // Seed subscription for admin users
+        const trialPlan = await client.query("SELECT id FROM public.plans WHERE name = 'trial'");
+        if (trialPlan.rows.length > 0) {
+            const planId = trialPlan.rows[0].id;
+            if (adminId) {
+                await client.query(
+                    "INSERT INTO public.subscriptions (user_id, plan_id, status) VALUES ($1, $2, 'active') ON CONFLICT (user_id) DO NOTHING",
+                    [adminId, planId]
+                );
+            }
+            if (adminEmailId) {
+                await client.query(
+                    "INSERT INTO public.subscriptions (user_id, plan_id, status) VALUES ($1, $2, 'active') ON CONFLICT (user_id) DO NOTHING",
+                    [adminEmailId, planId]
+                );
+            }
+            if (adminArjunId) {
+                await client.query(
+                    "INSERT INTO public.subscriptions (user_id, plan_id, status) VALUES ($1, $2, 'active') ON CONFLICT (user_id) DO NOTHING",
+                    [adminArjunId, planId]
+                );
+            }
+            console.log('Subscriptions seeded for admin users.');
+        }
 
         // 3. Seed Data Sources (Industrial GSC v4.0 Connections)
         const sources = [

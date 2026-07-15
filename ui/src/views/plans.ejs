@@ -1,0 +1,606 @@
+<%- include('partials/header') %>
+
+<div class="fade-in plans-shell">
+    <div class="settings-hero">
+        <h2 style="margin:0;">Subscription Plans</h2>
+        <p class="text-muted" style="margin:0.35rem 0 0;">Manage your subscription and view available plans.</p>
+    </div>
+
+    <div class="grid plans-grid">
+        <!-- Current Subscription -->
+        <section class="glass-card" style="grid-column: 1 / -1;">
+            <h3>Current Subscription</h3>
+            <div id="currentSubscription">
+                <div class="text-muted">Loading subscription...</div>
+            </div>
+        </section>
+
+        <!-- Available Plans -->
+        <section class="glass-card" style="grid-column: 1 / -1;">
+            <h3>Available Plans</h3>
+            <p class="text-muted" style="margin-bottom: 1.5rem;">Choose a plan that fits your needs. Upgrade or downgrade at any time.</p>
+            <div id="plansList" class="plans-list">
+                <div class="text-muted">Loading plans...</div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<style>
+    .plans-shell {
+        padding: 2rem;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .plans-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+        margin-top: 1.5rem;
+    }
+
+    .plans-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .plan-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        transition: all 0.2s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .plan-card:hover {
+        border-color: var(--primary);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        transform: translateY(-2px);
+    }
+
+    .plan-card.active-plan {
+        border-color: var(--primary);
+        background: linear-gradient(135deg, rgba(0, 97, 255, 0.03) 0%, rgba(0, 97, 255, 0.01) 100%);
+    }
+
+    .plan-card .plan-badge {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background: var(--primary);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .plan-card h4 {
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: var(--text);
+    }
+
+    .plan-card .plan-price {
+        font-size: 2rem;
+        font-weight: 800;
+        color: var(--text);
+        margin-bottom: 0.25rem;
+    }
+
+    .plan-card .plan-price span {
+        font-size: 0.875rem;
+        font-weight: 400;
+        color: var(--text-muted);
+    }
+
+    .plan-card .plan-description {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        margin-bottom: 1rem;
+    }
+
+    .plan-card .plan-limits {
+        background: var(--surface-hover);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .plan-card .plan-limits h5 {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        margin-bottom: 0.5rem;
+    }
+
+    .plan-card .plan-limits ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .plan-card .plan-limits li {
+        padding: 0.35rem 0;
+        font-size: 0.85rem;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .plan-card .plan-limits li::before {
+        content: "✓";
+        color: var(--success);
+        font-weight: 700;
+    }
+
+    .plan-card .plan-limits li.unlimited::before {
+        content: "∞";
+        color: var(--primary);
+    }
+
+    .plan-card .btn {
+        width: 100%;
+        padding: 0.75rem;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        font-size: 0.9rem;
+        transition: all 0.2s ease;
+    }
+
+    .plan-card .btn-primary {
+        background: var(--primary);
+        color: white;
+    }
+
+    .plan-card .btn-primary:hover {
+        background: var(--primary-dark);
+    }
+
+    .plan-card .btn-outline {
+        background: transparent;
+        color: var(--primary);
+        border: 1px solid var(--primary);
+    }
+
+    .plan-card .btn-outline:hover {
+        background: rgba(0, 97, 255, 0.05);
+    }
+
+    .plan-card .btn-disabled {
+        background: var(--surface-hover);
+        color: var(--text-muted);
+        cursor: not-allowed;
+    }
+
+    .plan-card .contact-info {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: #EFF6FF;
+        border-radius: 8px;
+        border-left: 4px solid var(--primary);
+    }
+
+    .plan-card .contact-info p {
+        margin: 0;
+        font-size: 0.9rem;
+        color: var(--text);
+    }
+
+    .plan-card .contact-info a {
+        color: var(--primary);
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .plan-card .contact-info a:hover {
+        text-decoration: underline;
+    }
+
+    .subscription-details {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .subscription-detail {
+        background: var(--surface-hover);
+        padding: 1rem;
+        border-radius: 8px;
+    }
+
+    .subscription-detail label {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        margin-bottom: 0.25rem;
+    }
+
+    .subscription-detail value {
+        display: block;
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--text);
+    }
+</style>
+
+<script>
+(function() {
+    const API_BASE = window.location.hostname.includes('fabrixly.com') ? `/api` : `http://${window.location.hostname}:4000/api`;
+    const getAuthHeaders = () => ({
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+    });
+
+    function getUserRole() {
+        const token = localStorage.getItem('token');
+        if (!token) return 'USER';
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            return payload.internal_role || 'USER';
+        } catch (e) {
+            return 'USER';
+        }
+    }
+
+    let activePlanId = null;
+
+    async function loadCurrentSubscription() {
+        const container = document.getElementById('currentSubscription');
+        try {
+            const res = await fetch(`${API_BASE}/subscriptions/me`, { headers: getAuthHeaders() });
+            if (!res.ok) {
+                container.innerHTML = '<div class="text-muted">No active subscription. You are on the trial plan.</div>';
+                activePlanId = null;
+                return;
+            }
+            const sub = await res.json();
+            activePlanId = sub.plan_id;
+            container.innerHTML = `
+                <div class="subscription-details">
+                    <div class="subscription-detail">
+                        <label>Plan</label>
+                        <value>${escapeHtml(sub.plan_name)}</value>
+                    </div>
+                    <div class="subscription-detail">
+                        <label>Status</label>
+                        <value><span class="badge-sync" style="background: var(--success)">${escapeHtml(sub.status)}</span></value>
+                    </div>
+                    <div class="subscription-detail">
+                        <label>Price</label>
+                        <value>$${escapeHtml(String(sub.price_monthly))}/mo</value>
+                    </div>
+                    <div class="subscription-detail">
+                        <label>Started</label>
+                        <value>${new Date(sub.start_date).toLocaleDateString()}</value>
+                    </div>
+                </div>
+            `;
+        } catch (err) {
+            container.innerHTML = '<div class="text-muted">Error loading subscription.</div>';
+        }
+    }
+
+    let allPlans = [];
+
+    async function loadPlans() {
+        const container = document.getElementById('plansList');
+        try {
+            const res = await fetch(`${API_BASE}/plans`, { headers: getAuthHeaders() });
+            if (!res.ok) throw new Error('Failed to load plans');
+            const plans = await res.json();
+            allPlans = plans;
+            renderPlans(plans);
+        } catch (err) {
+            container.innerHTML = '<div class="text-muted">Error loading plans.</div>';
+        }
+    }
+
+    function renderPlans(plans) {
+        const container = document.getElementById('plansList');
+        if (!plans || plans.length === 0) {
+            container.innerHTML = '<div class="text-muted">No plans available.</div>';
+            return;
+        }
+
+        const currentActiveId = activePlanId || plans.find(p => p.is_default)?.id;
+        const userRole = getUserRole();
+        const activePlan = plans.find(p => p.id === activePlanId);
+        const isSelfHostSub = activePlan && activePlan.name === 'selfhost';
+
+        container.innerHTML = plans.map(plan => {
+            const limits = plan.limits || {};
+            const features = plan.features || {};
+            
+            // Non-admin users see all non-trial plans as "Custom Plan"
+            const showAsCustom = plan.is_custom || (userRole !== 'ADMIN' && plan.name !== 'trial');
+            const isActive = plan.id === currentActiveId;
+
+            let limitsHtml = '';
+            if (limits.max_tenants !== undefined) {
+                limitsHtml += `<li>${limits.max_tenants === -1 ? 'Unlimited' : limits.max_tenants} Tenants</li>`;
+            }
+            if (limits.max_connections !== undefined) {
+                limitsHtml += `<li>${limits.max_connections === -1 ? 'Unlimited' : limits.max_connections} Connections</li>`;
+            }
+            if (limits.max_tables !== undefined) {
+                limitsHtml += `<li>${limits.max_tables === -1 ? 'Unlimited' : limits.max_tables} Tables</li>`;
+            }
+            if (limits.max_triggers !== undefined) {
+                limitsHtml += `<li>${limits.max_triggers === -1 ? 'Unlimited' : limits.max_triggers} Triggers</li>`;
+            }
+            if (limits.rate_limit_per_min !== undefined) {
+                limitsHtml += `<li>${limits.rate_limit_per_min === -1 ? 'Unlimited' : limits.rate_limit_per_min} Req/min</li>`;
+            }
+
+            let actionHtml = '';
+            if (isActive) {
+                actionHtml = `<button class="btn btn-disabled" disabled>Current Plan</button>`;
+            } else if (showAsCustom) {
+                actionHtml = `<button class="btn btn-outline" onclick="window.location.href='mailto:fabric@fabrixly.com?subject=Inquiry%20about%20${encodeURIComponent(plan.name)}%20plan'">Contact Us</button>`;
+            } else if (isSelfHostSub) {
+                actionHtml = `<button class="btn btn-disabled" disabled style="opacity: 0.5;">Locked (Selfhost Active)</button>`;
+            } else {
+                actionHtml = `<button class="btn btn-primary" onclick="activatePlan('${plan.id}', '${escapeHtml(plan.name)}')">Activate Plan</button>`;
+            }
+
+            if (userRole === 'ADMIN' && !isSelfHostSub) {
+                actionHtml += `<button class="btn btn-outline" style="margin-top: 0.5rem;" onclick="openEditModal('${plan.id}')">Edit Plan</button>`;
+            }
+
+            const planTitle = showAsCustom ? 'Custom Plan' : plan.name;
+            const planDescription = features.description || plan.description || '';
+
+            return `
+                <div class="plan-card ${isActive ? 'active-plan' : ''}">
+                    ${isActive ? '<div class="plan-badge">Current</div>' : (showAsCustom ? '<div class="plan-badge" style="background:#e2e8f0; color:#475569;">Custom</div>' : '')}
+                    <h4>${escapeHtml(planTitle)}</h4>
+                    <div class="plan-price">$${plan.price_monthly}<span>/month</span></div>
+                    <div class="plan-description">${escapeHtml(planDescription)}</div>
+                    <div class="plan-limits">
+                        <h5>Limits</h5>
+                        <ul>${limitsHtml || '<li>Contact for details</li>'}</ul>
+                    </div>
+                    ${actionHtml}
+                </div>
+            `;
+        }).join('');
+    }
+
+    window.activatePlan = async function(planId, planName) {
+        if (!confirm(`Are you sure you want to activate the "${planName}" plan?`)) return;
+        
+        try {
+            const res = await fetch(`${API_BASE}/subscriptions/me`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ plan_id: planId, status: 'active' })
+            });
+            
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Failed to activate plan');
+            }
+            
+            alert(`Successfully activated ${planName} plan!`);
+            await loadCurrentSubscription();
+            await loadPlans();
+        } catch (err) {
+            alert('Error activating plan: ' + err.message);
+        }
+    };
+
+    window.openEditModal = function(planId) {
+        const plan = allPlans.find(p => p.id === planId);
+        if (!plan) return;
+        
+        document.getElementById('editPlanId').value = plan.id;
+        document.getElementById('editPlanName').value = plan.name;
+        document.getElementById('editPlanPrice').value = plan.price_monthly;
+        document.getElementById('editPlanDescription').value = plan.features?.description || '';
+        
+        const limits = plan.limits || {};
+        document.getElementById('editPlanMaxTenants').value = limits.max_tenants !== undefined ? limits.max_tenants : -1;
+        document.getElementById('editPlanMaxConnections').value = limits.max_connections !== undefined ? limits.max_connections : -1;
+        document.getElementById('editPlanMaxTables').value = limits.max_tables !== undefined ? limits.max_tables : -1;
+        document.getElementById('editPlanMaxTriggers').value = limits.max_triggers !== undefined ? limits.max_triggers : -1;
+        document.getElementById('editPlanMaxReplications').value = limits.max_replications !== undefined ? limits.max_replications : -1;
+        document.getElementById('editPlanMaxReplicationTables').value = limits.max_replication_tables !== undefined ? limits.max_replication_tables : -1;
+        document.getElementById('editPlanMaxReplicationRows').value = limits.max_replication_rows !== undefined ? limits.max_replication_rows : -1;
+        document.getElementById('editPlanMaxReplicationRowsPerTable').value = limits.max_replication_rows_per_table !== undefined ? limits.max_replication_rows_per_table : -1;
+        document.getElementById('editPlanRateLimitPerMonth').value = limits.rate_limit_per_month !== undefined ? limits.rate_limit_per_month : -1;
+        document.getElementById('editPlanDataCleanupFrequency').value = limits.data_cleanup_frequency !== undefined ? limits.data_cleanup_frequency : 'none';
+        document.getElementById('editPlanDataCleanupHour').value = limits.data_cleanup_hour !== undefined ? limits.data_cleanup_hour : 2;
+        
+        document.getElementById('editPlanModal').classList.add('active');
+    };
+
+    window.closeEditModal = function() {
+        document.getElementById('editPlanModal').classList.remove('active');
+    };
+
+    window.savePlanChanges = async function() {
+        const planId = document.getElementById('editPlanId').value;
+        const name = document.getElementById('editPlanName').value;
+        const price_monthly = parseFloat(document.getElementById('editPlanPrice').value);
+        const description = document.getElementById('editPlanDescription').value;
+        
+        const max_tenants = parseInt(document.getElementById('editPlanMaxTenants').value);
+        const max_connections = parseInt(document.getElementById('editPlanMaxConnections').value);
+        const max_tables = parseInt(document.getElementById('editPlanMaxTables').value);
+        const max_triggers = parseInt(document.getElementById('editPlanMaxTriggers').value);
+        const max_replications = parseInt(document.getElementById('editPlanMaxReplications').value);
+        const max_replication_tables = parseInt(document.getElementById('editPlanMaxReplicationTables').value);
+        const max_replication_rows = parseInt(document.getElementById('editPlanMaxReplicationRows').value);
+        const max_replication_rows_per_table = parseInt(document.getElementById('editPlanMaxReplicationRowsPerTable').value);
+        const rate_limit_per_month = parseInt(document.getElementById('editPlanRateLimitPerMonth').value);
+        const data_cleanup_frequency = document.getElementById('editPlanDataCleanupFrequency').value;
+        const data_cleanup_hour = parseInt(document.getElementById('editPlanDataCleanupHour').value);
+        
+        const plan = allPlans.find(p => p.id === planId);
+        if (!plan) return;
+        
+        const limits = {
+            ...(plan.limits || {}),
+            max_tenants,
+            max_connections,
+            max_tables,
+            max_triggers,
+            max_replications,
+            max_replication_tables,
+            max_replication_rows,
+            max_replication_rows_per_table,
+            rate_limit_per_month,
+            data_cleanup_frequency,
+            data_cleanup_hour
+        };
+        
+        const features = {
+            ...(plan.features || {}),
+            description
+        };
+        
+        try {
+            const res = await fetch(`${API_BASE}/plans/${planId}`, {
+                method: 'PUT',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                    name,
+                    price_monthly,
+                    limits,
+                    features
+                })
+            });
+            
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Failed to update plan');
+            }
+            
+            alert('Plan updated successfully!');
+            closeEditModal();
+            await loadCurrentSubscription();
+            await loadPlans();
+        } catch (err) {
+            alert('Error updating plan: ' + err.message);
+        }
+    };
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    async function init() {
+        await loadCurrentSubscription();
+        await loadPlans();
+    }
+    init();
+})();
+</script>
+
+<!-- Edit Plan Modal (Admin only modal container) -->
+<div id="editPlanModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 500px; padding: 1.5rem;">
+        <div class="modal-header" style="margin-bottom: 1.5rem;">
+            <h3>Customize Plan Details</h3>
+            <button onclick="closeEditModal()" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--text-muted);">&times;</button>
+        </div>
+        <div class="modal-body" style="display:flex; flex-direction:column; gap:1rem; color: var(--text); margin-bottom: 1.5rem;">
+            <input type="hidden" id="editPlanId">
+            <div class="form-group">
+                <label style="display:block; margin-bottom:0.35rem; font-weight:600; font-size: 0.85rem; color: var(--text-muted);">Plan Name</label>
+                <input type="text" id="editPlanName" class="context-select" style="width:100%; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem;" required>
+            </div>
+            <div class="form-group">
+                <label style="display:block; margin-bottom:0.35rem; font-weight:600; font-size: 0.85rem; color: var(--text-muted);">Monthly Price ($)</label>
+                <input type="number" id="editPlanPrice" class="context-select" style="width:100%; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem;" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label style="display:block; margin-bottom:0.35rem; font-weight:600; font-size: 0.85rem; color: var(--text-muted);">Description / Text</label>
+                <input type="text" id="editPlanDescription" class="context-select" style="width:100%; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem;">
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                <div class="form-group">
+                    <label style="display:block; margin-bottom:0.35rem; font-weight:600; font-size: 0.85rem; color: var(--text-muted);">Max Tenants</label>
+                    <input type="number" id="editPlanMaxTenants" class="context-select" style="width:100%; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem;" required>
+                </div>
+                <div class="form-group">
+                    <label style="display:block; margin-bottom:0.35rem; font-weight:600; font-size: 0.85rem; color: var(--text-muted);">Max Connections</label>
+                    <input type="number" id="editPlanMaxConnections" class="context-select" style="width:100%; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem;" required>
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                <div class="form-group">
+                    <label style="display:block; margin-bottom:0.35rem; font-weight:600; font-size: 0.85rem; color: var(--text-muted);">Max Tables</label>
+                    <input type="number" id="editPlanMaxTables" class="context-select" style="width:100%; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem;" required>
+                </div>
+                <div class="form-group">
+                    <label style="display:block; margin-bottom:0.35rem; font-weight:600; font-size: 0.85rem; color: var(--text-muted);">Max Triggers</label>
+                    <input type="number" id="editPlanMaxTriggers" class="context-select" style="width:100%; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem;" required>
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                <div class="form-group">
+                    <label style="display:block; margin-bottom:0.35rem; font-weight:600; font-size: 0.85rem; color: var(--text-muted);">Max Replications</label>
+                    <input type="number" id="editPlanMaxReplications" class="context-select" style="width:100%; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem;" required>
+                </div>
+                <div class="form-group">
+                    <label style="display:block; margin-bottom:0.35rem; font-weight:600; font-size: 0.85rem; color: var(--text-muted);">Max Rep Tables</label>
+                    <input type="number" id="editPlanMaxReplicationTables" class="context-select" style="width:100%; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem;" required>
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                <div class="form-group">
+                    <label style="display:block; margin-bottom:0.35rem; font-weight:600; font-size: 0.85rem; color: var(--text-muted);">Max Rep Rows (Total)</label>
+                    <input type="number" id="editPlanMaxReplicationRows" class="context-select" style="width:100%; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem;" required>
+                </div>
+                <div class="form-group">
+                    <label style="display:block; margin-bottom:0.35rem; font-weight:600; font-size: 0.85rem; color: var(--text-muted);">Max Rep Rows Per Table</label>
+                    <input type="number" id="editPlanMaxReplicationRowsPerTable" class="context-select" style="width:100%; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem;" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label style="display:block; margin-bottom:0.35rem; font-weight:600; font-size: 0.85rem; color: var(--text-muted);">Requests Per Month Limit</label>
+                <input type="number" id="editPlanRateLimitPerMonth" class="context-select" style="width:100%; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem;" required>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                <div class="form-group">
+                    <label style="display:block; margin-bottom:0.35rem; font-weight:600; font-size: 0.85rem; color: var(--text-muted);">Data Cleanup Frequency</label>
+                    <select id="editPlanDataCleanupFrequency" class="context-select" style="width:100%; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem; background: var(--surface);">
+                        <option value="none">None</option>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly (Sunday)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label style="display:block; margin-bottom:0.35rem; font-weight:600; font-size: 0.85rem; color: var(--text-muted);">Cleanup Hour (0-23)</label>
+                    <input type="number" id="editPlanDataCleanupHour" class="context-select" style="width:100%; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem;" min="0" max="23" required>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:0.5rem;">
+            <button class="btn btn-outline" onclick="closeEditModal()" style="width:auto; padding:0.5rem 1rem;">Cancel</button>
+            <button class="btn btn-primary" onclick="savePlanChanges()" style="width:auto; padding:0.5rem 1rem;">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<%- include('partials/footer') %>

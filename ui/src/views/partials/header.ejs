@@ -54,7 +54,10 @@
         window.fetch = async (...args) => {
             const response = await nativeFetch(...args);
             if (response.status === 401) {
-                performLogout();
+                const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
+                if (!url.includes('/api/settings/login')) {
+                    performLogout();
+                }
             }
             return response;
         };
@@ -84,6 +87,8 @@
                 <a href="/iam" class="nav-item" id="nav-iam"><i class="fas fa-users-cog"></i> Identity</a>
                 <a href="/audit" class="nav-item" id="nav-audit"><i class="fas fa-shield-halved"></i> Audit Logs</a>
                 <a href="/triggers" class="nav-item" id="nav-triggers"><i class="fas fa-bolt"></i> Triggers</a>
+                <a href="/plans" class="nav-item" id="nav-plans"><i class="fas fa-tags"></i> Plans</a>
+                <a href="/integration-guide" class="nav-item" id="nav-integration-guide"><i class="fas fa-book"></i> Integration Guide</a>
                 <div class="nav-spacer"></div>
                 <a href="/settings" class="nav-item" id="nav-settings"><i class="fas fa-cog"></i> Settings</a>
             </nav>
@@ -114,6 +119,15 @@
                     <button id="topLogoutBtn" class="btn-outline" style="padding: 0.4rem 1rem; font-size: 0.8rem;">Log Out</button>
                 </div>
             </header>
+            
+            <!-- Expired Trial Warning Banner -->
+            <div id="trialExpiredBanner" class="alert-bar" style="display: none; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; padding: 1rem 1.5rem; margin-bottom: 1.5rem; border-radius: 12px; align-items: center; gap: 1rem; margin-top: 1rem;">
+                <div style="font-size: 1.5rem;"><i class="fas fa-triangle-exclamation"></i></div>
+                <div style="flex-grow: 1;">
+                    <strong style="display: block; font-size: 0.95rem; margin-bottom: 0.15rem;">Trial Subscription Expired</strong>
+                    <span style="font-size: 0.85rem;">Your trial period has expired. You are not allowed to perform any actions. Please <a href="mailto:fabric@fabrixly.com?subject=Trial%20Extension%20/%20Self%20Deployment%20Inquiry" style="color: #991b1b; text-decoration: underline; font-weight: 600;">contact us at fabric@fabrixly.com</a> for self-deployment setup and subscription options.</span>
+                </div>
+            </div>
             <% } %>
             <div class="content-wrapper">
 
@@ -167,7 +181,7 @@
             const switcher = document.getElementById('tenantSwitcher');
             if (!switcher) return;
             try {
-                const res = await fetch(`${API_BASE}/admin/tenants`, { headers: getAuthHeaders() });
+                const res = await fetch(`${API_BASE}/tenants`, { headers: getAuthHeaders() });
                 const tenants = await res.json();
                 if (Array.isArray(tenants)) {
                     switcher.innerHTML = tenants.map(t => `<option value="${t.id}">${t.name} (${t.id})</option>`).join('');
@@ -195,7 +209,99 @@
             } catch (err) { console.error('[Identity] Switch failed'); }
         });
 
-        window.addEventListener('load', loadTenantSwitcher);
+        function getDecodedToken() {
+            const token = getToken();
+            if (!token) return null;
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                return JSON.parse(jsonPayload);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function checkTrialStatus() {
+            // Exclude pages that do not show top bar
+            if (window.location.pathname.includes('/login') || window.location.pathname.includes('/logout') || window.location.pathname === '/') {
+                return;
+            }
+            try {
+                const res = await fetch(`${API_BASE}/subscriptions/me`, { headers: getAuthHeaders() });
+                if (!res.ok) return;
+                const sub = await res.json();
+                if (sub) {
+                    if (sub.plan_name === 'selfhost') {
+                        // Hide Plans related configuration / tab
+                        const plansTab = document.getElementById('nav-plans');
+                        if (plansTab) plansTab.style.display = 'none';
+                    }
+                    if (sub.is_trial_expired) {
+                        const banner = document.getElementById('trialExpiredBanner');
+                        if (banner) {
+                            banner.style.display = 'flex';
+                        }
+                        
+                        // Disable all action buttons and forms on the page
+                        setTimeout(() => {
+                            const inputs = document.querySelectorAll('input, select, textarea, button');
+                            inputs.forEach(el => {
+                                if (el.id !== 'tenantSwitcher' && el.id !== 'logoutBtn' && el.id !== 'topLogoutBtn') {
+                                    el.disabled = true;
+                                    el.style.opacity = '0.6';
+                                    el.style.cursor = 'not-allowed';
+                                }
+                            });
+                            
+                            // Disable links
+                            const links = document.querySelectorAll('a');
+                            links.forEach(el => {
+                                if (!el.href.startsWith('mailto:') && !el.id?.includes('logout') && el.href !== window.location.href) {
+                                    el.style.pointerEvents = 'none';
+                                    el.style.opacity = '0.5';
+                                }
+                            });
+                        }, 500);
+                    }
+                }
+            } catch (e) {
+                console.error('[TrialCheck] Error checking subscription trial status:', e);
+            }
+        }
+
+        window.addEventListener('load', () => {
+            loadTenantSwitcher();
+            checkTrialStatus();
+
+            // Populate profile details and gate admin tabs
+            const decoded = getDecodedToken();
+            if (decoded) {
+                const username = decoded.username || decoded.email || 'User';
+                const tenant = decoded.tenant_id || 'tenant_A';
+                const role = decoded.internal_role || 'USER';
+                
+                const displayUsername = document.getElementById('displayUsername');
+                if (displayUsername) displayUsername.innerText = username;
+                
+                const displayTenant = document.getElementById('displayTenant');
+                if (displayTenant) displayTenant.innerText = tenant;
+                
+                const userAvatar = document.getElementById('userAvatar');
+                if (userAvatar) userAvatar.innerText = username.charAt(0).toUpperCase();
+                
+                // Hide Admin-only tabs if not admin
+                if (role !== 'ADMIN') {
+                    const adminTabs = ['nav-plans', 'nav-settings', 'nav-tenants', 'nav-iam', 'nav-audit'];
+                    adminTabs.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.style.display = 'none';
+                    });
+                }
+            }
+        });
 
         document.getElementById('logoutBtn')?.addEventListener('click', performLogout);
         document.getElementById('topLogoutBtn')?.addEventListener('click', performLogout);

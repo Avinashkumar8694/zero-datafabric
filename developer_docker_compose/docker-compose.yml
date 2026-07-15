@@ -157,7 +157,7 @@ services:
       dockerfile: backend/Dockerfile
     container_name: datafabric-backend-dev
     ports:
-      - "4000:4000"
+      - "4005:4000"
     environment:
       NODE_ENV: development
       PORT: "4000"
@@ -184,11 +184,12 @@ services:
       dockerfile: ui/Dockerfile
     container_name: datafabric-ui-dev
     ports:
-      - "3001:3001"
+      - "3006:3006"
     environment:
       NODE_ENV: development
-      PORT: "3001"
+      PORT: "3006"
       BACKEND_URL: http://backend:4000
+      BACKEND_HOST_PORT: "4005"
     depends_on:
       - backend
     networks:
@@ -201,7 +202,7 @@ services:
       dockerfile: trigger-engine/Dockerfile
     container_name: datafabric-trigger-dev
     ports:
-      - "4001:4001"
+      - "4006:4001"
     environment:
       PORT: "4001"
       DATABASE_URL: postgresql://fabric_admin:fabric_password@db:5432/datafabric

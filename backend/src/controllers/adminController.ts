@@ -20,20 +20,24 @@ import { LicensingService } from '../services/licensing.service';
 // --- Tenant Management ---
 
 /**
- * List every tenant registered on the platform.
+ * List tenants. Admins see all tenants; non-admins see only their own tenant.
  *
- * @param req - Express request (admin-only; no tenant scoping — this is a global list).
+ * @param req - Express request.
  * @param res - Express response.
- * @returns 200 with all rows from `public.tenants`, newest first.
- * @throws Responds 500 `(error)` on a database failure.
+ * @returns 200 with tenant rows.
  */
 export const getTenants = async (req: Request, res: Response) => {
   try {
+    const user = (req as any).user;
+    if (user && user.internal_role !== 'ADMIN') {
+      const { rows } = await pool.query('SELECT * FROM public.tenants WHERE id = $1', [user.tenant_id]);
+      return res.json(rows);
+    }
     const { rows } = await pool.query('SELECT * FROM public.tenants ORDER BY created_at DESC');
     res.json(rows);
-  } catch (err: any) { 
+  } catch (err: any) {
     console.error(`[Admin] Error in ${req.url}:`, err.message);
-    res.status(500).json({ error: err.message }); 
+    res.status(500).json({ error: err.message });
   }
 };
 
@@ -50,7 +54,17 @@ export const createTenant = async (req: Request, res: Response) => {
   const { id, name } = req.body;
   if (!id || !name) return res.status(400).json({ error: 'id and name are required' });
   try {
-    const result = await TenantService.createTenant(id, name);
+    const user = (req as any).user;
+    
+    // Check plan limits for non-admin users
+    if (user && user.internal_role !== 'ADMIN') {
+      const limitCheck = await LicensingService.canCreateTenant(user.id);
+      if (!limitCheck.allowed) {
+        return res.status(403).json({ error: limitCheck.reason });
+      }
+    }
+    
+    const result = await TenantService.createTenant(id, name, 'STANDARD', user?.id);
     res.status(201).json(result);
   } catch (err: any) { 
     console.error(`[Admin] Error in ${req.url}:`, err.message);
@@ -174,7 +188,7 @@ export const createConnection = async (req: Request, res: Response) => {
       const isNew = existsCheck.rows.length === 0;
 
       if (isNew) {
-        const allowed = await LicensingService.checkLimit(user.tenant_id, 'max_connections', currentCount);
+        const allowed = await LicensingService.checkLimit(user.id, 'max_connections', currentCount);
         if (!allowed) {
           return res.status(400).json({ error: 'Connection limit exceeded. Your current plan restricts you to a maximum of 2 connections.' });
         }

@@ -18,15 +18,15 @@ export class TenantService {
    * @returns The created `public.tenants` row.
    * @throws Re-throws any error after rolling back the transaction and logging it.
    */
-  static async createTenant(id: string, name: string, tier: string = 'STANDARD') {
+  static async createTenant(id: string, name: string, tier: string = 'STANDARD', userId?: string) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       
       // 1. Register in the master registry
       const result = await client.query(
-        'INSERT INTO public.tenants (id, name, tier) VALUES ($1, $2, $3) RETURNING *',
-        [id, name, tier]
+        'INSERT INTO public.tenants (id, name, tier, user_id) VALUES ($1, $2, $3, $4) RETURNING *',
+        [id, name, tier, userId || null]
       );
 
       // 2. Call the DB orchestrator to create the physical schema

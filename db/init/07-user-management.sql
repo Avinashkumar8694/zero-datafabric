@@ -14,9 +14,9 @@ INSERT INTO public.tenants (id, name) VALUES ('tenant_A', 'System Admin') ON CON
 SELECT fabric_admin.create_tenant_namespace('tenant_A');
 
 -- Seed an Industrial Admin User
--- Password is 'admin'
+-- Password is 'z0omAdCac2gBoUQuuqQQh6a'
 INSERT INTO public.users (username, password_hash, tenant_id, role)
-VALUES ('admin', '$2b$10$CxBK2AyOtIyt4hCsEZPqEOhGQloahPxyalyChP9hNprweiD/4PZY2', 'tenant_A', 'ADMIN')
+VALUES ('admin', '$2b$10$FivEGGt17ligSzE.JUJiRe0ym9b0eQlQvGDiBcc3U49MNlSMLXryy', 'tenant_A', 'ADMIN')
 ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash;
 
 -- Enable RLS on users

@@ -1,28 +1,37 @@
 <%- include('partials/header') %>
 
-<div class="login-container">
-    <div class="glass-card">
-        <h2>Login to Data Fabric</h2>
-        <form id="loginForm">
-            <div class="form-group">
-                <label>Username</label>
-                <input type="text" id="username" value="admin" required>
+<div class="login-container" id="loginContainer">
+    <div class="glass-card" style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 2.5rem; width: 100%; max-width: 450px; border-radius: 16px;">
+        <img id="loginLogo" src="" alt="Logo" style="display: none; max-height: 80px; margin-bottom: 1.5rem; border-radius: 8px;" />
+        <h2 id="loginTitle" style="margin-bottom: 2rem; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1.8rem; color: #fff;">Login to Data Fabric</h2>
+        
+        <!-- Password Login Form (rendered if self-host and enabled) -->
+        <form id="passwordLoginForm" style="display: none; width: 100%; flex-direction: column; gap: 1.2rem; margin-bottom: 1.5rem;">
+            <div class="form-group" style="text-align: left; width: 100%;">
+                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">Username / Email</label>
+                <input type="text" id="usernameInput" required placeholder="username or email" style="width: 100%; padding: 0.8rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; color: var(--text); outline: none; font-size: 0.95rem;" />
             </div>
-            <div class="form-group">
-                <label>Password</label>
-                <input type="password" id="password" value="admin" required>
+            <div class="form-group" style="text-align: left; width: 100%;">
+                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">Password</label>
+                <input type="password" id="passwordInput" required placeholder="••••••••" style="width: 100%; padding: 0.8rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; color: var(--text); outline: none; font-size: 0.95rem;" />
             </div>
-            <button type="submit" class="btn-primary">Sign In</button>
+            <button type="submit" class="btn-primary" style="width: 100%; padding: 1rem; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s; font-size: 1rem; box-shadow: var(--shadow);">
+                Sign In
+            </button>
         </form>
-        <div style="margin: 1.5rem 0; text-align: center; color: var(--text-muted); font-size: 0.9rem; position: relative;">
-            <span style="background: var(--surface); padding: 0 10px; position: relative; z-index: 1;">OR</span>
-            <div style="position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: var(--border); z-index: 0;"></div>
+
+        <!-- Divider -->
+        <div id="loginDivider" style="display: none; align-items: center; width: 100%; margin-bottom: 1.5rem; color: var(--text-muted); font-size: 0.85rem;">
+            <div style="flex-grow: 1; height: 1px; background: var(--border);"></div>
+            <span style="padding: 0 1rem;">OR</span>
+            <div style="flex-grow: 1; height: 1px; background: var(--border);"></div>
         </div>
-        <button id="ssoBtn" type="button" class="btn-sso" style="width: 100%; padding: 1rem; background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px;">
+
+        <button id="ssoBtn" type="button" class="btn-sso" style="width: 100%; padding: 1.25rem; background: transparent; border: 1px solid var(--border); color: white; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 1rem;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-shield"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
             Sign In with SSO
         </button>
-        <p id="message"></p>
+        <p id="message" style="margin-top: 1rem; color: #ef4444; font-size: 0.9rem; text-align: center;"></p>
     </div>
 </div>
 
@@ -32,100 +41,144 @@
     const token = urlParams.get('token');
     if (token) {
         localStorage.setItem('token', token);
-        window.location.href = '/dashboard';
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        
+        // Log timezone on the backend before redirecting to dashboard
+        fetch(`${API_BASE}/auth/timezone`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ timezone })
+        }).catch(err => {
+            console.error('[Timezone] Failed to update user timezone:', err);
+        }).finally(() => {
+            window.location.href = '/dashboard';
+        });
+    }
+
+    async function initializeLoginPage() {
+        try {
+            const res = await fetch(`${API_BASE}/settings/login`);
+            if (!res.ok) return;
+            const data = await res.json();
+
+            if (data && data.selfhost) {
+                // Apply custom branding
+                if (data.bg_color) {
+                    document.body.style.background = data.bg_color;
+                    document.getElementById('loginContainer').style.background = data.bg_color;
+                }
+                if (data.title) {
+                    document.getElementById('loginTitle').innerText = data.title;
+                }
+                if (data.logo_url) {
+                    const logo = document.getElementById('loginLogo');
+                    logo.src = data.logo_url;
+                    logo.style.display = 'block';
+                }
+
+                // Setup login flows based on settings
+                const passwordForm = document.getElementById('passwordLoginForm');
+                const ssoBtn = document.getElementById('ssoBtn');
+                const divider = document.getElementById('loginDivider');
+
+                if (data.allow_password_login) {
+                    passwordForm.style.display = 'flex';
+                }
+                if (data.sso_enabled) {
+                    ssoBtn.style.display = 'flex';
+                } else {
+                    ssoBtn.style.display = 'none';
+                }
+
+                if (data.allow_password_login && data.sso_enabled) {
+                    divider.style.display = 'flex';
+                }
+            }
+        } catch (err) {
+            console.error('[LoginInit] Error initializing login settings:', err);
+        }
     }
 
     document.getElementById('ssoBtn').addEventListener('click', () => {
         window.location.href = `${API_BASE}/auth/sso`;
     });
 
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    document.getElementById('passwordLoginForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const username = document.getElementById('username').value;
-        const password = document.getElementById('password').value;
-        
+        const username = document.getElementById('usernameInput').value;
+        const password = document.getElementById('passwordInput').value;
+        const msg = document.getElementById('message');
+
         try {
-            const response = await fetch(`${API_BASE}/auth/login`, {
+            const res = await fetch(`${API_BASE}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password })
             });
-            
-            const data = await response.json();
-            
-            if (response.ok) {
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Invalid credentials');
+            }
+
+            const data = await res.json();
+            if (data.token) {
                 localStorage.setItem('token', data.token);
+                
+                // Track user timezone on login
+                const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                await fetch(`${API_BASE}/auth/timezone`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${data.token}`
+                    },
+                    body: JSON.stringify({ timezone })
+                }).catch(err => console.error('[Timezone] Error:', err));
+
                 window.location.href = '/dashboard';
-            } else {
-                document.getElementById('message').innerText = data.error || 'Login failed';
             }
         } catch (err) {
-            document.getElementById('message').innerText = 'Error connecting to API';
+            msg.innerText = err.message;
         }
     });
+
+    window.addEventListener('load', initializeLoginPage);
 </script>
 
 <style>
+    .login-page {
+        background: #04060f !important;
+    }
     .login-container {
-        height: 80vh;
+        height: 100vh;
         display: flex;
         align-items: center;
         justify-content: center;
+        background: #04060f;
     }
     .glass-card {
-        background: var(--surface);
-        padding: 3rem;
-        border-radius: 16px;
-        border: 1px solid var(--border);
-        width: 100%;
-        max-width: 400px;
-    }
-    .glass-card h2 {
-        margin-bottom: 2rem;
-        text-align: center;
-    }
-    .form-group {
-        margin-bottom: 1.5rem;
-    }
-    .form-group label {
-        display: block;
-        margin-bottom: 0.5rem;
-        color: var(--text-muted);
-    }
-    .form-group input {
-        width: 100%;
-        padding: 0.8rem;
-        background: var(--bg);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        color: var(--text);
-        outline: none;
-    }
-    .form-group input:focus {
-        border-color: var(--primary);
-    }
-    .btn-primary {
-        width: 100%;
-        padding: 1rem;
-        background: var(--primary);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: background 0.3s;
+        background: rgba(255, 255, 255, 0.01) !important;
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.3);
     }
     .btn-primary:hover {
-        background: var(--primary-dark);
+        background: var(--primary-dark) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 5px 15px rgba(99, 102, 241, 0.4);
     }
     .btn-sso:hover {
         background: rgba(255, 255, 255, 0.05) !important;
         border-color: var(--primary) !important;
     }
-    #message {
-        margin-top: 1rem;
-        color: #ef4444;
-        text-align: center;
+    .form-group input:focus {
+        border-color: var(--primary) !important;
+        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
     }
 </style>
 

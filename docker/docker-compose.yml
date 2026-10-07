@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # Master Coordinator Node (Postgres/Citus)
   db:
-    image: citusdata/citus:latest
+    image: citusdata/citus:13.0   # pinned: 18+ changed the data dir layout (latest broke the /var/lib/postgresql/data mount)
     container_name: datafabric-hub-prod
     restart: unless-stopped
     environment:

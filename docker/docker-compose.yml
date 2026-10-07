@@ -159,6 +159,7 @@ services:
       - .env
     environment:
       PORT: "3001"
+      UI_PORT: "3001"   # feat/enhancement UI reads UI_PORT (default 3006); Traefik routes to 3001
       BACKEND_URL: http://backend:4000
     depends_on:
       - backend

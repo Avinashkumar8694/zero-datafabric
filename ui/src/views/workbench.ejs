@@ -1,208 +1,111 @@
 <%- include('partials/header') %>
 
-<div class="wb-shell fade-in">
-    <aside class="wb-left">
+<div class="page full fade-in">
+    <div class="page-head">
+        <div>
+            <h1 class="page-title">Query Workbench</h1>
+            <p class="page-sub">Pick a mode, write your query, and run it across any data source.</p>
+        </div>
+        <div class="page-actions">
+            <button type="button" class="btn-outline" onclick="openRelationships()">Relationships</button>
+            <a href="/workbench/docs" class="btn-outline" target="_blank" rel="noreferrer">Docs</a>
+        </div>
+    </div>
+
+<div class="wb-shell">
+    <aside class="wb-left" aria-label="Workbench explorer">
         <div class="wb-left-head">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
-                <h3 style="margin:0;">Workbench Explorer</h3>
-                <button class="tree-toggle-mobile" aria-label="Toggle Explorer" onclick="toggleWbTree()">
-                    <i class="fas fa-chevron-up" id="wbTreeIcon"></i>
+            <div class="wb-left-head-row">
+                <h3>Workbench Explorer</h3>
+                <button type="button" class="tree-toggle-mobile" aria-label="Toggle explorer" onclick="toggleWbTree()">
+                    <i class="fas fa-chevron-up" id="wbTreeIcon" aria-hidden="true"></i>
                 </button>
             </div>
+            <label for="explorerSearch" class="sr-only">Search sources, schemas, resources</label>
             <input id="explorerSearch" class="wb-input" placeholder="Search sources, schemas, resources..." oninput="filterExplorer()">
         </div>
         <div id="explorerTree" class="wb-tree">
-            <div class="wb-muted" style="padding:1rem;">Loading explorer...</div>
+            <div class="wb-muted wb-pad">Loading explorer...</div>
         </div>
     </aside>
 
     <section class="wb-main">
-        <div class="wb-top">
-            <div class="wb-title">
-                <h2>Query Workbench</h2>
-                <p>Pick a mode, write your query, and run it across any data source.</p>
-            </div>
-            <div class="wb-actions">
-                <button class="btn-outline" onclick="openRelationships()">Relationships</button>
-                <a href="/workbench/docs" class="btn-outline" target="_blank" rel="noreferrer">Docs</a>
-            </div>
-        </div>
-
         <div class="wb-toolbar">
             <div class="wb-mode" role="tablist" aria-label="Query mode">
-                <button id="modeSql" class="tab-btn active" onclick="setMode('SQL')">SQL</button>
-                <button id="modeAst" class="tab-btn" onclick="setMode('AST')">AST</button>
+                <button type="button" id="modeSql" class="tab-btn" onclick="setMode('SQL')" title="Read-only preview of the SQL the AST compiles to. SQL is never executed.">SQL preview</button>
+                <button type="button" id="modeAst" class="tab-btn active" onclick="setMode('AST')">AST</button>
             </div>
             <div class="wb-run-controls">
-                <select id="templatePicker" class="wb-input" style="max-width:220px;" onchange="applyTemplate(this.value)">
+                <label for="templatePicker" class="sr-only">Example query</label>
+                <select id="templatePicker" class="wb-input wb-select" onchange="applyTemplate(this.value)">
                     <option value="">Load example…</option>
                 </select>
-                <label class="wb-muted" for="rowLimit" style="font-size:0.78rem;">Rows</label>
-                <input id="rowLimit" class="wb-input" type="number" min="1" max="10000" value="100"
-                       style="max-width:80px;" title="Max rows to fetch (applied as LIMIT / query limit)">
-                <button class="btn-outline" onclick="clearEditor()">Clear</button>
-                <button id="runBtn" class="btn-primary" onclick="runCurrent()">Run</button>
+                <label class="wb-muted small" for="rowLimit">Rows</label>
+                <input id="rowLimit" class="wb-input wb-rows" type="number" min="1" max="10000" value="100"
+                       title="Max rows to fetch (applied as LIMIT / query limit)">
+                <button type="button" class="btn-outline" onclick="clearEditor()">Clear</button>
+                <button type="button" id="runBtn" class="btn-primary" onclick="runCurrent()"><i class="fas fa-play" aria-hidden="true"></i> Run</button>
             </div>
         </div>
 
         <div id="joinBuilder" class="wb-join" style="display:none;">
             <strong>AST Join Builder</strong>
             <div class="wb-join-grid">
-                <select id="joinPrimary" class="wb-input"></select>
-                <select id="joinType" class="wb-input">
+                <select id="joinPrimary" class="wb-input" aria-label="Primary resource"></select>
+                <select id="joinType" class="wb-input" aria-label="Join type">
                     <option value="INNER">INNER</option>
                     <option value="LEFT">LEFT</option>
                     <option value="RIGHT">RIGHT</option>
                     <option value="FULL">FULL</option>
                 </select>
-                <select id="joinSecondary" class="wb-input"></select>
-                <input id="joinOn" class="wb-input" placeholder='Join condition, e.g. "shipments.id = shipment_details.shipment_id"'>
-                <button class="btn-outline" onclick="buildJoinAst()">Generate AST</button>
+                <select id="joinSecondary" class="wb-input" aria-label="Secondary resource"></select>
+                <input id="joinOn" class="wb-input" aria-label="Join condition" placeholder='Join condition, e.g. "shipments.id = shipment_details.shipment_id"'>
+                <button type="button" class="btn-outline" onclick="buildJoinAst()">Generate AST</button>
             </div>
         </div>
 
         <div class="wb-editor-wrap">
-            <textarea id="sqlEditor" class="wb-editor" placeholder="SELECT * FROM tenant_tenant_A_global_supply_chain.shipments LIMIT 50;"></textarea>
-            <textarea id="astEditor" class="wb-editor" style="display:none;" placeholder='{"type":"SELECT","schema":"Global_Supply_Chain","limit":50,"query":{"select":["*"],"from":{"resource":"shipments"}}}'></textarea>
+            <textarea id="sqlEditor" class="wb-editor" readonly aria-readonly="true" aria-label="SQL preview" placeholder="Read-only preview: the SQL your AST compiles to. SQL cannot be executed here; edit the AST."></textarea>
+            <textarea id="astEditor" class="wb-editor" style="display:none;" aria-label="AST editor" placeholder='{"type":"SELECT","schema":"Global_Supply_Chain","limit":50,"query":{"select":["*"],"from":{"resource":"shipments"}}}'></textarea>
         </div>
 
         <div id="wbDetail" class="wb-detail" style="display:none;">
             <div class="wb-detail-head">
                 <span id="wbDetailTitle" class="wb-detail-title"></span>
-                <button class="wb-detail-toggle" onclick="toggleDetail()" title="Collapse / expand">–</button>
+                <button type="button" class="wb-detail-toggle" onclick="toggleDetail()" title="Collapse / expand" aria-label="Collapse or expand details">–</button>
             </div>
             <div id="wbDetailBody" class="wb-detail-body"></div>
         </div>
 
         <div class="wb-results">
             <div class="wb-results-head">
-                <span id="resultMeta" class="wb-muted">Ready.</span>
+                <span id="resultMeta" class="wb-muted" role="status">Ready.</span>
                 <span id="wbSpinner" class="wb-spinner" style="display:none;"></span>
             </div>
-            <div id="wbError" class="wb-error" style="display:none;"></div>
+            <div id="wbError" class="wb-error" role="alert" style="display:none;"></div>
             <div id="wbPlan" class="wb-plan" style="display:none;"></div>
             <div class="wb-table-wrap">
                 <table id="resultsTable">
                     <thead id="resultsHead"></thead>
                     <tbody id="resultsBody">
-                        <tr><td class="wb-muted" style="padding:2rem;">No results yet.</td></tr>
+                        <tr><td class="state-cell">No results yet.</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </section>
 </div>
+</div>
 
 <div id="wbErModal" class="wb-er-modal" style="display:none;" onclick="if(event.target===this)closeRelationships()">
-    <div class="wb-er-dialog" role="dialog" aria-label="Relationship diagram">
+    <div class="wb-er-dialog" role="dialog" aria-modal="true" aria-label="Relationship diagram">
         <div class="wb-er-head">
             <strong>Relationships</strong>
-            <button class="wb-detail-toggle" onclick="closeRelationships()" title="Close">✕</button>
+            <button type="button" class="modal-close" onclick="closeRelationships()" title="Close" aria-label="Close dialog">&times;</button>
         </div>
         <div id="wbErBody" class="wb-er-body"></div>
     </div>
 </div>
-
-<style>
-    .wb-shell { display:flex; height:calc(100vh - 84px); background:#f7f9fc; }
-    .wb-left { width:320px; border-right:1px solid #e5e7eb; background:#fff; display:flex; flex-direction:column; }
-    .wb-left-head { padding:1rem; border-bottom:1px solid #eef2f7; }
-    .wb-left-head h3 { margin-bottom:0.75rem; font-size:1rem; }
-    .wb-tree { overflow:auto; padding:0.5rem 0; flex:1; }
-    .wb-main { flex:1; display:flex; flex-direction:column; gap:0.75rem; padding:1rem; min-width:0; }
-    .wb-top { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; }
-    .wb-title h2 { margin:0; font-size:1.4rem; }
-    .wb-title p { margin:0.25rem 0 0; color:#64748b; font-size:0.9rem; }
-    .wb-actions { display:flex; gap:0.5rem; }
-    .wb-guide { background:#eef6ff; border:1px solid #c9defc; border-radius:10px; padding:0.75rem; font-size:0.85rem; }
-    .wb-toolbar { display:flex; justify-content:space-between; gap:0.75rem; align-items:center; background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:0.6rem; }
-    .wb-mode { display:flex; gap:0.5rem; }
-    .tab-btn { border:none; background:#f1f5f9; border-radius:8px; padding:0.45rem 0.8rem; font-weight:700; cursor:pointer; color:#475569; }
-    .tab-btn.active { background:#dbeafe; color:#1d4ed8; }
-    .wb-run-controls { display:flex; gap:0.5rem; align-items:center; }
-    .wb-templates, .wb-join { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:0.65rem; }
-    .wb-templates label { display:block; margin-bottom:0.35rem; font-size:0.8rem; color:#64748b; }
-    .wb-join-grid { display:grid; grid-template-columns: 1.1fr 0.5fr 1.1fr 1.5fr auto; gap:0.5rem; margin-top:0.5rem; }
-    .wb-editor-wrap { flex:1; min-height:220px; background:#0f172a; border-radius:10px; border:1px solid #1e293b; overflow:hidden; }
-    .wb-editor { width:100%; height:100%; min-height:220px; border:none; outline:none; background:#0f172a; color:#e2e8f0; font-family:'JetBrains Mono', monospace; padding:1rem; line-height:1.45; resize:none; }
-    .wb-results { background:#fff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; min-height:220px; display:flex; flex-direction:column; }
-    .wb-results-head { padding:0.55rem 0.75rem; border-bottom:1px solid #eef2f7; background:#f8fafc; display:flex; align-items:center; gap:0.6rem; }
-    .wb-spinner { width:14px; height:14px; border:2px solid #cbd5e1; border-top-color:#2563eb; border-radius:50%; display:inline-block; animation:wb-spin 0.7s linear infinite; }
-    @keyframes wb-spin { to { transform:rotate(360deg); } }
-    .wb-error { padding:0.6rem 0.75rem; background:#fef2f2; border-bottom:1px solid #fecaca; color:#b91c1c; font-size:0.85rem; white-space:pre-wrap; }
-    .wb-plan { padding:0.5rem 0.75rem; border-bottom:1px solid #eef2f7; background:#f0f7ff; display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center; }
-    .wb-plan-chip { background:#dbeafe; color:#1d4ed8; font-weight:700; border-radius:6px; padding:0.15rem 0.5rem; font-size:0.75rem; }
-    .wb-plan-note { color:#334155; font-size:0.76rem; background:#e2e8f0; border-radius:6px; padding:0.15rem 0.5rem; }
-    .wb-warn { flex-basis:100%; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:0.3rem 0.5rem; font-size:0.78rem; }
-    .wb-table-wrap { overflow:auto; flex:1; }
-    #resultsTable { width:100%; border-collapse:collapse; font-size:0.85rem; }
-    #resultsTable th, #resultsTable td { padding:0.5rem 0.65rem; border-bottom:1px solid #f1f5f9; text-align:left; white-space:nowrap; }
-    #resultsTable th { position:sticky; top:0; background:#fff; z-index:1; font-size:0.75rem; color:#64748b; text-transform:uppercase; }
-    .wb-input { width:100%; border:1px solid #dbe2ea; border-radius:8px; padding:0.5rem 0.65rem; font-size:0.85rem; }
-    .wb-muted { color:#64748b; }
-    .tree-source { padding:0.5rem 0.9rem; font-weight:700; color:#1e293b; border-top:1px solid #f1f5f9; }
-    .tree-schema { padding:0.4rem 1.5rem; color:#334155; font-size:0.85rem; }
-    .tree-cat { padding:0.3rem 1.7rem 0.15rem; color:#94a3b8; font-size:0.68rem; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; }
-    .tree-ico { display:inline-block; width:1.1em; text-align:center; color:#64748b; }
-    .tree-item { padding:0.35rem 2.1rem; color:#475569; font-size:0.82rem; cursor:pointer; }
-    .tree-item:hover { background:#f8fafc; }
-    .tree-item.active { background:#e8f0ff; color:#1d4ed8; font-weight:700; border-right:3px solid #2563eb; }
-    .wb-detail { background:#fff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; }
-    .wb-detail-head { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; border-bottom:1px solid #eef2f7; background:#f8fafc; }
-    .wb-detail-title { font-size:0.82rem; color:#334155; font-weight:700; }
-    .wb-detail-title .wb-cap { font-weight:400; color:#94a3b8; font-size:0.72rem; margin-left:0.4rem; }
-    .wb-detail-toggle { border:none; background:#eef2f7; color:#475569; border-radius:6px; width:24px; height:24px; cursor:pointer; font-weight:700; line-height:1; }
-    .wb-detail-body { max-height:240px; overflow:auto; }
-    .wb-detail-body.collapsed { display:none; }
-    .wb-col-table { width:100%; border-collapse:collapse; font-size:0.82rem; }
-    .wb-col-table th, .wb-col-table td { padding:0.4rem 0.65rem; border-bottom:1px solid #f1f5f9; text-align:left; white-space:nowrap; }
-    .wb-col-table th { font-size:0.7rem; color:#64748b; text-transform:uppercase; background:#fff; position:sticky; top:0; }
-    .wb-col-type { color:#7c3aed; font-family:'JetBrains Mono', monospace; font-size:0.78rem; }
-    .wb-er-modal { position:fixed; inset:0; background:rgba(15,23,42,0.45); display:flex; align-items:center; justify-content:center; z-index:1000; padding:1rem; }
-    .wb-er-dialog { background:#fff; border-radius:12px; width:min(920px, 96vw); max-height:88vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 20px 60px rgba(15,23,42,0.35); }
-    .wb-er-head { display:flex; justify-content:space-between; align-items:center; padding:0.75rem 1rem; border-bottom:1px solid #eef2f7; background:#f8fafc; }
-    .wb-er-body { padding:1rem; overflow:auto; }
-    .wb-er-tables { display:flex; flex-wrap:wrap; gap:0.6rem; margin-bottom:1rem; }
-    .wb-er-box { border:1px solid #c9defc; background:#eef6ff; border-radius:8px; padding:0.45rem 0.7rem; font-weight:700; color:#1d4ed8; font-size:0.82rem; }
-    .wb-er-box small { display:block; font-weight:400; color:#64748b; font-size:0.68rem; }
-    .wb-er-edges { display:flex; flex-direction:column; gap:0.4rem; }
-    .wb-er-edge { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; font-size:0.82rem; color:#334155; background:#f8fafc; border:1px solid #eef2f7; border-radius:8px; padding:0.4rem 0.6rem; }
-    .wb-er-node { font-family:'JetBrains Mono', monospace; color:#0f172a; }
-    .wb-er-card { background:#dbeafe; color:#1d4ed8; font-weight:700; border-radius:6px; padding:0.1rem 0.45rem; font-size:0.72rem; }
-    .wb-er-arrow { color:#2563eb; font-weight:700; }
-    .tree-toggle-mobile {
-        display: none;
-        background: #f1f5f9;
-        border: 1px solid #e2e8f0;
-        border-radius: 6px;
-        width: 30px;
-        height: 30px;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        color: #64748b;
-        font-size: 0.8rem;
-    }
-    @media (max-width: 1100px) {
-        .tree-toggle-mobile { display: inline-flex; }
-        .wb-shell { flex-direction:column; height:auto; }
-        .wb-left { width:100%; height:260px; }
-        .wb-join-grid { grid-template-columns:1fr; }
-    }
-    @media (max-width: 768px) {
-        .wb-main { padding: 0.5rem; }
-        .wb-top { flex-direction: column; align-items: stretch; }
-        .wb-actions { flex-wrap: wrap; }
-        .wb-toolbar { flex-direction: column; align-items: stretch; }
-        .wb-run-controls { justify-content: space-between; }
-        .wb-left { height: 220px; }
-    }
-    @media (max-width: 480px) {
-        .wb-run-controls { flex-direction: column; align-items: stretch; }
-        .wb-run-controls button { width: 100%; }
-        .tab-btn { flex: 1; text-align: center; }
-    }
-</style>
 
 <script>
     function toggleWbTree() {
@@ -218,7 +121,7 @@
         }
     }
 
-    let mode = 'SQL';
+    let mode = 'AST';
     let explorerItems = [];
     let selectedResource = null;
 
@@ -301,7 +204,7 @@
 
     function beginResults() {
         document.getElementById('resultsHead').innerHTML = '';
-        document.getElementById('resultsBody').innerHTML = '<tr><td class="wb-muted" style="padding:2rem;">Running query…</td></tr>';
+        document.getElementById('resultsBody').innerHTML = '<tr><td class="state-cell">Running query…</td></tr>';
     }
 
     function tenantId() {
@@ -333,6 +236,9 @@
         const other = otherSourceObject();
         const list = [];
         if (next === 'SQL') {
+            return list; // preview only: no executable SQL examples
+        }
+        if (false) {
             if (selectable && sel.sourceName === 'Fabric_Hub_Postgres') {
                 list.push({ v: 'sql_basic', label: `SELECT * FROM ${sel.name}` });
                 list.push({ v: 'sql_aggregate', label: `Aggregate: COUNT by ${firstCol('column')}` });
@@ -372,14 +278,25 @@
         document.getElementById('astEditor').style.display = next === 'AST' ? 'block' : 'none';
         // Show only the examples that apply to this mode; hide the AST join builder in SQL.
         renderTemplateOptions(next);
-        if (next === 'SQL') document.getElementById('joinBuilder').style.display = 'none';
+        if (next === 'SQL') { document.getElementById('joinBuilder').style.display = 'none'; refreshSqlPreview(); }
+    }
+
+    // Read-only: ask the server what SQL the current AST compiles to. Never executed.
+    async function refreshSqlPreview() {
+        const box = document.getElementById('sqlEditor');
+        try {
+            const cfg = JSON.parse(document.getElementById('astEditor').value);
+            const res = await fetch(`${API_BASE}/queries/transpile`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(cfg) });
+            const data = await res.json();
+            box.value = data.sql || data.error || '';
+        } catch (e) { box.value = '-- Add a valid AST in the AST tab to preview its SQL.'; }
     }
 
     function clearEditor() {
         document.getElementById('sqlEditor').value = '';
         document.getElementById('astEditor').value = '';
         document.getElementById('resultsHead').innerHTML = '';
-        document.getElementById('resultsBody').innerHTML = '<tr><td class="wb-muted" style="padding:2rem;">Editor cleared.</td></tr>';
+        document.getElementById('resultsBody').innerHTML = '<tr><td class="state-cell">Editor cleared.</td></tr>';
     }
 
     function normalizeRows(payload) {
@@ -402,7 +319,7 @@
         if (!rows.length) {
             document.getElementById('resultMeta').innerText = metaText;
             head.innerHTML = '';
-            body.innerHTML = '<tr><td class="wb-muted" style="padding:2rem;">Empty result set.</td></tr>';
+            body.innerHTML = '<tr><td class="state-cell">Empty result set.</td></tr>';
             return;
         }
         const cols = Object.keys(rows[0]);
@@ -457,38 +374,7 @@
 
         try {
             if (mode === 'SQL') {
-                let sql = document.getElementById('sqlEditor').value.trim();
-                if (!sql) throw new Error('SQL editor is empty.');
-                // Guard: a comment-only editor (e.g. a "not executable via the fabric" note for a
-                // remote sequence/function) must NOT be sent — it produced a "syntax error at LIMIT".
-                if (!hasExecutableSql(sql)) {
-                    throw new Error('Nothing to run — this object is not executable via SQL here. For remote sequences/functions, use the source engine; for remote tables/views switch to AST mode.');
-                }
-                sql = applyLimitToSql(sql, limit);
-
-                if (execMode === 'async') {
-                    const dispatch = await fetch(`${API_BASE}/queries/exec`, {
-                        method: 'POST',
-                        headers: getAuthHeaders(),
-                        body: JSON.stringify({ sql, async: true })
-                    });
-                    const job = await dispatch.json();
-                    if (!dispatch.ok) throw new Error(job.error || 'Failed to dispatch async query');
-                    if (gen !== runGeneration) return;
-                    document.getElementById('resultMeta').innerText = `Async job accepted: ${job.queryId}`;
-                    await pollJob(job.queryId, '/queries/jobs', gen);
-                } else {
-                    const res = await fetch(`${API_BASE}/queries/exec`, {
-                        method: 'POST',
-                        headers: getAuthHeaders(),
-                        body: JSON.stringify({ sql })
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error || 'SQL execution failed');
-                    if (gen !== runGeneration) return;
-                    const rows = normalizeRows(data);
-                    renderRows(rows, `SQL sync • ${rows.length} rows • ${Math.round(performance.now() - start)}ms`);
-                }
+                throw new Error('SQL is a read-only preview and cannot be executed. Switch to the AST tab and press Run.');
             } else {
                 const raw = document.getElementById('astEditor').value.trim();
                 if (!raw) throw new Error('AST editor is empty.');
@@ -663,7 +549,8 @@
                 ? `Materialized view on ${item.sourceName} — cached rows, queried via the fabric.`
                 : `${rt} on ${item.sourceName} — federated SELECT. Press Run.`;
         } else if (isLocal) {
-            mode = 'SQL';
+            mode = (rt === 'FUNCTION' || rt === 'PROCEDURE') ? 'AST' : 'SQL';
+            if (rt === 'FUNCTION' || rt === 'PROCEDURE') ast = JSON.stringify(rt === 'PROCEDURE' ? { type: 'CALL', schema: item.schemaName, procedure: item.name, args: [] } : { type: 'CALL', schema: item.schemaName, function: item.name, args: [] }, null, 2);
             switch (rt) {
                 case 'SEQUENCE':
                     sql = `SELECT nextval('${item.schemaPhysical}.${item.name}');`; hint = 'Sequence — nextval()/currval()/setval().'; break;
@@ -676,7 +563,7 @@
                 default:
                     sql = `-- ${rt} "${item.name}" — inspect in the Catalog studio.`; hint = `${rt} — metadata object.`;
             }
-            ast = `// ${rt} objects are addressed via SQL (see SQL mode).`;
+            if (!ast) ast = `// ${rt} objects cannot be queried through the AST; inspect them in the Catalog studio.`;
         } else {
             // Non-selectable object on a remote source — not executable through the fabric.
             mode = 'SQL';
@@ -706,7 +593,7 @@
         bodyEl.classList.remove('collapsed'); if (btn) btn.textContent = '–';
         panel.style.display = 'block';
         titleEl.innerHTML = `${escapeHtml(item.name)}<span class="wb-cap">${escapeHtml(item.resourceType)}</span>`;
-        bodyEl.innerHTML = '<div class="wb-muted" style="padding:0.75rem;">Loading usage…</div>';
+        bodyEl.innerHTML = '<div class="wb-muted wb-pad">Loading usage…</div>';
         const gen = ++detailGeneration;
         const q = `"${item.schemaPhysical}"."${item.name}"`;
         try {
@@ -724,7 +611,7 @@
                 bodyEl.innerHTML = `<div class="wb-usage">
                     <div class="wb-usage-sig">${escapeHtml(item.name)}(${escapeHtml(inParams.map((p) => p.name + ' ' + p.type).join(', '))})${ast.returnType ? ' → ' + escapeHtml(ast.returnType) : ''}</div>
                     <table class="wb-col-table"><thead><tr><th>Parameter</th><th>Type</th><th>Mode</th></tr></thead><tbody>${rows}</tbody></table>
-                    <div class="wb-muted" style="margin-top:0.4rem;">${isLocal ? 'Fill in the argument values below and press Run.' : 'Engine-local — run on the source engine.'}</div>
+                    <div class="wb-muted mt-1">${isLocal ? 'Fill in the argument values below and press Run.' : 'Engine-local — run on the source engine.'}</div>
                 </div>`;
                 if (isLocal) {
                     const argList = inParams.map((p) => `<${p.name}:${p.type}>`).join(', ');
@@ -736,7 +623,7 @@
                 bodyEl.innerHTML = `<div class="wb-usage">
                     <div class="wb-usage-sig">${escapeHtml(item.name)} — start ${escapeHtml(ast.start ?? 1)}, increment ${escapeHtml(ast.increment ?? 1)}</div>
                     <div class="wb-muted">Usage: <code>SELECT nextval('${escapeHtml(item.schemaPhysical)}.${escapeHtml(item.name)}')</code> · currval() · setval()</div>
-                    <div class="wb-muted" style="margin-top:0.4rem;">${isLocal ? 'Press Run to get the next value.' : 'Engine-local — run on the source engine.'}</div>
+                    <div class="wb-muted mt-1">${isLocal ? 'Press Run to get the next value.' : 'Engine-local — run on the source engine.'}</div>
                 </div>`;
                 if (isLocal) document.getElementById('sqlEditor').value = `SELECT nextval('${item.schemaPhysical}.${item.name}');`;
             } else if (rt === 'ENUM') {
@@ -749,7 +636,7 @@
             }
         } catch (err) {
             if (gen !== detailGeneration) return;
-            bodyEl.innerHTML = `<div class="wb-error" style="display:block;">Usage load failed: ${escapeHtml(err.message)}</div>`;
+            bodyEl.innerHTML = `<div class="wb-error" role="alert" style="display:block;">Usage load failed: ${escapeHtml(err.message)}</div>`;
         }
     }
 
@@ -777,7 +664,7 @@
         if (btn) btn.textContent = '–';
         panel.style.display = 'block';
         titleEl.innerHTML = `${escapeHtml(item.name)}`;
-        bodyEl.innerHTML = '<div class="wb-muted" style="padding:1rem;">Loading columns…</div>';
+        bodyEl.innerHTML = '<div class="wb-muted wb-pad">Loading columns…</div>';
 
         const gen = ++detailGeneration;
         try {
@@ -793,7 +680,7 @@
             }
             titleEl.innerHTML = `${escapeHtml(item.name)}<span class="wb-cap">${escapeHtml(item.resourceType)} • ${escapeHtml(data.source || 'metadata')}</span>`;
             if (!cols.length) {
-                bodyEl.innerHTML = '<div class="wb-muted" style="padding:1rem;">No columns reported.</div>';
+                bodyEl.innerHTML = '<div class="wb-muted wb-pad">No columns reported.</div>';
                 return;
             }
             const rowsHtml = cols.map((c) => `<tr>
@@ -808,7 +695,7 @@
             </table>`;
         } catch (err) {
             if (gen !== detailGeneration) return;
-            bodyEl.innerHTML = `<div class="wb-error" style="display:block;">Column load failed: ${escapeHtml(err.message)}</div>`;
+            bodyEl.innerHTML = `<div class="wb-error" role="alert" style="display:block;">Column load failed: ${escapeHtml(err.message)}</div>`;
         }
     }
 
@@ -845,11 +732,11 @@
                 <span class="wb-er-card">${escapeHtml(r.cardinality || '?')}</span>
                 <span class="wb-er-arrow">──▶</span>
                 <span class="wb-er-node">${escapeHtml(r.targetTable)}.${escapeHtml(r.targetColumn)}</span>
-                ${r.name ? `<span class="wb-muted" style="font-size:0.72rem;">(${escapeHtml(r.name)})</span>` : ''}
+                ${r.name ? `<span class="wb-muted wb-small">(${escapeHtml(r.name)})</span>` : ''}
             </div>`).join('');
             body.innerHTML = `<div class="wb-er-tables">${boxesHtml}</div><div class="wb-er-edges">${edgesHtml}</div>`;
         } catch (err) {
-            body.innerHTML = `<div class="wb-error" style="display:block;">${escapeHtml(err.message)}</div>`;
+            body.innerHTML = `<div class="wb-error" role="alert" style="display:block;">${escapeHtml(err.message)}</div>`;
         }
     }
 
@@ -892,7 +779,7 @@
 
     async function loadExplorer() {
         const tree = document.getElementById('explorerTree');
-        tree.innerHTML = '<div class="wb-muted" style="padding:1rem;">Loading explorer…</div>';
+        tree.innerHTML = '<div class="wb-muted wb-pad">Loading explorer…</div>';
         try {
             const sources = await getJson(`${API_BASE}/metadata/sources`);
             // Fetch every source's schemas, and every schema's objects, IN PARALLEL
@@ -912,11 +799,11 @@
             explorerItems = [];
             for (const sd of sourceData) {
                 const s = sd.s;
-                html += `<div class="tree-source">${escapeHtml(s.name)} <span class="wb-muted" style="font-size:0.72rem;">(${escapeHtml(s.type)})</span></div>`;
-                if (sd.error) { html += `<div class="tree-schema wb-muted" style="color:#b91c1c;">schema load failed</div>`; continue; }
+                html += `<div class="tree-source">${escapeHtml(s.name)} <span class="wb-muted wb-small">(${escapeHtml(s.type)})</span></div>`;
+                if (sd.error) { html += `<div class="tree-schema wb-err-text">schema load failed</div>`; continue; }
                 for (const { sch, rows } of sd.schemaData) {
                     html += `<div class="tree-schema">${escapeHtml(toLogicalSchemaName(sch.name))}</div>`;
-                    if (rows === null) { html += `<div class="tree-item wb-muted" style="color:#b91c1c;">objects load failed</div>`; continue; }
+                    if (rows === null) { html += `<div class="tree-item wb-err-text">objects load failed</div>`; continue; }
                     if (rows.length === 0) { html += `<div class="tree-item wb-muted">(empty)</div>`; continue; }
                     const groups = {};
                     rows.forEach((r) => { const rt = r.resourceType || 'TABLE'; (groups[rt] ||= []).push(r); });
@@ -933,15 +820,15 @@
                                     sourceName: s.name,
                                 };
                                 explorerItems.push(item);
-                                html += `<div class="tree-item" title="${escapeHtml(rt)}" data-table-id="${escapeHtml(item.tableId)}" data-name="${escapeHtml(item.name)}" data-source="${escapeHtml(item.sourceName)}" data-schema="${escapeHtml(item.schemaName)}" data-schema-physical="${escapeHtml(item.schemaPhysical)}" data-rtype="${escapeHtml(rt)}" onclick="chooseResourceFromDom(this)"><span class="tree-ico">${meta.icon}</span> ${escapeHtml(item.name)}${(['TABLE','VIEW','MATERIALIZED_VIEW','FOREIGN_TABLE'].includes(rt) && Number(r.rowCount) > 0) ? ` <span class="wb-muted" style="font-size:0.68rem;">${escapeHtml(r.rowCount)} rows</span>` : ''}</div>`;
+                                html += `<div class="tree-item" title="${escapeHtml(rt)}" data-table-id="${escapeHtml(item.tableId)}" data-name="${escapeHtml(item.name)}" data-source="${escapeHtml(item.sourceName)}" data-schema="${escapeHtml(item.schemaName)}" data-schema-physical="${escapeHtml(item.schemaPhysical)}" data-rtype="${escapeHtml(rt)}" onclick="chooseResourceFromDom(this)"><span class="tree-ico">${meta.icon}</span> ${escapeHtml(item.name)}${(['TABLE','VIEW','MATERIALIZED_VIEW','FOREIGN_TABLE'].includes(rt) && Number(r.rowCount) > 0) ? ` <span class="wb-muted wb-small">${escapeHtml(r.rowCount)} rows</span>` : ''}</div>`;
                             });
                         });
                 }
             }
-            tree.innerHTML = html || '<div class="wb-muted" style="padding:1rem;">No catalog resources found.</div>';
+            tree.innerHTML = html || '<div class="wb-muted wb-pad">No catalog resources found.</div>';
             populateJoinBuilder();
         } catch (err) {
-            tree.innerHTML = `<div class="wb-muted" style="padding:1rem; color:#b91c1c;">Explorer load failed: ${escapeHtml(err.message)}</div>`;
+            tree.innerHTML = `<div class="wb-err-text wb-pad">Explorer load failed: ${escapeHtml(err.message)}</div>`;
         }
     }
 
@@ -957,7 +844,7 @@
         chooseResource(item, el);
     }
 
-    setMode('SQL');
+    setMode('AST');
     loadExplorer();
 </script>
 

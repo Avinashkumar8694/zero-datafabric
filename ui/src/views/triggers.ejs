@@ -1,148 +1,125 @@
 <%- include('partials/header') %>
 
-<style>
-  .trg-grid { display:grid; grid-template-columns: 1.2fr 1fr; gap:1rem; }
-  .trg-card { background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:1rem; }
-  .trg-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem; }
-  .trg-scroll { max-height:360px; overflow:auto; border:1px solid var(--border); border-radius:10px; }
-  .trg-modal { position:fixed; inset:0; background:rgba(2,6,23,0.45); display:none; align-items:center; justify-content:center; z-index:10000; }
-  .trg-modal.active { display:flex; }
-  .trg-modal-card { width:min(980px,94vw); max-height:90vh; overflow:auto; background:#fff; border-radius:14px; padding:1rem; border:1px solid var(--border); }
-  .trg-form-grid { display:grid; grid-template-columns: 1fr 1fr; gap:0.7rem; }
-  .trg-form-grid .full { grid-column:1 / -1; }
-  .trg-input, .trg-select, .trg-text { width:100%; border:1px solid var(--border); border-radius:8px; padding:0.55rem 0.65rem; font-size:0.85rem; }
-  .trg-text { min-height:120px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
-
-  @media (max-width: 960px) {
-    .trg-grid { grid-template-columns: 1fr !important; }
-    .trg-head { flex-wrap: wrap; gap: 0.6rem; }
-  }
-  @media (max-width: 640px) {
-    .trg-form-grid { grid-template-columns: 1fr !important; }
-    .trg-modal-card { padding: 1rem 0.75rem !important; }
-  }
-</style>
-
-<div class="fade-in">
-  <div class="trg-card" style="margin-bottom:1rem;">
-    <div class="trg-head">
-      <div>
-        <h3 style="margin:0;"><i class="fas fa-bolt"></i> Trigger Control Plane</h3>
-        <p class="text-muted" style="margin:0.3rem 0 0;">Row triggers + generic scheduler triggers (`every n unit`) with async execution via trigger-engine.</p>
-      </div>
-      <div style="display:flex; gap:0.5rem;">
-        <button class="btn-outline" onclick="loadAll()">Refresh</button>
-        <button class="btn-primary" onclick="openTriggerModal()">+ Create Trigger</button>
-      </div>
+<div class="page fade-in">
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">Trigger Control Plane</h1>
+      <p class="page-sub">Row triggers and generic scheduler triggers (<code>every n unit</code>) with async execution via trigger-engine.</p>
+    </div>
+    <div class="page-actions">
+      <button type="button" class="btn-outline" onclick="loadAll()"><i class="fas fa-sync" aria-hidden="true"></i> Refresh</button>
+      <button type="button" class="btn-primary" onclick="openTriggerModal()"><i class="fas fa-plus" aria-hidden="true"></i> Create Trigger</button>
     </div>
   </div>
 
-  <div class="trg-grid">
-    <div class="trg-card">
-      <div class="trg-head"><h4 style="margin:0;">Registry</h4></div>
-      <div class="trg-scroll">
-        <table class="table-premium">
+  <div class="split even">
+    <section class="glass-card">
+      <h3><i class="fas fa-bolt" aria-hidden="true"></i> Registry</h3>
+      <div class="table-wrapper scroll-y">
+        <table>
           <thead><tr><th>Name</th><th>Scope</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="trgBody"><tr><td colspan="5" class="text-muted" style="text-align:center;">Loading...</td></tr></tbody>
+          <tbody id="trgBody"><tr><td colspan="5" class="state-cell">Loading...</td></tr></tbody>
         </table>
       </div>
-    </div>
+    </section>
 
-    <div class="trg-card">
-      <div class="trg-head"><h4 style="margin:0;">Jobs</h4></div>
-      <div class="trg-scroll">
-        <table class="table-premium">
+    <section class="glass-card">
+      <h3>Jobs</h3>
+      <div class="table-wrapper scroll-y">
+        <table>
           <thead><tr><th>Job</th><th>Status</th><th>Attempts</th><th>Action</th></tr></thead>
-          <tbody id="jobBody"><tr><td colspan="4" class="text-muted" style="text-align:center;">Loading...</td></tr></tbody>
+          <tbody id="jobBody"><tr><td colspan="4" class="state-cell">Loading...</td></tr></tbody>
         </table>
       </div>
-    </div>
+    </section>
   </div>
 
-  <div class="trg-card" style="margin-top:1rem;">
-    <div class="trg-head">
-      <h4 style="margin:0;">Execution Logs</h4>
-      <span class="text-muted" id="logMeta">Auto-pagination on scroll</span>
+  <section class="glass-card">
+    <div class="card-head">
+      <h3>Execution Logs</h3>
+      <span class="text-muted small" id="logMeta" role="status">Auto-pagination on scroll</span>
     </div>
-    <div class="trg-scroll" id="logScroller">
-      <table class="table-premium">
+    <div class="table-wrapper scroll-y" id="logScroller">
+      <table>
         <thead><tr><th>Time</th><th>Trigger</th><th>Action</th><th>Status</th><th>Detail</th></tr></thead>
-        <tbody id="logBody"><tr><td colspan="5" class="text-muted" style="text-align:center;">Loading...</td></tr></tbody>
+        <tbody id="logBody"><tr><td colspan="5" class="state-cell">Loading...</td></tr></tbody>
       </table>
     </div>
-  </div>
+  </section>
 </div>
 
-<div id="triggerModal" class="trg-modal">
-  <div class="trg-modal-card">
-    <div class="trg-head">
-      <h3 id="trgModalTitle" style="margin:0;">Create Trigger</h3>
-      <button class="btn-outline" onclick="closeTriggerModal()">Close</button>
+<div id="triggerModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="trgModalTitle">
+  <div class="modal-card lg">
+    <div class="modal-header">
+      <h3 id="trgModalTitle">Create Trigger</h3>
+      <button type="button" class="modal-close" onclick="closeTriggerModal()" aria-label="Close dialog">&times;</button>
     </div>
-    <div class="trg-form-grid">
-      <div>
-        <label>Trigger Name</label>
-        <input id="fTriggerName" class="trg-input" placeholder="trg_orders_notify">
+    <div class="modal-body">
+    <div class="form-grid">
+      <div class="field">
+        <label for="fTriggerName">Trigger Name</label>
+        <input id="fTriggerName" placeholder="trg_orders_notify">
       </div>
-      <div>
-        <label>Mode</label>
-        <select id="fMode" class="trg-select" onchange="toggleModeFields()">
+      <div class="field">
+        <label for="fMode">Mode</label>
+        <select id="fMode" onchange="toggleModeFields()">
           <option value="ROW">Row Trigger</option>
           <option value="SCHEDULE">Scheduler Trigger</option>
         </select>
       </div>
-      <div id="rowFieldsA">
-        <label>Schema</label>
-        <input id="fSchema" class="trg-input" placeholder="tenant_tenant_A_Global_Supply_Chain">
+      <div class="field" id="rowFieldsA">
+        <label for="fSchema">Schema</label>
+        <input id="fSchema" placeholder="tenant_tenant_A_Global_Supply_Chain">
       </div>
-      <div id="rowFieldsB">
-        <label>Table</label>
-        <input id="fTable" class="trg-input" placeholder="shipments">
+      <div class="field" id="rowFieldsB">
+        <label for="fTable">Table</label>
+        <input id="fTable" placeholder="shipments">
       </div>
-      <div id="rowFieldsC">
-        <label>Event</label>
-        <select id="fEvent" class="trg-select">
+      <div class="field" id="rowFieldsC">
+        <label for="fEvent">Event</label>
+        <select id="fEvent">
           <option>AFTER_INSERT</option><option>AFTER_UPDATE</option><option>AFTER_DELETE</option>
           <option>BEFORE_INSERT</option><option>BEFORE_UPDATE</option><option>BEFORE_DELETE</option>
         </select>
       </div>
-      <div id="schedFieldsA" style="display:none;">
-        <label>Every</label>
-        <input id="fEvery" class="trg-input" type="number" value="1" min="1">
+      <div class="field" id="schedFieldsA" style="display:none;">
+        <label for="fEvery">Every</label>
+        <input id="fEvery" type="number" value="1" min="1">
       </div>
-      <div id="schedFieldsB" style="display:none;">
-        <label>Unit</label>
-        <select id="fUnit" class="trg-select"><option>SECOND</option><option>MINUTE</option><option>HOUR</option><option>DAY</option></select>
+      <div class="field" id="schedFieldsB" style="display:none;">
+        <label for="fUnit">Unit</label>
+        <select id="fUnit"><option>SECOND</option><option>MINUTE</option><option>HOUR</option><option>DAY</option></select>
       </div>
-      <div id="schedFieldsC" class="full" style="display:none;">
-        <label>Scheduler Mode</label>
-        <select id="fSchedType" class="trg-select" onchange="toggleSchedType()">
+      <div class="field full" id="schedFieldsC" style="display:none;">
+        <label for="fSchedType">Scheduler Mode</label>
+        <select id="fSchedType" onchange="toggleSchedType()">
           <option value="FIXED">FIXED (Every N Unit)</option>
           <option value="CRON">CRON Expression</option>
         </select>
       </div>
-      <div id="schedCronWrap" class="full" style="display:none;">
-        <label>Cron Expression</label>
-        <input id="fCron" class="trg-input" placeholder="*/5 * * * *">
+      <div class="field full" id="schedCronWrap" style="display:none;">
+        <label for="fCron">Cron Expression</label>
+        <input id="fCron" placeholder="*/5 * * * *">
       </div>
-      <div>
-        <label>Action Type</label>
-        <select id="fActionType" class="trg-select">
+      <div class="field">
+        <label for="fActionType">Action Type</label>
+        <select id="fActionType">
           <option>AUDIT</option><option>EMAIL</option><option>TELEGRAM</option><option>WEBHOOK</option><option>FUNCTION</option><option>EXCEPTION</option>
         </select>
       </div>
-      <div class="full">
-        <label>Action JSON (`execute` fields: params/payload/headers/auth)</label>
-        <textarea id="fActionJson" class="trg-text">{}</textarea>
+      <div class="field full">
+        <label for="fActionJson">Action JSON (<code>execute</code> fields: params/payload/headers/auth)</label>
+        <textarea id="fActionJson" class="code-input">{}</textarea>
       </div>
-      <div class="full">
-        <label>Schedule/AutoDrop JSON (optional)</label>
-        <textarea id="fExtrasJson" class="trg-text">{}</textarea>
+      <div class="field full">
+        <label for="fExtrasJson">Schedule/AutoDrop JSON (optional)</label>
+        <textarea id="fExtrasJson" class="code-input">{}</textarea>
       </div>
     </div>
-    <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.8rem;">
-      <button class="btn-outline" onclick="closeTriggerModal()">Cancel</button>
-      <button class="btn-primary" onclick="saveTriggerFromModal()">Save Trigger</button>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-outline" onclick="closeTriggerModal()">Cancel</button>
+      <button type="button" class="btn-primary" onclick="saveTriggerFromModal()">Save Trigger</button>
     </div>
   </div>
 </div>
@@ -260,12 +237,12 @@
 
   async function loadTriggers() {
     const body = document.getElementById('trgBody');
-    body.innerHTML = '<tr><td colspan="5" class="text-muted" style="text-align:center;">Loading...</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" class="state-cell">Loading...</td></tr>';
     try {
       const res = await fetch(`${API_BASE}/triggers`, { headers: getAuthHeaders() });
       const rows = await res.json();
       if (!Array.isArray(rows) || !rows.length) {
-        body.innerHTML = '<tr><td colspan="5" class="text-muted" style="text-align:center;">No triggers</td></tr>';
+        body.innerHTML = '<tr><td colspan="5" class="state-cell">No triggers</td></tr>';
         return;
       }
       const MAX_ROWS = 500;
@@ -278,27 +255,27 @@
           <td><b>${esc(r.triggerName)}</b></td>
           <td><code>${esc(scope)}</code></td>
           <td>${esc(typ)}</td>
-          <td><span class="badge-sync" style="background:${r.status === 'ACTIVE' ? 'var(--success)' : '#f59e0b'}">${esc(r.status)}</span></td>
-          <td style="display:flex; gap:0.35rem;">
-            <button class="btn-outline" onclick='openTriggerModal(${escapeHtml(JSON.stringify(JSON.stringify(r)))})'>Edit</button>
-            <button class="btn-outline" onclick='deployTrigger("${escapeJs(r.id)}")'>Deploy</button>
-            <button class="btn-danger" onclick='deleteTrigger("${escapeJs(r.id)}","${escapeJs(r.triggerName)}")'>Delete</button>
-          </td>
+          <td><span class="badge ${r.status === 'ACTIVE' ? 'badge-ok' : 'badge-warn'}">${esc(r.status)}</span></td>
+          <td><div class="row-actions">
+            <button class="btn-outline btn-sm" onclick='openTriggerModal(${escapeHtml(JSON.stringify(JSON.stringify(r)))})'>Edit</button>
+            <button class="btn-outline btn-sm" onclick='deployTrigger("${escapeJs(r.id)}")'>Deploy</button>
+            <button class="btn-outline btn-sm btn-danger" onclick='deleteTrigger("${escapeJs(r.id)}","${escapeJs(r.triggerName)}")'>Delete</button>
+          </div></td>
         </tr>`;
-      }).join('') + (capped ? `<tr><td colspan="5" class="text-muted" style="text-align:center;">Showing ${MAX_ROWS} of ${rows.length}</td></tr>` : '');
+      }).join('') + (capped ? `<tr><td colspan="5" class="state-cell">Showing ${MAX_ROWS} of ${rows.length}</td></tr>` : '');
     } catch (e) {
-      body.innerHTML = `<tr><td colspan="5" class="text-danger" style="text-align:center;">Failed to load triggers: ${esc(e.message)}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="5" class="state-cell text-danger">Failed to load triggers: ${esc(e.message)}</td></tr>`;
     }
   }
 
   async function loadJobs() {
     const body = document.getElementById('jobBody');
-    body.innerHTML = '<tr><td colspan="4" class="text-muted" style="text-align:center;">Loading...</td></tr>';
+    body.innerHTML = '<tr><td colspan="4" class="state-cell">Loading...</td></tr>';
     try {
       const res = await fetch(`${API_BASE}/triggers/jobs/list`, { headers: getAuthHeaders() });
       const rows = await res.json();
       if (!Array.isArray(rows) || !rows.length) {
-        body.innerHTML = '<tr><td colspan="4" class="text-muted" style="text-align:center;">No jobs</td></tr>';
+        body.innerHTML = '<tr><td colspan="4" class="state-cell">No jobs</td></tr>';
         return;
       }
       const MAX_ROWS = 500;
@@ -306,12 +283,12 @@
       const shown = capped ? rows.slice(0, MAX_ROWS) : rows;
       body.innerHTML = shown.map(r => `<tr>
         <td>${esc(r.jobType)}</td>
-        <td><span class="badge-sync" style="background:${r.status === 'COMPLETED' ? 'var(--success)' : (r.status === 'FAILED' ? 'var(--danger)' : 'var(--primary)')}">${esc(r.status)}</span></td>
+        <td><span class="badge ${r.status === 'COMPLETED' ? 'badge-ok' : (r.status === 'FAILED' ? 'badge-danger' : 'badge-info')}">${esc(r.status)}</span></td>
         <td>${esc(r.attempts)}/${esc(r.maxAttempts)}</td>
-        <td>${r.status === 'FAILED' ? `<button class="btn-outline" onclick='retryJob("${escapeJs(r.id)}")'>Retry</button>` : ''}</td>
-      </tr>`).join('') + (capped ? `<tr><td colspan="4" class="text-muted" style="text-align:center;">Showing ${MAX_ROWS} of ${rows.length}</td></tr>` : '');
+        <td>${r.status === 'FAILED' ? `<button class="btn-outline btn-sm" onclick='retryJob("${escapeJs(r.id)}")'>Retry</button>` : ''}</td>
+      </tr>`).join('') + (capped ? `<tr><td colspan="4" class="state-cell">Showing ${MAX_ROWS} of ${rows.length}</td></tr>` : '');
     } catch (e) {
-      body.innerHTML = `<tr><td colspan="4" class="text-danger" style="text-align:center;">Failed to load jobs: ${esc(e.message)}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="4" class="state-cell text-danger">Failed to load jobs: ${esc(e.message)}</td></tr>`;
     }
   }
 
@@ -328,7 +305,7 @@
       const res = await fetch(`${API_BASE}/triggers/logs/list?limit=${LOG_PAGE}&offset=${logOffset}`, { headers: getAuthHeaders() });
       const rows = await res.json();
       if (!Array.isArray(rows) || rows.length === 0) {
-        if (logOffset === 0) body.innerHTML = '<tr><td colspan="5" class="text-muted" style="text-align:center;">No logs</td></tr>';
+        if (logOffset === 0) body.innerHTML = '<tr><td colspan="5" class="state-cell">No logs</td></tr>';
         logDone = true;
         document.getElementById('logMeta').innerText = `No more logs`;
         return;
@@ -337,13 +314,13 @@
         <td>${esc(new Date(r.createdAt).toLocaleString())}</td>
         <td>${esc(r.triggerName)}</td>
         <td>${esc(r.action)}</td>
-        <td><span class="badge-sync" style="background:${r.status === 'SUCCESS' ? 'var(--success)' : 'var(--danger)'}">${esc(r.status)}</span></td>
-        <td><code style="font-size:0.75rem;">${esc(JSON.stringify(r.detail || {}))}</code></td>
+        <td><span class="badge ${r.status === 'SUCCESS' ? 'badge-ok' : 'badge-danger'}">${esc(r.status)}</span></td>
+        <td><code>${esc(JSON.stringify(r.detail || {}))}</code></td>
       </tr>`).join('');
       logOffset += rows.length;
       document.getElementById('logMeta').innerText = `Loaded ${logOffset} logs`;
     } catch (e) {
-      if (logOffset === 0) body.innerHTML = `<tr><td colspan="5" class="text-danger" style="text-align:center;">Failed to load logs: ${esc(e.message)}</td></tr>`;
+      if (logOffset === 0) body.innerHTML = `<tr><td colspan="5" class="state-cell text-danger">Failed to load logs: ${esc(e.message)}</td></tr>`;
       document.getElementById('logMeta').innerText = `Failed to load logs`;
       logDone = true;
     } finally {

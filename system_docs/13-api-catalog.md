@@ -84,16 +84,16 @@ switches to). See [15-security-and-governance-architecture.md](15-security-and-g
 
 ## Queries — `/api/queries` (requireAuth)
 
-The low-level query surface (AST engine, native/raw SQL, transpile preview, async
-jobs). All handled by `queryController` → `QueryEngineService`.
+The low-level query surface (AST engine and the transpile preview). **AST-only:**
+raw SQL execution (`/api/queries/exec`, `/api/queries/native`) was removed (`404`; a request body containing SQL gets `400 SQL_NOT_SUPPORTED`), and
+bodies with `sql` / `rawSql` / `nativeSql` / `rawQuery` (or a string `query`) on
+`/api/queries`, `/api/analytics`, `/api/data`, `/api/saved-analytics` are rejected with
+`400 { error, code: 'SQL_NOT_SUPPORTED' }`. All handled by `queryController` → `QueryEngineService`.
 
 | Method | Path | Purpose | Request | Response / errors |
 |--------|------|---------|---------|-------------------|
 | POST | `/api/queries/engine` | Run an AST/manifest query config through the planner + federation. | `{ config }` or a bare query config | `200 { data, rowCount, plan, warnings }`; `403` suspended tenant; `500 {error}` |
-| POST | `/api/queries/exec` | Run raw SQL; sync by default, `202`-accepted job when `async:true`; routed to a named `source` connector or the hub. | `{ sql, params?, async?, source?, schema? }` | sync `200 { results }`; async `202 { queryId, status:'ACCEPTED' }`; source-routed `{ results, plan }` |
-| POST | `/api/queries/native` | Direct SQL on the hub Postgres (tenant search-path context), or a named remote source. | `{ sql, source?, schema? }` | `200 { results, rowCount }` |
-| POST | `/api/queries/transpile` | Preview the SQL the fabric would generate from an AST config (AST builder "see SQL"). | `{ config }` or `{ query }` | `200 { sql }` (recursive → a note; `CALL` → `CALL/SELECT` form); on failure still `200 { sql:'-- …', error }` |
-| GET | `/api/queries/jobs/:id` · `/api/queries/status/:id` | Poll an async raw-SQL job. | — | `200 { status, … }`; `404 {status:'NOT_FOUND'}` |
+| POST | `/api/queries/transpile` | Preview the SQL the fabric would generate from an AST config (AST builder "see SQL"; preview only, never executes). | `{ config }` or `{ query }` | `200 { sql }` (recursive → a note; `CALL` → `CALL/SELECT` form); on failure still `200 { sql:'-- …', error }` |
 
 ## Analytics — `/api/analytics` (requireAuth)
 
@@ -102,7 +102,7 @@ for federation, recursion, window, and aggregate work.
 
 | Method | Path | Purpose | Request | Response |
 |--------|------|---------|---------|----------|
-| POST | `/api/analytics/query` | Execute an AST **or** SQL analytics query (both normalize to the canonical AST). | `{ type:'SELECT', schema, query{…} , limit }` or `{ sql, source? }` | `{ data, rowCount, plan{strategy,executionMs,legs,pushed}, warnings }` |
+| POST | `/api/analytics/query` | Execute an AST analytics query (AST-only; `sql`/`rawSql` bodies get `400 SQL_NOT_SUPPORTED`). | `{ queryConfig:{ type:'SELECT', schema, query{…}, limit } }` | `{ data, rowCount, plan{strategy,executionMs,legs,pushed}, warnings }` |
 | POST | `/api/analytics/query-async` | Submit a long-running analytics query as a job. | same as above | `202 { jobId }` |
 | GET | `/api/analytics/jobs/:jobId` · `/api/analytics/query/status/:jobId` | Poll a job. | — | `{ status, result? }` |
 | POST | `/api/analytics/refresh-view` | Refresh a materialized view. | `{ schema, view }` | `{ status }` |
@@ -214,7 +214,7 @@ Reusable, `{{variable}}`-parameterized analytics (`savedAnalyticsController` →
 |--------|------|---------|---------|-------------------|
 | GET | `/api/saved-analytics` | List analytics. | — | `200 [ … ]` |
 | GET | `/api/saved-analytics/top` | Most-run analytics. | `?limit=8` | `200 [ … ]` |
-| POST | `/api/saved-analytics` | Create/upsert (by name). | `{ name, description?, mode:'AST'|'SQL', config?|sql?, source?, variables?[] }` | `201 { … }`; `400` missing name / mode payload |
+| POST | `/api/saved-analytics` | Create/upsert (by name). | `{ name, description?, mode:'AST', config, variables?[] }` | `201 { … }`; `400` missing name / config; `400/410 SQL_NOT_SUPPORTED` for SQL-mode analytics |
 | GET | `/api/saved-analytics/:id` | Fetch one. | path id | `200 { … }`; `404` not found |
 | DELETE | `/api/saved-analytics/:id` | Delete one. | path id | `200 {status:'DELETED'}`; `404` |
 | POST | `/api/saved-analytics/:id/run` | Bind variables and execute. | `{ variables:{…} }` (or bare map) | `200 { data, plan, … }`; `404` not found; `400` missing required variable |

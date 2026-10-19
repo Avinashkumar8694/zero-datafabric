@@ -6,8 +6,9 @@
  * INSPECTS the per-leg execution trace to prove the fabric did the right thing:
  *   - cross-source queries: each leg executed at its OWN source with a pushed-down
  *     predicate / bind-join / aggregate, and only the bounded result was merged;
- *   - remote complex SQL (window / recursive / matview): executed AT the source
- *     engine that owns the data, not the hub.
+ *   - single-source window / recursive / matview / view queries: expressed as AST
+ *     (`window` select items, `recursive`, plain resource reads) and run at (or
+ *     compensated in front of) the source that owns the data.
  *
  * These double as runnable EXAMPLES of what the data fabric supports.
  *
@@ -32,7 +33,6 @@ function req(method, path, token, body) {
 }
 
 const ast = (token, query, extra = {}) => req('POST', '/analytics/query', token, { queryConfig: { type: 'SELECT', schema: 'public', limit: 100, query, ...extra } });
-const sqlOn = (token, source, sql) => req('POST', '/queries/exec', token, { source, schema: 'public', sql });
 
 let pass = 0, fail = 0;
 function check(name, cond, detail) {
@@ -130,46 +130,48 @@ const rows = (r) => r.json?.data || r.json?.results || [];
     check('F5 rows returned and bounded', rows(r).length > 0 && rows(r).length <= 25, `rows=${rows(r).length}`);
   }
 
-  // ============ REMOTE COMPLEX SQL (executed AT the owning source) ============
-  console.log('\n\n── REMOTE COMPLEX SQL (runs at the owning engine) ────────');
+  // ============ SINGLE-SOURCE COMPLEX AST (window / recursive / matview / view) ============
+  console.log('\n\n── SINGLE-SOURCE COMPLEX AST (window / recursive / views) ─');
 
-  const remote = [
-    { n: 'R1', src: 'Retail_Core', title: 'Window: daily revenue + running total',
-      sql: `WITH d AS (SELECT date_trunc('day',order_date)::date dt, sum(total_amount) rev FROM orders GROUP BY 1)
-            SELECT dt, rev, sum(rev) OVER (ORDER BY dt) AS running_total FROM d ORDER BY dt LIMIT 10` },
-    { n: 'R2', src: 'Retail_Core', title: 'Recursive CTE: customer referral tree depth from root 1',
-      sql: `WITH RECURSIVE tree AS (
-              SELECT id, referred_by, 1 AS depth FROM customers WHERE id = 1
-              UNION ALL
-              SELECT c.id, c.referred_by, t.depth+1 FROM customers c JOIN tree t ON c.referred_by = t.id
-            ) SELECT depth, count(*) AS members FROM tree GROUP BY depth ORDER BY depth LIMIT 15` },
+  const complexQs = [
+    { n: 'R1', src: 'Retail_Core', title: 'Window: running total of revenue over the daily matview',
+      query: { from: { resource: 'mv_daily_region_sales', source: 'Retail_Core' },
+               select: ['sales_day', 'region', 'revenue',
+                 { window: 'SUM', column: 'revenue', orderBy: [{ column: 'sales_day', direction: 'ASC' }], alias: 'running_total' }] } },
+    { n: 'R2', src: 'Retail_Core', title: 'Recursive: customer referral tree depth counts from root 1',
+      query: { from: { resource: 'customers', source: 'Retail_Core' }, select: ['id', 'referred_by'],
+               recursive: { source: 'Retail_Core', resource: 'customers', select: ['id', 'referred_by'],
+                 connectBy: { parent: 'referred_by', child: 'id' },
+                 startWith: [{ column: 'id', operator: 'EQ', value: 1 }], direction: 'down', maxDepth: 25 } } },
     { n: 'R3', src: 'Retail_Core', title: 'Materialized view read: top revenue days',
-      sql: `SELECT sales_day, region, order_count, revenue FROM mv_daily_region_sales ORDER BY revenue DESC LIMIT 10` },
+      query: { from: { resource: 'mv_daily_region_sales', source: 'Retail_Core' },
+               select: ['sales_day', 'region', 'order_count', 'revenue'],
+               orderBy: [{ column: 'revenue', direction: 'DESC' }] }, limit: 10 },
     { n: 'R4', src: 'Retail_Core', title: 'View read + aggregate: revenue by region via v_customer_orders',
-      sql: `SELECT region, count(*) orders, round(sum(total_amount),2) revenue FROM v_customer_orders GROUP BY region ORDER BY revenue DESC` },
-    { n: 'R5', src: 'Retail_Core', title: 'NTILE(4): customer lifetime-value quartiles',
-      sql: `SELECT quartile, count(*) customers, round(min(lifetime_value),2) lo, round(max(lifetime_value),2) hi
-            FROM (SELECT lifetime_value, ntile(4) OVER (ORDER BY lifetime_value) quartile FROM customers) q
-            GROUP BY quartile ORDER BY quartile` },
-    { n: 'R6', src: 'Product_Warehouse', title: 'Top-3 products per category by revenue (window)',
-      sql: `WITH prod_rev AS (
-              SELECT p.category, p.name, sum(i.line_amount) rev,
-                     row_number() OVER (PARTITION BY p.category ORDER BY sum(i.line_amount) DESC) rn
-              FROM order_items i JOIN products p ON p.id = i.product_id
-              GROUP BY p.category, p.name)
-            SELECT category, name, round(rev,2) rev FROM prod_rev WHERE rn <= 3 ORDER BY category, rev DESC LIMIT 18` },
-    { n: 'R7', src: 'Retail_Core', title: 'LAG: month-over-month order growth',
-      sql: `WITH m AS (SELECT date_trunc('month',order_date) mon, count(*) orders FROM orders GROUP BY 1)
-            SELECT to_char(mon,'YYYY-MM') AS ym, orders,
-                   orders - lag(orders) OVER (ORDER BY mon) AS delta FROM m ORDER BY mon LIMIT 12` },
+      query: { from: { resource: 'v_customer_orders', source: 'Retail_Core' }, groupBy: ['region'],
+               select: ['region', { aggregate: 'COUNT', column: '*', alias: 'orders' }, { aggregate: 'SUM', column: 'total_amount', alias: 'revenue' }],
+               orderBy: [{ column: 'revenue', direction: 'DESC' }] } },
+    { n: 'R5', src: 'Retail_Core', title: 'RANK: enterprise customers by lifetime value within region',
+      query: { from: { resource: 'customers', source: 'Retail_Core' },
+               select: ['id', 'region', 'lifetime_value',
+                 { window: 'RANK', partitionBy: ['region'], orderBy: [{ column: 'lifetime_value', direction: 'DESC' }], alias: 'ltv_rank' }],
+               where: [{ column: 'segment', operator: 'EQ', value: 'ENTERPRISE' }] }, limit: 20 },
+    { n: 'R6', src: 'Product_Warehouse', title: 'RANK: products by price within category (window)',
+      query: { from: { resource: 'products', source: 'Product_Warehouse' },
+               select: ['category', 'name', 'price',
+                 { window: 'RANK', partitionBy: ['category'], orderBy: [{ column: 'price', direction: 'DESC' }], alias: 'rank_in_category' }] }, limit: 18 },
+    { n: 'R7', src: 'Retail_Core', title: 'LAG: previous-day revenue from the daily matview',
+      query: { from: { resource: 'mv_daily_region_sales', source: 'Retail_Core' },
+               select: ['sales_day', 'region', 'revenue',
+                 { window: 'LAG', column: 'revenue', partitionBy: ['region'], orderBy: [{ column: 'sales_day', direction: 'ASC' }], alias: 'prev_revenue' }] }, limit: 12 },
   ];
 
-  for (const q of remote) {
+  for (const q of complexQs) {
     console.log(`\n[${q.n}] ${q.title}  @${q.src}`);
-    const r = await sqlOn(token, q.src, q.sql);
+    const r = await ast(token, q.query, q.limit ? { limit: q.limit } : {});
     if (r.status !== 200) { check(`${q.n} executes`, false, r.json?.error); continue; }
     console.log('   ' + planLine(r.json.plan)); printLegs(r.json.plan);
-    check(`${q.n} executed at ${q.src}`, (legs(r)[0]?.source) === q.src && legs(r)[0]?.mode === 'connector');
+    check(`${q.n} executed at ${q.src}`, legs(r).some(l => l.source === q.src));
     check(`${q.n} returned rows`, rows(r).length > 0, `rows=${rows(r).length}`);
   }
 

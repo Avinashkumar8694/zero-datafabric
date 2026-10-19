@@ -195,7 +195,13 @@ export interface QueryAST {
     /** ANDed predicate list. */
     where?: any[];
     groupBy?: string[];
+    /** Post-aggregation predicates; `column` names a select alias (or grouped column), `operator`/`value` as in `where`. */
+    having?: { column: string; operator?: string; value?: any }[];
     orderBy?: { column: string; direction: 'ASC' | 'DESC' }[];
+    /** `SELECT DISTINCT`. */
+    distinct?: boolean;
+    limit?: number;
+    offset?: number;
     /** Set operations: each is a list of sibling `QueryAST`s combined with UNION/INTERSECT/EXCEPT. */
     union?: any[];
     intersect?: any[];

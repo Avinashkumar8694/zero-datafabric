@@ -13,6 +13,5 @@ const run = (cmd, env) => { console.log(`\n$ ${cmd}`); execSync(cmd, { stdio: 'i
     run('node 02-register-sources.js', { NODE_PATH: '../../backend/node_modules' });
   }
   run('node 03-churn-analysis.js');   // AST mode — cross-engine federation
-  run('node 04-churn-sql-mode.js');   // SQL mode — native SQL at the Postgres sources
   console.log('\n=== churn-predictor complete ===');
 })();

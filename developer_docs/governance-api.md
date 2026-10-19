@@ -32,16 +32,12 @@ engine-agnostically, and applies it by the best available means per engine:
 The same definition therefore behaves consistently whether the data lives in
 Postgres, Mongo, ES or a remote warehouse.
 
-### AST vs SQL modes
+### Enforcement is on the AST path
 
-- **AST-mode reads** (`/api/analytics/query`, `/api/data/*`) — the fabric resolves
-  the policies/grants/masking for each leg and injects/compensates as above. This
-  is where governance has full effect (row-filter injection **and** per-column
-  masking).
-- **SQL-mode reads** (`/api/queries/exec` at a source) — the statement runs at the
-  engine; native RLS/grants there apply, but fabric-side row injection and masking
-  are not layered on top of an opaque SQL string. Prefer AST mode when you rely on
-  fabric-enforced masking/row filters for non-RLS engines.
+All reads (`/api/analytics/query`, `/api/queries/engine`, `/api/data/*`) are
+AST-based (raw SQL execution is not supported): the fabric resolves the
+policies/grants/masking for each leg and injects/compensates as above, so
+governance has full effect (row-filter injection **and** per-column masking).
 
 ADMIN callers can preview any role's view with `x-act-as-role` (see
 [authentication-and-tenancy.md](authentication-and-tenancy.md#impersonation)).

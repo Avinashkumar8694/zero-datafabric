@@ -1,0 +1,347 @@
+<%
+  const I = {
+    db: 'M12 3c4.4 0 8 1.3 8 3s-3.6 3-8 3-8-1.3-8-3 3.6-3 8-3zM4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6',
+    tree: 'M12 3v6M12 9H5v4M12 9h7v4M5 13v3a2 2 0 0 0 2 2h0M19 13v3a2 2 0 0 1-2 2h0',
+    shield: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4',
+    sync: 'M23 4v6h-6M1 20v-6h6M3.5 9a9 9 0 0 1 14.8-3.4L23 10M1 14l4.7 4.4A9 9 0 0 0 20.5 15',
+    bolt: 'M13 2 3 14h9l-1 8 10-12h-9l1-8z',
+    users: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+    key: 'M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4',
+    check: 'M20 6 9 17l-5-5',
+    moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
+    sun: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
+    menu: 'M3 6h18M3 12h18M3 18h18',
+    layers: 'M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
+    calendar: 'M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM16 2v4M8 2v4M3 10h18',
+    wallet: 'M1 6h22v14H1zM1 10h22'
+  };
+  const icon = (n, s) => '<svg viewBox="0 0 24 24" width="' + (s || 22) + '" height="' + (s || 22) + '" aria-hidden="true" focusable="false"><path d="' + I[n] + '"/></svg>';
+  const api = (typeof API_BASE === 'string' && API_BASE) ? API_BASE.replace(/\/+$/, '') : 'http://localhost:4000';
+  const devDocs = api + '/api-docs/developer';
+  const sysDocs = api + '/api-docs/system';
+%><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0c0e1b">
+  <meta name="description" content="Zero Data Fabric: one governed query layer over Postgres, MySQL, Oracle, MongoDB and Elasticsearch. AST queries, row-level security, replication, triggers and horizontal scale with worker nodes.">
+  <title><%= title %></title>
+  <script>
+    // Set the theme before first paint: saved choice, else the system preference, else dark.
+    (function () {
+      var r = document.documentElement, t = null;
+      r.classList.add('lp-js');
+      try { t = localStorage.getItem('df-theme'); } catch (e) {}
+      if (t !== 'light' && t !== 'dark') t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+      r.setAttribute('data-theme', t);
+    })();
+  </script>
+  <link rel="stylesheet" href="/css/landing.css">
+</head>
+<body class="df-landing">
+  <a class="lp-skip" href="#main">Skip to content</a>
+
+  <header class="lp-nav" id="top">
+    <div class="lp-wrap lp-nav-in">
+      <a class="lp-brand" href="/" aria-label="Zero Data Fabric home"><span class="lp-brand-mark">ZF</span><span>Zero Data Fabric</span></a>
+      <nav class="lp-nav-links" aria-label="Main">
+        <a href="#features">Features</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#how">How it works</a>
+        <a href="#scale">Scale</a>
+        <a href="#plans">Plans</a>
+        <a href="<%= devDocs %>">API docs</a>
+      </nav>
+      <div class="lp-nav-actions">
+        <button class="lp-icon-btn" id="lpTheme" type="button" aria-label="Switch between dark and light theme" title="Theme">
+          <span class="lp-i-moon"><%- icon('moon', 18) %></span><span class="lp-i-sun"><%- icon('sun', 18) %></span>
+        </button>
+        <a class="lp-btn lp-btn-ghost lp-nav-login" href="/login">Sign in</a>
+        <a class="lp-btn lp-btn-primary" href="/login">Get started</a>
+        <button class="lp-icon-btn lp-menu-btn" id="lpMenuBtn" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="lpMenu"><%- icon('menu', 18) %></button>
+      </div>
+    </div>
+    <nav class="lp-menu" id="lpMenu" aria-label="Mobile">
+      <a href="#features">Features</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#how">How it works</a>
+      <a href="#scale">Scale</a>
+      <a href="#plans">Plans</a>
+      <a href="<%= devDocs %>">API docs</a>
+      <a href="/login">Sign in</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <!-- hero -->
+    <section class="lp-hero">
+      <div class="lp-wrap lp-hero-in">
+        <div>
+          <p class="lp-eyebrow">Federated data layer</p>
+          <h1>One governed query layer over <span class="lp-grad">every database you run</span></h1>
+          <p class="lp-lead">Send a structured AST, not SQL. Zero Data Fabric plans it, applies your row-level security and masking, and answers from Postgres, MySQL, Oracle, MongoDB and Elasticsearch as one fabric.</p>
+          <div class="lp-cta-row">
+            <a class="lp-btn lp-btn-primary lp-btn-lg" href="/login">Sign in</a>
+            <a class="lp-btn lp-btn-secondary lp-btn-lg" href="<%= devDocs %>">API docs</a>
+          </div>
+          <ul class="lp-chips">
+            <li><%- icon('calendar', 16) %> Free trial</li>
+            <li><%- icon('shield', 16) %> RLS and masking built in</li>
+            <li><%- icon('layers', 16) %> Scales with worker nodes</li>
+            <li><%- icon('check', 16) %> No SQL injection surface</li>
+          </ul>
+        </div>
+        <div class="lp-hero-art">
+          <div class="lp-code lp-code-sm">
+            <div class="lp-code-head"><span>POST /api/queries/engine</span><span class="lp-code-tag">application/json</span></div>
+<pre><span class="lp-c-m">// structured AST: no SQL text anywhere</span>
+{
+  <span class="lp-c-k">"type"</span>: <span class="lp-c-s">"SELECT"</span>, <span class="lp-c-k">"schema"</span>: <span class="lp-c-s">"sales"</span>, <span class="lp-c-k">"limit"</span>: 50,
+  <span class="lp-c-k">"query"</span>: {
+    <span class="lp-c-k">"select"</span>: [<span class="lp-c-s">"id"</span>, <span class="lp-c-s">"customer_id"</span>, <span class="lp-c-s">"total"</span>],
+    <span class="lp-c-k">"from"</span>: { <span class="lp-c-k">"resource"</span>: <span class="lp-c-s">"orders"</span>, <span class="lp-c-k">"source"</span>: <span class="lp-c-s">"Fabric_Hub_Postgres"</span> },
+    <span class="lp-c-k">"filter"</span>: { <span class="lp-c-k">"total"</span>: { <span class="lp-c-p">"$gte"</span>: 100 } }
+  }
+}
+
+<span class="lp-c-m">// customers.email is masked for this role,</span>
+<span class="lp-c-m">// rows outside your tenant never leave the engine</span></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- sources -->
+    <section class="lp-logos" aria-label="Supported data sources">
+      <div class="lp-wrap">
+        <p class="lp-logos-title">Connects to the stores you already run</p>
+        <ul class="lp-logos-row">
+          <li>PostgreSQL</li><li>MySQL</li><li>Oracle</li><li>MongoDB</li><li>Elasticsearch</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- features -->
+    <section class="lp-section" id="features">
+      <div class="lp-wrap">
+        <div class="lp-section-head lp-reveal">
+          <p class="lp-eyebrow">What you get</p>
+          <h2>Everything between your apps and your data</h2>
+          <p class="lp-sub">One API, one policy model and one audit trail, whichever database holds the rows.</p>
+        </div>
+        <ul class="lp-grid lp-cards">
+          <li class="lp-card lp-reveal"><span class="lp-ico"><%- icon('tree') %></span><h3>AST-only query engine</h3><p>Queries are structured trees, never strings. The engine validates, plans and pushes work down to each source, so raw SQL is rejected by design.</p></li>
+          <li class="lp-card lp-reveal"><span class="lp-ico"><%- icon('shield') %></span><h3>Governance, RLS and masking</h3><p>Row-level security and column masking by role, enforced for every query path, with an audit log of who read what.</p></li>
+          <li class="lp-card lp-reveal"><span class="lp-ico"><%- icon('sync') %></span><h3>Replication and CDC</h3><p>Stream changes from source databases into downstream stores, with sync pipelines you can pause, resume and inspect.</p></li>
+          <li class="lp-card lp-reveal"><span class="lp-ico"><%- icon('bolt') %></span><h3>Triggers and webhooks</h3><p>React to inserts, updates and deletes. Signed webhooks, retries with back-off and a control plane to replay events.</p></li>
+          <li class="lp-card lp-reveal"><span class="lp-ico"><%- icon('users') %></span><h3>Multi-tenant by default</h3><p>Every request carries a tenant. Data, policies, connections and quotas stay isolated, with admins able to act across tenants.</p></li>
+          <li class="lp-card lp-reveal"><span class="lp-ico"><%- icon('key') %></span><h3>Developer API tokens</h3><p>Mint scoped tokens for your services and call the same API the console uses. Revoke any time.</p></li>
+          <li class="lp-card lp-reveal"><span class="lp-ico"><%- icon('db') %></span><h3>Two Swagger specs</h3><p>A developer spec for data and queries, and a system spec for admin and operations, each with auth flows and examples.</p></li>
+          <li class="lp-card lp-reveal"><span class="lp-ico"><%- icon('layers') %></span><h3>Horizontal scale</h3><p>Add worker nodes to spread data and query load. Rebalance and drain nodes from the console without downtime.</p></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- architecture -->
+    <section class="lp-section lp-tint" id="architecture">
+      <div class="lp-wrap">
+        <div class="lp-section-head lp-reveal">
+          <p class="lp-eyebrow">Architecture</p>
+          <h2>A distributed fabric, not a single box</h2>
+          <p class="lp-sub">Requests enter at the app server, the Citus coordinator plans them across worker nodes, and workers reach your application databases.</p>
+        </div>
+        <div class="lp-diagram lp-reveal">
+          <svg viewBox="0 0 960 500" role="img" aria-labelledby="dfArchT dfArchD">
+            <title id="dfArchT">Distributed fabric architecture</title>
+            <desc id="dfArchD">An app server sends queries to a Citus coordinator, which distributes work to worker nodes 1 to N, which read the application databases.</desc>
+            <defs>
+              <marker id="dfArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="d-arrow"/></marker>
+            </defs>
+
+            <rect class="d-box" x="330" y="14" width="300" height="76" rx="14"/>
+            <text class="d-tag" x="480" y="38" text-anchor="middle">Entry</text>
+            <text class="d-title" x="480" y="62" text-anchor="middle">App server</text>
+            <text class="d-sub" x="480" y="80" text-anchor="middle">Auth, tenancy, RLS, AST planner</text>
+
+            <path class="d-line" d="M480 90V140" marker-end="url(#dfArrow)"/>
+
+            <rect class="d-accent" x="310" y="142" width="340" height="82" rx="14"/>
+            <text class="d-tag" x="480" y="167" text-anchor="middle">Coordinator</text>
+            <text class="d-title" x="480" y="191" text-anchor="middle">Citus coordinator</text>
+            <text class="d-sub" x="480" y="210" text-anchor="middle">Metadata, shard map, distributed plans</text>
+
+            <path class="d-line" d="M400 224 L120 290" marker-end="url(#dfArrow)"/>
+            <path class="d-line" d="M450 224 L330 290" marker-end="url(#dfArrow)"/>
+            <path class="d-line" d="M510 224 L630 290" marker-end="url(#dfArrow)"/>
+            <path class="d-line" d="M560 224 L840 290" marker-end="url(#dfArrow)"/>
+
+            <g>
+              <rect class="d-box" x="30" y="292" width="180" height="76" rx="12"/>
+              <text class="d-title" x="120" y="326" text-anchor="middle">Worker node 1</text>
+              <text class="d-sub" x="120" y="346" text-anchor="middle">Shards + local exec</text>
+              <rect class="d-box" x="240" y="292" width="180" height="76" rx="12"/>
+              <text class="d-title" x="330" y="326" text-anchor="middle">Worker node 2</text>
+              <text class="d-sub" x="330" y="346" text-anchor="middle">Shards + local exec</text>
+              <rect class="d-box" x="540" y="292" width="180" height="76" rx="12"/>
+              <text class="d-title" x="630" y="326" text-anchor="middle">Worker node 3</text>
+              <text class="d-sub" x="630" y="346" text-anchor="middle">Shards + local exec</text>
+              <rect class="d-box" x="750" y="292" width="180" height="76" rx="12" stroke-dasharray="5 4"/>
+              <text class="d-title" x="840" y="326" text-anchor="middle">Worker node N</text>
+              <text class="d-sub" x="840" y="346" text-anchor="middle">Add as you grow</text>
+              <text class="d-title" x="480" y="336" text-anchor="middle" style="font-size:22px">&#8230;</text>
+            </g>
+
+            <path class="d-line-soft" d="M120 368 V404"/>
+            <path class="d-line-soft" d="M330 368 V404"/>
+            <path class="d-line-soft" d="M630 368 V404"/>
+            <path class="d-line-soft" d="M840 368 V404"/>
+
+            <rect class="d-db" x="30" y="404" width="900" height="82" rx="14"/>
+            <text class="d-tag" x="480" y="428" text-anchor="middle">Application databases</text>
+            <g class="d-sub" text-anchor="middle">
+              <rect class="d-box" x="60" y="440" width="150" height="32" rx="16"/><text class="d-title" style="font-size:12.5px" x="135" y="461" text-anchor="middle">PostgreSQL</text>
+              <rect class="d-box" x="226" y="440" width="150" height="32" rx="16"/><text class="d-title" style="font-size:12.5px" x="301" y="461" text-anchor="middle">MySQL</text>
+              <rect class="d-box" x="392" y="440" width="150" height="32" rx="16"/><text class="d-title" style="font-size:12.5px" x="467" y="461" text-anchor="middle">Oracle</text>
+              <rect class="d-box" x="558" y="440" width="150" height="32" rx="16"/><text class="d-title" style="font-size:12.5px" x="633" y="461" text-anchor="middle">MongoDB</text>
+              <rect class="d-box" x="724" y="440" width="180" height="32" rx="16"/><text class="d-title" style="font-size:12.5px" x="814" y="461" text-anchor="middle">Elasticsearch</text>
+            </g>
+          </svg>
+        </div>
+        <p class="lp-diagram-note">Scroll sideways on small screens to see the full diagram.</p>
+      </div>
+    </section>
+
+    <!-- how it works -->
+    <section class="lp-section" id="how">
+      <div class="lp-wrap">
+        <div class="lp-section-head lp-reveal">
+          <p class="lp-eyebrow">How it works</p>
+          <h2>From connection to answer in three steps</h2>
+        </div>
+        <ol class="lp-steps lp-reveal">
+          <li><span class="lp-step-n">1</span><h3>Connect your sources</h3><p>Register a database in the console, discover its schema, and publish the tables you want in the catalog.</p></li>
+          <li><span class="lp-step-n">2</span><h3>Set the rules</h3><p>Define tenants, roles, row-level filters and column masks once. They apply to every query, replication job and trigger.</p></li>
+          <li><span class="lp-step-n">3</span><h3>Query with the API</h3><p>Send an AST or call data CRUD with a developer token. Results stream back as JSON or NDJSON.</p></li>
+        </ol>
+        <div class="lp-code lp-reveal">
+          <div class="lp-code-head"><span>Call it from anywhere</span><span class="lp-code-tag">curl</span></div>
+<pre>curl -X POST <span class="lp-c-s">"<%= api %>/api/queries/engine"</span> \
+  -H <span class="lp-c-s">"Authorization: Bearer dft_..."</span> \
+  -H <span class="lp-c-s">"Content-Type: application/json"</span> \
+  -d <span class="lp-c-s">'{ "type": "SELECT", "schema": "sales", "limit": 20, "query": { "select": ["id"], "from": { "resource": "orders", "source": "Fabric_Hub_Postgres" } } }'</span></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- scale -->
+    <section class="lp-section lp-tint" id="scale">
+      <div class="lp-wrap lp-two">
+        <div class="lp-reveal">
+          <p class="lp-eyebrow">Worker nodes</p>
+          <h2>Grow by adding nodes, not by rewriting</h2>
+          <p class="lp-sub lp-left">Start on one node. When data or traffic grows, register another worker from the console and the fabric spreads the shards for you.</p>
+          <ul class="lp-ticks">
+            <li>Add, drain and remove workers with health checks and drift detection</li>
+            <li>Rebalance shards online while queries keep running</li>
+            <li>Distribute large tables by key; keep small reference tables on every node</li>
+            <li>Same API and policies whether you run one node or twenty</li>
+          </ul>
+        </div>
+        <div class="lp-stack lp-reveal">
+          <div class="lp-stat"><strong>1 to N</strong><span>worker nodes behind one coordinator</span></div>
+          <div class="lp-stat"><strong>0 downtime</strong><span>when rebalancing or draining a node</span></div>
+          <div class="lp-stat"><strong>1 API</strong><span>for queries, CRUD, replication and triggers</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- plans -->
+    <section class="lp-section" id="plans">
+      <div class="lp-wrap">
+        <div class="lp-section-head lp-reveal">
+          <p class="lp-eyebrow">Plans</p>
+          <h2>Start free, scale when you are ready</h2>
+          <p class="lp-sub">Pick how you want to run Zero Data Fabric. Limits for each plan are shown in the console.</p>
+        </div>
+        <div class="lp-plans">
+          <article class="lp-plan lp-reveal">
+            <span class="lp-plan-badge-soft">Start here</span>
+            <h3>Free trial</h3>
+            <p class="lp-plan-sub">Try everything on our cloud.</p>
+            <ul class="lp-ticks lp-small">
+              <li>All features unlocked for the trial period</li>
+              <li>Sample tenants and connections</li>
+              <li>Developer API tokens and Swagger specs</li>
+            </ul>
+            <a class="lp-btn lp-btn-secondary lp-btn-block" href="/login">Start free trial</a>
+          </article>
+          <article class="lp-plan lp-plan-featured lp-reveal">
+            <span class="lp-plan-badge">Popular</span>
+            <h3>Self-host</h3>
+            <p class="lp-plan-sub">Run it inside your network.</p>
+            <ul class="lp-ticks lp-small">
+              <li>Deploy next to your databases</li>
+              <li>Worker nodes on your own hardware</li>
+              <li>Your SSO, your keys, your data</li>
+            </ul>
+            <a class="lp-btn lp-btn-primary lp-btn-block" href="mailto:fabric@fabrixly.com?subject=Self-host%20inquiry">Talk to us</a>
+          </article>
+          <article class="lp-plan lp-reveal">
+            <h3>Custom</h3>
+            <p class="lp-plan-sub">Volumes and limits agreed with us.</p>
+            <ul class="lp-ticks lp-small">
+              <li>Higher quotas and more worker nodes</li>
+              <li>Onboarding and migration help</li>
+              <li>Support terms that match your needs</li>
+            </ul>
+            <a class="lp-btn lp-btn-secondary lp-btn-block" href="mailto:fabric@fabrixly.com?subject=Custom%20plan%20inquiry">Contact us</a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- cta -->
+    <section class="lp-cta">
+      <div class="lp-wrap lp-cta-in">
+        <h2>Put one governed layer over all your data</h2>
+        <p>Sign in to the console, connect a database and run your first AST query in minutes.</p>
+        <div class="lp-cta-row lp-center-row">
+          <a class="lp-btn lp-btn-primary lp-btn-lg" href="/login">Sign in</a>
+          <a class="lp-btn lp-btn-secondary lp-btn-lg" href="<%= devDocs %>">Read the API docs</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="lp-foot">
+    <div class="lp-wrap lp-foot-in">
+      <div class="lp-foot-brand">
+        <a class="lp-brand" href="/"><span class="lp-brand-mark">ZF</span><span>Zero Data Fabric</span></a>
+        <p>A governed, federated data layer over the databases you already run.</p>
+      </div>
+      <nav aria-label="Product">
+        <h4>Product</h4>
+        <a href="#features">Features</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#scale">Worker nodes</a>
+        <a href="#plans">Plans</a>
+      </nav>
+      <nav aria-label="Developers">
+        <h4>Developers</h4>
+        <a href="<%= devDocs %>">Developer API (Swagger)</a>
+        <a href="<%= sysDocs %>">System API (Swagger)</a>
+        <a href="/integration-guide">Integration guide</a>
+      </nav>
+      <nav aria-label="Account">
+        <h4>Account</h4>
+        <a href="/login">Sign in</a>
+        <a href="mailto:fabric@fabrixly.com">Contact</a>
+      </nav>
+    </div>
+    <div class="lp-wrap lp-foot-base"><span>&copy; <%= new Date().getFullYear() %> Zero Data Fabric, a Fabrixly product.</span><a href="#top">Back to top &#8593;</a></div>
+  </footer>
+
+  <script src="/js/landing.js" defer></script>
+</body>
+</html>

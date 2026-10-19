@@ -49,5 +49,5 @@ sequenceDiagram
    the pushdown compiler ([05-pushdown-compiler.md](05-pushdown-compiler.md)).
 5. **Envelope** — data + `plan` (strategy, total ms, per-leg trace) + warnings.
 
-Native SQL (`/api/queries/exec`) and CRUD (`/api/data/*`) reuse stages 1–2 and 5;
-their execution paths are in [06-crud-write-routing.md](06-crud-write-routing.md).
+CRUD (`/api/data/*`) reuses stages 1–2 and 5 (there is no raw-SQL path; querying is
+AST-only); its execution path is in [06-crud-write-routing.md](06-crud-write-routing.md).

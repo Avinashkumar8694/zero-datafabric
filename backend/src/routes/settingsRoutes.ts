@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { pool } from '../config/database';
 import { LicensingService } from '../services/licensing.service';
+import { LimitsResolver, LimitError } from '../modules/tenancy/limits.resolver';
+import { LicenseManager } from '../modules/tenancy/license.manager';
 
 const router = Router();
 
@@ -33,10 +35,12 @@ async function isSystemSelfHost(): Promise<boolean> {
 router.get('/login', async (req, res) => {
     try {
         const selfhost = await isSystemSelfHost();
+        const lic = await LicenseManager.current();
+        const removeBranding = lic.status === 'valid' && lic.payload?.features?.remove_branding === true;
         const { rows } = await pool.query("SELECT value FROM public.settings WHERE key = 'custom_login'");
         if (rows.length === 0) {
             return res.json({
-                selfhost,
+                selfhost, removeBranding,
                 title: "Data Fabric",
                 logo_url: "",
                 bg_color: "#04060f",
@@ -50,7 +54,7 @@ router.get('/login', async (req, res) => {
         // Hide OIDC secret from public consumption
         const val = rows[0].value || {};
         const safeVal = {
-            selfhost,
+            selfhost, removeBranding,
             title: val.title || "Data Fabric",
             logo_url: val.logo_url || "",
             bg_color: val.bg_color || "#04060f",
@@ -94,6 +98,10 @@ router.post('/login', requireAdmin, async (req: any, res: any) => {
         }
 
         const { title, logo_url, bg_color, allow_password_login, sso_enabled, oidc_issuer, oidc_client_id, oidc_client_secret } = req.body;
+        try {
+            await LimitsResolver.assertLicenceFeature('custom_branding');
+            if (sso_enabled || oidc_issuer || oidc_client_id || oidc_client_secret) await LimitsResolver.assertLicenceFeature('enterprise_sso_enabled');
+        } catch (e: any) { if (e instanceof LimitError) return res.status(e.status).json({ error: e.message, code: e.code }); throw e; }
 
         const val = {
             title,

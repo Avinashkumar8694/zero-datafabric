@@ -1,35 +1,30 @@
 <%- include('partials/header') %>
 
-<style>
-    .tenants-layout-grid {
-        display: grid;
-        grid-template-columns: 1fr 2fr;
-        gap: 1.5rem;
-    }
-    @media (max-width: 960px) {
-        .tenants-layout-grid {
-            grid-template-columns: 1fr;
-            gap: 1.25rem;
-        }
-    }
-</style>
+<div class="page fade-in">
+    <div class="page-head">
+        <div>
+            <h1 class="page-title">Tenants</h1>
+            <p class="page-sub">Provision isolated schema namespaces and suspend or resume them.</p>
+        </div>
+    </div>
 
-<div class="fade-in">
-    <div class="tenants-layout-grid">
+    <div class="split side-left">
         <!-- Provisioning Form -->
         <section class="glass-card">
             <h3>Provision New Tenant</h3>
-            <p class="text-muted" style="margin-bottom: 1.5rem;">Create a fresh isolated schema namespace.</p>
+            <p>Create a fresh isolated schema namespace.</p>
             <form id="tenantForm">
-                <div style="margin-bottom: 1rem;">
-                    <input type="text" id="tenantId" placeholder="Tenant ID (e.g. Acme_Corp)" required style="width:100%; padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text);">
+                <div class="field">
+                    <label for="tenantId">Tenant ID</label>
+                    <input type="text" id="tenantId" placeholder="e.g. Acme_Corp" required autocomplete="off">
                 </div>
-                <div style="margin-bottom: 1rem;">
-                    <input type="text" id="tenantName" placeholder="Display Name" required style="width:100%; padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text);">
+                <div class="field">
+                    <label for="tenantName">Display name</label>
+                    <input type="text" id="tenantName" placeholder="Display Name" required autocomplete="off">
                 </div>
-                <button type="submit" class="btn-primary" style="width:100%">Deploy Namespace</button>
+                <button type="submit" class="btn-primary btn-block">Deploy Namespace</button>
             </form>
-            <div id="tenantStatus" style="margin-top: 1rem;"></div>
+            <div id="tenantStatus" class="form-status" role="status" aria-live="polite"></div>
         </section>
 
         <!-- Active Tenants Table -->
@@ -42,11 +37,11 @@
                             <th>ID</th>
                             <th>Name</th>
                             <th>Status</th>
-                            <th>Created</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="tenantsBody">
-                        <tr><td colspan="4">Loading namespaces...</td></tr>
+                        <tr><td colspan="4" class="state-cell">Loading namespaces...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -64,12 +59,12 @@
             const data = await response.json();
             
             if (!response.ok) {
-                body.innerHTML = `<tr><td colspan="4" style="color: var(--danger)">Error: ${data.error || 'Failed to load namespaces'}</td></tr>`;
+                body.innerHTML = `<tr><td colspan="4" class="state-cell text-danger">Error: ${data.error || 'Failed to load namespaces'}</td></tr>`;
                 return;
             }
 
             if (!Array.isArray(data)) {
-                body.innerHTML = `<tr><td colspan="4" style="color: var(--danger)">Error: Invalid data format received</td></tr>`;
+                body.innerHTML = `<tr><td colspan="4" class="state-cell text-danger">Error: Invalid data format received</td></tr>`;
                 return;
             }
 
@@ -77,19 +72,19 @@
                 <tr class="fade-in">
                     <td><code>${escapeHtml(t.id)}</code></td>
                     <td><strong>${escapeHtml(t.name)}</strong></td>
-                    <td><span class="dot-online" style="background: ${t.status === 'ACTIVE' ? 'var(--success)' : 'var(--warning)'}"></span> ${escapeHtml(t.status)}</td>
+                    <td><span class="dot ${t.status === 'ACTIVE' ? '' : 'warn'}"></span> ${escapeHtml(t.status)}</td>
                     <td>
-                        <button onclick="updateTenantStatus('${escapeJs(t.id)}', '${escapeJs(t.name)}', '${t.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE'}')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
+                        <button onclick="updateTenantStatus('${escapeJs(t.id)}', '${escapeJs(t.name)}', '${t.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE'}')" class="btn-outline btn-sm">
                             ${t.status === 'ACTIVE' ? 'Suspend' : 'Resume'}
                         </button>
                     </td>
                 </tr>
             `).join('') + (data.length > 500
-                ? `<tr><td colspan="4" style="text-align:center; color: var(--text-muted)">Showing 500 of ${escapeHtml(data.length)} namespaces</td></tr>`
+                ? `<tr><td colspan="4" class="state-cell">Showing 500 of ${escapeHtml(data.length)} namespaces</td></tr>`
                 : '');
         } catch (err) {
             console.error('Fetch Error:', err);
-            body.innerHTML = '<tr><td colspan="4" style="color: var(--danger)">Connection Error: Orchestrator Offline</td></tr>';
+            body.innerHTML = '<tr><td colspan="4" class="state-cell text-danger">Connection Error: Orchestrator Offline</td></tr>';
         }
     }
 
@@ -128,7 +123,7 @@
             });
             const data = await response.json();
             statusEl.innerText = response.ok ? `Tenant ${id} provisioned successfully.` : (data.error || 'Provisioning failed');
-            statusEl.style.color = response.ok ? 'var(--success)' : 'var(--danger)';
+            statusEl.className = 'form-status ' + (response.ok ? 'ok' : 'err');
             if (response.ok) {
                 document.getElementById('tenantForm').reset();
                 loadTenants();
@@ -138,6 +133,7 @@
             }
         } catch (err) {
             statusEl.innerText = 'API Connection Error';
+            statusEl.className = 'form-status err';
         } finally {
             if (submitBtn) submitBtn.disabled = false;
         }

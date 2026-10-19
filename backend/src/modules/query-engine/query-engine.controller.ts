@@ -3,6 +3,7 @@ import { QueryEngineService, QueryConfig } from './query-engine.service';
 import { QueryLogService } from './query-log.service';
 import { wantsStream, streamNdjson, pipeRowStream } from './stream';
 import { tryStream } from './stream_source';
+import { requestTenant, callerKey, httpStatusOf, pgClientError } from '../../utils/tenantScope';
 const { randomUUID } = require('crypto');
 
 /**
@@ -38,12 +39,14 @@ export class QueryEngineController {
   static async refreshView(req: Request, res: Response) {
     try {
       const { viewName, schema = 'default', concurrent = true } = req.body;
-      const tenantId = (req as any).user?.tenant_id || req.body.tenantId;
+      const tenantId = requestTenant(req as any);
 
       if (!tenantId || !viewName) {
         return res.status(400).json({ error: 'tenantId and viewName are required' });
       }
 
+      // Validate synchronously (400 invalid name / 403 foreign schema / 404 unknown view) before accepting the background job.
+      await QueryEngineService.resolveMaterializedView(tenantId, viewName, schema);
       QueryEngineService.refreshMaterializedView(tenantId, viewName, concurrent, schema).catch(err => {
         console.error(`Background refresh failed for ${viewName} in ${schema}:`, err);
       });
@@ -57,6 +60,8 @@ export class QueryEngineController {
       });
     } catch (err: any) {
       if (err.message.toLowerCase().includes('suspended')) return res.status(403).json({ error: err.message });
+      const st = httpStatusOf(err);
+      if (st) return res.status(st).json({ error: err.message, code: err.code });
       console.error(`[Query] Execution failed: ${err.message}`);
       return res.status(500).json({ error: err.message });
     }
@@ -80,7 +85,7 @@ export class QueryEngineController {
    */
   static async executeQuery(req: Request, res: Response) {
     const { queryConfig } = req.body;
-    const tenantId = (req as any).user?.tenant_id || req.body.tenantId;
+    const tenantId = requestTenant(req as any);
     try {
       if (!tenantId || !queryConfig) {
         return res.status(400).json({ error: 'tenantId and queryConfig are required' });
@@ -123,6 +128,10 @@ export class QueryEngineController {
       return res.status(200).json(payload);
     } catch (err: any) {
       if (err.message.toLowerCase().includes('suspended')) return res.status(403).json({ error: err.message });
+      const st = httpStatusOf(err);
+      if (st) return res.status(st).json({ error: err.message, code: err.code });
+      const pg = pgClientError(err);
+      if (pg) return res.status(pg.status).json({ error: err.message, code: pg.code });
       console.error(`[Query] Execution failed for tenant ${tenantId}: ${err.message}`, err.stack);
       return res.status(500).json({ error: err.message });
     }
@@ -142,13 +151,22 @@ export class QueryEngineController {
    */
   static async executeAsyncQuery(req: Request, res: Response) {
     const { queryConfig } = req.body;
-    const tenantId = (req as any).user?.tenant_id || req.body.tenantId;
+    const tenantId = requestTenant(req as any);
     try {
       if (!tenantId || !queryConfig) {
         return res.status(400).json({ error: 'tenantId and queryConfig are required' });
       }
 
-      const jobId = QueryEngineService.executeAsyncQuery(tenantId, queryConfig as QueryConfig);
+      const u = (req as any).user || {};
+      const actAs = (u.internal_role === 'ADMIN') ? (req.headers['x-act-as-role'] as string) : undefined;
+      const session = {
+        tenantId,
+        role: actAs || u.internal_role || u.role,
+        region: (req.headers['x-region'] as string) || process.env.DEFAULT_REGION || 'AP',
+        username: u.username,
+      };
+      // The job is bound to this tenant + caller; only they can poll it (anyone else gets 404).
+      const jobId = QueryEngineService.executeAsyncQuery(tenantId, queryConfig as QueryConfig, callerKey(u), session);
       return res.status(202).json({ jobId, status: 'PENDING' });
     } catch (err: any) {
       console.error(`[Query-Async] Execution failed for tenant ${tenantId}: ${err.message}`);
@@ -165,7 +183,8 @@ export class QueryEngineController {
   static async getJobStatus(req: Request, res: Response) {
     try {
       const jobId = req.params.jobId as string;
-      const job = QueryEngineService.getJobStatus(jobId);
+      const u = (req as any).user || {};
+      const job = QueryEngineService.getJobStatus(jobId, u.tenant_id, callerKey(u));
       
       if (job.status === 'NOT_FOUND') {
         return res.status(404).json(job);

@@ -1,6 +1,6 @@
-# Advanced Analytics Examples — paired AST + SQL
+# Advanced Analytics Examples — AST
 
-Hand-crafted real-world business queries over a retail star schema across **four engines** (Postgres `orders`, MongoDB `customers`, MySQL `products`, Elasticsearch `webviews`). Each shows the equivalent **SQL** and the fabric **AST** that is executed — validated against a JS oracle in `examples_ast_sql.js`, with per-leg execution checked by `analyze_legs.js`. Write-side concepts (CRUD, sequences, custom functions, write-value generators) are in `suite_crud_functions.js`.
+Hand-crafted real-world business queries over a retail star schema across **four engines** (Postgres `orders`, MongoDB `customers`, MySQL `products`, Elasticsearch `webviews`). Each shows the fabric **AST** that is executed — validated against a JS oracle in `examples_ast_sql.js`, with per-leg execution checked by `analyze_legs.js`. Write-side concepts (CRUD, sequences, custom functions, write-value generators) are in `suite_crud_functions.js`.
 
 Run: `cd backend && NODE_PATH=./node_modules node ../bulk-test/examples_ast_sql.js`
 
@@ -35,11 +35,6 @@ Run: `cd backend && NODE_PATH=./node_modules node ../bulk-test/examples_ast_sql.
 ## 1. Monthly revenue trend (completed orders)
 
 **Engines:** PG
-
-**SQL**
-```sql
-SELECT order_month, SUM(amount) AS revenue FROM public.orders WHERE status='COMPLETED' GROUP BY order_month ORDER BY order_month
-```
 
 **AST**
 ```json
@@ -79,11 +74,6 @@ SELECT order_month, SUM(amount) AS revenue FROM public.orders WHERE status='COMP
 
 **Engines:** PG
 
-**SQL**
-```sql
-SELECT order_id, amount FROM public.orders ORDER BY amount DESC, order_id ASC LIMIT 5
-```
-
 **AST**
 ```json
 {
@@ -120,11 +110,6 @@ SELECT order_id, amount FROM public.orders ORDER BY amount DESC, order_id ASC LI
 
 **Engines:** PG · window (in-fabric)
 
-**SQL**
-```sql
-SELECT order_id, amount, ROW_NUMBER() OVER (ORDER BY amount DESC) AS rnk FROM public.orders
-```
-
 **AST**
 ```json
 {
@@ -160,11 +145,6 @@ SELECT order_id, amount, ROW_NUMBER() OVER (ORDER BY amount DESC) AS rnk FROM pu
 ## 4. RANK orders within product #10 by amount (PARTITION BY)
 
 **Engines:** PG · window (in-fabric)
-
-**SQL**
-```sql
-SELECT order_id, amount, RANK() OVER (PARTITION BY product_id ORDER BY amount DESC) AS rnk FROM public.orders WHERE product_id=10
-```
 
 **AST**
 ```json
@@ -205,11 +185,6 @@ SELECT order_id, amount, RANK() OVER (PARTITION BY product_id ORDER BY amount DE
 
 **Engines:** PG
 
-**SQL**
-```sql
-SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY amount) AS median FROM public.orders
-```
-
 **AST**
 ```json
 {
@@ -231,11 +206,6 @@ SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY amount) AS median FROM public
 ## 6. CTE — monthly count of high-value (amount>=200) orders
 
 **Engines:** PG
-
-**SQL**
-```sql
-WITH hv AS (SELECT order_id, order_month FROM public.orders WHERE amount>=200) SELECT order_month, COUNT(*) AS n FROM hv GROUP BY order_month ORDER BY order_month
-```
 
 **AST**
 ```json
@@ -293,11 +263,6 @@ WITH hv AS (SELECT order_id, order_month FROM public.orders WHERE amount>=200) S
 
 **Engines:** PG×MySQL (cross-datasource → `CROSS_ENGINE`)
 
-**SQL**
-```sql
-SELECT COUNT(*) AS n FROM orders o JOIN products p ON o.amount > p.price
-```
-
 **AST**
 ```json
 {
@@ -340,11 +305,6 @@ SELECT COUNT(*) AS n FROM orders o JOIN products p ON o.amount > p.price
 
 **Engines:** PG
 
-**SQL**
-```sql
-SELECT DISTINCT customer_id FROM public.orders WHERE status='COMPLETED' ORDER BY customer_id
-```
-
 **AST**
 ```json
 {
@@ -377,11 +337,6 @@ SELECT DISTINCT customer_id FROM public.orders WHERE status='COMPLETED' ORDER BY
 
 **Engines:** Mongo
 
-**SQL**
-```sql
-SELECT region, COUNT(*) AS n FROM customers GROUP BY region
-```
-
 **AST**
 ```json
 {
@@ -412,11 +367,6 @@ SELECT region, COUNT(*) AS n FROM customers GROUP BY region
 ## 10. Products per category with avg price
 
 **Engines:** MySQL
-
-**SQL**
-```sql
-SELECT category, COUNT(*) AS n, AVG(price) AS avg_price FROM products GROUP BY category ORDER BY category
-```
 
 **AST**
 ```json
@@ -453,11 +403,6 @@ SELECT category, COUNT(*) AS n, AVG(price) AS avg_price FROM products GROUP BY c
 ## 11. Revenue by product category
 
 **Engines:** PG×MySQL (cross-datasource → `CROSS_ENGINE`)
-
-**SQL**
-```sql
-SELECT p.category, SUM(o.amount) AS revenue FROM orders o JOIN products p ON o.product_id=p.product_id WHERE o.status='COMPLETED' GROUP BY p.category ORDER BY p.category
-```
 
 **AST**
 ```json
@@ -510,11 +455,6 @@ SELECT p.category, SUM(o.amount) AS revenue FROM orders o JOIN products p ON o.p
 ## 12. Top 5 customers by revenue
 
 **Engines:** PG×Mongo (cross-datasource → `CROSS_ENGINE`)
-
-**SQL**
-```sql
-SELECT c.customer_id, SUM(o.amount) AS revenue FROM orders o JOIN customers c ON o.customer_id=c.customer_id WHERE o.status='COMPLETED' GROUP BY c.customer_id ORDER BY revenue DESC LIMIT 5
-```
 
 **AST**
 ```json
@@ -569,11 +509,6 @@ SELECT c.customer_id, SUM(o.amount) AS revenue FROM orders o JOIN customers c ON
 
 **Engines:** PG×Mongo (cross-datasource → `CROSS_ENGINE`)
 
-**SQL**
-```sql
-SELECT c.region, AVG(o.amount) AS aov FROM orders o JOIN customers c ON o.customer_id=c.customer_id GROUP BY c.region ORDER BY c.region
-```
-
 **AST**
 ```json
 {
@@ -625,11 +560,6 @@ SELECT c.region, AVG(o.amount) AS aov FROM orders o JOIN customers c ON o.custom
 ## 14. RFM per customer (recency/frequency/monetary)
 
 **Engines:** PG×Mongo (cross-datasource → `CROSS_ENGINE`)
-
-**SQL**
-```sql
-SELECT c.customer_id, MAX(o.order_month) AS recency, COUNT(*) AS frequency, SUM(o.amount) AS monetary FROM orders o JOIN customers c ON o.customer_id=c.customer_id WHERE o.status='COMPLETED' GROUP BY c.customer_id
-```
 
 **AST**
 ```json
@@ -692,11 +622,6 @@ SELECT c.customer_id, MAX(o.order_month) AS recency, COUNT(*) AS frequency, SUM(
 ## 15. Category revenue by region (3-way join)
 
 **Engines:** PG×MySQL×Mongo (cross-datasource → `CROSS_ENGINE`)
-
-**SQL**
-```sql
-SELECT p.category, c.region, SUM(o.amount) AS revenue FROM orders o JOIN products p ON o.product_id=p.product_id JOIN customers c ON o.customer_id=c.customer_id WHERE o.status='COMPLETED' GROUP BY p.category, c.region ORDER BY p.category, c.region
-```
 
 **AST**
 ```json
@@ -767,11 +692,6 @@ SELECT p.category, c.region, SUM(o.amount) AS revenue FROM orders o JOIN product
 
 **Engines:** PG×Mongo (cross-datasource → `CROSS_ENGINE`)
 
-**SQL**
-```sql
-SELECT c.customer_id, COUNT(*) AS n FROM orders o JOIN customers c ON o.customer_id=c.customer_id WHERE o.status='COMPLETED' GROUP BY c.customer_id HAVING COUNT(*) > 5 ORDER BY c.customer_id
-```
-
 **AST**
 ```json
 {
@@ -831,11 +751,6 @@ SELECT c.customer_id, COUNT(*) AS n FROM orders o JOIN customers c ON o.customer
 
 **Engines:** PG×Mongo (cross-datasource → `CROSS_ENGINE`)
 
-**SQL**
-```sql
-SELECT c.signup_month, SUM(o.amount) AS revenue FROM orders o JOIN customers c ON o.customer_id=c.customer_id WHERE o.status='COMPLETED' GROUP BY c.signup_month ORDER BY c.signup_month
-```
-
 **AST**
 ```json
 {
@@ -888,11 +803,6 @@ SELECT c.signup_month, SUM(o.amount) AS revenue FROM orders o JOIN customers c O
 
 **Engines:** PG∩Mongo (cross-datasource → `CROSS_ENGINE`)
 
-**SQL**
-```sql
-(SELECT customer_id FROM orders WHERE status='COMPLETED') INTERSECT (SELECT customer_id FROM customers WHERE region='EAST')
-```
-
 **AST**
 ```json
 {
@@ -938,11 +848,6 @@ SELECT c.signup_month, SUM(o.amount) AS revenue FROM orders o JOIN customers c O
 
 **Engines:** ES
 
-**SQL**
-```sql
-SELECT channel, SUM(views) AS v FROM webviews GROUP BY channel
-```
-
 **AST**
 ```json
 {
@@ -973,11 +878,6 @@ SELECT channel, SUM(views) AS v FROM webviews GROUP BY channel
 ## 20. Revenue by acquisition channel (orders × ES web views)
 
 **Engines:** PG×ES (cross-datasource → `CROSS_ENGINE`)
-
-**SQL**
-```sql
-SELECT w.channel, SUM(o.amount) AS revenue FROM orders o JOIN webviews w ON o.customer_id=w.customer_id WHERE o.status='COMPLETED' GROUP BY w.channel ORDER BY w.channel
-```
 
 **AST**
 ```json
@@ -1030,11 +930,6 @@ SELECT w.channel, SUM(o.amount) AS revenue FROM orders o JOIN webviews w ON o.cu
 ## 21. Months with revenue > 500 (CTE + filter on aggregate)
 
 **Engines:** PG
-
-**SQL**
-```sql
-WITH monthly AS (SELECT order_month, SUM(amount) AS rev FROM public.orders WHERE status='COMPLETED' GROUP BY order_month) SELECT order_month, rev FROM monthly WHERE rev > 500 ORDER BY order_month
-```
 
 **AST**
 ```json
@@ -1099,11 +994,6 @@ WITH monthly AS (SELECT order_month, SUM(amount) AS rev FROM public.orders WHERE
 
 **Engines:** PG
 
-**SQL**
-```sql
-WITH t AS (SELECT customer_id, product_id FROM public.orders WHERE status='COMPLETED') SELECT COUNT(DISTINCT customer_id) AS custs, COUNT(DISTINCT product_id) AS prods FROM t
-```
-
 **AST**
 ```json
 {
@@ -1154,11 +1044,6 @@ WITH t AS (SELECT customer_id, product_id FROM public.orders WHERE status='COMPL
 ## 23. Nested CTE chain — monthly count of high-value orders
 
 **Engines:** PG
-
-**SQL**
-```sql
-WITH hv AS (SELECT customer_id, order_month FROM public.orders WHERE amount>=200), m AS (SELECT order_month, COUNT(*) AS n FROM hv GROUP BY order_month) SELECT order_month, n FROM m ORDER BY order_month LIMIT 12
-```
 
 **AST**
 ```json

@@ -1,5 +1,8 @@
 import jwt from 'jsonwebtoken';
 
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+  throw new Error('FATAL: JWT_SECRET must be set when NODE_ENV=production');
+}
 const JWT_SECRET = process.env.JWT_SECRET || 'reallyreallyreallyreallyverysecret';
 
 export const generateToken = (payload: object) => {

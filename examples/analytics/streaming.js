@@ -3,7 +3,7 @@
  * STREAMING examples — `stream: false` (buffered envelope) vs `stream: true`
  * (NDJSON: one row per line + a final {__meta__} trailer).
  *
- * Shows, for AST (/api/analytics/query) and SQL (/api/queries/exec):
+ * Shows, for the AST endpoint (/api/analytics/query):
  *   - what the RESPONSE looks like in each mode, and
  *   - how a client CONSUMES a stream incrementally (row-by-row, then the trailer).
  *
@@ -50,17 +50,6 @@ async function main() {
     (row, i) => console.log(`   → row ${i}: ${JSON.stringify(row)}`));
   console.log(`   ⟶ trailer {__meta__}: rowCount=${s.meta.rowCount} strategy=${s.meta.strategy} streamed=${s.meta.streamed}`);
   console.log(`   (client saw ${s.rows} rows incrementally, then the plan/legs trailer)`);
-
-  console.log('\n════ SQL · /api/queries/exec ════');
-  const sqlBody = { sql: 'SELECT generate_series(1,5) AS n, now() AS ts' };
-
-  const sqlBuffered = (await axios.post(`${B}/queries/exec`, sqlBody, { headers: H(t) })).data;
-  console.log(`\n[stream:false] { results:[${(sqlBuffered.results?.results||sqlBuffered.results||[]).length} rows] }  (application/json)`);
-
-  console.log('\n[stream:true] NDJSON rows + trailer:');
-  const s2 = await consumeStream(`${B}/queries/exec`, { ...sqlBody, stream: true }, t,
-    (row, i) => console.log(`   → row ${i}: ${JSON.stringify(row)}`));
-  console.log(`   ⟶ trailer: rowCount=${s2.meta.rowCount} strategy=${s2.meta.strategy}`);
 
   console.log('\n════ curl equivalents ════');
   console.log(`  # buffered:\n  curl -s $BASE/api/analytics/query -H "Authorization: Bearer $T" -H 'x-tenant-id: tenant_A' \\`);

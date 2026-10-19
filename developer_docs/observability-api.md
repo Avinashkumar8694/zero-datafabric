@@ -32,7 +32,7 @@ rows scanned across sources, pushdown notes, warnings, timing and memory.
 ## GET `/api/query-logs` — list runs
 
 **Query params:** `limit` (1–1000, default 200), `status` (`SUCCESS`|`ERROR`),
-`mode` (e.g. `SELECT_AST`, `CRUD_CREATE`, `SAVED_ANALYTIC`, `SQL_ON_SOURCE`, …).
+`mode` (e.g. `SELECT_AST`, `CRUD_CREATE`, `SAVED_ANALYTIC`, …).
 
 ```bash
 curl -s "${H[@]}" "http://localhost:4000/api/query-logs?limit=50&status=SUCCESS&mode=SELECT_AST"
@@ -95,7 +95,7 @@ Field guide:
 
 | Field | Meaning |
 |-------|---------|
-| `strategy` | planner choice: `SINGLE_LOCAL`/`SINGLE_CONNECTOR`/`CROSS_ENGINE`/`SINGLE_CONNECTOR_RAW`/… |
+| `strategy` | planner choice: `SINGLE_LOCAL`/`SINGLE_CONNECTOR`/`CROSS_ENGINE`/`SINGLE_CONNECTOR_WRITE`/… |
 | `legs[]` | per-engine trace: `source`, `engine`, `operation`, `target`, exact `query` + `params`, `rowsReturned`, `ms` |
 | `executionMs` | fabric-measured query time (from the plan) |
 | `tatMs` | end-to-end turnaround time (wall clock) |

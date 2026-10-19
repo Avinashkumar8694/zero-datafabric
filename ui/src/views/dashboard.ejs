@@ -1,41 +1,34 @@
 <%- include('partials/header') %>
 
-<style>
-    .dashboard-main-grid {
-        display: grid;
-        grid-template-columns: 2fr 1fr;
-        gap: 1.5rem;
-    }
-    @media (max-width: 960px) {
-        .dashboard-main-grid {
-            grid-template-columns: 1fr;
-            gap: 1.25rem;
-        }
-    }
-</style>
-
-<div class="fade-in">
-    <!-- Stats Row -->
-    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));">
-        <div class="glass-card">
-            <p class="text-muted">Total Tenants</p>
-            <h1 id="stat-tenants">--</h1>
-        </div>
-        <div class="glass-card">
-            <p class="text-muted">Active Connections</p>
-            <h1 id="stat-connections">--</h1>
-        </div>
-        <div class="glass-card">
-            <p class="text-muted">Security Audits (24h)</p>
-            <h1 id="stat-audits">--</h1>
-        </div>
-        <div class="glass-card" id="dataResetCard" style="display: none; border-left: 4px solid #f59e0b;">
-            <p class="text-muted">Next Data Reset</p>
-            <h1 id="stat-reset-time" style="font-size: 1.25rem; color: #d97706; margin-top: 0.5rem; font-weight: bold;">--</h1>
+<div class="page fade-in">
+    <div class="page-head">
+        <div>
+            <h1 class="page-title">Overview</h1>
+            <p class="page-sub">Tenants, connections, security audits and live fabric health at a glance.</p>
         </div>
     </div>
 
-    <div class="dashboard-main-grid">
+    <!-- Stats Row -->
+    <div class="stat-grid">
+        <div class="stat-card">
+            <span class="stat-label">Total Tenants</span>
+            <span class="stat-value" id="stat-tenants">--</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Active Connections</span>
+            <span class="stat-value" id="stat-connections">--</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Security Audits (24h)</span>
+            <span class="stat-value" id="stat-audits">--</span>
+        </div>
+        <div class="stat-card warn" id="dataResetCard" style="display: none;">
+            <span class="stat-label">Next Data Reset</span>
+            <span class="stat-value sm text-warning" id="stat-reset-time">--</span>
+        </div>
+    </div>
+
+    <div class="split">
         <!-- Recent Activity -->
         <section class="glass-card">
             <h3>Recent Fabric Events</h3>
@@ -50,7 +43,7 @@
                         </tr>
                     </thead>
                     <tbody id="activityBody">
-                        <tr><td colspan="4">No recent activity detected</td></tr>
+                        <tr><td colspan="4" class="state-cell">No recent activity detected</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -59,20 +52,20 @@
         <!-- System Health -->
         <section class="glass-card">
             <h3>Fabric Health</h3>
-            <div id="healthTelemetry" style="padding-top: 1rem;">
-                <div style="margin-bottom: 1rem; display: flex; justify-content: space-between;">
+            <div id="healthTelemetry" class="health-list">
+                <div class="health-row">
                     <span>Status</span>
-                    <span id="healthStatus" class="badge-sync">CHECKING...</span>
+                    <span id="healthStatus" class="badge badge-muted">CHECKING...</span>
                 </div>
-                <div style="margin-bottom: 1rem; display: flex; justify-content: space-between;">
+                <div class="health-row">
                     <span>DB Latency</span>
                     <span id="dbLatency" class="text-muted">--</span>
                 </div>
-                <div style="margin-bottom: 1rem; display: flex; justify-content: space-between;">
+                <div class="health-row">
                     <span>Uptime</span>
                     <span id="sysUptime" class="text-muted">--</span>
                 </div>
-                <div style="font-size: 0.7rem; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 0.5rem; margin-top: 0.5rem;">
+                <div class="health-foot">
                     Pool: <span id="dbPool">--</span>
                 </div>
             </div>
@@ -120,20 +113,20 @@
             
             const statusEl = document.getElementById('healthStatus');
             statusEl.innerText = data.status;
-            statusEl.style.background = data.status === 'HEALTHY' ? 'var(--success)' : 'var(--danger)';
+            statusEl.className = 'badge ' + (data.status === 'HEALTHY' ? 'badge-ok' : 'badge-danger');
             
             document.getElementById('dbLatency').innerText = data.database.latency;
             document.getElementById('sysUptime').innerText = data.uptime;
             document.getElementById('dbPool').innerText = `Total: ${data.database.pool.total}, Idle: ${data.database.pool.idle}`;
         } catch (e) {
             document.getElementById('healthStatus').innerText = 'OFFLINE';
-            document.getElementById('healthStatus').style.background = 'var(--danger)';
+            document.getElementById('healthStatus').className = 'badge badge-danger';
         }
     }
 
     async function loadEvents() {
         const body = document.getElementById('activityBody');
-        body.innerHTML = '<tr><td colspan="4">Loading events…</td></tr>';
+        body.innerHTML = '<tr><td colspan="4" class="state-cell">Loading events…</td></tr>';
         try {
             const res = await fetch(`${API_BASE}/events`, {
                 headers: getAuthHeaders()
@@ -144,21 +137,21 @@
                 const capped = events.slice(0, 500);
                 const rows = capped.map(e => `
                     <tr>
-                        <td style="text-transform: uppercase; font-size: 0.7rem; font-weight: bold;">${escapeHtml((e.action || '').split('.')[0] || 'ENGINE')}</td>
+                        <td class="cell-module">${escapeHtml((e.action || '').split('.')[0] || 'ENGINE')}</td>
                         <td>${escapeHtml(e.action)}</td>
-                        <td><span class="badge-sync">${escapeHtml(e.tableName || 'N/A')}</span></td>
+                        <td><span class="badge badge-sync">${escapeHtml(e.tableName || 'N/A')}</span></td>
                         <td class="text-muted">${escapeHtml(new Date(e.createdAt).toLocaleTimeString())}</td>
                     </tr>
                 `).join('');
                 const note = events.length > 500
-                    ? `<tr><td colspan="4" class="text-muted" style="text-align:center;">Showing 500 of ${escapeHtml(events.length)} events</td></tr>`
+                    ? `<tr><td colspan="4" class="state-cell">Showing 500 of ${escapeHtml(events.length)} events</td></tr>`
                     : '';
                 body.innerHTML = rows + note;
             } else {
-                body.innerHTML = '<tr><td colspan="4">No recent activity detected</td></tr>';
+                body.innerHTML = '<tr><td colspan="4" class="state-cell">No recent activity detected</td></tr>';
             }
         } catch (e) {
-            body.innerHTML = '<tr><td colspan="4" class="text-danger">Failed to load events</td></tr>';
+            body.innerHTML = '<tr><td colspan="4" class="state-cell text-danger">Failed to load events</td></tr>';
         }
     }
 

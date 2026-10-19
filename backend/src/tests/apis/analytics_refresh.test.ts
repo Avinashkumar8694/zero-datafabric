@@ -1,36 +1,38 @@
 import request from 'supertest';
 import { app } from '../../index';
-import { getAdminToken, cleanupTenant } from './test_helper';
+import { getAdminToken, cleanupTenant, createTenantViaApi, uniqueTenantId } from './test_helper';
 
 describe('Analytics: Industrial View Refresh & Multi-Schema Consistency', () => {
-    let adminToken: string;
-    const ts = Date.now();
-    const testTenantId = `refresh_test_${ts}`;
     let tenantToken: string;
+    const testTenantId = uniqueTenantId('rfr');
 
     beforeAll(async () => {
-        adminToken = await getAdminToken();
-        await request(app).post('/api/admin/tenants').set('Authorization', `Bearer ${adminToken}`).send({ id: testTenantId, name: 'Industrial Refresh' });
-        
-        const tokenRes = await request(app).post('/api/auth/token').set('Authorization', `Bearer ${adminToken}`).send({ tenantId: testTenantId });
-        tenantToken = tokenRes.body.token;
+        tenantToken = await createTenantViaApi(await getAdminToken(), testTenantId, 'Industrial Refresh');
 
-        // 1. Create Base Table and Materialized View
-        await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send({
+        // 1. Create Base Table and Materialized View (view defined as an AST, not SQL text)
+        const applied = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send({
             version: "1.0",
             schemas: [{
                 name: "reporting",
-                tables: [{
-                    name: "sales_raw",
-                    columns: [{ name: "id", type: "SERIAL", primaryKey: true }, { name: "amount", type: "NUMERIC" }]
-                }],
-                views: [{
-                    name: "sales_summary",
-                    materialized: true,
-                    query: `SELECT SUM(amount) as total FROM "tenant_${testTenantId}_reporting"."sales_raw"`
-                }]
+                resources: [
+                    {
+                        type: 'TABLE',
+                        name: "sales_raw",
+                        columns: [{ name: "id", type: "SERIAL", primaryKey: true }, { name: "amount", type: "NUMERIC" }]
+                    },
+                    {
+                        type: 'MATERIALIZED_VIEW',
+                        name: "sales_summary",
+                        query: {
+                            from: { resource: 'sales_raw' },
+                            select: [{ aggregate: 'SUM', column: 'amount', alias: 'total' }]
+                        }
+                    }
+                ]
             }]
         });
+        if (applied.status !== 200) console.error('Manifest apply failed:', JSON.stringify(applied.body));
+        expect(applied.status).toBe(200);
 
         // 2. Seed initial data
         const seedRes = await request(app).post('/api/analytics/query').set('Authorization', `Bearer ${tenantToken}`).send({

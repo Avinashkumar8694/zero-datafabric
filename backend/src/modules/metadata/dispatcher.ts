@@ -12,6 +12,7 @@
 import { Client } from 'pg';
 import { MongoClient } from 'mongodb';
 import { pool } from '../../config/database';
+import { assertSourceTargetsAllowed } from '../integration/net_guard';
 
 /**
  * Looks up a tenant's registered data source and dispatches a batch of
@@ -39,6 +40,8 @@ export class HeterogeneousDispatcher {
         }
 
         const { type, config } = rows[0];
+        // Defence in depth: a source registered before the hub/SSRF guard existed must not be able to aim DDL at the hub or the metadata service.
+        assertSourceTargetsAllowed(config);
         const normalizedType = this.normalizeEngineType(type);
 
         switch (normalizedType) {

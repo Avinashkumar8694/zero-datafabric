@@ -24,13 +24,12 @@ node examples/triggers/run-all.js          # whole suite
 node examples/triggers/03-relative-schedule.js   # one scenario
 ```
 
-## The three creation paths
+## The creation paths
 
 | Path | Shape | Compiled by | Example |
 |------|-------|-------------|---------|
 | **Manifest** | `triggers:[{ name, timing, events, … }]` on a TABLE | Orchestrator → native `CREATE TRIGGER` (owner privileges) | `01`, `06` |
 | **API / UI** | `definition:{ event, execute:{type} }` in the trigger registry, then deploy | trigger-engine MS → native trigger that enqueues a durable job | `02`–`05` |
-| **Raw SQL** | `CREATE TRIGGER …` via `/queries/exec` | *Denied by design* — tenant users run sandboxed and cannot DDL managed schemas. Use the manifest or API instead. | — |
 
 ## Declarative authoring — no hand-written plpgsql
 

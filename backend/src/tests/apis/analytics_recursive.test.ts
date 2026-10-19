@@ -23,9 +23,15 @@ describe('Analytics: Recursive CTE Orchestration', () => {
         });
         expect(migRes.status).toBe(200);
 
-        // Seed hierarchical data
-        const seedRes = await request(app).post('/api/queries/exec').set('Authorization', `Bearer ${scopedToken}`).send({
-            sql: `INSERT INTO "tenant_${testTenantId}"."org" (name, parent_id) VALUES ('CEO', NULL), ('CTO', 1), ('Architect', 2), ('Developer', 3);`
+        // Seed hierarchical data through the CRUD API (no raw SQL)
+        const seedRes = await request(app).post('/api/data/create').set('Authorization', `Bearer ${scopedToken}`).send({
+            resource: 'org',
+            data: [
+                { name: 'CEO', parent_id: null },
+                { name: 'CTO', parent_id: 1 },
+                { name: 'Architect', parent_id: 2 },
+                { name: 'Developer', parent_id: 3 }
+            ]
         });
         if (seedRes.status !== 200) console.error('SEED FAILED:', seedRes.body);
         expect(seedRes.status).toBe(200);
@@ -35,29 +41,40 @@ describe('Analytics: Recursive CTE Orchestration', () => {
         await cleanupTenant(testTenantId);
     });
 
-    it('Success: Execute recursive CTE to retrieve org hierarchy', async () => {
+    it('Success: Walk the org hierarchy with an AST recursive traversal', async () => {
         const tokenRes = await request(app).post('/api/auth/token').set('Authorization', `Bearer ${adminToken}`).send({ tenantId: testTenantId });
         const scopedToken = tokenRes.body.token;
 
         const res = await request(app).post('/api/analytics/query').set('Authorization', `Bearer ${scopedToken}`).send({
             queryConfig: {
                 type: 'SELECT',
-                table: 'org_tree',
-                withRecursive: {
-                    name: 'org_tree',
-                    baseQuery: `SELECT id, name, parent_id, 1 as level FROM "tenant_${testTenantId}"."org" WHERE parent_id IS NULL`,
-                    recursiveQuery: `SELECT o.id, o.name, o.parent_id, ot.level + 1 FROM "tenant_${testTenantId}"."org" o JOIN org_tree ot ON o.parent_id = ot.id`
-                },
-                select: ['*'],
-                orderBy: [{ field: 'level', dir: 'ASC' }],
-                limit: 10
+                query: {
+                    from: { resource: 'org' },
+                    select: ['id', 'name', 'parent_id'],
+                    recursive: {
+                        resource: 'org',
+                        select: ['id', 'name', 'parent_id'],
+                        connectBy: { parent: 'parent_id', child: 'id' },
+                        direction: 'down',
+                        maxDepth: 10
+                    }
+                }
             }
         });
 
         expect(res.status).toBe(200);
-        expect(res.body.data.length).toBe(4);
-        expect(res.body.data[0].name).toBe('CEO');
-        expect(res.body.data[3].name).toBe('Developer');
-        expect(res.body.data[3].level).toBe(4);
+        const names = res.body.data.map((r: any) => r.name);
+        expect(names).toHaveLength(4);
+        expect(names).toEqual(expect.arrayContaining(['CEO', 'CTO', 'Architect', 'Developer']));
+    });
+
+    it('Rejected: hand-written SQL fragments are not an accepted recursive form', async () => {
+        const tokenRes = await request(app).post('/api/auth/token').set('Authorization', `Bearer ${adminToken}`).send({ tenantId: testTenantId });
+        const res = await request(app).post('/api/analytics/query').set('Authorization', `Bearer ${tokenRes.body.token}`).send({
+            sql: 'WITH RECURSIVE t AS (SELECT 1) SELECT * FROM t',
+            queryConfig: { type: 'SELECT', table: 'org' }
+        });
+        expect(res.status).toBe(400);
+        expect(res.body.code).toBe('SQL_NOT_SUPPORTED');
     });
 });

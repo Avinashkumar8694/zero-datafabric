@@ -17,6 +17,8 @@
  * catalog never falls back to a meaningless `SELECT * FROM x` placeholder.
  */
 
+import { quoteAnyIdent } from '../../utils/identifiers';
+
 /** A normalized catalog column (as produced by normalizeAstColumn / live discovery). */
 export interface FabricColumn {
   name: string;
@@ -42,7 +44,7 @@ export interface ResourceInput {
 
 /** Quote a SQL identifier for the fabric-canonical DDL. */
 function q(id: string): string {
-  return '"' + String(id ?? '').replace(/"/g, '') + '"';
+  return quoteAnyIdent(String(id ?? '') || 'unnamed');
 }
 
 /**
@@ -116,7 +118,7 @@ export function renderFabricDdl(r: ResourceInput): string {
     const ret = a.returnType || (a.returns ? canonicalType(a.returns) : 'record');
     const body = a.body && String(a.body).trim() ? String(a.body).trim() : notCaptured;
     const retClause = type === 'FUNCTION' ? `\n  RETURNS ${ret}` : '';
-    const lang = a.language || 'plpgsql';
+    const lang = /^(plpgsql|sql|plpython3u|plperl|pltcl|c|internal)$/i.test(String(a.language || '')) ? String(a.language) : 'plpgsql';
     return `${header}CREATE ${type} ${fq}(${args})${retClause}\n  LANGUAGE ${lang}\nAS $$\n${body}\n$$;`;
   }
 

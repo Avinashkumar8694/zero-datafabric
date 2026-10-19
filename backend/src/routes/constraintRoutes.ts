@@ -7,10 +7,11 @@
 
 import { Router } from 'express';
 import { listConstraints, createConstraint } from '../controllers/constraintController';
+import { requireWorkspaceAdmin } from '../middleware/tenantAccess.middleware';
 
 const router = Router();
 
 router.get('/', listConstraints); // GET /api/constraints — list constraints for the caller's tenant
-router.post('/', createConstraint); // POST /api/constraints — create/replace a constraint spec for a schema/table
+router.post('/', requireWorkspaceAdmin, createConstraint); // POST /api/constraints — create/replace a constraint spec for a schema/table
 
 export default router;

@@ -1,0 +1,42 @@
+<section id="tab-workers" class="st-panel" role="tabpanel" hidden>
+    <div id="wkStatus"></div>
+    <div id="wkTiles" class="wk-tiles"></div>
+    <div class="wk-bar">
+        <button type="button" class="btn-primary" id="wkAddToggle"><i class="fas fa-plus"></i> Add worker</button>
+        <button type="button" class="btn-outline" id="wkRebalance"><i class="fas fa-scale-balanced"></i> Rebalance shards</button>
+        <button type="button" class="btn-outline" id="wkHealth"><i class="fas fa-heart-pulse"></i> Check health</button>
+        <button type="button" class="btn-outline" id="wkSync"><i class="fas fa-rotate"></i> Sync with Citus</button>
+        <button type="button" class="btn-outline" id="wkRefresh"><i class="fas fa-arrows-rotate"></i> Refresh</button>
+    </div>
+
+    <form id="wkAddForm" class="wk-form" hidden autocomplete="off">
+        <div class="wk-form-grid">
+            <div class="form-group"><label for="wkName">Name</label><input id="wkName" required pattern="[a-z][a-z0-9\-]{1,61}[a-z0-9]" placeholder="worker-1" /></div>
+            <div class="form-group"><label for="wkHost">Host</label><input id="wkHost" required placeholder="worker1.internal" /></div>
+            <div class="form-group"><label for="wkPort">Port</label><input id="wkPort" type="number" min="1" max="65535" value="5432" required /></div>
+            <div class="form-group"><label for="wkLabels">Labels (key=value, comma separated)</label><input id="wkLabels" placeholder="zone=a, tier=ssd" /></div>
+            <div class="form-group"><label class="wk-scopes" style="display:flex"><span style="display:flex;gap:.4rem;align-items:center"><input id="wkShards" type="checkbox" checked /> Accept shards</span></label></div>
+            <div style="display:flex;gap:.5rem"><button type="submit" class="btn-primary" id="wkSubmit">Register worker</button><button type="button" class="btn-outline" id="wkCancel">Cancel</button></div>
+        </div>
+        <p style="color:var(--text-muted);font-size:.8rem;margin:.75rem 0 0">The coordinator connects to the worker using its own Citus settings. No credentials are stored here.</p>
+    </form>
+
+    <div id="wkGrid" class="wk-grid"></div>
+
+    <div class="wk-section"><span><i class="fas fa-diagram-project"></i> Distributed tables</span></div>
+    <form id="wkDistForm" class="wk-form" autocomplete="off">
+        <div class="wk-form-grid">
+            <div class="form-group"><label for="dSchema">Tenant schema</label><input id="dSchema" required placeholder="tenant_acme" /></div>
+            <div class="form-group"><label for="dTable">Table</label><input id="dTable" required placeholder="orders" /></div>
+            <div class="form-group"><label for="dColumn">Distribution column</label><input id="dColumn" required placeholder="id" /></div>
+            <div><button type="submit" class="btn-primary">Distribute table</button></div>
+        </div>
+    </form>
+    <div class="table-wrapper"><table><thead><tr><th>Table</th><th>Type</th><th>Column</th><th>Shards</th><th>Size</th></tr></thead><tbody id="wkTables"></tbody></table></div>
+
+    <div class="wk-section"><span><i class="fas fa-list-check"></i> Rebalance jobs</span></div>
+    <div class="table-wrapper"><table><thead><tr><th>Job</th><th>State</th><th>Started</th><th>Finished</th></tr></thead><tbody id="wkJobs"></tbody></table></div>
+
+    <div class="wk-section"><span><i class="fas fa-clock-rotate-left"></i> Recent changes</span></div>
+    <div class="table-wrapper"><table><thead><tr><th>When</th><th>Action</th><th>By</th><th>Detail</th></tr></thead><tbody id="wkEvents"></tbody></table></div>
+</section>

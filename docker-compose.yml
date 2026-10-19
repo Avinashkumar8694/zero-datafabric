@@ -6,6 +6,7 @@ services:
     image: citusdata/citus:latest
     platform: linux/amd64
     container_name: datafabric-hub
+    command: postgres -c wal_level=logical   # online shard moves for rebalance/drain
     environment:
       POSTGRES_USER: fabric_admin
       POSTGRES_PASSWORD: fabric_password
@@ -15,6 +16,32 @@ services:
     # volumes:
     #   - pgdata:/var/lib/postgresql/data
     #   - ./db/init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+
+  # Citus worker 1 (opt-in: docker compose --profile workers up -d). Register it in Settings > Worker nodes as host `worker1`, port 5432.
+  worker1:
+    image: citusdata/citus:latest
+    platform: linux/amd64
+    profiles: ["workers"]
+    container_name: datafabric-worker-1
+    command: postgres -c wal_level=logical
+    environment:
+      POSTGRES_USER: fabric_admin
+      POSTGRES_PASSWORD: fabric_password
+      POSTGRES_DB: datafabric
+    restart: unless-stopped
+
+  # Citus worker 2 (opt-in: docker compose --profile workers up -d). Register it in Settings > Worker nodes as host `worker2`, port 5432.
+  worker2:
+    image: citusdata/citus:latest
+    platform: linux/amd64
+    profiles: ["workers"]
+    container_name: datafabric-worker-2
+    command: postgres -c wal_level=logical
+    environment:
+      POSTGRES_USER: fabric_admin
+      POSTGRES_PASSWORD: fabric_password
+      POSTGRES_DB: datafabric
     restart: unless-stopped
 
   # Redis for Event Queues and Caching

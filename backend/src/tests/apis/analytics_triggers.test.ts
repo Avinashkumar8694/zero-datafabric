@@ -1,72 +1,61 @@
 import request from 'supertest';
 import { app } from '../../index';
-import { getAdminToken, cleanupTenant } from './test_helper';
+import { getAdminToken, cleanupTenant, createTenantViaApi, uniqueTenantId } from './test_helper';
 
 describe('Analytics: Industrial Trigger & Isolation', () => {
     let adminToken: string;
-    const ts = Date.now();
-    const tenantA = `ana_test_a_${ts}`;
-    const tenantB = `ana_test_b_${ts}`;
+    const tenantA = uniqueTenantId('anaa');
+    const tenantB = uniqueTenantId('anab');
     let tokenA: string;
     let tokenB: string;
 
-    beforeAll(async () => {
-        adminToken = await getAdminToken();
-        
-        // Setup Tenants
-        await request(app).post('/api/admin/tenants').set('Authorization', `Bearer ${adminToken}`).send({ id: tenantA, name: 'Analytics Tenant A' });
-        const resA = await request(app).post('/api/auth/token').set('Authorization', `Bearer ${adminToken}`).send({ tenantId: tenantA });
-        tokenA = resA.body.token;
-
-        await request(app).post('/api/admin/tenants').set('Authorization', `Bearer ${adminToken}`).send({ id: tenantB, name: 'Analytics Tenant B' });
-        const resB = await request(app).post('/api/auth/token').set('Authorization', `Bearer ${adminToken}`).send({ tenantId: tenantB });
-        tokenB = resB.body.token;
-
-        // Apply Industrial Manifest for Tenant A (Multi-Schema Triggers)
-        const manifestA = {
-            version: "1.0",
-            schemas: [
-                {
-                    name: "core",
-                    tables: [{
-                        name: "users",
+    // A manifest in the current shape (no free-form SQL needed: the trigger uses the structured INSERT action, which is available
+    // to every workspace owner). Manifest triggers can only write to their own schema (dotted/cross-schema targets are refused
+    // by the manifest validator), so the audit table lives next to the table it audits.
+    const manifest = {
+        version: '1.0',
+        schemas: [
+            {
+                name: 'core',
+                resources: [
+                    {
+                        type: 'TABLE',
+                        name: 'users',
                         columns: [
-                            { name: "id", type: "SERIAL", primaryKey: true },
-                            { name: "email", type: "TEXT" }
+                            { name: 'id', type: 'SERIAL', primaryKey: true },
+                            { name: 'email', type: 'TEXT' },
                         ],
                         triggers: [{
-                            name: "trg_audit_user",
-                            event: "AFTER INSERT",
-                            function: `tenant_${tenantA}_audit.fn_log_user_creation`
-                        }]
-                    }]
-                },
-                {
-                    name: "audit",
-                    tables: [{
-                        name: "event_logs",
+                            name: 'trg_audit_user',
+                            timing: 'AFTER',
+                            events: ['INSERT'],
+                            execution: 'row',
+                            action: { type: 'INSERT', into: 'event_logs', values: { msg: 'NEW.email' } },
+                        }],
+                    },
+                    {
+                        type: 'TABLE',
+                        name: 'event_logs',
                         columns: [
-                            { name: "id", type: "SERIAL", primaryKey: true },
-                            { name: "msg", type: "TEXT" }
-                        ]
-                    }],
-                    functions: [{
-                        name: "fn_log_user_creation",
-                        body: `BEGIN
-                                 INSERT INTO tenant_${tenantA}_audit.event_logs (msg)
-                                 VALUES ('New user created: ' || NEW.email);
-                                 RETURN NEW;
-                               END;`
-                    }]
-                }
-            ]
-        };
+                            { name: 'id', type: 'SERIAL', primaryKey: true },
+                            { name: 'msg', type: 'TEXT' },
+                        ],
+                    },
+                ],
+            },
+        ],
+    };
+    const manifestFor = (_tenantId: string) => manifest;
 
-        await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tokenA}`).send(manifestA);
+    beforeAll(async () => {
+        adminToken = await getAdminToken();
+        tokenA = await createTenantViaApi(adminToken, tenantA, 'Analytics Tenant A');
+        tokenB = await createTenantViaApi(adminToken, tenantB, 'Analytics Tenant B');
 
-        // Apply same manifest for Tenant B (to test isolation)
-        const manifestB = JSON.parse(JSON.stringify(manifestA).replace(new RegExp(`tenant_${tenantA}`, 'g'), `tenant_${tenantB}`));
-        await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tokenB}`).send(manifestB);
+        const a = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tokenA}`).send(manifestFor(tenantA));
+        const b = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tokenB}`).send(manifestFor(tenantB));
+        if (a.status !== 200 || b.status !== 200) console.error('Manifest apply failed:', a.status, JSON.stringify(a.body), b.status, JSON.stringify(b.body));
+        expect([a.status, b.status]).toEqual([200, 200]);
     });
 
     afterAll(async () => {
@@ -74,15 +63,15 @@ describe('Analytics: Industrial Trigger & Isolation', () => {
         await cleanupTenant(tenantB);
     });
 
-    it('Success: Tenant A trigger correctly logs to secondary schema', async () => {
+    it('Success: Tenant A trigger correctly logs to its audit table', async () => {
         // Insert user as Tenant A (in 'core' schema)
         await request(app).post('/api/analytics/query').set('Authorization', `Bearer ${tokenA}`).send({
             queryConfig: { type: 'INSERT', schema: 'core', table: 'users', data: { email: 'alice@example.com' } }
         });
 
-        // Verify log in audit schema
+        // Verify the audit row
         const res = await request(app).post('/api/analytics/query').set('Authorization', `Bearer ${tokenA}`).send({
-            queryConfig: { type: 'SELECT', schema: 'audit', table: 'event_logs', select: ['*'], limit: 10 }
+            queryConfig: { type: 'SELECT', schema: 'core', table: 'event_logs', select: ['*'], limit: 10 }
         });
 
         expect(res.status).toBe(200);
@@ -91,12 +80,12 @@ describe('Analytics: Industrial Trigger & Isolation', () => {
     });
 
     it('Security: Tenant B CANNOT see Tenant A audit logs', async () => {
-        // Query audit logs as Tenant B (in its own 'audit' schema)
+        // Query audit logs as Tenant B (its own 'core' schema)
         const res = await request(app).post('/api/analytics/query').set('Authorization', `Bearer ${tokenB}`).send({
-            queryConfig: { type: 'SELECT', schema: 'audit', table: 'event_logs', select: ['*'], limit: 10 }
+            queryConfig: { type: 'SELECT', schema: 'core', table: 'event_logs', select: ['*'], limit: 10 }
         });
 
-        // Should return 0 rows because it's isolated (even though it has same table name in its own schema)
+        // Should return 0 rows because it's isolated (it has the same table name in its own schema)
         expect(res.status).toBe(200);
         expect(res.body.data.length).toBe(0);
     });

@@ -2,8 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { LicensingService } from '../services/licensing.service';
 
 /**
- * Licensing Middleware:
- * - Excludes system administrators (internal_role = 'ADMIN').
+ * Licensing Middleware (fails closed with 503 when limits cannot be evaluated):
+ * - Excludes platform administrators (internal_role = 'ADMIN').
  * - Checks if the tenant's trial period has expired (7 days default).
  * - Enforces rate limiting per minute, hour, and day.
  */
@@ -14,7 +14,7 @@ export const licensingMiddleware = async (req: Request, res: Response, next: Nex
   }
 
   // System administrators and test environment bypass all licensing limits
-  if (user.internal_role === 'ADMIN' || process.env.NODE_ENV === 'test') {
+  if ((user.internal_role === 'ADMIN' && user.auth_type !== 'api_token') || (process.env.NODE_ENV === 'test' && process.env.LICENSING_ENFORCE_IN_TEST !== 'true')) {
     return next();
   }
 
@@ -39,8 +39,8 @@ export const licensingMiddleware = async (req: Request, res: Response, next: Nex
 
     next();
   } catch (err: any) {
+    // Fail closed: if limits cannot be evaluated the request is refused rather than served unmetered.
     console.error('[LicensingMiddleware] Error enforcing licensing:', err.message);
-    // Graceful degradation: in case of database or cache error, allow request to proceed
-    next();
+    return res.status(503).json({ error: 'Could not verify licence limits, try again shortly', code: 'LICENSE_CHECK_FAILED' });
   }
 };

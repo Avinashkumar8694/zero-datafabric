@@ -256,47 +256,40 @@ async function run() {
     }, { headers: authHeaders(token) });
   }, { allowFail: true });
 
-  await call('Enqueue runtime action jobs (AUDIT/WEBHOOK/EMAIL/TELEGRAM + scheduled)', async () => {
-    const runAt = new Date(Date.now() + 3000).toISOString();
-    const sql = `
-      INSERT INTO public.trigger_jobs (tenant_id, trigger_id, job_type, payload, status, run_at, max_attempts, created_by)
-      VALUES
-      ('tenant_A', NULL, 'EXECUTE_TRIGGER_ACTION', '{"triggerName":"runtime_audit","event":"AFTER_INSERT","actionType":"AUDIT","schemaName":"tenant_tenant_A_Global_Supply_Chain","tableName":"shipments","execute":{"type":"AUDIT"}}', 'PENDING', NOW(), 3, 'examples'),
-      ('tenant_A', NULL, 'EXECUTE_TRIGGER_ACTION', '{"triggerName":"runtime_webhook","event":"AFTER_UPDATE","actionType":"WEBHOOK","schemaName":"tenant_tenant_A_Global_Supply_Chain","tableName":"shipments","execute":{"type":"WEBHOOK","url":"https://example.local/hook"}}', 'PENDING', NOW(), 3, 'examples'),
-      ('tenant_A', NULL, 'EXECUTE_TRIGGER_ACTION', '{"triggerName":"runtime_email","event":"AFTER_UPDATE","actionType":"EMAIL","schemaName":"tenant_tenant_A_Global_Supply_Chain","tableName":"shipments","execute":{"type":"EMAIL","params":{"to":"ops@example.com"}}}', 'PENDING', NOW(), 3, 'examples'),
-      ('tenant_A', NULL, 'EXECUTE_TRIGGER_ACTION', '{"triggerName":"runtime_telegram","event":"AFTER_UPDATE","actionType":"TELEGRAM","schemaName":"tenant_tenant_A_Global_Supply_Chain","tableName":"shipments","execute":{"type":"TELEGRAM","params":{"chatId":"@fabric_alerts"}}}', 'PENDING', NOW(), 3, 'examples'),
-      ('tenant_A', NULL, 'EXECUTE_TRIGGER_ACTION', '{"triggerName":"runtime_scheduled_email","event":"AFTER_INSERT","actionType":"EMAIL","schemaName":"tenant_tenant_A_Global_Supply_Chain","tableName":"shipments","execute":{"type":"EMAIL","params":{"to":"scheduler@example.com"}}}', 'PENDING', '${runAt}', 3, 'examples');
-    `;
-    await axios.post(`${BASE_URL}/queries/exec`, { sql }, { headers: authHeaders(token) });
+  await waitForJobs(token);
+
+  await call('Insert row to trigger FUNCTION + scheduled trigger', async () => {
+    await axios.post(`${BASE_URL}/analytics/query`, {
+      queryConfig: {
+        type: 'INSERT',
+        schema: labSchema,
+        table: 'trigger_events',
+        data: { id: `lab-${Date.now()}`, status: 'READY', amount: 50 }
+      }
+    }, { headers: authHeaders(token) });
   });
 
-  await call('Enqueue update-style EMAIL action with old/new conditional templates', async () => {
-    const sql = `
-      INSERT INTO public.trigger_jobs (tenant_id, trigger_id, job_type, payload, status, run_at, max_attempts, created_by)
-      VALUES
-      ('tenant_A', NULL, 'EXECUTE_TRIGGER_ACTION',
-      '{
-        "triggerName":"runtime_email_update_conditional",
-        "event":"AFTER_UPDATE",
-        "actionType":"EMAIL",
-        "tableName":"shipments",
-        "schemaName":"tenant_tenant_A_Global_Supply_Chain",
-        "oldRow":{"id":"S-100","status":"PENDING","amount":90},
-        "newRow":{"id":"S-100","status":"DELIVERED","amount":150},
-        "execute":{
-          "type":"EMAIL",
-          "params":{
-            "to":"ops@example.com",
-            "subject":"Shipment {{newRow.id}} {{?newRow.status!=oldRow.status|changed|unchanged}}",
-            "text":"Old={{oldRow.status}} New={{newRow.status}} Priority={{?newRow.amount>100|HIGH|NORMAL}}",
-            "html":"<p>Status: {{oldRow.status}} -> {{newRow.status}}</p><p>{{?newRow.amount>100|Escalate|Normal}}</p>"
-          }
-        }
-      }',
-      'PENDING', NOW(), 3, 'examples');
-    `;
-    await axios.post(`${BASE_URL}/queries/exec`, { sql }, { headers: authHeaders(token) });
+  await call('Insert ARCHIVE row to trigger autoDrop cleanup enqueue', async () => {
+    await axios.post(`${BASE_URL}/analytics/query`, {
+      queryConfig: {
+        type: 'INSERT',
+        schema: labSchema,
+        table: 'trigger_events',
+        data: { id: `lab-arch-${Date.now()}`, status: 'ARCHIVE', amount: 20 }
+      }
+    }, { headers: authHeaders(token) });
   });
+
+  await call('Insert high amount row to validate EXCEPTION trigger', async () => {
+    await axios.post(`${BASE_URL}/analytics/query`, {
+      queryConfig: {
+        type: 'INSERT',
+        schema: labSchema,
+        table: 'trigger_events',
+        data: { id: `lab-high-${Date.now()}`, status: 'READY', amount: 5000 }
+      }
+    }, { headers: authHeaders(token) });
+  }, { allowFail: true });
 
   await waitForJobs(token);
 

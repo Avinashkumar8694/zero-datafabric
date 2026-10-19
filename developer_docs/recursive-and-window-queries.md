@@ -1,144 +1,114 @@
-# Recursive CTEs, window functions & materialized views
+# Recursive queries, window functions & materialized views
 
-The AST layer covers filter/join/aggregate/set-op. For **complex single-source
-analytics** — recursive CTEs, window functions, materialized-view reads — send
-**native SQL** and target the source that owns the data with `source`:
+All querying is **AST-only**. Raw SQL execution (`/api/queries/exec`,
+`/api/queries/native`, `rawSql`) has been removed, so hierarchies, rankings and
+view reads are expressed as AST bodies on `POST /api/analytics/query` (or
+`POST /api/queries/engine`, which takes the bare config). Use `POST /api/queries/transpile` to preview the SQL
+an AST would compile to (preview only, nothing is executed).
 
-```
-POST /api/queries/exec
-{ "source": "Retail_Core", "schema": "public", "sql": "<SQL>" }
-```
-
-- `source` — the datasource to execute at (omit to run on the hub). Only
-  SQL-native engines (Postgres/MySQL/Snowflake) accept it.
-- `schema` — sets `search_path` at the source so unqualified names resolve.
-- Response is the standard envelope with `plan.strategy = "SINGLE_CONNECTOR_RAW"`
-  and a one-leg trace (`operation: "raw-sql"`, with source-side `ms`).
+Request bodies carrying `sql` / `rawSql` / `nativeSql` / `rawQuery` (or a string
+`query`) are rejected with `400 { code: "SQL_NOT_SUPPORTED" }`.
 
 ---
 
-## Recursive CTEs
+## Recursive queries
 
-Traverse hierarchies / graphs (org charts, referral trees, BOM, categories).
+Traverse hierarchies / graphs (org charts, referral trees, BOM, categories) with
+`query.recursive`. The fabric walks the hierarchy level by level; each level is a
+normal single-source query, so predicate pushdown and policies apply at every step,
+and it works on any engine (Postgres, MongoDB, Elasticsearch).
 
 ### Downward traversal (tree from a root)
 
-```sql
-WITH RECURSIVE tree AS (
-  SELECT id, referred_by, 1 AS depth
-  FROM customers
-  WHERE id = 1                          -- anchor
-  UNION ALL
-  SELECT c.id, c.referred_by, t.depth + 1
-  FROM customers c
-  JOIN tree t ON c.referred_by = t.id   -- recursive step
-)
-SELECT depth, count(*) AS members
-FROM tree GROUP BY depth ORDER BY depth;
+```jsonc
+POST /api/analytics/query
+{ "queryConfig": { "type": "SELECT", "schema": "public", "query": {
+    "from": { "resource": "customers", "source": "Retail_Core" },
+    "select": ["id", "referred_by"],
+    "recursive": {
+      "source": "Retail_Core",
+      "resource": "customers",
+      "select": ["id", "referred_by"],
+      "connectBy": { "parent": "referred_by", "child": "id" },
+      "startWith": [ { "column": "id", "operator": "EQ", "value": 1 } ],
+      "direction": "down",
+      "maxDepth": 25
+    } } } }
 ```
 
-```jsonc
-POST /api/queries/exec
-{ "source": "Retail_Core", "schema": "public",
-  "sql": "WITH RECURSIVE tree AS (SELECT id, referred_by, 1 AS depth FROM customers WHERE id=1 UNION ALL SELECT c.id, c.referred_by, t.depth+1 FROM customers c JOIN tree t ON c.referred_by=t.id) SELECT depth, count(*) members FROM tree GROUP BY depth ORDER BY depth" }
-```
+- `connectBy` — `child.<parent> = parent.<child>`; for an org tree
+  (`manager_id` points at `id`) use `{ "parent": "manager_id", "child": "id" }`.
+- Seed rows come from `startWith`, else `anchor`, else `<parent> IS NULL` (all roots).
+- `direction` — `down` (default) walks children; `up` walks ancestors.
+- `maxDepth` is clamped to 1 to 100 (default 25); `maxRows` to 1 to 200000 (default 50000).
+  Overruns set `truncatedByDepth` / `truncatedByRows` and emit a warning.
+- `pathColumn` — materialise a breadcrumb `path` of that column at each node.
+- Each returned row is tagged with its `depth`; cycles and diamonds are guarded by a
+  `seen` set.
 
 ### Full-forest traversal (all roots)
 
-```sql
-WITH RECURSIVE tree AS (
-  SELECT id, referred_by, 1 AS depth FROM customers WHERE referred_by IS NULL
-  UNION ALL
-  SELECT c.id, c.referred_by, t.depth + 1 FROM customers c JOIN tree t ON c.referred_by = t.id
-)
-SELECT depth, count(*) FROM tree GROUP BY depth ORDER BY depth;
-```
+Omit `startWith` and `anchor`; the default seed is every row where the parent
+column is `NULL`.
 
-### Path accumulation
+### Aggregating the closure
 
-```sql
-WITH RECURSIVE p AS (
-  SELECT id, name, name::text AS path, 1 lvl FROM employees WHERE manager_id IS NULL
-  UNION ALL
-  SELECT e.id, e.name, p.path || ' -> ' || e.name, p.lvl + 1
-  FROM employees e JOIN p ON e.manager_id = p.id
-)
-SELECT * FROM p ORDER BY path LIMIT 20;
-```
+Aggregate over the traversal result by adding `groupBy` / aggregate selects to the
+same query; the fabric aggregates the traversal rows after the walk.
 
-> Guard cyclic data with a `depth < N` predicate or `UNION` (dedup) instead of
-> `UNION ALL`.
+### Recursive views (declarative)
 
-### Recursive CTE reading from a view
-
-The recursive term can reference views/matviews of the same source:
-
-```sql
-WITH RECURSIVE tree AS (
-  SELECT id, referred_by, 1 depth FROM customers WHERE referred_by IS NULL
-  UNION ALL
-  SELECT c.id, c.referred_by, t.depth+1 FROM customers c JOIN tree t ON c.referred_by = t.id
-)
-SELECT t.depth, count(DISTINCT vco.order_id) orders, sum(vco.total_amount) revenue
-FROM tree t LEFT JOIN v_customer_orders vco ON vco.customer_id = t.id
-GROUP BY t.depth ORDER BY t.depth;
-```
+A recursive **view** is defined in a manifest with `with[].base` + `with[].unionAll`
+(`"recursive": true`), see [metadata-manifests.md](metadata-manifests.md). Once
+applied it is read like any other resource with a plain AST `select`.
 
 ---
 
 ## Window functions
 
-Ranking, running totals, moving averages, lead/lag, quartiles.
+Ranking, running totals, lead/lag, quartiles, expressed as `window` select items
+(`RANK`, `ROW_NUMBER`, ...) with `partitionBy` and `orderBy`:
 
-```sql
--- Top-N per group
-SELECT category, name, revenue FROM (
-  SELECT p.category, p.name, sum(i.line_amount) revenue,
-         row_number() OVER (PARTITION BY p.category ORDER BY sum(i.line_amount) DESC) rn
-  FROM order_items i JOIN products p ON p.id = i.product_id
-  GROUP BY p.category, p.name
-) q WHERE rn <= 3 ORDER BY category, revenue DESC;
-
--- Running total
-SELECT dt, rev, sum(rev) OVER (ORDER BY dt) AS running_total FROM daily;
-
--- 7-day moving average
-SELECT dt, avg(rev) OVER (ORDER BY dt ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) mov7 FROM daily;
-
--- Month-over-month delta
-SELECT ym, orders, orders - lag(orders) OVER (ORDER BY ym) AS delta FROM monthly;
-
--- Quartiles
-SELECT ntile(4) OVER (ORDER BY lifetime_value) quartile, count(*) FROM customers GROUP BY 1;
+```jsonc
+POST /api/analytics/query
+{ "queryConfig": { "type": "SELECT", "schema": "public", "query": {
+    "select": [ "category", "name", "price",
+      { "window": "RANK", "partitionBy": ["category"],
+        "orderBy": [ { "column": "price", "direction": "DESC" } ],
+        "alias": "rank_in_category" } ],
+    "from": { "resource": "products" } } } }
 ```
 
-Send any of these via `/api/queries/exec` with the owning `source`.
+Window functions run natively on Postgres and are compensated in-fabric (after a
+bounded, filter-pushed base fetch) on engines that cannot express them. See
+[queries-cookbook.md](queries-cookbook.md#5-window-functions--rankings) and
+[../system_docs/14-algorithms.md](../system_docs/14-algorithms.md).
 
 ---
 
 ## Materialized views & views
 
-Reads go through the same native-SQL path. A **materialized view** is
-pre-computed storage — reads are fast and don't recompute; refresh explicitly:
-
-```sql
--- read (fast, prefetched)
-SELECT sales_day, region, revenue FROM mv_daily_region_sales ORDER BY revenue DESC LIMIT 10;
-
--- refresh (online, needs a unique index)
-REFRESH MATERIALIZED VIEW CONCURRENTLY mv_daily_region_sales;
-```
-
-A **view** is always recomputed on read:
-
-```sql
-SELECT region, count(*) orders, sum(total_amount) revenue FROM v_customer_orders GROUP BY region;
-```
-
 Views, materialized views, sequences and functions are **created** declaratively
-via manifests — see [metadata-manifests.md](metadata-manifests.md).
+via manifests, see [metadata-manifests.md](metadata-manifests.md) (apply with
+`POST /api/metadata/apply`).
+
+Reads are plain AST selects against the view name:
+
+```jsonc
+POST /api/analytics/query
+{ "queryConfig": { "type": "SELECT", "schema": "public", "limit": 10, "query": {
+    "select": ["sales_day", "region", "revenue"],
+    "from": { "resource": "mv_daily_region_sales" },
+    "orderBy": [ { "column": "revenue", "direction": "DESC" } ] } } }
+```
+
+A **materialized view** is pre-computed storage: reads are fast and don't
+recompute. Refresh it with `POST /api/analytics/refresh-view` (background job,
+see [analytics-api.md](analytics-api.md)) or via the manifest `refreshStrategy` /
+`refreshInterval`. A plain **view** is always recomputed on read.
 
 Runnable examples & a TAT (execution-time) audit:
 [`03-analytics-suite.js`](../examples/distributed-retail/03-analytics-suite.js),
 [`04-tat-audit.js`](../examples/distributed-retail/04-tat-audit.js),
-[`05-real-world-scenarios.js`](../examples/distributed-retail/05-real-world-scenarios.js).
+[`05-real-world-scenarios.js`](../examples/distributed-retail/05-real-world-scenarios.js)
+(these example scripts may predate the SQL removal; treat any raw-SQL calls in them as obsolete).

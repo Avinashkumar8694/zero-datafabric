@@ -1,8 +1,8 @@
 /**
  * Distributed Retail Analytics — TAT / execution-time audit for materialized
- * views, views, and recursive queries (all executed AT the external source that
- * owns the data). Proves the value of a matview (prefetched, fast) vs. computing
- * the same result live, and measures REFRESH cost + recursive traversal cost.
+ * views, views, and recursive traversals (AST queries against the external
+ * sources that own the data). Proves the value of a matview (prefetched, fast)
+ * vs. computing a comparable result live, and measures recursive traversal cost.
  *
  * Times reported are the SOURCE-side execution ms from plan.executionMs (pure
  * engine time, excluding HTTP), each run K times → min / avg.
@@ -25,14 +25,14 @@ function req(method, path, token, body) {
     if (data) r.write(data); r.end();
   });
 }
-const sqlOn = (token, source, sql) => req('POST', '/queries/exec', token, { source, schema: 'public', sql });
+const astOn = (token, query) => req('POST', '/analytics/query', token, { queryConfig: { type: 'SELECT', schema: 'public', limit: 5000, query } });
 
-async function timeIt(token, source, sql, runs = 8) {
+async function timeIt(token, query, runs = 8) {
   const server = [], client = [];
   let rowCount = 0;
   for (let i = 0; i < runs; i++) {
     const t0 = Date.now();
-    const r = await sqlOn(token, source, sql);
+    const r = await astOn(token, query);
     client.push(Date.now() - t0);
     if (r.status !== 200) return { error: r.json?.error };
     server.push(r.json.plan?.executionMs ?? 0);
@@ -52,53 +52,43 @@ function row(label, r) {
   if (!token) { console.log('LOGIN FAILED'); process.exit(1); }
   console.log('TAT / execution-time audit (source-side ms, 8 runs each)\n');
 
-  // 1) Materialized view read vs. computing the SAME result live from base tables.
+  // 1) Materialized view read vs. computing a comparable result live from base tables.
   console.log('── Materialized view vs. live recompute (Retail_Core) ──');
-  const mv = await timeIt(token, 'Retail_Core',
-    `SELECT sales_day, region, order_count, revenue FROM mv_daily_region_sales ORDER BY sales_day, region`);
+  const mv = await timeIt(token, {
+    from: { resource: 'mv_daily_region_sales', source: 'Retail_Core' },
+    groupBy: ['region'],
+    select: ['region', { aggregate: 'SUM', column: 'order_count', alias: 'order_count' }, { aggregate: 'SUM', column: 'revenue', alias: 'revenue' }],
+  });
   row('matview read  (prefetched)', mv);
-  const live = await timeIt(token, 'Retail_Core',
-    `SELECT date_trunc('day',o.order_date)::date sales_day, c.region, count(*) order_count, sum(o.total_amount) revenue
-     FROM orders o JOIN customers c ON c.id=o.customer_id GROUP BY 1,2 ORDER BY 1,2`);
+  const live = await timeIt(token, {
+    from: { resource: 'orders', source: 'Retail_Core', alias: 'o' },
+    joins: [{ type: 'INNER', resource: 'customers', source: 'Retail_Core', alias: 'c', on: { left: 'o.customer_id', operator: 'EQ', right: 'c.id' } }],
+    groupBy: ['c.region'],
+    select: ['c.region', { aggregate: 'COUNT', column: '*', alias: 'order_count' }, { aggregate: 'SUM', column: 'o.total_amount', alias: 'revenue' }],
+  });
   row('live recompute (join+group base tables)', live);
   if (!mv.error && !live.error && mv.serverAvg > 0) {
     const factor = (live.serverAvg / Math.max(mv.serverAvg, 1)).toFixed(1);
     console.log(`  → matview is ~${factor}x faster than recomputing (${live.serverAvg}ms → ${mv.serverAvg}ms)`);
   }
 
-  // 2) REFRESH cost (online, CONCURRENTLY — needs the unique index we created).
-  console.log('\n── Materialized view REFRESH cost ──');
-  const refresh = await timeIt(token, 'Retail_Core', `REFRESH MATERIALIZED VIEW CONCURRENTLY mv_daily_region_sales`, 3);
-  row('REFRESH MATERIALIZED VIEW CONCURRENTLY', refresh);
-
-  // 3) View read + aggregate (recomputed each call — no prefetch).
+  // 2) View read + aggregate (recomputed each call — no prefetch).
   console.log('\n── View (always live) ──');
   row('v_customer_orders → revenue by region',
-    await timeIt(token, 'Retail_Core',
-      `SELECT region, count(*) orders, round(sum(total_amount),2) revenue FROM v_customer_orders GROUP BY region ORDER BY revenue DESC`));
+    await timeIt(token, {
+      from: { resource: 'v_customer_orders', source: 'Retail_Core' }, groupBy: ['region'],
+      select: ['region', { aggregate: 'COUNT', column: '*', alias: 'orders' }, { aggregate: 'SUM', column: 'total_amount', alias: 'revenue' }],
+      orderBy: [{ column: 'revenue', direction: 'DESC' }],
+    }));
 
-  // 4) Recursive CTE traversal cost (full referral forest, all roots).
-  console.log('\n── Recursive CTE traversal (Retail_Core) ──');
-  row('referral tree: full forest depth counts',
-    await timeIt(token, 'Retail_Core',
-      `WITH RECURSIVE tree AS (
-         SELECT id, referred_by, 1 AS depth FROM customers WHERE referred_by IS NULL
-         UNION ALL
-         SELECT c.id, c.referred_by, t.depth+1 FROM customers c JOIN tree t ON c.referred_by=t.id
-       ) SELECT depth, count(*) members FROM tree GROUP BY depth ORDER BY depth`));
+  // 3) Recursive traversal cost (full referral forest, all roots; level-by-level in the fabric).
+  console.log('\n── Recursive traversal (Retail_Core) ──');
+  row('referral tree: full forest, members per depth',
+    await timeIt(token, {
+      from: { resource: 'customers', source: 'Retail_Core' }, select: ['id', 'referred_by'],
+      recursive: { source: 'Retail_Core', resource: 'customers', select: ['id', 'referred_by'],
+        connectBy: { parent: 'referred_by', child: 'id' }, direction: 'down', maxDepth: 25 },
+    }, 3));
 
-  // 5) Recursive CTE whose base reads a VIEW (recursive-from-view).
-  console.log('\n── Recursive CTE reading FROM a view ──');
-  row('deepest referral chains joined to v_customer_orders',
-    await timeIt(token, 'Retail_Core',
-      `WITH RECURSIVE tree AS (
-         SELECT id, referred_by, 1 AS depth FROM customers WHERE referred_by IS NULL
-         UNION ALL
-         SELECT c.id, c.referred_by, t.depth+1 FROM customers c JOIN tree t ON c.referred_by=t.id
-       )
-       SELECT t.depth, count(DISTINCT vco.order_id) orders, round(coalesce(sum(vco.total_amount),0),2) revenue
-       FROM tree t LEFT JOIN v_customer_orders vco ON vco.customer_id = t.id
-       GROUP BY t.depth ORDER BY t.depth`));
-
-  console.log('\nDone. All timings are source-side execution at the external engine (not the fabric hub).');
+  console.log('\nDone. Timings are fabric plan execution times for AST queries against the external sources.');
 })();

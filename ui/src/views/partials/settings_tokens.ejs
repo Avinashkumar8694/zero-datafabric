@@ -1,0 +1,21 @@
+<section id="tokensBlock" aria-label="Developer tokens">
+    <p style="color:var(--text-muted);font-size:.9rem;margin-bottom:1rem">
+        Developer tokens let your applications call the AST query, data and metadata APIs without a user session.
+        Send them as <code>x-api-key: dft_…</code> or <code>Authorization: Bearer dft_…</code>. A token is shown once; only its hash is stored.
+        See the <a id="tkDocsDev" href="#" target="_blank" rel="noopener">developer API reference</a>.
+    </p>
+    <div id="tkPolicyOff" hidden class="wk-banner warn" role="status"><i class="fas fa-ban" aria-hidden="true"></i><div>Developer tokens are turned off for this workspace. Existing tokens can still be revoked.</div></div>
+    <div id="tkReveal" hidden class="wk-banner ok" style="flex-direction:column;align-items:stretch">
+        <strong>Copy your new token now. It will not be shown again.</strong>
+        <div class="wk-secret"><code id="tkSecret"></code><button type="button" class="btn-outline" id="tkCopy">Copy</button></div>
+    </div>
+    <form id="tkForm" class="wk-form" autocomplete="off">
+        <div class="wk-form-grid">
+            <div class="form-group"><label for="tkName">Token name</label><input id="tkName" required maxlength="100" placeholder="CI pipeline" /></div>
+            <div class="form-group"><label for="tkDays">Expires in (days)</label><input id="tkDays" type="number" min="1" max="365" value="90" required /></div>
+            <div><button class="btn-primary" type="submit">Generate token</button></div>
+        </div>
+        <fieldset style="border:0;padding:0;margin:.9rem 0 0"><legend style="font-size:.8rem;color:var(--text-muted);margin-bottom:.4rem">Scopes</legend><div class="wk-scopes" id="tkScopes"></div></fieldset>
+    </form>
+    <div class="table-wrapper"><table><thead><tr><th>Name</th><th>Prefix</th><th>Scopes</th><th>Expires</th><th>Last used</th><th>Status</th><th></th></tr></thead><tbody id="tkRows"></tbody></table></div>
+</section>

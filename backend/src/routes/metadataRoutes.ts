@@ -10,10 +10,11 @@
 
 import { Router } from 'express';
 import * as metadataController from '../controllers/metadataController';
-import multer from 'multer';
+import { manifestUploadSingle } from '../modules/metadata/manifest_upload';
+import { requireFeature, manifestFileGate } from '../modules/tenancy/enforce';
+import { requireWorkspaceAdmin } from '../middleware/tenantAccess.middleware';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
 
 router.get('/sources', metadataController.getSources); // GET /api/metadata/sources — list registered data sources
 router.get('/schemas', metadataController.getSchemas); // GET /api/metadata/schemas?sourceId= — list schemas under a source
@@ -24,17 +25,17 @@ router.get('/relationships', metadataController.getRelationships); // GET /api/m
 router.get('/preview', metadataController.getPreviewData); // GET /api/metadata/preview?tableId=&limit= — sample rows from a resource
 router.get('/tables/:name', metadataController.getTableDetails); // GET /api/metadata/tables/:name — legacy column/description lookup by table name
 router.get('/template', metadataController.getTemplate); // GET /api/metadata/template — blank manifest template
-router.get('/export', metadataController.exportMetadata); // GET /api/metadata/export?source= — export the live catalog as a manifest
+router.get('/export', requireFeature('manifest_import_export_enabled'), metadataController.exportMetadata); // GET /api/metadata/export?source= — export the live catalog as a manifest
 
-router.post('/crawl', metadataController.crawlTenant); // POST /api/metadata/crawl — crawl a tenant's connected sources
-router.post('/sync', metadataController.syncSource); // POST /api/metadata/sync — SYNC/CDC replicate a source into the hub (body: source, mode?: full|cdc)
-router.post('/diff', upload.single('file'), metadataController.diffMetadata); // POST /api/metadata/diff — analyze drift between a manifest and live state
-router.post('/apply', upload.single('file'), metadataController.applyMetadata); // POST /api/metadata/apply?force= — apply a manifest (provision)
-router.post('/migrate', metadataController.migrateMetadata); // POST /api/metadata/migrate — apply an ad-hoc migration plan
+router.post('/crawl', requireWorkspaceAdmin, metadataController.crawlTenant); // POST /api/metadata/crawl — crawl a tenant's connected sources
+router.post('/sync', requireWorkspaceAdmin, metadataController.syncSource); // POST /api/metadata/sync — SYNC/CDC replicate a source into the hub (body: source, mode?: full|cdc)
+router.post('/diff', manifestUploadSingle, manifestFileGate, metadataController.diffMetadata); // POST /api/metadata/diff — analyze drift between a manifest and live state
+router.post('/apply', requireWorkspaceAdmin, manifestUploadSingle, manifestFileGate, metadataController.applyMetadata); // POST /api/metadata/apply?force= — apply a manifest (provision)
+router.post('/migrate', requireWorkspaceAdmin, metadataController.migrateMetadata); // POST /api/metadata/migrate — apply an ad-hoc migration plan
 
 router.get('/history', metadataController.getMetadataHistory); // GET /api/metadata/history — manifest apply history
-router.post('/rollback/:id', metadataController.rollbackMetadata); // POST /api/metadata/rollback/:id — roll back to a prior manifest version
+router.post('/rollback/:id', requireWorkspaceAdmin, metadataController.rollbackMetadata); // POST /api/metadata/rollback/:id — roll back to a prior manifest version
 router.get('/downstream', metadataController.getDownstreamStatus); // GET /api/metadata/downstream — status of downstream sync targets (ES/Snowflake)
-router.post('/downstream/toggle', metadataController.toggleDownstream); // POST /api/metadata/downstream/toggle — enable/disable a downstream target
+router.post('/downstream/toggle', requireWorkspaceAdmin, metadataController.toggleDownstream); // POST /api/metadata/downstream/toggle — enable/disable a downstream target
 
 export default router;

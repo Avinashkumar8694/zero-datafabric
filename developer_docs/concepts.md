@@ -23,7 +23,6 @@ and picks a strategy:
 | `SINGLE_LOCAL` | everything is in the hub Postgres | one SQL statement |
 | `SINGLE_CONNECTOR` | exactly one external source | one pushed-down query to that source |
 | `CROSS_ENGINE` | ≥2 distinct sources, or a join/set-op crossing the boundary | each leg pushed down independently, merged in-fabric |
-| `SINGLE_CONNECTOR_RAW` | native SQL sent to one source (`/api/queries/exec` with `source`) | executed at that engine |
 | `SINGLE_CONNECTOR_WRITE` | CRUD write to one external source | executed at that engine |
 
 ## Pushdown — the core idea

@@ -21,6 +21,7 @@
  */
 
 import { pool } from '../../config/database';
+import { NotFoundError } from '../../utils/tenantScope';
 
 export type Strategy = 'SINGLE_LOCAL' | 'SINGLE_CONNECTOR' | 'CROSS_ENGINE';
 
@@ -215,7 +216,7 @@ export class QueryPlanner {
         [tenantId, source]
       );
       if (alt.rows.length === 0) {
-        throw new Error(`QueryPlanner: referenced source "${source}" not found for tenant "${tenantId}"`);
+        throw new NotFoundError(`Source "${String(source).slice(0, 60)}" not found`);
       }
       engine = String(alt.rows[0].engine || 'POSTGRES').toUpperCase();
       syncType = String(alt.rows[0].sync_type || 'VIRTUAL').toUpperCase();

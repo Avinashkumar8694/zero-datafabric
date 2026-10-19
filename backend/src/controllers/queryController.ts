@@ -1,8 +1,7 @@
 /**
  * @module controllers/queryController
  * @description Query execution endpoints: run an AST/`QueryConfig` through the
- * full fabric engine, run raw/native SQL directly against the hub or a named
- * source, preview the SQL an AST would compile to, and poll async job status.
+ * full fabric engine (AST only; SQL execution is not supported), preview the SQL an AST would compile to, and poll async job status.
  * Endpoints that honor "view as" build an execution session from
  * `(req as any).user` plus the `x-act-as-role`/`x-region` headers (ADMIN only
  * for `x-act-as-role`), mirroring `dataController`'s session logic.
@@ -14,6 +13,7 @@ import { QueryLogService } from '../modules/query-engine/query-log.service';
 import { wantsStream, streamNdjson, pipeRowStream } from '../modules/query-engine/stream';
 import { tryStream } from '../modules/query-engine/stream_source';
 import { queryWithContext } from '../config/database';
+import { callerKey, httpStatusOf, pgClientError } from '../utils/tenantScope';
 
 /**
  * Execute a fabric `QueryConfig` (AST-based query: SELECT/CALL/etc.) against
@@ -31,7 +31,7 @@ import { queryWithContext } from '../config/database';
  * @throws Responds 403 `(error)` when the tenant account is suspended;
  *   500 `(error)` on any other failure (validation errors from the engine
  *   also surface as 500 here — this endpoint does not classify errors into
- *   400 the way `dataController`/`queryController.executeRawSql` do).
+ *   400 the way `dataController` does).
  */
 export const executeEngineQuery = async (req: Request, res: Response) => {
     try {
@@ -49,103 +49,17 @@ export const executeEngineQuery = async (req: Request, res: Response) => {
     } catch (err: any) {
         console.error(`[QueryController:executeEngineQuery] Error:`, err.message);
         if (err.message.toLowerCase().includes('suspended')) return res.status(403).json({ error: err.message });
+        const st = httpStatusOf(err);
+        if (st) return res.status(st).json({ error: err.message, code: err.code });
+        const pg = pgClientError(err);
+        if (pg) return res.status(pg.status).json({ error: err.message, code: pg.code });
         res.status(500).json({ error: err.message });
     }
 };
 
-/**
- * Execute raw SQL directly (no logging capture): against a named remote
- * source's connector when `source` is given and isn't the hub, otherwise
- * directly against the fabric hub Postgres database via `queryWithContext`.
- *
- * @param req - Express request. Requires `(req as any).user` (tenant_id, username).
- *   Body: `(sql: string, source?: string, schema?: string)`. When `source` is
- *   provided and is not `'Fabric_Hub_Postgres'`, the SQL is routed to that
- *   source's connector (see `QueryEngineService.executeSqlOnSource`); otherwise
- *   it runs directly against the hub with tenant-scoped row-level context.
- * @param res - Express response.
- * @returns 200 with either the source-routed result envelope (`results`/`data`,
- *   `rowCount`, `plan`) or, for hub execution, `(results: rows, rowCount)`.
- * @throws Responds 403 `(error)` when the tenant account is suspended;
- *   500 `(error)` on any other failure (e.g. SQL error, unknown source).
- */
-export const executeNativeSql = async (req: Request, res: Response) => {
-    try {
-        const user = (req as any).user;
-        const { sql, source, schema } = req.body;
-        // Route native SQL to a named remote source's connector when requested; else the hub.
-        if (source && source !== 'Fabric_Hub_Postgres') {
-            const result = await QueryEngineService.executeSqlOnSource(user.tenant_id, source, sql, [], schema);
-            return res.json(result);
-        }
-        const result = await queryWithContext(sql, [], { tenantId: user.tenant_id, username: user.username });
-        res.json({ results: result.rows, rowCount: result.rowCount });
-    } catch (err: any) {
-        console.error(`[QueryController:executeNativeSql] Error:`, err.message);
-        if (err.message.toLowerCase().includes('suspended')) return res.status(403).json({ error: err.message });
-        res.status(500).json({ error: err.message });
-    }
-};
+;
 
-/**
- * Execute raw SQL with full query-log capture, and optional async execution
- * for long-running statements. This is the primary "SQL console" endpoint.
- *
- * @param req - Express request. Requires `(req as any).user` (tenant_id, username,
- *   internal_role/role). Body: `(sql: string, params?: any[], async?: boolean,
- *   source?: string, schema?: string)`.
- *   - When `source` is given and isn't `'Fabric_Hub_Postgres'`, the SQL is routed
- *     to that source's connector (mode `'SQL_ON_SOURCE'` in the query log).
- *   - When `async` is truthy (and no `source` override), the SQL is queued and
- *     a job id is returned immediately instead of waiting for completion.
- *   - Otherwise, the SQL runs synchronously against the hub with tenant-scoped
- *     context (mode `'SELECT_SQL'` in the query log).
- * @param res - Express response.
- * @returns For source-routed execution: 200 with that source's result envelope.
- *   For async execution: 202 `(queryId, status: 'ACCEPTED')`. For synchronous
- *   hub execution: 200 `(results)`.
- * @throws Responds 401 `(error: 'Authentication required')` when there is no
- *   authenticated user; 403 `(error)` when the tenant account is suspended;
- *   500 `(error)` on any other failure.
- */
-export const executeRawSql = async (req: Request, res: Response) => {
-    const user = (req as any).user;
-    if (!user) return res.status(401).json({ error: 'Authentication required' });
-    try {
-        const { sql, params = [], async: isAsync, source, schema } = req.body;
-        const logMeta = { tenantId: user.tenant_id, username: user.username, role: user.internal_role || user.role, mode: 'SELECT_SQL', api: '/api/queries/exec', queryText: sql, source };
-        // Route to a named remote source's connector when requested (complex SQL AT the source).
-        if (source && source !== 'Fabric_Hub_Postgres') {
-            const result = await QueryLogService.capture({ ...logMeta, mode: 'SQL_ON_SOURCE' },
-                () => QueryEngineService.executeSqlOnSource(user.tenant_id, source, sql, params, schema));
-            return res.json(result);
-        }
-        if (isAsync) {
-            const jobId = QueryEngineService.executeAsyncRawSql(user.tenant_id, user.username || 'unknown', sql, params);
-            return res.status(202).json({ queryId: jobId, status: 'ACCEPTED' });
-        }
-        // INTERNAL streaming: stream a read-only hub statement via a server-side cursor
-        // (bounded memory) instead of buffering the whole result set.
-        if (wantsStream(req)) {
-            const rs = await tryStream(user.tenant_id, { rawSql: sql, params }, { username: user.username });
-            if (rs) { await pipeRowStream(req, res, rs, logMeta); return; }
-        }
-        {
-            const results = await QueryLogService.capture(logMeta,
-                () => QueryEngineService.executeRawSql(user.tenant_id, user.username || 'unknown', sql, params)
-                    .then((r: any) => ({ results: r, rowCount: Array.isArray(r?.results) ? r.results.length : undefined, plan: { strategy: 'RAW_SQL' } })));
-            // Opt-in response streaming: NDJSON rows + a {__meta__} trailer.
-            const rows = Array.isArray(results.results?.results) ? results.results.results
-                : Array.isArray(results.results) ? results.results : [];
-            if (wantsStream(req)) return streamNdjson(res, rows, { rowCount: rows.length, strategy: 'RAW_SQL' });
-            return res.json({ results: results.results });
-        }
-    } catch (err: any) {
-        console.error(`[QueryController:executeRawSql] Error:`, err.message);
-        if (err.message.toLowerCase().includes('suspended')) return res.status(403).json({ error: err.message });
-        res.status(500).json({ error: err.message });
-    }
-};
+;
 
 /**
  * Transpile an AST query config into the SQL the fabric would generate — powers
@@ -191,7 +105,7 @@ export const transpileQuery = async (req: Request, res: Response) => {
 
 /**
  * Poll the status of an asynchronous query job (enqueued via
- * (@link executeRawSql) with `async: true`, or another async job producer).
+ * (@link QueryEngineService.executeAsyncQuery), or another async job producer).
  *
  * @param req - Express request. `req.params.id` is the job id.
  * @param res - Express response.
@@ -202,7 +116,8 @@ export const transpileQuery = async (req: Request, res: Response) => {
  */
 export const getJobStatus = async (req: Request, res: Response) => {
     try {
-        const job = QueryEngineService.getJobStatus(req.params.id as string);
+        const u = (req as any).user || {};
+        const job = QueryEngineService.getJobStatus(req.params.id as string, u.tenant_id, callerKey(u));
         if (job.status === 'NOT_FOUND') return res.status(404).json(job);
         res.json(job);
     } catch (err: any) {

@@ -125,14 +125,9 @@ function main() {
   // 3) Query capability matrix
   const queries = [
     {
-      name: 'SQL Native Basic',
-      mode: 'sql',
-      body: { sql: 'SELECT 1 AS ok LIMIT 1' }
-    },
-    {
-      name: 'SQL Native Async',
-      mode: 'sql',
-      body: { sql: 'SELECT NOW() AS now_ts', async: true }
+      name: 'AST Transpile Preview',
+      mode: 'transpile',
+      body: { type: 'SELECT', schema: 'Global_Supply_Chain', limit: 5, query: { select: ['id'], from: { resource: 'employees' } } }
     },
     {
       name: 'AST Basic Table Select (manifest style)',
@@ -217,7 +212,7 @@ function main() {
 
   queries.forEach((q) => {
     let cmd = '';
-    if (q.mode === 'sql') cmd = curlJson('POST', '/queries/exec', token, q.body);
+    if (q.mode === 'transpile') cmd = curlJson('POST', '/queries/transpile', token, q.body);
     else if (q.mode === 'ast') cmd = curlJson('POST', '/analytics/query', token, q.body);
     else cmd = curlJson('POST', '/analytics/query-async', token, q.body);
     run(`Query: ${q.name}`, cmd, { allowFail: true, printBody: true });

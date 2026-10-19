@@ -7,11 +7,12 @@
 
 import { Router } from 'express';
 import { listPolicies, createPolicy, deletePolicy } from '../controllers/policyController';
+import { requireWorkspaceAdmin } from '../middleware/tenantAccess.middleware';
 
 const router = Router();
 
 router.get('/', listPolicies); // GET /api/policies — list access policies for the caller's tenant
-router.post('/', createPolicy); // POST /api/policies — create/replace an access policy for a schema/table
-router.delete('/:id', deletePolicy); // DELETE /api/policies/:id — delete an access policy
+router.post('/', requireWorkspaceAdmin, createPolicy); // POST /api/policies — create/replace an access policy for a schema/table
+router.delete('/:id', requireWorkspaceAdmin, deletePolicy); // DELETE /api/policies/:id — delete an access policy
 
 export default router;

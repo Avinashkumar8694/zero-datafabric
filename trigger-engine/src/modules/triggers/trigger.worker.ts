@@ -3,6 +3,11 @@ import { TriggerTranspiler } from './trigger.transpiler';
 import { CronExpressionParser } from 'cron-parser';
 import axios from 'axios';
 import nodemailer from 'nodemailer';
+import { assertIdent, assertTenantId, belongsToTenant, quoteIdent } from '../../utils/identifiers';
+import { assertWebhookResolvesSafe } from '../../utils/net_guard';
+
+/** Outbound HTTP defaults: no redirects (a redirect could point at an internal address), bounded bodies. */
+const HTTP_LIMITS = { maxRedirects: 0, maxContentLength: 5 * 1024 * 1024, maxBodyLength: 1024 * 1024 };
 
 type JobRow = {
   id: string;
@@ -75,18 +80,25 @@ export class TriggerWorker {
       const payload = job.payload || {};
 
       if (job.job_type === 'DEPLOY_TRIGGER') {
+        const tenantId = assertTenantId(job.tenant_id);
         const { rows } = await client.query(
           `SELECT schema_name, table_name, trigger_name, definition
            FROM public.trigger_registry
-           WHERE id = $1`,
-          [job.trigger_id]
+           WHERE id = $1 AND tenant_id = $2`,
+          [job.trigger_id, tenantId]
         );
         if (!rows.length) throw new Error('Trigger registry entry not found');
         const trg = rows[0];
+        // The registry row is user-writable: re-validate the target against the job's tenant before running DDL as the owner.
+        assertIdent(trg.schema_name, 'schema');
+        assertIdent(trg.table_name, 'table');
+        assertIdent(trg.trigger_name, 'trigger name');
+        if (!belongsToTenant(trg.schema_name, tenantId)) throw new Error(`Refusing to deploy: schema "${trg.schema_name}" is outside the workspace`);
         const sqlStatements = TriggerTranspiler.toSql(
-          { name: trg.trigger_name, ...trg.definition },
+          { ...trg.definition, name: trg.trigger_name },
           trg.schema_name,
-          trg.table_name
+          trg.table_name,
+          { tenantId }
         );
         for (const stmt of sqlStatements) {
           await client.query('BEGIN');
@@ -101,10 +113,12 @@ export class TriggerWorker {
         );
         await this.log(client, job, 'TRIGGER_DEPLOY', 'SUCCESS', { statements: sqlStatements.length });
       } else if (job.job_type === 'DELETE_TRIGGER' || job.job_type === 'CLEANUP_TRIGGER') {
-        const schemaName = payload.schemaName;
-        const tableName = payload.tableName;
-        const triggerName = payload.triggerName;
-        await client.query(`DROP TRIGGER IF EXISTS "${triggerName}" ON "${schemaName}"."${tableName}"`);
+        const tenantId = assertTenantId(job.tenant_id);
+        const schemaName = assertIdent(payload.schemaName, 'schema');
+        const tableName = assertIdent(payload.tableName, 'table');
+        const triggerName = assertIdent(payload.triggerName, 'trigger name');
+        if (!belongsToTenant(schemaName, tenantId)) throw new Error(`Refusing to drop: schema "${schemaName}" is outside the workspace`);
+        await client.query(`DROP TRIGGER IF EXISTS ${quoteIdent(triggerName, 'trigger name')} ON ${quoteIdent(schemaName, 'schema')}.${quoteIdent(tableName, 'table')}`);
         // Defensive sweep: the native trigger is now dropped, so no new jobs can be
         // enqueued. Cancel anything still PENDING for this trigger that slipped in
         // between the API-side cancel and this drop (races on recurring/RELATIVE jobs).
@@ -117,7 +131,7 @@ export class TriggerWorker {
           [job.trigger_id, triggerName]
         );
         if (job.trigger_id) {
-          await client.query(`DELETE FROM public.trigger_registry WHERE id = $1`, [job.trigger_id]);
+          await client.query(`DELETE FROM public.trigger_registry WHERE id = $1 AND tenant_id = $2`, [job.trigger_id, tenantId]);
         }
         // The delete-completion log must NOT carry trigger_id: trigger_execution_logs
         // has an FK to trigger_registry.id, and the row it referenced is now gone
@@ -143,12 +157,15 @@ export class TriggerWorker {
           detail.headers = mergedHeaders;
           detail.auth = authResolved.meta;
           detail.body = this.renderObject(payload?.execute?.payload || payload?.newRow || {}, payload);
+          // SSRF guard at execution time: http(s) only, no credentials in the URL, every resolved address checked.
+          await assertWebhookResolvesSafe(String(detail.target));
           const response = await axios.request({
+            ...HTTP_LIMITS,
             method: String(detail.method || 'POST'),
             url: String(detail.target),
             headers: detail.headers,
             data: detail.body,
-            timeout: Number(channelConfig?.config?.timeoutMs || 10000)
+            timeout: Math.min(60000, Math.max(100, Number(channelConfig?.config?.timeoutMs || 10000)))
           });
           detail.httpStatus = response.status;
         } else if (actionType === 'AUDIT') {
@@ -192,6 +209,7 @@ export class TriggerWorker {
           const smtpUser = channelConfig.config?.smtpUser;
           const smtpPass = channelConfig.config?.smtpPass;
           if (!smtpHost || !smtpUser || !smtpPass) throw new Error('EMAIL channel missing smtpHost/smtpUser/smtpPass');
+          await assertWebhookResolvesSafe(`http://${smtpHost}`);
           const transporter = nodemailer.createTransport({
             host: smtpHost,
             port: smtpPort,
@@ -231,7 +249,9 @@ export class TriggerWorker {
               },
               payload
             );
+            await assertWebhookResolvesSafe(String(target));
             const whRes = await axios.request({
+              ...HTTP_LIMITS,
               method: String(payload?.execute?.method || channelConfig?.config?.method || 'POST'),
               url: String(target),
               headers: mergedHeaders,
@@ -244,12 +264,13 @@ export class TriggerWorker {
           } else {
           const botToken = channelConfig.config?.botToken;
           if (!botToken || !detail.chatId) throw new Error('TELEGRAM channel missing botToken/chatId');
-          const endpoint = channelConfig.config?.apiBase || `https://api.telegram.org/bot${botToken}/sendMessage`;
+          const endpoint = channelConfig.config?.apiBase || `https://api.telegram.org/bot${/^[0-9A-Za-z:_-]{1,200}$/.test(String(botToken)) ? botToken : (() => { throw new Error('Invalid Telegram bot token format'); })()}/sendMessage`;
+          await assertWebhookResolvesSafe(String(endpoint));
           const tgRes = await axios.post(endpoint, {
             chat_id: detail.chatId,
             text: detail.text,
             parse_mode: channelConfig.config?.parseMode || 'HTML'
-          }, { timeout: Number(channelConfig.config?.timeoutMs || 10000) });
+          }, { ...HTTP_LIMITS, timeout: Number(channelConfig.config?.timeoutMs || 10000) });
           detail.telegramOk = tgRes.data?.ok === true;
           detail.telegramMessageId = tgRes.data?.result?.message_id || null;
           }
@@ -442,7 +463,9 @@ export class TriggerWorker {
       body.set('client_secret', auth.clientSecret);
       if (auth.scope) body.set('scope', auth.scope);
       if (auth.audience) body.set('audience', auth.audience);
+      await assertWebhookResolvesSafe(String(auth.tokenEndpoint));
       const tokenRes = await axios.post(String(auth.tokenEndpoint), body.toString(), {
+        ...HTTP_LIMITS,
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         timeout: Number(auth.timeoutMs || 10000)
       });

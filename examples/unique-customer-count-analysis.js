@@ -47,21 +47,7 @@ async function main() {
   const token = await login();
   const headers = authHeaders(token);
 
-  banner('1. Executing SQL Deduplicating UNION Query');
-  const sqlRes = await call('SQL Union Query', () =>
-    axios.post(`${BASE_URL}/queries/exec`, {
-      sql: `
-        SELECT sku AS customer_id FROM "tenant_tenant_A_Global_Supply_Chain"."local_inventory"
-        UNION
-        SELECT item_id AS customer_id FROM "tenant_tenant_A_Global_Supply_Chain"."remote_depot_mongo"
-      `
-    }, { headers }), { allowFail: true });
-
-  if (sqlRes) {
-    printAnalysis('SQL UNION', sqlRes);
-  }
-
-  banner('2. Executing AST Deduplicating UNION Query');
+  banner('Executing AST Deduplicating UNION Query');
   const astRes = await call('AST Union Query', () =>
     axios.post(`${BASE_URL}/analytics/query`, {
       queryConfig: {

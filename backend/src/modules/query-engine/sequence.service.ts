@@ -51,7 +51,7 @@ export class FabricSequenceService {
     opts: { start?: number; increment?: number; count?: number } = {}
   ): Promise<{ name: string; value?: number; values?: number[] }> {
     await this.ensure();
-    if (!name || !/^[A-Za-z0-9_]+$/.test(name)) throw new Error('sequence name must be a plain identifier');
+    if (typeof name !== 'string' || !/^[A-Za-z0-9_]{1,63}$/.test(name)) throw Object.assign(new Error('Invalid sequence name: must be a plain identifier'), { status: 400, code: 'INVALID_IDENTIFIER' });
     const inc = Number.isFinite(opts.increment as number) ? Math.trunc(opts.increment as number) : 1;
     const start = Number.isFinite(opts.start as number) ? Math.trunc(opts.start as number) : 1;
     const count = Math.max(1, Math.min(100000, Math.trunc(opts.count || 1)));

@@ -1,10 +1,10 @@
 import request from 'supertest';
 import { app } from '../../index';
-import { getAdminToken, cleanupTenant } from './test_helper';
+import { getAdminToken, cleanupTenant, uniqueTenantId } from './test_helper';
 
 describe('Analytics: Complex Relational Scenarios (M:M, Aggregations)', () => {
     let adminToken: string;
-    const testTenantId = 'analytics_complex_tenant';
+    const testTenantId = uniqueTenantId('acx');
 
     beforeAll(async () => {
         adminToken = await getAdminToken();
@@ -14,7 +14,7 @@ describe('Analytics: Complex Relational Scenarios (M:M, Aggregations)', () => {
         const scopedToken = tokenRes.body.token;
 
         // Setup M:M schema
-        await request(app).post('/api/metadata/migrate').set('Authorization', `Bearer ${scopedToken}`).send({
+        const migrated = await request(app).post('/api/metadata/migrate').set('Authorization', `Bearer ${scopedToken}`).send({
             migrationPlan: [
                 { action: 'CREATE_SCHEMA' },
                 { action: 'CREATE_TABLE', table: 'users', details: { columns: [{ name: 'id', type: 'SERIAL', primaryKey: true }, { name: 'name', type: 'TEXT' }] } },
@@ -23,12 +23,14 @@ describe('Analytics: Complex Relational Scenarios (M:M, Aggregations)', () => {
             ]
         });
 
-        // Seed data
-        await request(app).post('/api/queries/exec').set('Authorization', `Bearer ${scopedToken}`).send({
-            sql: `INSERT INTO "tenant_${testTenantId}"."users" (name) VALUES ('Alice'), ('Bob');
-                  INSERT INTO "tenant_${testTenantId}"."roles" (role_name) VALUES ('Admin'), ('Editor');
-                  INSERT INTO "tenant_${testTenantId}"."user_roles" (user_id, role_id) VALUES (1, 1), (1, 2), (2, 2);`
-        });
+        expect(migrated.status).toBe(200);
+
+        // Seed data via the CRUD API
+        const seed = (resource: string, data: any[]) =>
+            request(app).post('/api/data/create').set('Authorization', `Bearer ${scopedToken}`).send({ resource, data });
+        await seed('users', [{ name: 'Alice' }, { name: 'Bob' }]);
+        await seed('roles', [{ role_name: 'Admin' }, { role_name: 'Editor' }]);
+        await seed('user_roles', [{ user_id: 1, role_id: 1 }, { user_id: 1, role_id: 2 }, { user_id: 2, role_id: 2 }]);
     });
 
     afterAll(async () => {

@@ -25,23 +25,28 @@ async function main() {
 
   // 2) Virtual Mongo source write (depends on FDW/connector write support in runtime)
   await call('Insert to Mongo virtualized resource (capability-dependent)', () =>
-    axios.post(`${BASE_URL}/queries/exec`, {
-      sql: `
-      INSERT INTO "tenant_tenant_A_Activity_Logs"."user_activity"
-      ("user_id","action","timestamp")
-      VALUES ('00000000-0000-0000-0000-000000000333','INSERT_TEST',NOW())
-      RETURNING *;
-      `
+    axios.post(`${BASE_URL}/analytics/query`, {
+      queryConfig: {
+        type: 'INSERT',
+        schema: 'Activity_Logs',
+        table: 'user_activity',
+        data: {
+          user_id: '00000000-0000-0000-0000-000000000333',
+          action: 'INSERT_TEST',
+          timestamp: new Date().toISOString()
+        }
+      }
     }, { headers }), { allowFail: true });
 
   // 3) Virtual Postgres external source write (capability-dependent)
   await call('Insert to external Postgres virtualized resource (capability-dependent)', () =>
-    axios.post(`${BASE_URL}/queries/exec`, {
-      sql: `
-      INSERT INTO "tenant_tenant_A_External_Archive"."global_tags" ("id","tag_name")
-      VALUES (gen_random_uuid(),'runner_tag')
-      RETURNING *;
-      `
+    axios.post(`${BASE_URL}/analytics/query`, {
+      queryConfig: {
+        type: 'INSERT',
+        schema: 'External_Archive',
+        table: 'global_tags',
+        data: { id: randomUUID(), tag_name: 'runner_tag' }
+      }
     }, { headers }), { allowFail: true });
 
   // 4) Elasticsearch note:

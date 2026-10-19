@@ -1,7 +1,9 @@
 import { pool, queryWithContext } from '../../config/database';
+import { assertTenantId, quoteAnyIdent, quoteIdent } from '../../utils/identifiers';
 import { SyncService } from './sync.service';
 import { MetadataService } from '../metadata/metadata.service';
 import axios from 'axios';
+import { applyDockerAlias, assertSourceAllowed, assertSourceName, NetGuardError } from './net_guard';
 
 /**
  * IntegrationService — remote data-source registration and lifecycle.
@@ -49,6 +51,9 @@ export interface RemoteSourceConfig {
   };
 }
 
+/** Who is calling: the platform-admin flag unlocks `ALLOW_HUB_SOURCE=true` only. */
+export interface IntegrationContext { username?: string; isPlatformAdmin?: boolean; [k: string]: any }
+
 export class IntegrationService {
   /**
    * Validate that a remote source is reachable before it is registered, using
@@ -65,45 +70,28 @@ export class IntegrationService {
    *   error if the connection attempt fails, or (Snowflake only) if no
    *   account/host/connectionString is provided at all.
    */
-  static async testConnection(config: RemoteSourceConfig) {
+  static async testConnection(config: RemoteSourceConfig, context: IntegrationContext = {}) {
     // Industrial Defense: Skip validation for dummy hosts
     if (config.host === 'dummy' || config.connectionString?.includes('dummy')) {
         console.log(`[Integration] Skipping connection test for dummy host.`);
         return true;
     }
-    
-    let targetUrl = config.connectionString || `${config.host}:${config.port}`;
-    
-    // Industrial Network Normalization: Redirect localhost to Docker service names
-    targetUrl = targetUrl
-        .replace(/localhost:5436/g, 'datafabric-remote:5432')
-        .replace(/127\.0\.0\.1:5436/g, 'datafabric-remote:5432')
-        .replace(/localhost:5434/g, 'datafabric-hub:5432')
-        .replace(/127\.0\.0\.1:5434/g, 'datafabric-hub:5432');
 
-    console.log(`[Integration] Testing connection for ${config.type} at ${targetUrl}`);
+    // Outbound-target policy: never link-local/metadata, never the platform hub (unless platform admin + ALLOW_HUB_SOURCE=true),
+    // loopback/private unless ALLOW_PRIVATE_SOURCES=false. Runs BEFORE any connection (or credential) is used.
+    await assertSourceAllowed(config, { isPlatformAdmin: !!context.isPlatformAdmin });
+
+    const targetUrl = config.connectionString || `${config.host}:${config.port}`;
+    console.log(`[Integration] Testing connection for ${config.type} at ${String(targetUrl).replace(/\/\/[^@/]*@/, '//***@')}`);
     if (config.type === 'postgres') {
       const { Client } = require('pg');
-      let host = String(config.host || 'localhost');
-      let port = Number(config.port || 5432);
+      const host = String(config.host || 'localhost');
+      const port = Number(config.port || 5432);
       const dbName = String(config.dbName || (config as any).database || 'postgres');
       const user = String(config.user || 'postgres');
 
-      // Local compose compatibility for common seeded sources.
-      if ((host === 'localhost' || host === '127.0.0.1') && port === 5432 && dbName === 'datafabric' && user === 'fabric_admin') {
-        port = 5434;
-      }
-      if ((host === 'localhost' || host === '127.0.0.1') && port === 5432 && dbName === 'remote_warehouse' && user === 'remote_admin') {
-        port = 5436;
-      }
-
-      let pass = config.pass || (config as any).password;
-      if ((typeof pass !== 'string' || pass.length === 0) && user === 'fabric_admin') {
-        pass = 'fabric_password';
-      }
-      if ((typeof pass !== 'string' || pass.length === 0) && user === 'remote_admin') {
-        pass = 'remote_password';
-      }
+      // The password is exactly what the caller supplied: no server-side credentials are ever injected.
+      const pass = config.pass || (config as any).password;
 
       const clientConfig: any = config.connectionString 
         ? { connectionString: String(config.connectionString) }
@@ -219,7 +207,10 @@ export class IntegrationService {
    * @throws {Error} If `config.type`/`config.syncType` is missing, if
    *   (@link IntegrationService.testConnection) fails, or on any persistence/orchestration error (logged and re-thrown).
    */
-  static async registerRemoteSource(tenantId: string, name: string, config: RemoteSourceConfig, context: any) {
+  static async registerRemoteSource(tenantId: string, name: string, config: RemoteSourceConfig, context: IntegrationContext) {
+    // Source names become FDW server-name components and manifest targetSource values.
+    assertSourceName(name);
+    assertTenantId(tenantId);
     // INDUSTRIAL DEFENSE: Ensure type and syncType are correctly extracted
     const sourceType = config.type || (config as any).type;
     const syncType = config.syncType || (config as any).syncType;
@@ -235,7 +226,7 @@ export class IntegrationService {
         config.syncType = syncType;
 
         // 1. Validation Step (Fail fast if unreachable)
-        await this.testConnection(config);
+        await this.testConnection(config, context || {});
 
         // 2. Persist Source Config with Session Context
         let sourceId;
@@ -283,12 +274,10 @@ export class IntegrationService {
             let targetPort = config.port;
 
             // If we are connecting to the remote_db service from within the Hub container
-            if ((config.host === 'localhost' || config.host === '127.0.0.1') && config.port === 5436) {
-                targetHost = 'datafabric-remote';
-                targetPort = 5432;
-            } else if ((config.host === 'localhost' || config.host === '127.0.0.1') && config.port === 5434) {
-                targetHost = 'datafabric-hub';
-                targetPort = 5432;
+            // (the guard has already cleared both the raw and the aliased target; the hub alias is only reachable for platform admins with ALLOW_HUB_SOURCE=true).
+            {
+                const aliased = applyDockerAlias({ host: String(config.host || ''), ...(config.port !== undefined ? { port: Number(config.port) } : {}) });
+                if (aliased.host !== String(config.host || '')) { targetHost = aliased.host; targetPort = aliased.port as number; }
             }
 
             // Dockerize Connection String if present
@@ -298,6 +287,8 @@ export class IntegrationService {
                     .replace(/127\.0\.0\.1:5436/g, 'datafabric-remote:5432')
                     .replace(/localhost:5434/g, 'datafabric-hub:5432')
                     .replace(/127\.0\.0\.1:5434/g, 'datafabric-hub:5432');
+                // Re-check the rewritten string (the rewrite itself must not be able to reach the hub for a non-admin).
+                await assertSourceAllowed({ connectionString: targetConnStr }, { isPlatformAdmin: !!context?.isPlatformAdmin });
                 
                 // If it's a full Postgres URI, extract components to avoid FDW URI length/format issues
                 try {
@@ -325,11 +316,23 @@ export class IntegrationService {
             if (targetHost === 'dummy') {
                 console.log(`[Integration] Skipping physical FDW registration for dummy host.`);
             } else {
-                await queryWithContext(
-                  'SELECT fabric_admin.register_remote_source($1, $2, $3, $4, $5, $6, $7, $8)',
-                  [tenantId, name, targetHost, targetPort, config.dbName, config.user, config.pass, targetConnStr],
-                  { tenantId, username: context?.username || 'system' }
-                );
+                // The FDW registration functions are SECURITY DEFINER and not executable by fabric_user: call them as the app (owner),
+                // with the authenticated tenant id (never a client-supplied one) in one transaction.
+                const fdwClient = await pool.connect();
+                try {
+                  await fdwClient.query('BEGIN');
+                  if (context?.isPlatformAdmin && process.env.ALLOW_HUB_SOURCE === 'true') await fdwClient.query(`SELECT set_config('fabric.allow_hub_source', 'on', true)`);
+                  await fdwClient.query(
+                    'SELECT fabric_admin.register_remote_source($1, $2, $3, $4, $5, $6, $7, $8)',
+                    [tenantId, name, targetHost, targetPort, config.dbName, config.user, config.pass, targetConnStr]
+                  );
+                  await fdwClient.query('COMMIT');
+                } catch (fdwErr) {
+                  try { await fdwClient.query('ROLLBACK'); } catch { /* connection gone */ }
+                  throw fdwErr;
+                } finally {
+                  fdwClient.release();
+                }
             }
           }
         } else {
@@ -340,6 +343,9 @@ export class IntegrationService {
         const supportsCatalogCrawl = ['postgres', 'mysql', 'mongodb', 'snowflake', 'elasticsearch', 'oracle', 'oracledb'].includes(config.type);
         if (supportsCatalogCrawl) {
             try {
+                // never crawl (= write catalog rows for) a source this tenant does not own
+                const own = await pool.query('SELECT 1 FROM public.data_sources WHERE id = $1 AND tenant_id = $2', [sourceId, tenantId]);
+                if (own.rows.length === 0) throw new Error('Source not found or unauthorized');
                 await MetadataService.crawlSource(sourceId);
             } catch (crawlErr: any) {
                 console.warn(`[Integration] Post-registration crawl failed (expected if source offline): ${crawlErr.message}`);
@@ -386,8 +392,7 @@ export class IntegrationService {
 
         // 2. If SYNC, drop the physical tables created in the hub
         if (source.sync_type === 'SYNC') {
-            const cleanTenant = tenantId.replace(/[^a-zA-Z0-9_]/g, '');
-            const targetSchema = `tenant_${cleanTenant}`;
+            const targetSchema = `tenant_${assertTenantId(tenantId)}`;
             // Find tables belonging to this source in the catalog
             const { rows: tables } = await client.query(`
                 SELECT t.physical_name 
@@ -397,7 +402,7 @@ export class IntegrationService {
             `, [sourceId]);
 
             for (const table of tables) {
-                await client.query(`DROP TABLE IF EXISTS "${targetSchema}"."${table.physical_name}"`);
+                await client.query(`DROP TABLE IF EXISTS ${quoteIdent(targetSchema, 'schema')}.${quoteAnyIdent(String(table.physical_name))}`);
             }
         }
 

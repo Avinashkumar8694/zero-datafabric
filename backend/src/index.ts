@@ -2,13 +2,19 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import http from 'http';
-import swaggerUi from 'swagger-ui-express';
+import { mountApiDocs } from './docs/mountDocs';
 import { pool } from './config/database';
 import { AuthService } from './modules/auth/auth.service';
-import { swaggerSpec } from './config/swagger';
 
 // Route Imports
 import adminRoutes from './routes/adminRoutes';
+import { astOnly } from './middleware/astOnly.middleware';
+import workerRoutes from './routes/workerRoutes';
+import systemRoutes from './routes/systemRoutes';
+import workspaceRoutes from './routes/workspaceRoutes';
+import { workspaceGuard } from './modules/tenancy/workspace.guard';
+import developerTokenRoutes from './routes/developerTokenRoutes';
+import { ApiTokenService, TokenError, requiredScope } from './modules/auth/api-token.service';
 import authRoutes from './routes/authRoutes';
 import queryRoutes from './routes/queryRoutes';
 import metadataRoutes from './routes/metadataRoutes';
@@ -36,35 +42,52 @@ import morgan from 'morgan';
 
 const app = express();
 const server = http.createServer(app);
-const PORT = 4000;
+const PORT = Number(process.env.PORT) || 4000;
 
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant-id']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-tenant-id', 'x-act-as-role', 'x-region', 'Accept']
 }));
 app.use(express.json());
 app.use(morgan('dev'));
 
 // --- INDUSTRIAL SECURITY MIDDLEWARE ---
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   const authHeader = req.headers.authorization;
-  if (authHeader && typeof authHeader === 'string') {
-    const token = authHeader.split(' ')[1];
-    if (token) {
-      try {
-        const user = AuthService.verifyToken(token) as any;
-        if (user) {
-          const tenantOverride = req.headers['x-tenant-id'];
-          if (user.internal_role === 'ADMIN' && tenantOverride && typeof tenantOverride === 'string') {
-            user.tenant_id = tenantOverride;
-          }
-          (req as any).user = user;
-          console.log(`[Security] Authenticated user: ${user.username}, Tenant: ${user.tenant_id}`);
+  const apiKeyHeader = req.headers['x-api-key'];
+  const bearer = typeof authHeader === 'string' ? authHeader.split(' ')[1] : undefined;
+  const presentedApiToken = typeof apiKeyHeader === 'string' ? apiKeyHeader : (bearer && bearer.startsWith('dft_') ? bearer : undefined);
+
+  // Developer API token (x-api-key or Bearer dft_...). Scoped, never ADMIN, never honours x-tenant-id / x-act-as-role.
+  if (presentedApiToken) {
+    try {
+      const user = await ApiTokenService.authenticate(presentedApiToken);
+      const scope = requiredScope(req.method, req.path, req.body);
+      if (!scope) return res.status(403).json({ error: 'API tokens cannot access this endpoint', code: 'TOKEN_NOT_ALLOWED' });
+      if (!user.scopes.includes(scope)) return res.status(403).json({ error: `API token is missing the required scope: ${scope}`, code: 'SCOPE_REQUIRED' });
+      delete req.headers['x-act-as-role'];
+      (req as any).user = user;
+      return next();
+    } catch (e: any) {
+      if (e instanceof TokenError) return res.status(e.status).json({ error: e.message, code: e.code });
+      return res.status(500).json({ error: 'Internal error', code: 'INTERNAL' });
+    }
+  }
+
+  if (bearer) {
+    try {
+      const user = AuthService.verifyToken(bearer) as any;
+      if (user) {
+        const tenantOverride = req.headers['x-tenant-id'];
+        if (user.internal_role === 'ADMIN' && tenantOverride && typeof tenantOverride === 'string') {
+          user.tenant_id = tenantOverride;
         }
-      } catch (e: any) {
-        console.error(`[Security] JWT Error: ${e.message}`);
+        (req as any).user = user;
+        console.log(`[Security] Authenticated user: ${user.username}, Tenant: ${user.tenant_id}`);
       }
+    } catch (e: any) {
+      console.error(`[Security] JWT Error: ${e.message}`);
     }
   }
   next();
@@ -83,12 +106,8 @@ const requireAdmin = (req: express.Request, res: express.Response, next: express
 };
 
 // --- BASE ROUTES ---
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customSiteTitle: 'Zero Data Fabric API',
-  swaggerOptions: { docExpansion: 'none', filter: true, tryItOutEnabled: true },
-}));
-// Raw OpenAPI spec for tooling / client generation.
-app.get('/api-docs.json', (_req, res) => { res.json(swaggerSpec); });
+// OpenAPI docs: /api-docs (landing), /api-docs/developer(.json), /api-docs/system(.json)
+mountApiDocs(app);
 
 app.get('/api/health', async (req, res) => {
   const uptime = process.uptime();
@@ -114,17 +133,22 @@ app.get('/api/health', async (req, res) => {
 });
 
 // --- RESOURCE ROUTERS ---
+app.use('/api', workspaceGuard);
 app.use('/api/auth', authRoutes);
+app.use('/api/system', requireAuth, systemRoutes);
+app.use('/api/workspace', requireAuth, workspaceRoutes);
+app.use('/api/admin/workers', requireAuth, workerRoutes);
 app.use('/api/admin', requireAuth, adminRoutes);
-app.use('/api/queries', requireAuth, licensingMiddleware, queryRoutes);
+app.use('/api/developer/tokens', requireAuth, developerTokenRoutes);
+app.use('/api/queries', requireAuth, astOnly, licensingMiddleware, queryRoutes);
 app.use('/api/metadata', requireAuth, licensingMiddleware, metadataRoutes);
-app.use('/api/analytics', requireAuth, licensingMiddleware, analyticsRoutes);
-app.use('/api/data', requireAuth, licensingMiddleware, dataRoutes);
+app.use('/api/analytics', requireAuth, astOnly, licensingMiddleware, analyticsRoutes);
+app.use('/api/data', requireAuth, astOnly, licensingMiddleware, dataRoutes);
 app.use('/api/triggers', requireAuth, licensingMiddleware, triggerRoutes);
 app.use('/api/policies', requireAuth, policyRoutes);
 app.use('/api/constraints', requireAuth, constraintRoutes);
 app.use('/api/grants', requireAuth, grantRoutes);
-app.use('/api/saved-analytics', requireAuth, licensingMiddleware, savedAnalyticsRoutes);
+app.use('/api/saved-analytics', requireAuth, astOnly, licensingMiddleware, savedAnalyticsRoutes);
 app.use('/api/query-logs', requireAuth, queryLogRoutes);
 app.use('/api/replication', requireAuth, licensingMiddleware, replicationRoutes);
 app.use('/api/developer-docs', developerDocsRoutes);

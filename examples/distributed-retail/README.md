@@ -29,10 +29,10 @@ must join them.
 2. **Partial-aggregate pushdown** — `GROUP BY` runs as native `GROUP BY` on
    Postgres and as a `$group` pipeline on Mongo; each source returns *groups*,
    not rows.
-3. **Complex single-source SQL at the owning engine** — window functions,
-   recursive CTEs and materialized-view reads execute **at** the external
-   Postgres that owns the data (via the connector's native-SQL path), not on the
-   fabric hub.
+3. **Complex single-source AST at the owning engine** — `window` select items,
+   `recursive` traversals and materialized-view / view reads are expressed as AST
+   and pushed to (or compensated in front of) the external source that owns the
+   data, not run on the fabric hub.
 4. **Execution transparency** — every query returns `plan.strategy`,
    `plan.executionMs`, `plan.rowsScannedAcrossSources`, and a per-leg trace
    (`source / engine / mode / operation / rowsReturned / ms / query`) so you can
@@ -44,9 +44,9 @@ must join them.
 |------|--------------|
 | `01-seed-external-sources.js` | Creates + seeds the three external databases (5k+ rows each). |
 | `02-register-sources.js`      | Registers them as fabric datasources + populates the catalog (metadata only). |
-| `03-analytics-suite.js`       | 12 scenarios (federated joins/aggregates + remote window/recursive/matview) with **pushdown assertions** on the trace. |
-| `04-tat-audit.js`             | Execution-time / TAT audit: matview vs live recompute, REFRESH cost, recursive traversal. |
-| `05-real-world-scenarios.js`  | RFM · cohort retention · moving average · Pareto/ABC · cross-source funnel. |
+| `03-analytics-suite.js`       | 12 scenarios (federated joins/aggregates + window/recursive/matview/view AST) with **pushdown assertions** on the trace. |
+| `04-tat-audit.js`             | Execution-time / TAT audit: matview vs live recompute, view read, recursive traversal. |
+| `05-real-world-scenarios.js`  | RFM · 7-day moving average · Pareto/ABC · cross-source funnel (AST aggregates + client-side scoring). |
 | `06-ast-cookbook.js`          | Every AST feature: projection, all WHERE operators, sort/paginate, aggregates+GROUP BY, multi-source aggregate, cross-source joins, UNION/INTERSECT/EXCEPT. |
 | `07-crud-api-examples.js`     | The simple `/api/data` fetch/create/update/delete endpoints on Postgres + Mongo (self-cleaning). |
 | `run-all.js`                  | Runs everything (`--seed` to (re)seed + register first). |

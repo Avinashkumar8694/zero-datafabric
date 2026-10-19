@@ -35,12 +35,12 @@ curl -s -X GET "$BASE_URL/admin/catalog" -H "$AUTH_H" | grep -q "\"table_name\":
 echo "[5/6] Testing Audit Logs..."
 curl -s -X GET "$BASE_URL/admin/audit-logs" -H "$AUTH_H" | grep -q "\"action\":" && echo "✅ Audit Logs API OK" || echo "❌ Audit Logs API Failed"
 
-# 6. Query Exec
-echo "[6/6] Testing Query Exec..."
-QUERY_RES=$(curl -s -X POST "$BASE_URL/queries/exec" \
+# 6. Query Engine (AST -> SQL preview; raw SQL execution is not supported)
+echo "[6/6] Testing Query Transpile..."
+QUERY_RES=$(curl -s -X POST "$BASE_URL/queries/transpile" \
   -H "$AUTH_H" \
   -H "Content-Type: application/json" \
-  -d '{"sql":"SELECT 1 as result"}')
-echo $QUERY_RES | grep -q "\"result\":1" && echo "✅ Query Exec API OK" || echo "❌ Query Exec API Failed: $QUERY_RES"
+  -d '{"type":"SELECT","table":"tenants","select":["id"],"limit":1}')
+echo $QUERY_RES | grep -q "\"sql\":" && echo "✅ Query Transpile API OK" || echo "❌ Query Transpile API Failed: $QUERY_RES"
 
 echo "--- ALL APIs VERIFIED MANUALLY ---"

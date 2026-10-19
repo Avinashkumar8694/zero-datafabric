@@ -1,67 +1,62 @@
 <%- include('partials/header') %>
 
-<style>
-    @media (max-width: 480px) {
-        .metadata-actions {
-            flex-direction: column !important;
-        }
-        .metadata-actions button {
-            width: 100% !important;
-        }
-    }
-</style>
-
-<div class="fade-in">
-    <div class="glass-card">
-        <h3>Metadata Orchestration</h3>
-        <p class="text-muted" style="margin-bottom: 2rem;">Declarative schema management via industrial orchestration blueprints.</p>
-        
-        <div class="grid">
-            <!-- Template Download -->
-            <section class="glass-card" style="background: var(--bg);">
-                <h4>Orchestration Blueprint</h4>
-                <p class="text-muted" style="font-size: 0.8rem; margin-bottom: 1.5rem;">Download the definitive V7.0 specification as a reference for your target state.</p>
-                <div class="metadata-actions" style="display: flex; gap: 0.5rem;">
-                    <button onclick="downloadTemplate()" class="btn-outline" style="flex: 1;">Download Spec</button>
-                    <button onclick="loadTemplateForAnalysis()" class="btn-primary" style="flex: 1;">Load Industrial Blueprint</button>
-                </div>
-            </section>
-
-            <!-- File Upload for Diff/Apply -->
-            <section class="glass-card" style="background: var(--bg);">
-                <h4>Target State Manifest</h4>
-                <p class="text-muted" style="font-size: 0.8rem; margin-bottom: 1.5rem;">Select a manifest file (.json) to analyze or apply schema changes.</p>
-                <div style="display: flex; gap: 0.5rem; flex-direction: column;">
-                    <input type="file" id="manifestFile" accept=".json" class="context-select" style="width: 100%; height: auto; padding: 0.5rem;">
-                    <div class="metadata-actions" style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-                        <button onclick="analyzeManifest()" id="diffBtn" class="btn-outline" style="flex: 1;">Analyze Drift (Diff)</button>
-                        <button onclick="applyManifest()" id="applyBtn" class="btn-primary" style="flex: 1;">Orchestrate (Apply)</button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Export Live Catalog -->
-            <section class="glass-card" style="background: var(--bg);">
-                <h4>Export Live Catalog</h4>
-                <p class="text-muted" style="font-size: 0.8rem; margin-bottom: 1.5rem;">Export the fabric's current schemas, tables &amp; relationships (including already-existing crawled objects) as a re-applicable manifest.</p>
-                <div style="display: flex; gap: 0.5rem; flex-direction: column;">
-                    <select id="exportSource" class="context-select" style="width: 100%; height: auto; padding: 0.5rem;">
-                        <option value="">All datasources (multi-source manifest)</option>
-                    </select>
-                    <button onclick="exportCatalog()" id="exportBtn" class="btn-primary" style="margin-top: 0.5rem;">Export Manifest</button>
-                </div>
-            </section>
+<div class="page fade-in">
+    <div class="page-head">
+        <div>
+            <h1 class="page-title">Metadata Orchestration</h1>
+            <p class="page-sub">Declarative schema management via industrial orchestration blueprints.</p>
         </div>
     </div>
 
+    <div class="cols-3">
+        <!-- Template Download -->
+        <section class="glass-card">
+            <h3>Orchestration Blueprint</h3>
+            <p>Download the definitive V7.0 specification as a reference for your target state.</p>
+            <div class="btn-row">
+                <button type="button" onclick="downloadTemplate()" class="btn-outline">Download Spec</button>
+                <button type="button" onclick="loadTemplateForAnalysis()" class="btn-primary">Load Industrial Blueprint</button>
+            </div>
+        </section>
+
+        <!-- File Upload for Diff/Apply -->
+        <section class="glass-card">
+            <h3>Target State Manifest</h3>
+            <p>Select a manifest file (.json) to analyze or apply schema changes.</p>
+            <div class="field">
+                <label for="manifestFile" class="sr-only">Manifest file (.json)</label>
+                <input type="file" id="manifestFile" accept=".json">
+            </div>
+            <div class="btn-row">
+                <button type="button" onclick="analyzeManifest()" id="diffBtn" class="btn-outline">Analyze Drift (Diff)</button>
+                <button type="button" onclick="applyManifest()" id="applyBtn" class="btn-primary">Orchestrate (Apply)</button>
+            </div>
+        </section>
+
+        <!-- Export Live Catalog -->
+        <section class="glass-card">
+            <h3>Export Live Catalog</h3>
+            <p>Export the fabric's current schemas, tables &amp; relationships (including already-existing crawled objects) as a re-applicable manifest.</p>
+            <div class="field">
+                <label for="exportSource" class="sr-only">Export source</label>
+                <select id="exportSource">
+                    <option value="">All datasources (multi-source manifest)</option>
+                </select>
+            </div>
+            <div class="btn-row">
+                <button type="button" onclick="exportCatalog()" id="exportBtn" class="btn-primary">Export Manifest</button>
+            </div>
+        </section>
+    </div>
+
     <!-- Orchestration Plan / Results -->
-    <div id="resultCard" class="glass-card" style="display: none; margin-top: 1.5rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <section id="resultCard" class="glass-card" style="display: none;">
+        <div class="card-head">
             <h3 id="resultTitle">Orchestration Plan</h3>
-            <span id="resultBadge" class="badge-sync" style="background: var(--primary);">ANALYZED</span>
+            <span id="resultBadge" class="badge badge-info">ANALYZED</span>
         </div>
-        
-        <div id="planSummary" class="text-muted" style="margin-bottom: 1.5rem; font-size: 0.9rem;"></div>
+
+        <div id="planSummary" class="text-muted mb-2" role="status"></div>
 
         <div class="table-wrapper">
             <table id="planTable">
@@ -77,7 +72,7 @@
                 <tbody id="planBody"></tbody>
             </table>
         </div>
-    </div>
+    </section>
 </div>
 
 <script>
@@ -187,7 +182,7 @@
         card.style.display = 'block';
         document.getElementById('resultTitle').innerText = 'Orchestration Plan';
         document.getElementById('planSummary').innerText = 'Loading blueprint and analyzing drift...';
-        body.innerHTML = '<tr><td colspan="5" class="text-muted" style="text-align:center;">Loading...</td></tr>';
+        body.innerHTML = '<tr><td colspan="5" class="state-cell">Loading...</td></tr>';
 
         try {
             const res = await fetch(`${API_BASE}/metadata/template`, { headers: getAuthHeaders() });
@@ -289,12 +284,12 @@
         card.style.display = 'block';
         titleEl.innerText = title;
         badgeEl.innerText = badgeText;
-        badgeEl.style.background = badgeText === 'SUCCESS' ? 'var(--success)' : 'var(--primary)';
+        badgeEl.className = 'badge ' + (badgeText === 'SUCCESS' ? 'badge-ok' : 'badge-info');
         statusCol.style.display = showStatus ? 'table-cell' : 'none';
 
         if (!Array.isArray(plan) || plan.length === 0) {
             summaryEl.innerText = 'No schema drift detected. Live environment matches target state.';
-            body.innerHTML = '<tr><td colspan="5" class="text-muted">Empty Plan</td></tr>';
+            body.innerHTML = '<tr><td colspan="5" class="state-cell">Empty Plan</td></tr>';
             return;
         }
 
@@ -311,11 +306,11 @@
             const ok = results[idx]?.status === 'SUCCESS' || results[idx]?.status?.startsWith('SUCCESS');
             return `
             <tr>
-                <td><span class="badge-sync" style="background: var(--surface-hover);">${escapeHtml(p.action || p.type)}</span></td>
+                <td><span class="badge badge-muted">${escapeHtml(p.action || p.type)}</span></td>
                 <td><strong>${escapeHtml(p.table || p.name || p.type || 'N/A')}</strong></td>
                 <td>${escapeHtml(p.operation || p.action)}</td>
-                <td class="text-muted" style="font-size: 0.8rem;"><code>${escapeHtml(detail)}</code></td>
-                ${showStatus ? `<td><span class="badge-sync" style="background: ${ok ? 'var(--success)' : 'var(--danger)'}; color: black;">${ok ? 'DONE' : 'ERROR'}</span></td>` : ''}
+                <td class="text-muted"><code>${escapeHtml(detail)}</code></td>
+                ${showStatus ? `<td><span class="badge ${ok ? 'badge-ok' : 'badge-danger'}">${ok ? 'DONE' : 'ERROR'}</span></td>` : ''}
             </tr>
         `;
         }).join('');

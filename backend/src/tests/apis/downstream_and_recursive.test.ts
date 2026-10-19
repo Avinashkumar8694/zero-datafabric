@@ -1,75 +1,84 @@
 import request from 'supertest';
 import { app } from '../../index';
-import { getAdminToken, cleanupTenant } from './test_helper';
+import { getAdminToken, cleanupTenant, createTenantViaApi, uniqueTenantId, describeIfReachable } from './test_helper';
 import { pool } from '../../config/database';
 
 describe('Industrial Data Fabric: Downstream & Recursive Orchestration Suite', () => {
     let adminToken: string;
-    const ts = Date.now();
-    const testTenantId = `downstream_${ts}`;
+    const testTenantId = uniqueTenantId('dwn');
     let tenantToken: string;
+    const ES = { host: process.env.ES_HOST || 'localhost', port: Number(process.env.ES_PORT || 9200) };
 
     beforeAll(async () => {
         adminToken = await getAdminToken();
-        await request(app).post('/api/admin/tenants').set('Authorization', `Bearer ${adminToken}`).send({ id: testTenantId, name: 'Downstream Test' });
-        const tokenRes = await request(app).post('/api/auth/token').set('Authorization', `Bearer ${adminToken}`).send({ tenantId: testTenantId });
-        tenantToken = tokenRes.body.token;
+        tenantToken = await createTenantViaApi(adminToken, testTenantId, 'Downstream Test');
     });
 
     afterAll(async () => {
         await cleanupTenant(testTenantId);
     });
 
-    it('Scenario: Global Supply Chain v4.0 with Downstream ES & Snowflake', async () => {
-        const manifest = {
-            version: "4.0",
-            namespace: "GSC_Downstream",
-            downstream: [
-                { "type": "ELASTICSEARCH", "enabled": true, "fallback": "PRIMARY_SQL" },
-                { "type": "SNOWFLAKE", "enabled": true, "strategy": "CDC" }
-            ],
-            resources: [
-                {
-                    "type": "TABLE",
-                    "name": "shipments",
-                    "columns": [
-                        { "name": "id", "type": "UUID", "primaryKey": true },
-                        { "name": "region", "type": "STRING" }
-                    ]
-                },
-                {
-                  "type": "PROCEDURE",
-                  "name": "process_delivery",
-                  "parameters": [
-                    { "name": "p_shipment_id", "type": "UUID", "mode": "IN" },
-                    { "name": "p_success", "type": "BOOLEAN", "mode": "OUT" }
-                  ],
-                  "body": "BEGIN p_success := true; END;"
-                }
-            ]
-        };
+    const downstreamManifest = (snowflakeEnabled: boolean) => ({
+        version: "4.0",
+        namespace: "GSC_Downstream",
+        downstream: [
+            { "type": "ELASTICSEARCH", "enabled": true, "fallback": "PRIMARY_SQL" },
+            { "type": "SNOWFLAKE", "enabled": snowflakeEnabled, "strategy": "CDC" }
+        ],
+        resources: [
+            {
+                "type": "TABLE",
+                "name": "shipments",
+                "columns": [
+                    { "name": "id", "type": "UUID", "primaryKey": true },
+                    { "name": "region", "type": "STRING" }
+                ]
+            },
+            {
+              "type": "PROCEDURE",
+              "name": "process_delivery",
+              "parameters": [
+                { "name": "p_shipment_id", "type": "UUID", "mode": "IN" },
+                { "name": "p_success", "type": "BOOLEAN", "mode": "OUT" }
+              ],
+              "body": "BEGIN p_success := true; END;"
+            }
+        ]
+    });
 
-        const res = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(manifest);
+    it('Scenario: downstream targets are recorded in the registry; without a configured engine they are NOT_CONFIGURED, disabled ones DISABLED', async () => {
+        const res = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(downstreamManifest(true));
         expect(res.status).toBe(200);
         expect(res.body.downstream).toBeDefined();
-        
-        // Verify Persistence in Registry
+
+        // Verify persistence in the registry: no ES / Snowflake data source is registered for this workspace.
         const registryCheck = await pool.query(`SELECT target_type, status FROM fabric_system.downstream_registry WHERE tenant_id = $1`, [testTenantId]);
         expect(registryCheck.rows.length).toBe(2);
-        expect(registryCheck.rows.find(r => r.target_type === 'ELASTICSEARCH').status).toBe('ACTIVE');
+        expect(registryCheck.rows.find(r => r.target_type === 'ELASTICSEARCH').status).toBe('NOT_CONFIGURED');
+        expect(registryCheck.rows.find(r => r.target_type === 'SNOWFLAKE').status).toBe('NOT_CONFIGURED');
 
         // Scenario: Disabling Snowflake
-        const manifestV2 = {
-            ...manifest,
-            downstream: [
-                { "type": "ELASTICSEARCH", "enabled": true, "fallback": "PRIMARY_SQL" },
-                { "type": "SNOWFLAKE", "enabled": false, "strategy": "CDC" }
-            ]
-        };
-        await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(manifestV2);
-        
+        await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(downstreamManifest(false)).expect(200);
         const registryCheckV2 = await pool.query(`SELECT status FROM fabric_system.downstream_registry WHERE tenant_id = $1 AND target_type = 'SNOWFLAKE'`, [testTenantId]);
         expect(registryCheckV2.rows[0].status).toBe('DISABLED');
+
+        const status = await request(app).get('/api/metadata/downstream').set('Authorization', `Bearer ${tenantToken}`);
+        expect(status.status).toBe(200);
+        expect(status.body.find((t: any) => t.target_type === 'SNOWFLAKE').status).toBe('DISABLED');
+    });
+
+    // Needs a real Elasticsearch (external infrastructure; override with ES_HOST / ES_PORT). Skipped with a reason when unreachable.
+    describeIfReachable('elasticsearch', ES.host, ES.port)('with Elasticsearch', () => {
+        it('Scenario: an Elasticsearch data source makes the ELASTICSEARCH downstream ACTIVE', async () => {
+            const reg = await request(app).post('/api/admin/connections').set('Authorization', `Bearer ${tenantToken}`)
+                .send({ name: 'Downstream_ES', config: { type: 'elasticsearch', host: ES.host, port: ES.port, syncType: 'VIRTUAL' } });
+            expect([200, 201]).toContain(reg.status);
+
+            const res = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(downstreamManifest(false));
+            expect(res.status).toBe(200);
+            const registryCheck = await pool.query(`SELECT status FROM fabric_system.downstream_registry WHERE tenant_id = $1 AND target_type = 'ELASTICSEARCH'`, [testTenantId]);
+            expect(registryCheck.rows[0].status).toBe('ACTIVE');
+        });
     });
 
     it('Scenario: Recursive Organizational Hierarchy View', async () => {

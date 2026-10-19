@@ -123,8 +123,7 @@ Manifest:
   (`parent_id IN (…)`) to fetch the next level until no new rows or a depth cap.
   This is the bind-join loop applied to recursion; each level is a bounded pushed
   query, so memory stays bounded. On MongoDB the same shape maps to a native
-  `$graphLookup`. (Complex single-source recursion on a SQL source still runs
-  natively via `/api/queries/exec`.)
+  `$graphLookup`. (Recursion is always expressed as AST: `query.with` / `query.recursive`.)
 - **Status**: designed; the iterative traversal module is the next build.
 
 ---

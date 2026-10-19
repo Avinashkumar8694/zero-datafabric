@@ -88,9 +88,19 @@ export class SavedAnalyticsService {
    */
   static async create(tenantId: string, username: string, a: SavedAnalytic): Promise<any> {
     await this.ensureTable();
-    const mode = a.mode === 'SQL' ? 'SQL' : 'AST';
+    if (a.mode === 'SQL' || a.sql !== undefined) { const e: any = new Error('SQL-mode analytics are not supported; provide an AST "config"'); e.status = 400; e.code = 'SQL_NOT_SUPPORTED'; throw e; }
+    const mode = 'AST';
+    {
+      // Plan/licence cap on saved analytics (re-saving an existing name is an update, not a new one).
+      const exists = (await pool.query('SELECT 1 FROM fabric_system.saved_analytics WHERE tenant_id=$1 AND name=$2', [tenantId, a.name])).rows.length > 0;
+      if (!exists) {
+        const n = parseInt((await pool.query('SELECT COUNT(*) AS n FROM fabric_system.saved_analytics WHERE tenant_id=$1', [tenantId])).rows[0].n, 10);
+        const { LimitsResolver, LimitError } = await import('../tenancy/limits.resolver');
+        try { await LimitsResolver.assertWithin(tenantId, 'max_saved_analytics', n, 'Saved analytics'); }
+        catch (err) { if (err instanceof LimitError) { const e: any = new Error(err.message); e.status = err.status; e.code = err.code; throw e; } throw err; }
+      }
+    }
     if (mode === 'AST' && !a.config) throw new Error('AST analytic requires a "config"');
-    if (mode === 'SQL' && !a.sql) throw new Error('SQL analytic requires a "sql" string');
     const definition = mode === 'AST' ? { config: a.config } : { sql: a.sql, source: a.source || null };
     const { rows } = await pool.query(
       `INSERT INTO fabric_system.saved_analytics (tenant_id, name, description, mode, definition, variables, created_by, updated_at)
@@ -229,9 +239,7 @@ export class SavedAnalyticsService {
   /**
    * Run a saved analytic with the supplied variable values. Returns the standard
    * query envelope (( data, rowCount, plan, warnings )) plus the bound variables.
-   * SQL-mode analytics targeting a named external source run through
-   * (@link QueryEngineService.executeSqlOnSource); SQL-mode analytics with no
-   * source (or the hub) run directly via `queryWithContext`; AST-mode
+   * Legacy SQL-mode analytics are refused (410 SQL_NOT_SUPPORTED); AST-mode
    * analytics bind their config and run through the full
    * (@link QueryEngineService.executeQuery) pipeline. Usage counters
    * (`run_count`/`last_run_at`) are bumped fire-and-forget after the result is
@@ -249,15 +257,9 @@ export class SavedAnalyticsService {
     const values = this.resolveValues(a.variables || [], provided || {});
     let result: any;
     if (a.mode === 'SQL') {
-      const sql = this.bindSql(a.definition?.sql || '', values);
-      const src = a.definition?.source;
-      if (src && src !== 'Fabric_Hub_Postgres') {
-        result = await QueryEngineService.executeSqlOnSource(tenantId, src, sql, [], undefined);
-      } else {
-        const { queryWithContext } = await import('../../config/database');
-        const r = await queryWithContext(sql, [], { tenantId, username: session?.username || 'system' });
-        result = { data: r.rows, rowCount: r.rowCount ?? (r.rows?.length || 0), plan: { strategy: 'SAVED_SQL' } };
-      }
+      const err: any = new Error('SQL-mode analytics are no longer supported. Re-create this analytic in AST mode.');
+      err.status = 410; err.code = 'SQL_NOT_SUPPORTED';
+      throw err;
     } else {
       const config = this.bindAst(a.definition?.config || {}, values);
       result = await QueryEngineService.executeQuery(tenantId, config, session);

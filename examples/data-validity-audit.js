@@ -16,10 +16,19 @@ async function run() {
   // 1. Fetch raw stock for CUST-5001 from Postgres Hub
   let pgStock = null;
   try {
-    const res = await axios.post(`${BASE_URL}/queries/exec`, {
-      sql: `SELECT stock FROM "tenant_tenant_A_Global_Supply_Chain"."local_inventory" WHERE sku = 'CUST-5001'`
+    const res = await axios.post(`${BASE_URL}/analytics/query`, {
+      queryConfig: {
+        type: 'SELECT',
+        schema: 'Global_Supply_Chain',
+        limit: 1,
+        query: {
+          select: ['stock'],
+          from: { resource: 'local_inventory', source: 'Fabric_Hub_Postgres' },
+          where: [{ column: 'sku', operator: 'EQ', value: 'CUST-5001' }]
+        }
+      }
     }, { headers });
-    pgStock = res.data.results?.[0]?.stock ?? res.data.results?.results?.[0]?.stock;
+    pgStock = res.data.data?.[0]?.stock;
     console.log(`[Source 1: Postgres] Raw stock for 'CUST-5001':`, pgStock);
   } catch (err) {
     console.error('Postgres raw fetch failed:', err.message);
@@ -28,12 +37,19 @@ async function run() {
   // 2. Fetch raw qty for CUST-5001 from Mongo via routed source execution
   let mongoQty = null;
   try {
-    const res = await axios.post(`${BASE_URL}/queries/exec`, {
-      source: 'Activity_Mongo',
-      sql: "SELECT qty FROM remote_depot_mongo WHERE item_id = 'CUST-5001'"
+    const res = await axios.post(`${BASE_URL}/analytics/query`, {
+      queryConfig: {
+        type: 'SELECT',
+        schema: 'Global_Supply_Chain',
+        limit: 1,
+        query: {
+          select: ['qty'],
+          from: { resource: 'remote_depot_mongo', source: 'Activity_Mongo' },
+          where: [{ column: 'item_id', operator: 'EQ', value: 'CUST-5001' }]
+        }
+      }
     }, { headers });
-    const rows = res.data.results || res.data.data || [];
-    mongoQty = rows[0]?.qty;
+    mongoQty = res.data.data?.[0]?.qty;
     console.log(`[Source 2: MongoDB] Raw qty for 'CUST-5001':`, mongoQty);
   } catch (err) {
     console.error('Mongo raw fetch failed:', err.message);

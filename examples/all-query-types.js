@@ -7,12 +7,14 @@ async function main() {
   const token = await login();
   const headers = authHeaders(token);
 
-  // SQL native
-  await call('SQL basic', () =>
-    axios.post(`${BASE_URL}/queries/exec`, { sql: 'SELECT 1 AS ok LIMIT 1' }, { headers }));
-
-  await call('SQL async dispatch', () =>
-    axios.post(`${BASE_URL}/queries/exec`, { sql: 'SELECT NOW() AS current_ts', async: true }, { headers }), { allowFail: true });
+  // AST -> SQL preview (nothing is executed; raw SQL execution is not supported)
+  await call('AST transpile preview', () =>
+    axios.post(`${BASE_URL}/queries/transpile`, {
+      type: 'SELECT',
+      schema: 'Global_Supply_Chain',
+      limit: 20,
+      query: { select: ['id', 'status'], from: { resource: 'shipments' } }
+    }, { headers }), { allowFail: true });
 
   // Manifest-style AST SELECT
   await call('AST SELECT manifest-style', () =>
@@ -84,14 +86,17 @@ async function main() {
       queryConfig: {
         type: 'SELECT',
         schema: 'Global_Supply_Chain',
-        table: 'employees',
-        withRecursive: {
-          name: 'org_tree',
-          baseQuery: 'SELECT id, manager_id, name, 1 as depth FROM "tenant_tenant_A_Global_Supply_Chain"."employees" WHERE manager_id IS NULL',
-          recursiveQuery: 'SELECT e.id, e.manager_id, e.name, t.depth + 1 FROM "tenant_tenant_A_Global_Supply_Chain"."employees" e INNER JOIN org_tree t ON e.manager_id = t.id'
-        },
-        select: ['*'],
-        limit: 50
+        query: {
+          from: { resource: 'employees' },
+          select: ['id', 'manager_id', 'name'],
+          recursive: {
+            resource: 'employees',
+            select: ['id', 'manager_id', 'name'],
+            connectBy: { parent: 'manager_id', child: 'id' },
+            direction: 'down',
+            maxDepth: 10
+          }
+        }
       }
     }, { headers }), { allowFail: true });
 

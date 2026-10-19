@@ -14,6 +14,8 @@
 import { MetadataManifest } from './types';
 import { pool } from '../../config/database';
 import axios from 'axios';
+import { physicalSchemaName } from './transpiler';
+import { quoteIdent } from '../../utils/identifiers';
 
 /**
  * Provisions and tracks a tenant's downstream sync targets declared in a manifest.
@@ -120,7 +122,7 @@ export class DownstreamService {
         for (const schema of manifest.schemas) {
             const sourceName = schema.targetSource || manifest.targetSource || 'Fabric_Hub_Postgres';
             const isLocalHub = sourceName === 'Fabric_Hub_Postgres';
-            const physicalSchema = `tenant_${tenantId}_${schema.name}`;
+            const physicalSchema = physicalSchemaName(tenantId, schema.name);
             for (const resource of schema.resources) {
                 if (resource.type === 'TABLE') {
                     const indexName = `${tenantId}_${schema.name}_${resource.name}`.toLowerCase();
@@ -252,9 +254,7 @@ export class DownstreamService {
      * @returns Row objects as returned by the driver.
      */
     private static async fetchTableRows(schemaName: string, tableName: string) {
-        const safeSchema = schemaName.replace(/[^a-zA-Z0-9_]/g, '');
-        const safeTable = tableName.replace(/[^a-zA-Z0-9_]/g, '');
-        const sql = `SELECT * FROM "${safeSchema}"."${safeTable}" LIMIT 10000`;
+        const sql = `SELECT * FROM ${quoteIdent(schemaName, 'schema')}.${quoteIdent(tableName, 'table')} LIMIT 10000`;
         const { rows } = await pool.query(sql);
         return rows;
     }

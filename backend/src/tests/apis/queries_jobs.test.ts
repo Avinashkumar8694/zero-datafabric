@@ -1,52 +1,58 @@
 import request from 'supertest';
 import { app } from '../../index';
-import { getAdminToken, cleanupTenant } from './test_helper';
+import { getAdminToken, cleanupTenant, createTenantViaApi, uniqueTenantId } from './test_helper';
 
-describe('Queries: Industrial Raw SQL Async Processing', () => {
-    let adminToken: string;
-    const ts = Date.now();
-    const testTenantId = `raw_job_test_${ts}`;
+describe('Queries: AST async job polling via /api/queries/jobs', () => {
     let tenantToken: string;
+    const testTenantId = uniqueTenantId('astjob');
 
     beforeAll(async () => {
-        adminToken = await getAdminToken();
-        await request(app).post('/api/admin/tenants').set('Authorization', `Bearer ${adminToken}`).send({ id: testTenantId, name: 'Raw Job' });
-        
-        const tokenRes = await request(app).post('/api/auth/token').set('Authorization', `Bearer ${adminToken}`).send({ tenantId: testTenantId });
-        tenantToken = tokenRes.body.token;
+        tenantToken = await createTenantViaApi(await getAdminToken(), testTenantId, 'AST Job');
+
+        const applied = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send({
+            version: '1.0',
+            schemas: [{ name: 'core', resources: [{ type: 'TABLE', name: 'job_items', columns: [{ name: 'id', type: 'SERIAL', primaryKey: true }, { name: 'n', type: 'INTEGER' }] }] }]
+        });
+        expect(applied.status).toBe(200);
+        await request(app).post('/api/data/create').set('Authorization', `Bearer ${tenantToken}`).send({ schema: 'core', resource: 'job_items', data: [{ n: 42 }] }).expect(200);
     });
 
     afterAll(async () => {
         await cleanupTenant(testTenantId);
     });
 
-    it('Success: Execute raw SQL in background and poll for results', async () => {
-        // 1. Dispatch
+    it('Success: dispatch an AST query asynchronously and poll for results', async () => {
         const dispatchRes = await request(app)
-            .post('/api/queries/exec')
+            .post('/api/analytics/query-async')
             .set('Authorization', `Bearer ${tenantToken}`)
-            .send({ sql: 'SELECT 42 as answer', async: true });
+            .send({ queryConfig: { type: 'SELECT', schema: 'core', table: 'job_items', select: ['n'], limit: 10 } });
 
         expect(dispatchRes.status).toBe(202);
-        const queryId = dispatchRes.body.queryId;
+        const jobId = dispatchRes.body.jobId;
+        expect(jobId).toBeDefined();
 
-        // 2. Poll
         let status = 'PENDING';
-        let result = null;
-        for (let i = 0; i < 5; i++) {
-            const res = await request(app)
-                .get(`/api/queries/jobs/${queryId}`)
-                .set('Authorization', `Bearer ${tenantToken}`);
-            
+        for (let i = 0; i < 20 && status !== 'COMPLETED'; i++) {
+            const res = await request(app).get(`/api/queries/jobs/${jobId}`).set('Authorization', `Bearer ${tenantToken}`);
             status = res.body.status;
-            if (status === 'COMPLETED') {
-                result = res.body.result;
-                break;
-            }
-            await new Promise(r => setTimeout(r, 100));
+            if (status !== 'COMPLETED') await new Promise(r => setTimeout(r, 100));
         }
-
         expect(status).toBe('COMPLETED');
-        expect(result.results[0].answer).toBe(42);
+    });
+
+    it('Not found: unknown job ids return 404 on both polling routes', async () => {
+        for (const path of ['/api/queries/jobs/does-not-exist', '/api/queries/status/does-not-exist']) {
+            const res = await request(app).get(path).set('Authorization', `Bearer ${tenantToken}`);
+            expect(res.status).toBe(404);
+        }
+    });
+
+    it('Rejected: SQL text is not accepted for async execution', async () => {
+        const res = await request(app)
+            .post('/api/analytics/query-async')
+            .set('Authorization', `Bearer ${tenantToken}`)
+            .send({ sql: 'SELECT 42 AS answer', async: true });
+        expect(res.status).toBe(400);
+        expect(res.body.code).toBe('SQL_NOT_SUPPORTED');
     });
 });

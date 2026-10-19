@@ -1,42 +1,37 @@
 <%- include('partials/header') %>
 
-<style>
-    .iam-layout-grid {
-        display: grid;
-        grid-template-columns: 1fr 2fr;
-        gap: 1.5rem;
-    }
-    @media (max-width: 960px) {
-        .iam-layout-grid {
-            grid-template-columns: 1fr;
-            gap: 1.25rem;
-        }
-    }
-</style>
+<div class="page fade-in">
+    <div class="page-head">
+        <div>
+            <h1 class="page-title">Identity</h1>
+            <p class="page-sub">Provision users, assign them to tenant zones and revoke access.</p>
+        </div>
+    </div>
 
-<div class="fade-in">
-    <div class="iam-layout-grid">
+    <div class="split side-left">
         <!-- User Creation -->
         <section class="glass-card">
             <h3 id="formTitle">Provision New Identity</h3>
-            <p class="text-muted" style="margin-bottom: 1.5rem;">Grant access to specific tenant zones.</p>
+            <p>Grant access to specific tenant zones.</p>
             <form id="iamForm">
                 <input type="hidden" id="editUserId">
-                <div class="form-group"><input type="text" id="iamUsername" placeholder="Username" required class="context-select" style="width:100%"></div>
-                <div class="form-group"><input type="password" id="iamPassword" placeholder="Password" class="context-select" style="width:100%"></div>
-                <div class="form-group">
-                    <select id="iamTenantId" class="context-select" required style="width:100%"></select>
+                <div class="field"><label for="iamUsername">Username</label><input type="text" id="iamUsername" placeholder="Username" required autocomplete="off"></div>
+                <div class="field"><label for="iamPassword">Password</label><input type="password" id="iamPassword" placeholder="Password" autocomplete="new-password"></div>
+                <div class="field">
+                    <label for="iamTenantId">Tenant</label>
+                    <select id="iamTenantId" required></select>
                 </div>
-                <div class="form-group">
-                    <select id="iamRole" class="context-select" style="width:100%">
+                <div class="field">
+                    <label for="iamRole">Role</label>
+                    <select id="iamRole">
                         <option value="USER">Standard User</option>
                         <option value="ADMIN">Administrator</option>
                     </select>
                 </div>
-                <button type="submit" id="submitBtn" class="btn-primary" style="width:100%">Create Identity</button>
-                <button type="button" id="cancelBtn" class="btn-outline" style="width:100%; margin-top: 0.5rem; display: none;">Cancel Edit</button>
+                <button type="submit" id="submitBtn" class="btn-primary btn-block">Create Identity</button>
+                <button type="button" id="cancelBtn" class="btn-outline btn-block mt-1" style="display: none;">Cancel Edit</button>
             </form>
-            <div id="iamStatus" style="margin-top: 1rem;"></div>
+            <div id="iamStatus" class="form-status" role="status" aria-live="polite"></div>
         </section>
 
         <!-- Identity Directory -->
@@ -54,7 +49,7 @@
                         </tr>
                     </thead>
                     <tbody id="iamBody">
-                        <tr><td colspan="5">Loading directory...</td></tr>
+                        <tr><td colspan="5" class="state-cell">Loading directory...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -82,21 +77,21 @@
                 headers: getAuthHeaders()
             });
             const data = await response.json();
-            if (!Array.isArray(data)) { body.innerHTML = '<tr><td colspan="5">Unable to load identities.</td></tr>'; return; }
+            if (!Array.isArray(data)) { body.innerHTML = '<tr><td colspan="5" class="state-cell">Unable to load identities.</td></tr>'; return; }
             body.innerHTML = data.map(u => `
                 <tr class="fade-in">
                     <td><strong>${escapeHtml(u.username)}</strong></td>
-                    <td><span class="badge-sync">${escapeHtml(u.tenant_id)}</span></td>
+                    <td><span class="badge badge-sync">${escapeHtml(u.tenant_id)}</span></td>
                     <td>${escapeHtml(u.role)}</td>
-                    <td><span class="dot-online"></span> ${escapeHtml(u.status)}</td>
-                    <td style="display: flex; gap: 0.5rem;">
-                        <button onclick="editUser('${escapeJs(u.id)}', '${escapeJs(u.username)}', '${escapeJs(u.tenant_id)}', '${escapeJs(u.role)}')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">Edit</button>
-                        <button onclick="deleteUser('${escapeJs(u.id)}')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; color: var(--danger);">Revoke</button>
-                    </td>
+                    <td><span class="dot"></span> ${escapeHtml(u.status)}</td>
+                    <td><div class="row-actions">
+                        <button onclick="editUser('${escapeJs(u.id)}', '${escapeJs(u.username)}', '${escapeJs(u.tenant_id)}', '${escapeJs(u.role)}')" class="btn-outline btn-sm">Edit</button>
+                        <button onclick="deleteUser('${escapeJs(u.id)}')" class="btn-outline btn-sm btn-danger">Revoke</button>
+                    </div></td>
                 </tr>
             `).join('');
         } catch (err) {
-            body.innerHTML = '<tr><td colspan="5">Unauthorized access</td></tr>';
+            body.innerHTML = '<tr><td colspan="5" class="state-cell">Unauthorized access</td></tr>';
         }
     }
 

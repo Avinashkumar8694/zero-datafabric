@@ -11,6 +11,24 @@ import jwt from 'jsonwebtoken';
 import { TenantService } from '../modules/tenant/tenant.service';
 import { pool } from '../config/database';
 import crypto from 'crypto';
+import { assertTenantId } from '../utils/identifiers';
+import { TenantIdOverlapError } from '../utils/tenantScope';
+
+/**
+ * Derives the workspace id for a first-time SSO user. It must satisfy assertTenantId (letters/digits/underscore,
+ * starting with a letter, max 41 chars): long email-derived ids are shortened and made unique with a hash suffix.
+ * `forceHash` yields a purely hash-based id (used when the readable id overlaps another tenant id).
+ */
+export function ssoTenantId(email: string, forceHash = false): string {
+  const parts = email.split('@');
+  const usernamePart = (parts[0] || 'user').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+  const domainPart   = (parts[1] || '').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+  const readable = `t_${usernamePart}_${domainPart}`;
+  const hash = crypto.createHash('sha256').update(email.toLowerCase()).digest('hex');
+  if (forceHash) return `t_${hash.slice(0, 16)}`;
+  if (/^[A-Za-z][A-Za-z0-9_]{1,40}$/.test(readable)) return readable;
+  return `t_${readable.slice(2, 22).replace(/_+$/, '')}_${hash.slice(0, 8)}`.slice(0, 41);
+}
 
 const IDS_BASE     = process.env.IDS_BASE_URL      || 'https://ids.fabrixly.com';
 const API_BASE     = process.env.API_BASE_URL       || 'http://localhost:4000';
@@ -258,10 +276,7 @@ export const ssoCallback = async (req: Request, res: Response) => {
       let role     = 'ADMIN';
 
       if (!isAdminEmail) {
-        const parts = userEmail.split('@');
-        const usernamePart = (parts[0] || 'user').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-        const domainPart   = (parts[1] || '').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-        tenantId = `t_${usernamePart}_${domainPart}`;
+        tenantId = ssoTenantId(userEmail);
         role     = 'USER';
 
         // Create user first (without tenant binding)
@@ -283,18 +298,24 @@ export const ssoCallback = async (req: Request, res: Response) => {
           console.error(`[SSO] Subscription error:`, subErr.message);
         }
 
-        // Create tenant namespace if needed, linked to the user
+        // Create tenant namespace if needed, linked to the user (owner). Tenant id rules (syntax + no-overlap) are enforced
+        // by TenantService.createTenant; a readable id that overlaps another tenant falls back to a hash-based id.
         const tenantRow = await pool.query('SELECT id FROM public.tenants WHERE id = $1', [tenantId]);
         if (tenantRow.rows.length === 0) {
           try {
-            await TenantService.createTenant(tenantId, `${userEmail} Workspace`, 'trial');
+            assertTenantId(tenantId);
+            try {
+              await TenantService.createTenant(tenantId, `${userEmail} Workspace`, 'trial', newUser.id);
+            } catch (tErr: any) {
+              if (!(tErr instanceof TenantIdOverlapError)) throw tErr;
+              tenantId = ssoTenantId(userEmail, true);
+              await TenantService.createTenant(tenantId, `${userEmail} Workspace`, 'trial', newUser.id);
+            }
             console.log(`[SSO] Auto-provisioned tenant: ${tenantId}`);
           } catch (tErr: any) {
+            // No raw-INSERT fallback: it would bypass the tenant-id rules and leave a tenant without a namespace.
             console.error(`[SSO] Tenant create error:`, tErr.message);
-            await pool.query(
-              "INSERT INTO public.tenants (id, name, tier, user_id) VALUES ($1, $2, 'trial', $3) ON CONFLICT DO NOTHING",
-              [tenantId, `${userEmail} Workspace`, newUser.id]
-            );
+            throw new Error(`Could not provision your workspace: ${tErr.message}`);
           }
         }
 

@@ -19,6 +19,7 @@
  * the right connector instance for a data source's engine `type`.
  */
 import { Pool } from 'pg';
+import { assertSourceTargetsAllowed } from '../../integration/net_guard';
 import * as mysql from 'mysql2/promise';
 import { MongoClient, ObjectId } from 'mongodb';
 import { PushdownCompiler, CanonicalQuery } from '../../query-engine/pushdown';
@@ -1458,6 +1459,11 @@ export class ConnectorFactory {
      * @throws {Error} If `type` doesn't match any supported engine.
      */
     static getConnector(type: string, config: any): IConnector {
+        // Single choke point for outbound source connections: never link-local/metadata; never the platform hub unless the
+        // operator opted in (ALLOW_HUB_SOURCE=true); loopback/private unless ALLOW_PRIVATE_SOURCES=false.
+        if (config && typeof config === 'object' && !config.local) {
+            assertSourceTargetsAllowed(config, { isPlatformAdmin: process.env.ALLOW_HUB_SOURCE === 'true' });
+        }
         switch (type.toUpperCase()) {
             case 'POSTGRES':
             case 'POSTGRESQL':

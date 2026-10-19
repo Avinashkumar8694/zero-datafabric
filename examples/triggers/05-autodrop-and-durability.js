@@ -8,17 +8,14 @@
  * or expiring triggers.
  *
  * Durability: every fired action becomes a row in public.trigger_jobs (a
- * Postgres-backed queue) BEFORE any delivery is attempted. Because the queue is
- * persisted, stopping the trigger-engine loses nothing — pending jobs simply
- * wait, and the worker drains them when it comes back (store-and-forward). This
- * script demonstrates the durable path: a job enqueued with a near-future
- * run_at stays PENDING, then transitions to COMPLETED once the worker picks it
- * up and writes its audit row.
+ * Postgres-backed queue, visible via GET /api/triggers/jobs/list) BEFORE any
+ * delivery is attempted. Because the queue is persisted, stopping the
+ * trigger-engine loses nothing — pending jobs wait and the worker drains them
+ * when it comes back (store-and-forward). See 03/06 for queued future jobs.
  */
-const { login, banner, authHeaders, BASE_URL } = require('../_client');
-const axios = require('axios');
+const { login, banner } = require('../_client');
 const {
-  applyManifest, upsertTrigger, deploy, waitForDrain, insertRow, selectSql, sleep
+  applyManifest, upsertTrigger, deploy, waitForDrain, insertRow, triggerRegistered, sleep
 } = require('./_lib');
 
 const LOGICAL = 'Trg_AutoDrop_Lab';
@@ -26,9 +23,8 @@ const PHYSICAL = 'tenant_tenant_A_Trg_AutoDrop_Lab';
 const TABLE = 'tickets';
 
 async function triggerExists(token, name) {
-  const rows = await selectSql(token,
-    `SELECT count(*)::int AS n FROM pg_trigger WHERE tgname = '${name}' AND NOT tgisinternal`);
-  return Number(rows[0]?.n || 0) > 0;
+  // autoDrop drops the native trigger AND removes its registry row.
+  return triggerRegistered(token, name);
 }
 
 async function run() {
@@ -72,26 +68,9 @@ async function run() {
   const gone = !(await triggerExists(token, 'trg_ticket_oneshot'));
   console.log(`${gone ? 'PASS' : 'FAIL'} autoDrop removed the trigger after the CLOSED row`);
 
-  // ---- durability: enqueue with a near-future run_at, watch it drain ----
-  const runAt = new Date(Date.now() + 3000).toISOString();
-  const tag = `durable-${Date.now()}`;
-  await axios.post(`${BASE_URL}/queries/exec`, {
-    sql: `INSERT INTO public.trigger_jobs (tenant_id, trigger_id, job_type, payload, status, run_at, max_attempts, created_by)
-          VALUES ('tenant_A', NULL, 'EXECUTE_TRIGGER_ACTION',
-            '{"triggerName":"${tag}","event":"AFTER_INSERT","actionType":"AUDIT","tableName":"${TABLE}","schemaName":"${PHYSICAL}","newRow":{"id":"${tag}"}}',
-            'PENDING', '${runAt}', 3, 'examples')`
-  }, { headers: authHeaders(token) });
-
-  const pending = await selectSql(token,
-    `SELECT status, run_at FROM public.trigger_jobs WHERE payload->>'triggerName' = '${tag}'`);
-  console.log(`durable job persisted PENDING with future run_at:`, pending[0]);
-  console.log('(If the trigger-engine were stopped now, this row would simply wait — nothing is lost.)');
-
-  await waitForDrain(token, 12);
-  await sleep(500);
-  const done = await selectSql(token,
-    `SELECT status FROM public.trigger_jobs WHERE payload->>'triggerName' = '${tag}'`);
-  console.log(`durable job final status: ${done[0]?.status} (${done[0]?.status === 'COMPLETED' ? 'PASS' : 'check worker'})`);
+  // Durable delivery: every action is a row in the trigger_jobs queue (see
+  // GET /api/triggers/jobs/list); a stopped trigger-engine simply lets jobs wait.
+  // 03-relative-schedule.js and 06-declarative-and-dsl.js show queued jobs with future run_at.
 
   if (!gone) process.exitCode = 1;
 }

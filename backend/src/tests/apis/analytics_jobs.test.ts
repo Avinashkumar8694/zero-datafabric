@@ -1,11 +1,11 @@
 import request from 'supertest';
 import { app } from '../../index';
-import { getAdminToken, cleanupTenant } from './test_helper';
+import { getAdminToken, cleanupTenant, uniqueTenantId } from './test_helper';
 
 describe('GET /api/analytics/jobs/:jobId', () => {
     let adminToken: string;
     let jobId: string;
-    const testTenantId = 'analytics_jobs_tenant';
+    const testTenantId = uniqueTenantId('ajob');
 
     beforeAll(async () => {
         adminToken = await getAdminToken();
@@ -14,14 +14,17 @@ describe('GET /api/analytics/jobs/:jobId', () => {
         const tokenRes = await request(app).post('/api/auth/token').set('Authorization', `Bearer ${adminToken}`).send({ tenantId: testTenantId });
         const scopedToken = tokenRes.body.token;
 
-        await request(app).post('/api/queries/exec').set('Authorization', `Bearer ${scopedToken}`).send({
-            sql: `CREATE TABLE IF NOT EXISTS "tenant_${testTenantId}"."jobs_test" (id SERIAL)`
+        const applied = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${scopedToken}`).send({
+            version: '1.0',
+            schemas: [{ name: 'core', resources: [{ type: 'TABLE', name: 'jobs_test', columns: [{ name: 'id', type: 'SERIAL', primaryKey: true }] }] }]
         });
+        expect(applied.status).toBe(200);
 
         const res = await request(app)
             .post('/api/analytics/query-async')
             .set('Authorization', `Bearer ${scopedToken}`)
-            .send({ queryConfig: { type: 'SELECT', table: 'jobs_test', limit: 1 } });
+            .send({ queryConfig: { type: 'SELECT', schema: 'core', table: 'jobs_test', limit: 1 } });
+        expect(res.status).toBe(202);
         jobId = res.body.jobId;
     });
 

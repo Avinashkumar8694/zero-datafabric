@@ -24,8 +24,17 @@
  * authored here can inject SQL.
  */
 
+import { assertIdent, belongsToTenant, quoteIdent } from '../../utils/identifiers';
+import { assertSafeWebhookUrl } from '../integration/net_guard';
+
 /** Compilation context: the schema/table the trigger is attached to and the trigger's own name. */
-type CompileCtx = { schemaName: string; tableName: string; triggerName: string };
+type CompileCtx = {
+  schemaName: string; tableName: string; triggerName: string;
+  /** when set, dotted `schema.name` references must belong to this tenant */
+  tenantId?: string;
+  /** raw `action.sql` is only compiled when true (platform admin / explicitly allowed owner) */
+  allowFreeSql?: boolean;
+};
 
 export interface CompiledTrigger {
   /** DDL statements: optional CREATE FUNCTION, then DROP/CREATE TRIGGER. */
@@ -48,30 +57,33 @@ const OP_MAP: Record<string, string> = {
  */
 export class TriggerActionCompiler {
   /**
-   * Strip a string to a bare SQL identifier ([A-Za-z0-9_]) — the core
-   * defense against SQL injection through user-authored names (trigger,
-   * table, column, function names).
+   * Validate a bare SQL identifier ([A-Za-z_][A-Za-z0-9_]{0,62}); empty/nullish input yields ''.
+   * Anything else THROWS (it used to be silently stripped, which could turn `a.b` into a different valid name).
    * @param s - The raw candidate identifier.
-   * @returns The sanitized identifier (may be an empty string if nothing valid remained).
+   * @returns The identifier unchanged, or '' when nothing was supplied.
    */
   static ident(s: any): string {
-    return String(s || '').replace(/[^a-zA-Z0-9_]/g, '');
+    if (s === null || s === undefined || s === '') return '';
+    return assertIdent(s, 'identifier');
   }
 
   /**
    * Quote a single identifier, or a `schema.table` pair, defaulting bare
-   * names to `defaultSchema`.
+   * names to `defaultSchema`. A qualified name must stay inside the caller's tenant when `tenantId` is known.
    * @param name - A bare identifier, or a `schema.table` dotted pair.
    * @param defaultSchema - Schema to qualify `name` with when it has no dot.
+   * @param tenantId - Tenant the trigger belongs to (confinement of dotted references).
    * @returns A double-quoted, schema-qualified SQL identifier, e.g. `"schema"."table"`.
    */
-  static qualify(name: any, defaultSchema: string): string {
+  static qualify(name: any, defaultSchema: string, tenantId?: string): string {
     const raw = String(name || '').trim();
     if (raw.includes('.')) {
-      const [s, t] = raw.split('.');
-      return `"${this.ident(s)}"."${this.ident(t)}"`;
+      const parts = raw.split('.');
+      if (parts.length !== 2) throw new Error(`Invalid qualified name "${raw.slice(0, 40)}"`);
+      if (!tenantId || !belongsToTenant(assertIdent(parts[0], 'schema'), tenantId)) throw new Error(`Qualified name "${raw.slice(0, 60)}" is outside the workspace`);
+      return `${quoteIdent(parts[0], 'schema')}.${quoteIdent(parts[1], 'name')}`;
     }
-    return `"${this.ident(defaultSchema)}"."${this.ident(raw)}"`;
+    return `${quoteIdent(defaultSchema, 'schema')}.${quoteIdent(raw, 'name')}`;
   }
 
   /**
@@ -124,7 +136,7 @@ export class TriggerActionCompiler {
    * @returns The message with embedded single quotes escaped (doubled).
    */
   private static msg(m: any, fallback: string): string {
-    return String(m || fallback).replace(/'/g, "''");
+    return String(m || fallback).replace(/\0/g, '').replace(/'/g, "''").replace(/%/g, '%%');
   }
 
   /**
@@ -140,32 +152,34 @@ export class TriggerActionCompiler {
    */
   static compileActionBody(action: any, ctx: CompileCtx): string {
     if (action?.sql) {
-      // Raw single-statement escape hatch. Trusted (manifest-authored); trailing
-      // semicolons stripped so we always emit exactly one statement.
-      return `${String(action.sql).trim().replace(/;+\s*$/, '')};`;
+      // Raw single-statement escape hatch: free-form SQL, only for platform admins / explicitly allowed owners.
+      if (!ctx.allowFreeSql) throw Object.assign(new Error('FREE_SQL_NOT_ALLOWED: action.sql is free-form SQL, which is not allowed for this account'), { code: 'FREE_SQL_NOT_ALLOWED', status: 400 });
+      const raw = String(action.sql).trim().replace(/;+\s*$/, '');
+      if (!raw || raw.includes(';') || raw.includes('\0') || /\$[A-Za-z0-9_]*\$/.test(raw) || /--|\/\*/.test(raw)) throw new Error('action.sql must be a single statement without comments or dollar quoting');
+      return `${raw};`;
     }
     const type = String(action?.type || '').toUpperCase();
     switch (type) {
       case 'INSERT': {
-        const target = this.qualify(action.into || action.table, ctx.schemaName);
+        const target = this.qualify(action.into || action.table, ctx.schemaName, ctx.tenantId);
         const values = action.values || {};
         const cols = Object.keys(values);
         if (!cols.length) throw new Error('INSERT action requires values');
-        const colList = cols.map((c) => `"${this.ident(c)}"`).join(', ');
+        const colList = cols.map((c) => quoteIdent(c, 'column')).join(', ');
         const valList = cols.map((c) => this.expr(values[c])).join(', ');
         return `INSERT INTO ${target} (${colList}) VALUES (${valList});`;
       }
       case 'UPDATE': {
-        const target = this.qualify(action.table || action.into, ctx.schemaName);
+        const target = this.qualify(action.table || action.into, ctx.schemaName, ctx.tenantId);
         const set = action.set || {};
         const cols = Object.keys(set);
         if (!cols.length) throw new Error('UPDATE action requires set');
         if (!action.where) throw new Error('UPDATE action requires where (refusing full-table update)');
-        const setList = cols.map((c) => `"${this.ident(c)}" = ${this.expr(set[c])}`).join(', ');
+        const setList = cols.map((c) => `${quoteIdent(c, 'column')} = ${this.expr(set[c])}`).join(', ');
         return `UPDATE ${target} SET ${setList} WHERE ${this.condition(action.where)};`;
       }
       case 'DELETE': {
-        const target = this.qualify(action.from || action.table, ctx.schemaName);
+        const target = this.qualify(action.from || action.table, ctx.schemaName, ctx.tenantId);
         if (!action.where) throw new Error('DELETE action requires where (refusing full-table delete)');
         return `DELETE FROM ${target} WHERE ${this.condition(action.where)};`;
       }
@@ -177,7 +191,7 @@ export class TriggerActionCompiler {
       }
       case 'PERFORM':
       case 'FUNCTION': {
-        const fn = this.qualify(action.function || action.name, ctx.schemaName);
+        const fn = this.qualify(action.function || action.name, ctx.schemaName, ctx.tenantId);
         const args = Array.isArray(action.args) ? action.args.map((a: any) => this.expr(a)).join(', ') : '';
         return `PERFORM ${fn}(${args});`;
       }
@@ -216,9 +230,13 @@ export class TriggerActionCompiler {
    */
   static compileEnqueueBody(trigger: any, ctx: CompileCtx): string {
     const type = String(trigger.execute?.type || '').toUpperCase();
-    const executeJson = JSON.stringify(trigger.execute || {}).replace(/'/g, "''");
-    const scheduleJson = trigger.schedule ? `'${JSON.stringify(trigger.schedule).replace(/'/g, "''")}'::jsonb` : 'NULL';
-    const maxAttempts = Math.max(1, Number(trigger.schedule?.maxAttempts || 5));
+    if (trigger.execute?.url != null) assertSafeWebhookUrl(trigger.execute.url);
+    if (trigger.execute?.auth?.tokenEndpoint != null) assertSafeWebhookUrl(trigger.execute.auth.tokenEndpoint);
+    const schemaId = assertIdent(ctx.schemaName, 'schema');
+    const tableId = assertIdent(ctx.tableName, 'table');
+    const executeJson = JSON.stringify(trigger.execute || {}).replace(/\0/g, '').replace(/'/g, "''");
+    const scheduleJson = trigger.schedule ? `'${JSON.stringify(trigger.schedule).replace(/\0/g, '').replace(/'/g, "''")}'::jsonb` : 'NULL';
+    const maxAttempts = Math.min(20, Math.max(1, Math.floor(Number(trigger.schedule?.maxAttempts || 5)) || 5));
     const eventName = this.ident(trigger.event || (Array.isArray(trigger.events) ? trigger.events[0] : 'INSERT')).toUpperCase();
     return `
       INSERT INTO public.trigger_jobs (tenant_id, trigger_id, job_type, payload, status, run_at, max_attempts, created_by)
@@ -228,8 +246,8 @@ export class TriggerActionCompiler {
           'triggerName', '${this.ident(ctx.triggerName)}',
           'event', '${eventName}',
           'actionType', '${type}',
-          'tableName', '${ctx.tableName}',
-          'schemaName', '${ctx.schemaName}',
+          'tableName', '${tableId}',
+          'schemaName', '${schemaId}',
           'newRow', row_to_json(NEW),
           'oldRow', row_to_json(OLD),
           'execute', '${executeJson}'::jsonb,
@@ -254,7 +272,7 @@ export class TriggerActionCompiler {
         // Sugar for the built-in SECURITY DEFINER audit primitive.
         return { procedure: 'audit_log_fn' };
       case 'FUNCTION':
-        return { body: `PERFORM ${this.qualify(trigger.execute.name, ctx.schemaName)}();` };
+        return { body: `PERFORM ${this.qualify(trigger.execute.name, ctx.schemaName, ctx.tenantId)}();` };
       case 'EXCEPTION':
         return { body: this.compileActionBody({ type: 'RAISE', when: trigger.execute.when, message: trigger.execute.message }, ctx) };
       case 'WEBHOOK':
@@ -285,7 +303,8 @@ export class TriggerActionCompiler {
       : this.timingFromEvent(trigger.event) || 'AFTER';
     const events = this.normalizeEvents(trigger);
     const level = String(trigger.execution || trigger.forEach || trigger.scope || 'row').toLowerCase() === 'statement' ? 'STATEMENT' : 'ROW';
-    const table = `"${this.ident(ctx.schemaName)}"."${this.ident(ctx.tableName)}"`;
+    if (!name) throw new Error('trigger name is required');
+    const table = `${quoteIdent(ctx.schemaName, 'schema')}.${quoteIdent(ctx.tableName, 'table')}`;
 
     // Resolve to either a procedure reference or a compiled body.
     let procedure: string | undefined;
@@ -310,20 +329,21 @@ export class TriggerActionCompiler {
     let procRef: string;
     if (procedure) {
       procRef = procedure.includes('.')
-        ? procedure.split('.').map((p) => `"${this.ident(p)}"`).join('.')
-        : `public."${this.ident(procedure)}"`;
+        ? this.qualify(procedure, ctx.schemaName, ctx.tenantId)
+        : `public.${quoteIdent(procedure, 'procedure')}`;
     } else {
       // Generate a dedicated trigger function that runs the compiled body.
       const fnName = `${name}_fn`;
-      procRef = `"${this.ident(ctx.schemaName)}"."${fnName}"`;
+      if (/\$DFTRG\$/.test(String(body))) throw new Error('trigger body must not contain the $DFTRG$ delimiter');
+      procRef = `${quoteIdent(ctx.schemaName, 'schema')}.${quoteIdent(fnName, 'function')}`;
       statements.push(
         `CREATE OR REPLACE FUNCTION ${procRef}() RETURNS TRIGGER AS $DFTRG$\n` +
         `BEGIN\n  ${body}\n  RETURN COALESCE(NEW, OLD);\nEND;\n$DFTRG$ LANGUAGE plpgsql${securityDefiner ? ' SECURITY DEFINER' : ''}`
       );
     }
 
-    statements.push(`DROP TRIGGER IF EXISTS "${name}" ON ${table}`);
-    statements.push(`CREATE TRIGGER "${name}" ${timing} ${events} ON ${table} FOR EACH ${level} EXECUTE FUNCTION ${procRef}()`);
+    statements.push(`DROP TRIGGER IF EXISTS ${quoteIdent(name, 'trigger')} ON ${table}`);
+    statements.push(`CREATE TRIGGER ${quoteIdent(name, 'trigger')} ${timing} ${events} ON ${table} FOR EACH ${level} EXECUTE FUNCTION ${procRef}()`);
     return { statements };
   }
 

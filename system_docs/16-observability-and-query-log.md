@@ -38,9 +38,9 @@ message) and then re-thrown to the caller.
 | Field | Source | Meaning |
 |-------|--------|---------|
 | `tenant_id`, `username`, `role` | session | who ran it (role reflects `x-act-as-role` when impersonating) |
-| `api`, `mode` | meta | endpoint path + coarse category (`FETCH`, `CRUD_CREATE/UPDATE/DELETE`, `CALL`, `SELECT_SQL`, `SQL_ON_SOURCE`, `SEQUENCE`, `SAVED_ANALYTIC`, …) |
+| `api`, `mode` | meta | endpoint path + coarse category (`FETCH`, `CRUD_CREATE/UPDATE/DELETE`, `CALL`, `SELECT_SQL`, `SEQUENCE`, `SAVED_ANALYTIC`, …) |
 | `source` | request body | named source targeted (if any) |
-| `strategy` | `plan.strategy` | `SINGLE_LOCAL` / `SINGLE_CONNECTOR` / `CROSS_ENGINE` / `RECURSIVE_IN_FABRIC(+…)` / `RAW_SQL` / `FUNCTION_CALL` … |
+| `strategy` | `plan.strategy` | `SINGLE_LOCAL` / `SINGLE_CONNECTOR` / `CROSS_ENGINE` / `RECURSIVE_IN_FABRIC(+…)` / `FUNCTION_CALL` … |
 | `status`, `error` | wrapper | `SUCCESS` / `ERROR` (+ message) |
 | `query_text` | meta | the SQL string or stringified AST/config (truncated at 20 000 chars) |
 | `row_count` | `envelope.rowCount` or `data.length` | rows returned to the caller |
@@ -65,7 +65,7 @@ spec is copy-pasteable from a log entry recorded days ago.
 
 `operation` values include `scan`, `aggregate`, `join-driving`, `bind-join`,
 `join-probe`, `partial-aggregate`, `union/intersect/except-leg`, `single-sql`,
-`raw-sql`, `call-function`/`call-procedure`, `create`/`update`/`delete`.
+`call-function`/`call-procedure`, `create`/`update`/`delete`.
 
 ## The audit UI & API
 

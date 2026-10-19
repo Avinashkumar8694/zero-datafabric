@@ -10,24 +10,23 @@ describe('Metadata: Industrial Template Validation', () => {
             .set('Authorization', `Bearer ${token}`);
         
         expect(res.status).toBe(200);
-        expect(res.body.version).toBe("10.0");
-        expect(res.body).toHaveProperty('description');
-        
-        // Check for essential structural blocks
-        expect(res.body.schemas).toBeDefined();
-        const coreSchema = res.body.schemas.find((s: any) => s.name === 'enterprise_core');
-        expect(coreSchema).toBeDefined();
-        
-        // Verify sequences are included
-        expect(coreSchema.sequences).toBeDefined();
-        expect(coreSchema.sequences[0].name).toBe('global_tx_seq');
+        expect(res.body.version).toBe('4.0');
 
-        // Verify tables and columns
-        const usersTable = coreSchema.tables.find((t: any) => t.name === 'users');
-        expect(usersTable).toBeDefined();
-        expect(usersTable.columns.length).toBeGreaterThan(0);
-        
-        // Verify indexes
-        expect(usersTable.indexes).toBeDefined();
+        // The template is the flat v4.0 shape: a root-level `resources` list (the parser lifts it into `schemas`).
+        const resources: any[] = res.body.resources;
+        expect(Array.isArray(resources)).toBe(true);
+        const byName = (n: string) => resources.find((r: any) => r.name === n);
+
+        expect(byName('shipment_status').type).toBe('ENUM');
+        expect(byName('tracking_seq').type).toBe('SEQUENCE');
+        expect(byName('generate_custom_id').type).toBe('FUNCTION');
+
+        const shipments = byName('shipments');
+        expect(shipments.type).toBe('TABLE');
+        expect(shipments.columns.length).toBeGreaterThan(0);
+        expect(shipments.constraints).toBeDefined();
+        expect(shipments.triggers).toBeDefined();
+        expect(resources.some((r: any) => r.type === 'MATERIALIZED_VIEW')).toBe(true);
+        expect(Array.isArray(res.body.relationships)).toBe(true);
     });
 });

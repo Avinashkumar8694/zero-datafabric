@@ -122,9 +122,11 @@ function partitionKey(row: any, cols: string[]): string {
  * @returns a comparator suitable for `Array.prototype.sort`.
  */
 function comparator(orderBy: { column: string; direction: 'ASC' | 'DESC' }[]) {
+  // NUMERIC / BIGINT arrive as strings ("5.00" vs "10.00"): compare numerically when both sides are numeric strings.
+  const asNum = (v: any) => (typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v.trim()) ? Number(v) : v);
   return (a: any, b: any) => {
     for (const o of orderBy) {
-      const av = readCol(a, o.column), bv = readCol(b, o.column);
+      const av = asNum(readCol(a, o.column)), bv = asNum(readCol(b, o.column));
       if (av < bv) return o.direction === 'DESC' ? 1 : -1;
       if (av > bv) return o.direction === 'DESC' ? -1 : 1;
     }
@@ -161,7 +163,7 @@ export function applyWindows(rows: any[], specs: WindowSpec[]): any[] {
       if (RANKING.has(spec.fn)) {
         let rank = 0, dense = 0, prevKey: string | null = null;
         part.forEach((r, i) => {
-          const key = JSON.stringify(spec.orderBy.map((o) => readCol(r, o.column) ?? null));
+          const key = JSON.stringify(spec.orderBy.map((o) => { const v = readCol(r, o.column) ?? null; return typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v.trim()) ? Number(v) : v; }));
           if (key !== prevKey) { dense++; rank = i + 1; prevKey = key; }
           r[spec.alias] = spec.fn === 'ROW_NUMBER' ? i + 1 : spec.fn === 'DENSE_RANK' ? dense : rank;
         });

@@ -1,4 +1,5 @@
 import { pool } from '../config/database';
+import { isUuid, NotFoundError } from '../utils/tenantScope';
 
 export const createTenant = async (tenantName: string) => {
   const tenantId = tenantName.toLowerCase().replace(/[^a-z0-9]/g, '_');
@@ -25,11 +26,17 @@ export const createConnection = async (data: any) => {
   return { message: 'Virtual Data Source Connected Successfully' };
 };
 
-export const disconnectSource = async (sourceId: string, status: string) => {
-  await pool.query(
-    'UPDATE data_sources SET status = $1 WHERE id = $2',
-    [status, sourceId]
+/**
+ * Updates the status of a source of THIS tenant. A source id that does not belong to `tenantId` is
+ * indistinguishable from an unknown id (NotFoundError -> 404).
+ */
+export const disconnectSource = async (sourceId: string, status: string, tenantId: string) => {
+  if (!isUuid(sourceId)) throw new NotFoundError('Source not found');
+  const { rowCount } = await pool.query(
+    'UPDATE public.data_sources SET status = $1 WHERE id = $2 AND tenant_id = $3',
+    [status, sourceId, tenantId]
   );
+  if (!rowCount) throw new NotFoundError('Source not found');
   return { message: `Source status updated to ${status}` };
 };
 

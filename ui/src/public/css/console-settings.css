@@ -1,0 +1,169 @@
+/* Workspace settings (/settings) and System (/system) pages.
+   Built only on the console theme tokens from style.css, so dark/light both work. Tabs and wk-* helpers live in settings-extra.css. */
+.ws-page { max-width: 1100px; margin: 0 auto; min-width: 0; }
+.ws-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.ws-title { font-size: clamp(1.4rem, 4vw, 2rem); font-weight: 800; letter-spacing: -.02em; line-height: 1.2; }
+.ws-sub { color: var(--text-muted); font-size: .92rem; margin-top: .25rem; max-width: 62ch; }
+.ws-head-badges { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+.ws-page .st-tabs { margin-bottom: 1.25rem; }
+.ws-page .st-panel > .ws-card:last-child { margin-bottom: 0; }
+
+.ws-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem; min-width: 0; }
+.ws-card > h3, .ws-card-head h3 { font-size: 1.05rem; font-weight: 700; display: flex; align-items: center; gap: .5rem; margin-bottom: .25rem; }
+.ws-card > h3 i, .ws-card-head h3 i { color: var(--accent-text); }
+.ws-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; flex-wrap: wrap; margin-bottom: .75rem; }
+.ws-card-desc { color: var(--text-muted); font-size: .85rem; margin-bottom: 1rem; max-width: 70ch; }
+.ws-muted { color: var(--text-muted); }
+.ws-small { font-size: .8rem; }
+.ws-mono { font-family: var(--mono); font-size: .8rem; overflow-wrap: anywhere; }
+.ws-danger { color: var(--danger); }
+.ws-link-danger { color: var(--danger) !important; }
+
+.ws-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: .75rem; margin-bottom: 1rem; }
+.ws-stat { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; min-width: 0; display: flex; flex-direction: column; gap: .3rem; }
+.ws-stat-label { color: var(--text-muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+.ws-stat-value { font-size: 1.45rem; font-weight: 700; letter-spacing: -.02em; overflow-wrap: anywhere; line-height: 1.2; }
+.ws-stat-sub { color: var(--text-muted); font-size: .8rem; overflow-wrap: anywhere; }
+
+.ws-badge-ok { background: rgba(76, 214, 161, .16); color: var(--ok); }
+.ws-badge-warn { background: rgba(245, 158, 11, .16); color: var(--warning); }
+.ws-badge-danger { background: rgba(248, 113, 113, .16); color: var(--danger); }
+.ws-badge-muted { background: var(--input-bg); color: var(--text-2); }
+.ws-badge-info { background: var(--accent-soft); color: var(--accent-text); }
+
+.ws-kv { display: grid; grid-template-columns: minmax(120px, 190px) 1fr; gap: .5rem 1rem; font-size: .88rem; }
+.ws-kv dt { color: var(--text-muted); }
+.ws-kv dd { overflow-wrap: anywhere; min-width: 0; }
+@media (max-width: 520px) { .ws-kv { grid-template-columns: 1fr; gap: .1rem; } .ws-kv dd { margin-bottom: .6rem; } }
+
+/* Forms */
+.ws-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: .9rem 1rem; align-items: start; }
+.ws-field { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
+.ws-field.full { grid-column: 1 / -1; }
+.ws-field > label, .ws-label { font-size: .8rem; font-weight: 600; color: var(--text-2); }
+.ws-field input:not([type='checkbox']):not([type='radio']), .ws-field select, .ws-field textarea, .ws-input {
+    width: 100%; min-height: 40px; padding: .5rem .75rem; border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: .9rem; background: var(--input-bg); color: var(--text); min-width: 0;
+}
+.ws-field textarea { min-height: 96px; resize: vertical; font-family: var(--mono); font-size: .8rem; }
+.ws-field input:disabled, .ws-field select:disabled, .ws-field textarea:disabled, .ws-check input:disabled + span { opacity: .65; cursor: not-allowed; }
+.ws-hint { color: var(--text-muted); font-size: .76rem; }
+.ws-check { display: flex; align-items: center; gap: .6rem; min-height: 40px; font-size: .9rem; cursor: pointer; }
+.ws-check input { width: 18px; height: 18px; accent-color: var(--accent); flex: 0 0 auto; }
+.ws-checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: .15rem .75rem; }
+.ws-actions { display: flex; gap: .5rem; flex-wrap: wrap; justify-content: flex-end; margin-top: 1rem; align-items: center; }
+.ws-actions .ws-note { margin-right: auto; }
+.ws-page .btn-primary, .ws-page .btn-outline, .ws-dialog .btn-primary, .ws-dialog .btn-outline { min-height: 40px; }
+.ws-page .btn-primary:disabled, .ws-page .btn-outline:disabled, .ws-dialog .btn-primary:disabled, .ws-dialog .btn-outline:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
+.ws-btn-sm { padding: .3rem .7rem !important; font-size: .8rem !important; min-height: 34px !important; }
+.ws-btn-danger { color: var(--danger) !important; border-color: rgba(248, 113, 113, .45) !important; }
+.ws-readonly { display: flex; gap: .6rem; align-items: center; padding: .75rem 1rem; border: 1px solid var(--border); border-radius: 12px; background: var(--accent-soft); font-size: .86rem; margin-bottom: 1rem; }
+.ws-inline-err { color: var(--danger); font-size: .85rem; margin-top: .6rem; overflow-wrap: anywhere; }
+.ws-inline-err ul { margin: .3rem 0 0 1.1rem; }
+
+/* Chips (IP allow-list) */
+.ws-chips { display: flex; flex-wrap: wrap; gap: .4rem; margin: .75rem 0; min-height: 34px; align-items: center; }
+.ws-chip { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid var(--border); background: var(--input-bg); border-radius: 99px; padding: .2rem .35rem .2rem .75rem; font-family: var(--mono); font-size: .8rem; }
+.ws-chip button { appearance: none; border: 0; background: transparent; color: var(--text-muted); cursor: pointer; width: 28px; height: 28px; border-radius: 99px; font-size: 1rem; line-height: 1; }
+.ws-chip button:hover:not(:disabled) { color: var(--danger); background: rgba(248, 113, 113, .12); }
+.ws-chip button:disabled { cursor: not-allowed; opacity: .5; }
+.ws-add-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+.ws-add-row input { flex: 1 1 220px; min-height: 40px; padding: .5rem .75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--input-bg); color: var(--text); font: inherit; font-size: .9rem; min-width: 0; }
+
+/* Usage bars */
+.ws-usage { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: .9rem 1.5rem; }
+.ws-meter-top { display: flex; justify-content: space-between; gap: .5rem; font-size: .85rem; margin-bottom: .3rem; flex-wrap: wrap; }
+.ws-meter-top b { font-weight: 600; }
+.ws-bar { height: 8px; border-radius: 99px; background: var(--input-bg); overflow: hidden; border: 1px solid var(--line); }
+.ws-bar > i { display: block; height: 100%; border-radius: 99px; background: var(--ok); transition: width .3s ease; }
+.ws-bar.warn > i { background: var(--warning); }
+.ws-bar.full > i { background: var(--danger); }
+.ws-bar.unl > i { background: var(--accent); opacity: .35; width: 100% !important; }
+
+/* Plan cards */
+.ws-plans { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 1rem; }
+.ws-plan { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem; display: flex; flex-direction: column; gap: .6rem; min-width: 0; }
+.ws-plan.current { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.ws-plan.dim { opacity: .75; }
+.ws-plan-head { display: flex; justify-content: space-between; align-items: flex-start; gap: .5rem; flex-wrap: wrap; }
+.ws-plan-name { font-size: 1.1rem; font-weight: 700; overflow-wrap: anywhere; }
+.ws-plan-price { font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; }
+.ws-plan-price small { font-size: .8rem; font-weight: 500; color: var(--text-muted); }
+.ws-plan ul { list-style: none; display: flex; flex-direction: column; gap: .25rem; font-size: .82rem; color: var(--text-2); }
+.ws-plan li i { width: 1.1em; color: var(--ok); margin-right: .3rem; }
+.ws-plan li.off { color: var(--text-muted); text-decoration: line-through; }
+.ws-plan li.off i { color: var(--text-muted); }
+.ws-plan .ws-plan-actions { margin-top: auto; display: flex; gap: .4rem; flex-wrap: wrap; }
+.ws-plan .ws-plan-actions > button, .ws-plan .ws-plan-actions > a { flex: 1 1 auto; }
+.ws-feat { display: flex; flex-wrap: wrap; gap: .4rem; }
+.ws-feat span { border: 1px solid var(--border); border-radius: 99px; padding: .2rem .65rem; font-size: .78rem; display: inline-flex; gap: .35rem; align-items: center; }
+.ws-feat span.on { color: var(--ok); border-color: rgba(76, 214, 161, .4); }
+.ws-feat span.off { color: var(--text-muted); }
+
+/* Toolbars, tables, pagers */
+.ws-toolbar { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: .75rem; align-items: center; }
+.ws-toolbar input, .ws-toolbar select { min-height: 40px; padding: .45rem .7rem; border: 1px solid var(--border); border-radius: 8px; background: var(--input-bg); color: var(--text); font: inherit; font-size: .88rem; min-width: 0; }
+.ws-toolbar .grow { flex: 1 1 220px; }
+.ws-toolbar .spacer { margin-left: auto; }
+.ws-row-actions { display: flex; gap: .35rem; flex-wrap: nowrap; }
+.ws-pager { display: flex; justify-content: space-between; align-items: center; gap: .5rem; margin-top: .75rem; flex-wrap: wrap; font-size: .85rem; color: var(--text-muted); }
+.ws-pager > div { display: flex; gap: .4rem; }
+.ws-table-note { color: var(--text-muted); padding: 1.25rem; text-align: center; }
+.ws-cell-wrap { max-width: 360px; overflow-wrap: anywhere; font-size: .78rem; color: var(--text-muted); }
+.ws-loading { display: flex; align-items: center; gap: .6rem; color: var(--text-muted); padding: 1.25rem; justify-content: center; }
+.ws-spin { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: wsSpin .8s linear infinite; display: inline-block; }
+@keyframes wsSpin { to { transform: rotate(360deg); } }
+.ws-empty { text-align: center; color: var(--text-muted); padding: 1.5rem; border: 1px dashed var(--border); border-radius: var(--radius); }
+.ws-table-limits th, .ws-table-limits td { padding: .5rem .9rem; }
+.ws-table-limits { min-width: 0; }
+.ws-details summary { cursor: pointer; font-weight: 600; font-size: .88rem; padding: .4rem 0; min-height: 40px; display: flex; align-items: center; }
+
+/* Limits editor (plan modal, assign plan) */
+.ws-limits-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: .6rem .8rem; }
+.ws-limits-grid .ws-field > label { font-size: .75rem; font-weight: 500; }
+.ws-feat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: .1rem .8rem; }
+.ws-section-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); font-weight: 700; margin: 1rem 0 .5rem; }
+
+/* Modal + drawer */
+.ws-overlay { position: fixed; inset: 0; background: var(--overlay); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1100; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.ws-overlay.drawer { justify-content: flex-end; align-items: stretch; padding: 0; }
+.ws-dialog { background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-lg); width: 100%; max-width: 520px; max-height: calc(100vh - 2rem); display: flex; flex-direction: column; min-width: 0; }
+.ws-dialog.lg { max-width: 820px; }
+.ws-drawer { background: var(--card); border-left: 1px solid var(--border); box-shadow: var(--shadow-lg); width: 100%; max-width: 560px; height: 100%; display: flex; flex-direction: column; min-width: 0; }
+.ws-dialog-head { display: flex; justify-content: space-between; align-items: center; gap: .5rem; padding: 1.1rem 1.25rem .5rem; flex: 0 0 auto; }
+.ws-dialog-head h3 { font-size: 1.1rem; font-weight: 700; overflow-wrap: anywhere; }
+.ws-x { appearance: none; background: none; border: 0; color: var(--text-muted); font-size: 1.5rem; line-height: 1; cursor: pointer; width: 40px; height: 40px; border-radius: 99px; flex: 0 0 auto; }
+.ws-x:hover { color: var(--text); background: var(--accent-soft); }
+.ws-dialog-body { padding: .5rem 1.25rem 1rem; overflow-y: auto; flex: 1 1 auto; min-height: 0; -webkit-overflow-scrolling: touch; font-size: .92rem; }
+.ws-dialog-err { white-space: pre-line; margin: 0 1.25rem .75rem; padding: .6rem .8rem; border-radius: 10px; background: rgba(248, 113, 113, .1); border: 1px solid rgba(248, 113, 113, .4); color: var(--danger); font-size: .85rem; overflow-wrap: anywhere; }
+.ws-dialog-foot { display: flex; justify-content: flex-end; gap: .5rem; padding: .75rem 1.25rem 1.1rem; flex-wrap: wrap; flex: 0 0 auto; border-top: 1px solid var(--line); }
+.ws-dialog-body p { color: var(--text-2); line-height: 1.5; }
+.ws-dialog-body p + p { margin-top: .6rem; }
+.ws-drawer-actions { display: flex; gap: .4rem; flex-wrap: wrap; margin: .75rem 0 1rem; }
+@media (max-width: 600px) {
+    .ws-overlay { padding: .5rem; align-items: flex-end; }
+    .ws-dialog { max-height: calc(100vh - 1rem); }
+}
+
+/* Toasts */
+.ws-toasts { position: fixed; right: 16px; bottom: 16px; left: 16px; z-index: 1300; display: flex; flex-direction: column; gap: .5rem; align-items: flex-end; pointer-events: none; }
+.ws-toast { pointer-events: auto; max-width: 440px; width: 100%; padding: .75rem 1rem; border-radius: 12px; background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow-lg); font-size: .9rem; overflow-wrap: anywhere; }
+.ws-toast.ok { border-color: rgba(76, 214, 161, .5); }
+.ws-toast.err { border-color: rgba(248, 113, 113, .6); }
+
+/* 403 and gate states */
+.ws-gate { max-width: 520px; margin: 4rem auto; text-align: center; }
+.ws-gate i { font-size: 2.2rem; color: var(--text-muted); margin-bottom: 1rem; display: block; }
+.ws-gate h2 { margin-bottom: .5rem; }
+
+/* Token form reuse inside the API tab */
+.ws-page .wk-form .btn-primary { min-height: 40px; }
+
+@media (max-width: 600px) {
+    .ws-card { padding: 1rem; }
+    .ws-actions { justify-content: stretch; }
+    .ws-actions .btn-primary, .ws-actions .btn-outline { flex: 1 1 auto; }
+}
+
+/* Author display rules (.wk-banner, .ws-card ...) must not defeat the hidden attribute. */
+.ws-page [hidden], .ws-overlay [hidden] { display: none !important; }
+.ws-dialog-body > p { margin-bottom: .9rem; }

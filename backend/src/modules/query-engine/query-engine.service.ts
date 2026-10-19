@@ -43,7 +43,6 @@ import { ElasticsearchMutationWorker } from '../metadata/es_mutation_worker';
 import { QueryPlanner, LOCAL_SOURCE } from './planner';
 import { FederationExecutor } from './federation';
 import { PushdownCompiler, SqlDialect } from './pushdown';
-import { sqlToAst } from './sql_translator';
 import { hasWindows, extractWindows, windowBaseColumns, applyWindows, projectWithWindows } from './compensate';
 import { FabricWriteGenerators } from './write_generators';
 import { PolicyService, SessionCtx } from '../security/policy.service';
@@ -52,6 +51,14 @@ import { parseAggregates, aggregateRaw } from './aggregate';
 import { ConstraintService } from './constraint.service';
 import { GrantService, Privilege } from '../security/grant.service';
 import { LicensingService } from '../../services/licensing.service';
+import { assertIdent, quoteIdent, quoteAnyIdent, belongsToTenant, escapeLike } from '../../utils/identifiers';
+import { assertSafeExpression, assertSafeSelectQuery, fieldToSql, quoteDotted, safeInt, validateAst, assertSafeName, SqlGuardError } from '../../utils/sqlGuard';
+import { NotFoundError, AccessDeniedError, assertTenantIdSafe, catalogSchemaScope, isUuid } from '../../utils/tenantScope';
+import { applyRowCeiling } from '../tenancy/enforce';
+import { LimitsResolver, LimitError } from '../tenancy/limits.resolver';
+
+/** Schemas a tenant can never address directly through the query engine (shared / system / other products). */
+const RESERVED_SCHEMA_RE = /^(public|pg_[a-z0-9_]*|information_schema|fabric_[a-z0-9_]*|citus[a-z0-9_]*|metadata_catalog|admin_functions|cron)$/i;
 
 /**
  * Unified query/DML/DDL request shape accepted by (@link QueryEngineService.executeQuery).
@@ -134,29 +141,62 @@ export interface QueryConfig {
 export class QueryEngineService {
   /**
    * Compute the physical Postgres schema name for a tenant + logical schema.
-   * Sanitizes both identifiers (strip anything non-alphanumeric/underscore) and
-   * leaves already-qualified or system schemas (`public`, `pg_catalog`,
-   * `information_schema`, or a name already prefixed with `tenant_<id>`) as-is
-   * so callers can pass either a bare logical name or a full physical one.
+   * The tenant id must be a plain identifier (it is never "cleaned" into another tenant's namespace); the logical
+   * schema is reduced to `[A-Za-z0-9_]`. A name that already belongs to THIS tenant (`tenant_<id>` or
+   * `tenant_<id>_<x>`, exact match via belongsToTenant) is used as-is; shared/system schemas (`public`,
+   * `pg_catalog`, `information_schema`, `fabric_*`, ...) are refused with ACCESS DENIED.
    * @param tenantId tenant identifier used to derive the `tenant_<id>` prefix.
    * @param schema optional logical schema name; omitted → the tenant's default schema.
    * @returns the physical schema name to qualify tables with.
    */
   private static toTenantSchemaName(tenantId: string, schema?: string) {
-    const cleanTenant = tenantId.replace(/[^a-zA-Z0-9_]/g, '');
-    if (!schema) return `tenant_${cleanTenant}`;
+    // Exact, never "sanitised": stripping characters used to alias tenants (`a-b` and `ab` -> tenant_ab).
+    const cleanTenant = assertTenantIdSafe(tenantId);
+    if (schema === undefined || schema === null || schema === '') return `tenant_${cleanTenant}`;
     const safeSchema = String(schema).replace(/[^a-zA-Z0-9_]/g, '');
-    const fullPrefix = `tenant_${cleanTenant}_`;
-    // Literal physical schemas are used as-is (never tenant-prefixed):
-    //  - 'public' / 'pg_catalog' / 'information_schema' (shared/system),
-    //  - an already tenant-qualified name (tenant_<id> or tenant_<id>_<x>).
-    if (
-      safeSchema === 'public' || safeSchema === 'pg_catalog' || safeSchema === 'information_schema' ||
-      safeSchema === `tenant_${cleanTenant}` || safeSchema.startsWith(fullPrefix)
-    ) {
-      return safeSchema;
+    if (!safeSchema) throw new SqlGuardError('Invalid schema name');
+    // An already tenant-qualified name of THIS tenant (tenant_<id> or tenant_<id>_<x>) is used as-is.
+    if (belongsToTenant(safeSchema, cleanTenant)) return safeSchema;
+    // Shared / system schemas are never reachable by name (public.users, pg_catalog, fabric_admin, ...).
+    if (RESERVED_SCHEMA_RE.test(safeSchema)) throw new AccessDeniedError(`schema "${safeSchema}" is not accessible`);
+    return `tenant_${cleanTenant}_${safeSchema}`;
+  }
+
+  /** Hub schema for a catalog `physical_name`: the tenant's own schema as-is, anything else under the tenant prefix (mirrors PhysicalSync.hubSchemaFor). */
+  private static hubSchemaFor(tenantId: string, physical: string): string {
+    const tid = assertTenantIdSafe(tenantId);
+    const clean = String(physical || '').replace(/[^a-zA-Z0-9_]/g, '');
+    if (!clean) return `tenant_${tid}`;
+    return belongsToTenant(clean, tid) ? clean : `tenant_${tid}_${clean}`;
+  }
+
+  /**
+   * Resolves a CALL target to a fully qualified, quoted reference that lies inside the caller's own tenant schemas.
+   *  - `fn`            -> `"tenant_<id>"."fn"` (or the explicit `schema` argument mapped through toTenantSchemaName)
+   *  - `logical.fn`    -> `"tenant_<id>_logical"."fn"`
+   *  - `tenant_<id>[_x].fn` (own physical schema) -> as written
+   * Anything pointing elsewhere (`fabric_admin.*`, `public.*`, `pg_catalog.*`, another tenant's schema, 3-part names)
+   * is refused with ACCESS DENIED; the function name itself must be a plain identifier.
+   */
+  private static resolveCallTarget(tenantId: string, rawName: string, schema?: string): string {
+    const parts = rawName.split('.');
+    if (parts.length > 2) throw new AccessDeniedError('CALL target must be "function" or "schema.function"');
+    for (const p of parts) assertIdent(p, 'function/procedure name');
+    const fn = parts[parts.length - 1]!;
+    let schemaPhysical: string;
+    if (parts.length === 2) {
+      const qual = parts[0]!;
+      if (RESERVED_SCHEMA_RE.test(qual)) throw new AccessDeniedError(`schema "${qual}" is not accessible`);
+      const tid = assertTenantIdSafe(tenantId);
+      // A literal `tenant_*` qualifier must be this tenant's own physical schema; any other qualifier is a logical
+      // schema name and is mapped under this tenant's prefix (so it can never reach another tenant).
+      if (/^tenant_/i.test(qual) && !belongsToTenant(qual, tid)) throw new AccessDeniedError(`schema "${qual}" is not accessible`);
+      schemaPhysical = this.toTenantSchemaName(tenantId, qual);
+    } else {
+      schemaPhysical = this.toTenantSchemaName(tenantId, schema || undefined);
     }
-    return `${fullPrefix}${safeSchema}`;
+    if (!belongsToTenant(schemaPhysical, assertTenantIdSafe(tenantId))) throw new AccessDeniedError('CALL target is outside your workspace');
+    return `${quoteAnyIdent(schemaPhysical)}.${quoteIdent(fn, 'function/procedure name')}`;
   }
 
   /**
@@ -198,38 +238,48 @@ export class QueryEngineService {
     let schemaName = this.toTenantSchemaName(tenantId, cfg.schema);
     let tableName = (cfg.table || cfg.resource || '').replace(/[^a-zA-Z0-9_]/g, '');
 
+    // Catalog ids are only honoured for the caller's own tenant. A foreign (or malformed) id is "not found" - never
+    // a silent fallback to the name convention, and never 403 (which would confirm the object exists elsewhere).
     if (cfg.tableId) {
+      if (!isUuid(cfg.tableId)) throw new NotFoundError('Resource not found');
+      const params: any[] = [cfg.tableId];
+      const scope = catalogSchemaScope('cs', params, tenantId);
       const { rows } = await pool.query(`
         SELECT ct.physical_name as table_name, cs.physical_name as schema_name
         FROM public.catalog_tables ct
         JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
-        WHERE ct.id = $1
-      `, [cfg.tableId]);
-      if (rows.length) {
-        const resolvedSchema = rows[0].schema_name;
-        const rawTable = rows[0].table_name || '';
-        // Backward-compatible parsing: some older catalog rows stored physical_name as "<schema>.<table>".
-        const resolvedTable = String(rawTable).includes('.')
-          ? String(rawTable).split('.').pop()
-          : String(rawTable);
-        return { schemaName: resolvedSchema, tableName: resolvedTable };
-      }
+        WHERE ct.id = $1 AND ${scope}
+      `, params);
+      if (!rows.length) throw new NotFoundError('Resource not found');
+      const rawTable = rows[0].table_name || '';
+      // Backward-compatible parsing: some older catalog rows stored physical_name as "<schema>.<table>".
+      const resolvedTable = String(rawTable).includes('.')
+        ? String(rawTable).split('.').pop()
+        : String(rawTable);
+      // Catalog names of a remote source are attacker-influenced (a remote server can expose a schema called `public`
+      // or `tenant_<victim>`): on the hub they always live under this tenant's prefix, never as a literal.
+      return { schemaName: this.hubSchemaFor(tenantId, rows[0].schema_name), tableName: String(resolvedTable).replace(/[^a-zA-Z0-9_]/g, '') };
     }
 
     if (cfg.schemaId) {
-      const { rows } = await pool.query('SELECT physical_name FROM public.catalog_schemas WHERE id = $1', [cfg.schemaId]);
-      if (rows.length) schemaName = rows[0].physical_name;
+      if (!isUuid(cfg.schemaId)) throw new NotFoundError('Schema not found');
+      const params: any[] = [cfg.schemaId];
+      const scope = catalogSchemaScope('cs', params, tenantId);
+      const { rows } = await pool.query(`SELECT cs.physical_name FROM public.catalog_schemas cs WHERE cs.id = $1 AND ${scope}`, params);
+      if (!rows.length) throw new NotFoundError('Schema not found');
+      schemaName = this.hubSchemaFor(tenantId, rows[0].physical_name);
     }
 
     return { schemaName, tableName };
   }
-  private static jobs = new Map<string, { status: string; result?: any; error?: string }>();
+  /** Async jobs are bound to the tenant + user that started them; anyone else gets NOT_FOUND (404). */
+  private static jobs = new Map<string, { status: string; result?: any; error?: string; tenantId: string; userId: string; createdAt: number }>();
 
   /**
    * Orchestrates the execution of a (@link QueryConfig) across the whole
    * federation pipeline. This is the single entry point almost every other
    * method in the fabric funnels through (directly, or via (@link fetch) /
-   * (@link mutate) / (@link executeSqlOnSource)).
+   * (@link mutate)).
    *
    * Execution is a chain of early-return branches, tried in this order:
    *   1. **Tenant lifecycle guard** — throws if the tenant is SUSPENDED
@@ -285,7 +335,12 @@ export class QueryEngineService {
   static async executeQuery(tenantId: string, config: QueryConfig, session?: SessionCtx): Promise<any> {
     // Session context for the Policy Engine (row-predicate injection + masking on
     // non-RLS engines). Defaults keep behaviour unchanged when callers omit it.
+    if (!config || typeof config !== 'object' || Array.isArray(config) || typeof (config as any).type !== 'string') {
+      throw Object.assign(new Error('Invalid queryConfig: "type" is required and must be a string'), { status: 400, code: 'INVALID_QUERY' });
+    }
     const sessionCtx: SessionCtx = session || { tenantId, region: process.env.DEFAULT_REGION || 'AP', username: 'system' };
+    // Workspace/licence row ceiling (query.maxRows, max_query_rows); platform-admin sessions are exempt.
+    config = await applyRowCeiling(tenantId, config as any, sessionCtx.role) as QueryConfig;
     // 0. Tenant Lifecycle Check (with resilience for unit tests)
     try {
         const { rows: tenantRows } = await pool.query('SELECT status FROM public.tenants WHERE id = $1', [tenantId]);
@@ -370,17 +425,21 @@ export class QueryEngineService {
     if ((config as any).type === 'CALL') {
       const name = (config as any).function || (config as any).procedure;
       const isProc = !!(config as any).procedure;
-      if (!name) throw new Error('CALL requires "function" or "procedure"');
-      if (!/^[A-Za-z0-9_.]+$/.test(String(name))) throw new Error('invalid function/procedure name');
-      const schemaName = config.schema ? this.toTenantSchemaName(tenantId, config.schema) : null;
-      const ref = String(name).includes('.')
-        ? String(name).split('.').map((p) => `"${p.replace(/[^A-Za-z0-9_]/g, '')}"`).join('.')
-        : (schemaName ? `"${schemaName}"."${name}"` : `public."${name}"`);
+      if (!name) throw Object.assign(new Error('CALL requires "function" or "procedure"'), { status: 400, code: 'INVALID_CALL' });
+      const ref = this.resolveCallTarget(tenantId, String(name), config.schema);
       const args = Array.isArray((config as any).args) ? (config as any).args : [];
+      if (args.length > 100) throw Object.assign(new Error('Invalid CALL: too many arguments (max 100)'), { status: 400, code: 'INVALID_CALL' });
       const ph = args.map((_: any, i: number) => `$${i + 1}`).join(', ');
       const sql = isProc ? `CALL ${ref}(${ph})` : `SELECT * FROM ${ref}(${ph})`;
       const started = Date.now();
-      const result = await queryWithContext(sql, args, { tenantId, username: sessionCtx.username || 'system' });
+      let result: any;
+      try {
+        result = await queryWithContext(sql, args, { tenantId, username: sessionCtx.username || 'system' });
+      } catch (e: any) {
+        // undefined_function / undefined_schema / insufficient_privilege on a CALL target: the function simply is not available to this tenant.
+        if (e && (e.code === '42883' || e.code === '3F000' || e.code === '42501')) throw new NotFoundError('Function or procedure not found');
+        throw e;
+      }
       const ms = Date.now() - started;
       return {
         data: result.rows || [],
@@ -405,7 +464,7 @@ export class QueryEngineService {
         const isAggregate = config.select && (config.select.some(s => s.toLowerCase().includes('count(')) || config.select.some(s => s.toLowerCase().includes('sum(')));
 
         if (!hasLimit && !hasFilter && !isAggregate) {
-            throw new Error('INDUSTRIAL SAFETY: Unrestricted operations (No LIMIT or WHERE) are blocked to prevent resource exhaustion.');
+            throw Object.assign(new Error('INDUSTRIAL SAFETY: Unrestricted operations (No LIMIT or WHERE) are blocked to prevent resource exhaustion.'), { status: 400, code: 'UNBOUNDED_QUERY' });
         }
     }
 
@@ -424,6 +483,9 @@ export class QueryEngineService {
     ) {
       const schemaName = this.toTenantSchemaName(tenantId, config.schema);
       const ast = JSON.parse(JSON.stringify((config as any).query || {}));
+      // Structural guard: every name / operator / aggregate / expression that can reach SQL text is validated up front.
+      validateAst(ast, tenantId);
+      if (config.limit !== undefined && config.limit !== null) config.limit = safeInt(config.limit, 'limit');
 
       const hasWhere = (Array.isArray(ast.where) && ast.where.length > 0)
         // per-leg filters on a set-op or a join also count as "bounded by a filter"
@@ -447,10 +509,10 @@ export class QueryEngineService {
       // to enforce the stricter rule that every non-aggregate scan MUST carry a WHERE filter.
       const requireFilter = /^(1|true|yes)$/i.test(process.env.FABRIC_REQUIRE_SELECT_FILTER || '');
       if (requireFilter && !hasWhere && !isAggregate) {
-        throw new Error('INDUSTRIAL SAFETY: a WHERE filter is required for SELECT scans (FABRIC_REQUIRE_SELECT_FILTER). Add query.where, or use an aggregate/GROUP BY.');
+        throw Object.assign(new Error('INDUSTRIAL SAFETY: a WHERE filter is required for SELECT scans (FABRIC_REQUIRE_SELECT_FILTER). Add query.where, or use an aggregate/GROUP BY.'), { status: 400, code: 'UNBOUNDED_QUERY' });
       }
       if (!hasWhere && !hasLimit && !hasSetOps && !isAggregate) {
-        throw new Error('INDUSTRIAL SAFETY: an unbounded SELECT is blocked — add a WHERE filter (query.where) or a LIMIT to prevent a full-table scan.');
+        throw Object.assign(new Error('INDUSTRIAL SAFETY: an unbounded SELECT is blocked — add a WHERE filter (query.where) or a LIMIT to prevent a full-table scan.'), { status: 400, code: 'UNBOUNDED_QUERY' });
       }
 
       // Carry the top-level limit into the AST so pushdown / federation can honour it.
@@ -466,13 +528,22 @@ export class QueryEngineService {
         const baseQuery: any = { ...ast, select: baseCols.length ? baseCols : ['*'] };
         delete baseQuery.groupBy; // windows are computed over rows, not pre-aggregated groups
         delete baseQuery.limit;   // don't cut partitions before the window is computed
+        // ORDER BY a window alias (e.g. `rn`) cannot be pushed to the base fetch: it only exists after the window is computed (sorted below).
+        const winAliases = new Set(windowSpecs.map((w: any) => w.alias));
+        if (Array.isArray(baseQuery.orderBy)) {
+          baseQuery.orderBy = baseQuery.orderBy.filter((o: any) => !winAliases.has(o?.column));
+          if (!baseQuery.orderBy.length) delete baseQuery.orderBy;
+        }
         const cap = Number(process.env.FABRIC_FED_MAX_ROWS_PER_LEG) || 50000;
         const started = Date.now();
-        const baseRes = await this.executeQuery(tenantId, { type: 'SELECT', schema: config.schema, limit: cap, query: baseQuery } as any);
+        const baseRes = await this.executeQuery(tenantId, { type: 'SELECT', schema: config.schema, limit: cap, query: baseQuery } as any, sessionCtx);
         let rows = applyWindows(baseRes.data || [], windowSpecs);
         rows = projectWithWindows(rows, ast.select);
         if (Array.isArray(ast.orderBy) && ast.orderBy.length) {
-          rows = [...rows].sort((a, b) => { for (const o of ast.orderBy) { const av = a[o.column], bv = b[o.column]; if (av < bv) return o.direction === 'DESC' ? 1 : -1; if (av > bv) return o.direction === 'DESC' ? -1 : 1; } return 0; });
+          // NUMERIC / BIGINT come back as strings: compare numerically when both sides are numeric, else natural order.
+          const num = (v: any) => (typeof v === 'number' ? v : (typeof v === 'string' && v.trim() !== '' && /^-?\d+(\.\d+)?$/.test(v.trim()) ? Number(v) : NaN));
+          const cmp = (av: any, bv: any) => { const x = num(av), y = num(bv); if (!Number.isNaN(x) && !Number.isNaN(y)) return x - y; return av < bv ? -1 : av > bv ? 1 : 0; };
+          rows = [...rows].sort((a, b) => { for (const o of ast.orderBy) { const c = cmp(a[o.column], b[o.column]); if (c) return String(o.direction).toUpperCase() === 'DESC' ? -c : c; } return 0; });
         }
         if (typeof config.limit === 'number' && config.limit > 0) rows = rows.slice(0, config.limit);
         const basePlan = baseRes.plan || {};
@@ -587,6 +658,7 @@ export class QueryEngineService {
       if (plan.strategy === 'SINGLE_CONNECTOR' || plan.strategy === 'CROSS_ENGINE') {
         // Each leg is fetched from its own engine WITH pushdown (predicate + bind-join),
         // then combined in-memory.
+        if (plan.strategy === 'CROSS_ENGINE' && sessionCtx.role !== 'ADMIN') await LimitsResolver.assertFeature(tenantId, 'federated_query_enabled');
         const startedAt = Date.now();
         const fed = await FederationExecutor.execute(tenantId, ast, plan, schemaName, sessionCtx);
         const executionMs = Date.now() - startedAt;
@@ -613,9 +685,10 @@ export class QueryEngineService {
       // FDW / synced). Source labels are logical hints — strip them so the transpiler
       // resolves against the tenant schema, then let Postgres/Citus/FDW optimize.
       this.stripSources(ast);
+      // QueryTranspiler escapes every literal itself (transpilerEscapesValues); validateAst already vetted names/operators/expressions.
       let sql = QueryTranspiler.toSql(ast, schemaName);
       if (hasLimit && !/\sLIMIT\s+\d+/i.test(sql)) {
-        sql = `${sql} LIMIT ${config.limit}`;
+        sql = `${sql} LIMIT ${safeInt(config.limit, 'limit')}`;
       }
       const startedAt = Date.now();
       const result = await queryWithContext(sql, [], { tenantId, username: 'system' });
@@ -638,11 +711,16 @@ export class QueryEngineService {
 
     // SPECIAL CASE: CREATE_SCHEMA uses stored procedure for security
     if (config.type === 'CREATE_SCHEMA') {
-        const cleanTenant = tenantId.replace(/[^a-zA-Z0-9_]/g, '');
+        const cleanTenant = assertTenantIdSafe(tenantId);
         // If it's a simple tenant schema creation
         if (!config.schema) {
-            await queryWithContext('SELECT fabric_admin.create_tenant_namespace($1)', [cleanTenant], { tenantId, username: 'system' });
-            return { status: 'SUCCESS', target: `tenant_${cleanTenant}`, type: 'CREATE_SCHEMA' };
+            const target = `tenant_${cleanTenant}`;
+            // fabric_admin.create_tenant_namespace DROPs and recreates the namespace, and EXECUTE on fabric_admin.* is
+            // revoked from fabric_user (19-security-hardening.sql). Provision through the owner pool, and only when the
+            // namespace is missing: re-running CREATE_SCHEMA must never wipe an existing workspace.
+            const exists = await pool.query('SELECT 1 FROM information_schema.schemata WHERE schema_name = $1', [target]);
+            if (!exists.rows.length) await pool.query('SELECT fabric_admin.create_tenant_namespace($1)', [cleanTenant]);
+            return { status: 'SUCCESS', target, type: 'CREATE_SCHEMA' };
         }
     }
 
@@ -652,13 +730,16 @@ export class QueryEngineService {
     let physicalTable: string | null = null;
 
     if (config.tableId) {
+        // Tenant-scoped: a foreign / malformed tableId never matches (resolveTarget below turns that into NOT_FOUND / 404).
+        const scopeParams: any[] = [isUuid(config.tableId) ? config.tableId : '00000000-0000-0000-0000-000000000000'];
+        const scope = catalogSchemaScope('cs', scopeParams, tenantId);
         const { rows } = await pool.query(`
             SELECT ct.physical_name as t_name, cs.physical_name as s_name, cs.source_id, ds.type as s_type, ds.config as s_config, ds.sync_type
             FROM public.catalog_tables ct
             JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
             JOIN public.data_sources ds ON cs.source_id = ds.id
-            WHERE ct.id = $1
-        `, [config.tableId]);
+            WHERE ct.id = $1 AND ds.tenant_id = $2 AND ${scope}
+        `, scopeParams); // $2 is the tenant id pushed by catalogSchemaScope
         if (rows.length > 0) {
             sourceId = rows[0].source_id;
             physicalSchema = rows[0].s_name;
@@ -742,126 +823,6 @@ export class QueryEngineService {
 
     // SELECT (single local table / generateSql path) — enveloped for a consistent contract.
     return { data: result.rows, rowCount: result.rowCount };
-  }
-
-  /**
-   * Specialized method for DDL execution during migration (bypass event emitting).
-   * Runs a raw parameterized SQL string directly on the hub Postgres connection
-   * (tenant-scoped via (@link queryWithContext)), after the same suspended-tenant
-   * guard as (@link executeQuery). Unlike the main path, it does NOT emit
-   * mutation events or enqueue Elasticsearch sync — intended for schema
-   * migrations and other maintenance operations where those side effects are
-   * undesirable or handled separately.
-   * @param tenantId tenant identifier.
-   * @param username acting user, recorded for the DB session context.
-   * @param sql raw SQL text to execute.
-   * @param params positional parameters for the SQL (default none).
-   * @returns `(results, safetyApplied)` where `safetyApplied` flags whether the
-   *   SQL contains a destructive keyword (DROP/TRUNCATE/ALTER/GRANT/REVOKE) —
-   *   informational only, execution is not blocked.
-   * @throws if the tenant is suspended.
-   */
-  static async executeRawSql(tenantId: string, username: string, sql: string, params: any[] = []): Promise<any> {
-    // 0. Tenant Lifecycle Check (with resilience for unit tests)
-    try {
-        const { rows: tenantRows } = await pool.query('SELECT status FROM public.tenants WHERE id = $1', [tenantId]);
-        if (tenantRows.length > 0 && tenantRows[0].status === 'SUSPENDED') {
-            throw new Error('Tenant account is suspended. Operations are restricted.');
-        }
-    } catch (err: any) {
-        if (err.message.includes('suspended')) throw err;
-        // Ignore "relation not exists" or connection errors in dev/test
-        console.warn(`[QueryEngine] Lifecycle check bypassed: ${err.message}`);
-    }
-
-    const safetyApplied = this.detectUnsafeOperations(sql);
-    const result = await queryWithContext(sql, params, { tenantId, username });
-    
-    return {
-      results: result.rows,
-      safetyApplied
-    };
-  }
-
-  /**
-   * Execute native SQL directly against a NAMED remote source's connector (not the hub).
-   * This lets the fabric run complex single-source analytics — window functions,
-   * recursive CTEs, materialized-view reads — AT the engine that physically owns the
-   * data (e.g. the external warehouse Postgres), returning the same trace/timing envelope
-   * as the federated path so callers can see where and how long the work ran.
-   * @param tenantId tenant identifier; resolves `sourceName` from `public.data_sources`.
-   * @param sourceName logical name of the named source to run against.
-   * @param sql the SQL text to execute (native SQL for SQL-native engines; also
-   *   accepted for non-SQL engines, see below).
-   * @param params positional parameters for `sql` (default none).
-   * @param schema optional schema/search_path to select on the connector/session before running.
-   * @returns for SQL-native engines (Postgres/MySQL/Snowflake/Elasticsearch), an
-   *   envelope with `results`/`data`/`rowCount` and a `plan` trace of the raw SQL
-   *   executed at the source; for non-SQL engines (e.g. MongoDB), the SQL is
-   *   translated via (@link sqlToAst) and re-dispatched through
-   *   (@link executeQuery) (so the result carries that path's own plan, annotated
-   *   with `translatedFrom: 'SQL'`).
-   * @throws if the named source does not exist for the tenant, or if a
-   *   SQL-native connector has no `rawQuery` support.
-   */
-  static async executeSqlOnSource(
-    tenantId: string, sourceName: string, sql: string, params: any[] = [], schema?: string
-  ): Promise<any> {
-    const { rows } = await pool.query(
-      `SELECT type, config FROM public.data_sources WHERE tenant_id = $1 AND name = $2 LIMIT 1`,
-      [tenantId, sourceName]
-    );
-    if (!rows.length) throw new Error(`Source "${sourceName}" not found for tenant "${tenantId}"`);
-    const engine = String(rows[0].type || 'POSTGRES').toUpperCase();
-    const config = rows[0].config || {};
-
-    // SQL-native engines run the SQL directly at the source (window functions,
-    // recursive CTEs, ES _sql). Non-SQL engines (MongoDB) have no SQL engine, so
-    // the fabric TRANSLATES the SQL into its query AST and runs it through the
-    // normal planner → the engine's native query language (Mongo find / $group).
-    const SQL_NATIVE = new Set(['POSTGRES', 'POSTGRESQL', 'MYSQL', 'SNOWFLAKE', 'ELASTICSEARCH', 'ELASTIC', 'ES', 'ORACLE', 'ORACLEDB']);
-    if (!SQL_NATIVE.has(engine)) {
-      const query: any = sqlToAst(sql);
-      query.from.source = sourceName;
-      const result = await this.executeQuery(tenantId, {
-        type: 'SELECT', schema: schema || 'public',
-        limit: typeof query.limit === 'number' ? query.limit : 1000, query,
-      } as any);
-      if (result.plan) {
-        result.plan.translatedFrom = 'SQL';
-        result.plan.pushed = [`SQL translated by the fabric into a native ${engine} query`, ...(result.plan.pushed || [])];
-      }
-      return result;
-    }
-
-    const connector: any = ConnectorFactory.getConnector(engine, config);
-    if (typeof connector.rawQuery !== 'function') {
-      await connector.close();
-      throw new Error(`Source "${sourceName}" (${engine}) does not support native SQL execution`);
-    }
-    const started = Date.now();
-    try {
-      if (schema && typeof connector.setSearchPath === 'function') await connector.setSearchPath(schema);
-      const data = await connector.rawQuery(sql, params);
-      const ms = Date.now() - started;
-      return {
-        results: data,
-        data,
-        rowCount: data.length,
-        plan: {
-          strategy: 'SINGLE_CONNECTOR_RAW',
-          executionMs: ms,
-          pushed: [`native SQL executed at ${engine} source "${sourceName}"${schema ? ` (search_path=${schema})` : ''}`],
-          legs: [{
-            source: sourceName, engine, mode: 'connector', operation: 'raw-sql',
-            target: schema || engine, query: String(sql).replace(/\s+/g, ' ').trim().slice(0, 600),
-            rowsReturned: data.length, ms,
-          }],
-        },
-      };
-    } finally {
-      await connector.close();
-    }
   }
 
   // ==================== Simple CRUD façade ====================
@@ -1039,19 +1000,21 @@ export class QueryEngineService {
     for (const row of dataRows) this.assertSafeKeys(row, 'data');
 
     // Enforce records per table limit for non-admin tenants
-    if (op === 'create' && tenantId !== 'tenant_A') {
+    if (op === 'create' && tenantId !== 'tenant_A' && String(role || '').toUpperCase() !== 'ADMIN') { // platform admins bypass plan limits
       const licensingCheck = await LicensingService.getTenantSubscription(tenantId);
       const maxRecords = licensingCheck.limits.max_records_per_table;
       if (maxRecords !== -1) {
         try {
           const context = { tenantId, username: session?.username || 'system' };
-          const countRes = await queryWithContext(`SELECT COUNT(*) FROM ${resource}`, [], context);
+          // `resource` is caller supplied: validate it as a name and qualify it with the tenant's own schema (no raw interpolation).
+          const countTable = `${quoteAnyIdent(this.toTenantSchemaName(tenantId, schema))}.${quoteAnyIdent(assertSafeName(resource, 'resource'))}`;
+          const countRes = await queryWithContext(`SELECT COUNT(*) FROM ${countTable}`, [], context);
           const currentRows = parseInt(countRes.rows[0].count);
           const incomingCount = dataRows.length;
           
           const allowed = await LicensingService.checkLimit(tenantId, 'max_records_per_table', currentRows + incomingCount - 1);
           if (!allowed) {
-            throw new Error(`Plan limit exceeded: Your plan restricts you to a maximum of ${maxRecords} records per table.`);
+            throw new LimitError(403, 'PLAN_LIMIT_REACHED', `Plan limit exceeded: Your plan restricts you to a maximum of ${maxRecords} records per table.`);
           }
         } catch (countErr: any) {
           if (countErr.message.includes('Plan limit exceeded')) {
@@ -1067,9 +1030,17 @@ export class QueryEngineService {
     if ((op === 'create' || op === 'update') && (!data || (Array.isArray(data) && !data.length))) {
       throw new Error(`${op} requires "data".`);
     }
+    if (op === 'update' && (typeof data !== 'object' || Array.isArray(data) || !Object.keys(data).length)) {
+      throw Object.assign(new Error('update requires "data": a non-empty object of columns to set'), { status: 400, code: 'INVALID_DATA' });
+    }
 
     const isHub = !source || source === LOCAL_SOURCE;
     if (isHub) {
+      // Hub tables are manifest-created, so their names are plain identifiers: refuse anything else instead of silently
+      // stripping it down to some other table's name (`../items`, `it"ems` used to hit `items`).
+      if (typeof resource !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(resource)) {
+        throw Object.assign(new Error('Invalid resource name: must match [A-Za-z_][A-Za-z0-9_]{0,62}'), { status: 400, code: 'INVALID_IDENTIFIER' });
+      }
       const typeMap = { create: 'INSERT', update: 'UPDATE', delete: 'DELETE' } as const;
       const cfg: any = { type: typeMap[op], table: resource, schema, data, filter: where };
       return this.executeQuery(tenantId, cfg); // hub path keeps events + ES sync + RLS
@@ -1189,42 +1160,21 @@ export class QueryEngineService {
   }
 
   /**
-   * Asynchronous Query Execution Wrapper.
-   * Fire-and-forget variant of (@link executeRawSql): registers a job entry,
-   * runs the raw SQL in the background, and returns immediately with the job
-   * id so the caller can poll (@link getJobStatus).
-   * @param tenantId tenant identifier.
-   * @param username acting user.
-   * @param sql raw SQL text to execute.
-   * @param params positional parameters (default none).
-   * @returns a job id to poll via (@link getJobStatus).
-   */
-  static executeAsyncRawSql(tenantId: string, username: string, sql: string, params: any[] = []): string {
-    const jobId = randomUUID();
-    this.jobs.set(jobId, { status: 'RUNNING' });
-
-    this.executeRawSql(tenantId, username, sql, params)
-      .then(result => {
-        this.jobs.set(jobId, { status: 'COMPLETED', result });
-      })
-      .catch(err => {
-        this.jobs.set(jobId, { status: 'FAILED', error: err.message });
-      });
-
-    return jobId;
-  }
-
-  /**
    * Look up the current status of a job started by (@link executeAsyncRawSql)
    * or (@link executeAsyncQuery).
    * @param jobId job id returned by the async starter.
-   * @returns `(jobId, status: 'NOT_FOUND')` if unknown, otherwise
+   * @param tenantId tenant of the caller; the job must have been started by this tenant.
+   * @param userId id (or username) of the caller; the job must have been started by this user.
+   * @returns `(jobId, status: 'NOT_FOUND')` if unknown or owned by someone else, otherwise
    *   `(jobId, status: 'PENDING'|'RUNNING'|'COMPLETED'|'FAILED', result?, error?)`.
    */
-  static getJobStatus(jobId: string) {
+  static getJobStatus(jobId: string, tenantId?: string, userId?: string) {
     const job = this.jobs.get(jobId);
+    // Unknown id and "someone else's job" are indistinguishable (NOT_FOUND -> 404): no existence leak across tenants/users.
     if (!job) return { status: 'NOT_FOUND', jobId };
-    return { jobId, ...job };
+    if (tenantId === undefined || job.tenantId !== tenantId || job.userId !== String(userId ?? '')) return { status: 'NOT_FOUND', jobId };
+    const { tenantId: _t, userId: _u, createdAt: _c, ...visible } = job;
+    return { jobId, ...visible };
   }
 
   /**
@@ -1256,39 +1206,45 @@ export class QueryEngineService {
         throw new Error('Internal Error: Tenant identity missing in SQL generation');
     }
 
-    const cleanTenant = tenantId.replace(/[^a-zA-Z0-9_]/g, '');
+    const cleanTenant = assertTenantIdSafe(tenantId);
     const resolved = await this.resolveTarget(tenantId, config as any);
-    let schemaName = resolved.schemaName;
-    let tableName = resolved.tableName || table?.replace(/[^a-zA-Z0-9_]/g, '');
+    const schemaName = resolved.schemaName;
+    const tableName = resolved.tableName || String(table || '').replace(/[^a-zA-Z0-9_]/g, '');
 
-    const safeTable = `"${schemaName}"."${tableName}"`;
+    // Every identifier below is quoted with quoteAnyIdent (embedded quotes doubled); every free-form fragment
+    // (select expressions, join conditions, group/order fields, view/CTE bodies, column types) goes through the
+    // sqlGuard grammar first. Nothing caller-supplied is concatenated as-is.
+    const qSchema = quoteAnyIdent(schemaName);
+    // Schema-level statements (CREATE_SCHEMA / CREATE_SEQUENCE / CREATE_VIEW) legitimately carry no `table`.
+    const tableRequired = () => {
+      if (!tableName) throw Object.assign(new Error(`Invalid request: "table" is required for ${type}`), { status: 400, code: 'INVALID_QUERY' });
+      return `${qSchema}.${quoteAnyIdent(tableName)}`;
+    };
+    const safeTable = tableName ? `${qSchema}.${quoteAnyIdent(tableName)}` : '';
+    const guard = { tenantId: cleanTenant };
     
     let queryStr = '';
     const params: any[] = [];
     let paramIndex = 1;
 
     if (withRecursive) {
-        queryStr = `WITH RECURSIVE ${withRecursive.name} AS (
-            ${withRecursive.baseQuery}
+        const cteName = assertIdent(withRecursive.name, 'withRecursive.name');
+        queryStr = `WITH RECURSIVE "${cteName}" AS (
+            ${assertSafeSelectQuery(withRecursive.baseQuery, cleanTenant, 'withRecursive.baseQuery')}
             UNION ALL
-            ${withRecursive.recursiveQuery}
+            ${assertSafeSelectQuery(withRecursive.recursiveQuery, cleanTenant, 'withRecursive.recursiveQuery')}
         ) `;
     }
 
     if (type === 'SELECT') {
       const selectFields = select && select.length > 0 
-        ? select.map(f => {
-            if (f === '*') return '*';
-            if (f.includes('(') || f.includes(' ')) return f; 
-            return f.split('.').map(part => `"${part.replace(/[^a-zA-Z0-9_]/g, '')}"`).join('.');
-          }).join(', ') 
+        ? select.map(f => fieldToSql(f, 'select', cleanTenant)).join(', ') 
         : '*';
       
       const isCte = withRecursive && config.table === withRecursive.name;
-      const selectSchema = config.schema ? `tenant_${cleanTenant}_${config.schema}` : `tenant_${cleanTenant}`;
       const safeSelectTable = isCte 
-        ? `"${tableName!.replace(/[^a-zA-Z0-9_]/g, '')}"`
-        : `"${schemaName}"."${tableName!.replace(/[^a-zA-Z0-9_]/g, '')}"`;
+        ? quoteAnyIdent(tableName)
+        : `${qSchema}.${quoteAnyIdent(tableName)}`;
 
       queryStr += `SELECT ${selectFields} FROM ${safeSelectTable}`;
       
@@ -1301,59 +1257,73 @@ export class QueryEngineService {
             schema: join.schema,
             source: (join as any).source
           });
-          let joinTable = jResolved.tableName || join.table || (join as any).resource;
-          let joinSchema = jResolved.schemaName || (config.schema ? `tenant_${cleanTenant}_${config.schema}` : `tenant_${cleanTenant}`);
-
-          const safeJoinTable = `"${joinSchema}"."${joinTable!.replace(/[^a-zA-Z0-9_]/g, '')}"`;
-          queryStr += ` ${join.type} JOIN ${safeJoinTable} ON ${join.on}`;
+          const joinTable = jResolved.tableName || join.table || (join as any).resource;
+          const joinSchema = jResolved.schemaName || this.toTenantSchemaName(tenantId, config.schema);
+          const joinType = String(join.type || 'INNER').toUpperCase();
+          if (!/^(INNER|LEFT|RIGHT|FULL|CROSS)$/.test(joinType)) throw new SqlGuardError('Invalid join.type');
+          const safeJoinTable = `${quoteAnyIdent(joinSchema)}.${quoteAnyIdent(String(joinTable).replace(/[^a-zA-Z0-9_]/g, ''))}`;
+          queryStr += ` ${joinType} JOIN ${safeJoinTable}`;
+          // CROSS JOIN takes no ON clause; every other join must carry a safe condition.
+          if (joinType !== 'CROSS' || join.on) queryStr += ` ON ${assertSafeExpression(join.on, 'join.on', guard)}`;
         }
       }
     } else if (type === 'INSERT') {
       const data = config.data as any;
-      const columns = Object.keys(Array.isArray(data) ? data[0] : data);
-      const rows = Array.isArray(data) ? data : [data];
+      const rows = (Array.isArray(data) ? data : [data]).filter((r: any) => r && typeof r === 'object' && !Array.isArray(r));
+      if (!rows.length) throw Object.assign(new Error('Invalid request: "data" must be an object or a non-empty array of objects'), { status: 400, code: 'INVALID_DATA' });
+      // Union of the keys of every row: a key missing from a row takes the column DEFAULT instead of being silently
+      // dropped (keys only on later rows used to be lost) or forced to NULL (which would override a column default).
+      const columns = [...new Set(rows.flatMap((r: any) => Object.keys(r)))];
+      if (!columns.length) throw Object.assign(new Error('Invalid request: "data" has no columns'), { status: 400, code: 'INVALID_DATA' });
       
+      const jsonCols = await this.jsonColumns(schemaName, tableName, columns);
       const placeholders = rows.map(row => {
         return '(' + columns.map(col => {
+          if (!Object.prototype.hasOwnProperty.call(row, col)) return 'DEFAULT';
           if (inlineValues) return this.formatInline(row[col]);
-          params.push(row[col]);
+          params.push(jsonCols.has(col) && Array.isArray(row[col]) ? JSON.stringify(row[col]) : row[col]);
           return `$${paramIndex++}`;
         }).join(', ') + ')';
       }).join(', ');
 
-      queryStr = `INSERT INTO ${safeTable} (${columns.map(c => `"${c}"`).join(', ')}) VALUES ${placeholders} RETURNING *`;
+      queryStr = `INSERT INTO ${tableRequired()} (${columns.map(c => quoteAnyIdent(c)).join(', ')}) VALUES ${placeholders} RETURNING *`;
     } else if (type === 'UPDATE') {
       const data = config.data as any;
+      const jsonCols = await this.jsonColumns(schemaName, tableName, Object.keys(data));
       const sets = Object.keys(data).map(col => {
-        if (inlineValues) return `"${col}" = ${this.formatInline(data[col])}`;
-        params.push(data[col]);
-        return `"${col}" = $${paramIndex++}`;
+        if (inlineValues) return `${quoteAnyIdent(col)} = ${this.formatInline(data[col])}`;
+        params.push(jsonCols.has(col) && Array.isArray(data[col]) ? JSON.stringify(data[col]) : data[col]);
+        return `${quoteAnyIdent(col)} = $${paramIndex++}`;
       }).join(', ');
-      queryStr = `UPDATE ${safeTable} SET ${sets}`;
+      queryStr = `UPDATE ${tableRequired()} SET ${sets}`;
     } else if (type === 'DELETE') {
-      queryStr = `DELETE FROM ${safeTable}`;
+      queryStr = `DELETE FROM ${tableRequired()}`;
     } else if (type === 'CREATE_TABLE') {
-      const columns = config.schemaDef?.columns.map(c => `"${c.name}" ${c.type} ${c.constraints || ''}`).join(', ');
-      queryStr = `CREATE TABLE ${safeTable} (${columns})`;
+      const columns = (config.schemaDef?.columns || []).map(c => {
+        const colType = assertSafeExpression(c.type, 'column type', guard);
+        const constraints = c.constraints ? ` ${assertSafeExpression(c.constraints, 'column constraints', guard)}` : '';
+        return `${quoteAnyIdent(c.name)} ${colType}${constraints}`;
+      }).join(', ');
+      queryStr = `CREATE TABLE ${tableRequired()} (${columns})`;
     } else if (type === 'DROP_TABLE') {
-      queryStr = `DROP TABLE IF EXISTS ${safeTable}`;
+      queryStr = `DROP TABLE IF EXISTS ${tableRequired()}`;
     } else if (type === 'CREATE_INDEX') {
       const idx = config.indexDef!;
-      queryStr = `CREATE ${idx.unique ? 'UNIQUE ' : '' }INDEX "${idx.name}" ON ${safeTable} (${idx.columns.join(', ')})`;
+      queryStr = `CREATE ${idx.unique ? 'UNIQUE ' : '' }INDEX ${quoteAnyIdent(idx.name)} ON ${tableRequired()} (${(idx.columns || []).map((c) => fieldToSql(c, 'index column', cleanTenant)).join(', ')})`;
     } else if (type === 'CREATE_VIEW') {
       const view = config.viewDef!;
-      queryStr = `CREATE ${view.materialized ? 'MATERIALIZED ' : ''}VIEW "${schemaName}"."${view.name}" AS ${view.query}`;
+      queryStr = `CREATE ${view.materialized ? 'MATERIALIZED ' : ''}VIEW ${qSchema}.${quoteAnyIdent(view.name)} AS ${assertSafeSelectQuery(view.query, cleanTenant, 'view.query')}`;
     } else if (type === 'CREATE_SCHEMA') {
-      queryStr = `CREATE SCHEMA IF NOT EXISTS "${schemaName}"`;
+      queryStr = `CREATE SCHEMA IF NOT EXISTS ${qSchema}`;
     } else if (type === 'CREATE_SEQUENCE') {
       const seq = config.sequenceDef!;
-      queryStr = `CREATE SEQUENCE IF NOT EXISTS "${schemaName}"."${seq.name}" START WITH ${seq.start || 1} INCREMENT BY ${seq.increment || 1}`;
+      queryStr = `CREATE SEQUENCE IF NOT EXISTS ${qSchema}.${quoteAnyIdent(seq.name)} START WITH ${seq.start === undefined ? 1 : safeInt(seq.start, 'sequence start', -1e9, 1e9)} INCREMENT BY ${seq.increment === undefined ? 1 : safeInt(seq.increment, 'sequence increment', -1e9, 1e9)}`;
     } else if (type === 'ALTER_TABLE') {
         const alter = config.alterDef!;
         if (alter.action === 'ADD_COLUMN') {
-            queryStr = `ALTER TABLE ${safeTable} ADD COLUMN "${alter.columnName}" ${alter.columnType}`;
+            queryStr = `ALTER TABLE ${tableRequired()} ADD COLUMN ${quoteAnyIdent(alter.columnName)} ${assertSafeExpression(alter.columnType, 'column type', guard)}`;
         } else if (alter.action === 'DROP_COLUMN') {
-            queryStr = `ALTER TABLE ${safeTable} DROP COLUMN "${alter.columnName}"`;
+            queryStr = `ALTER TABLE ${tableRequired()} DROP COLUMN ${quoteAnyIdent(alter.columnName)}`;
         }
     }
 
@@ -1372,12 +1342,18 @@ export class QueryEngineService {
         const val = isOp ? (valObj as any)[op] : valObj;
         
         let sqlOp = '=';
-        if (op === '$gt') sqlOp = '>';
+        if (op === '$eq') sqlOp = '=';
+        else if (op === '$gt') sqlOp = '>';
+        else if (op === '$gte') sqlOp = '>=';
         else if (op === '$lt') sqlOp = '<';
+        else if (op === '$lte') sqlOp = '<=';
         else if (op === '$ne') sqlOp = '!=';
-        else if (op === '$like') sqlOp = 'ILIKE';
+        else if (op === '$like') sqlOp = 'ILIKE'; // legacy: the DML filter has always matched $like case-insensitively (query-engine.service.test.ts)
+        else if (op === '$ilike') sqlOp = 'ILIKE';
         else if (op === '$in') sqlOp = 'IN';
+        else if (isOp) throw Object.assign(new Error(`Invalid filter operator "${String(op).slice(0, 20)}" on "${key.slice(0, 40)}"`), { status: 400, code: 'INVALID_OPERATOR' });
 
+        if (op === '$in' && Array.isArray(val) && val.length === 0) return '1 = 0';
         if (op === '$in' && Array.isArray(val)) {
             const inPlaceholders = val.map(v => {
                 if (inlineValues) return this.formatInline(v);
@@ -1387,6 +1363,7 @@ export class QueryEngineService {
             return `${safeKey} IN (${inPlaceholders})`;
         }
 
+        if (val === null && (sqlOp === '=' || sqlOp === '!=')) return `${safeKey} IS ${sqlOp === '=' ? '' : 'NOT '}NULL`;
         if (inlineValues) return `${safeKey} ${sqlOp} ${this.formatInline(val)}`;
         params.push(val);
         return `${safeKey} ${sqlOp} $${paramIndex++}`;
@@ -1402,7 +1379,7 @@ export class QueryEngineService {
     }
 
     if (type === 'SELECT') {
-        if (groupBy) queryStr += ` GROUP BY ${groupBy.join(', ')}`;
+        if (groupBy) queryStr += ` GROUP BY ${groupBy.map((g) => fieldToSql(g, 'groupBy', cleanTenant)).join(', ')}`;
         if (orderBy) {
             // Accept both the generateSql shape ({field, dir}) and the AST shape
             // ({column, direction}); drop malformed entries so we never emit
@@ -1410,15 +1387,27 @@ export class QueryEngineService {
             const cols = orderBy
                 .map((o: any) => ({ f: o.field ?? o.column, d: (o.dir ?? o.direction) === 'DESC' ? 'DESC' : 'ASC' }))
                 .filter((o: any) => o.f)
-                .map((o: any) => `${o.f} ${o.d}`);
+                .map((o: any) => `${fieldToSql(o.f, 'orderBy', cleanTenant)} ${o.d}`);
             if (cols.length) queryStr += ` ORDER BY ${cols.join(', ')}`;
         }
-        if (limit) queryStr += ` LIMIT ${limit}`;
-        if (offset) queryStr += ` OFFSET ${offset}`;
+        if (limit) queryStr += ` LIMIT ${safeInt(limit, 'limit')}`;
+        if (offset) queryStr += ` OFFSET ${safeInt(offset, 'offset')}`;
     }
 
     console.log(`[SQL Gen] ${type} -> ${queryStr}`);
     return { sql: queryStr, params };
+  }
+
+  /**
+   * Which of `columns` are json/jsonb in `schema.table`. node-pg serialises a JS array as a Postgres array literal, which a
+   * jsonb column rejects, so array values for these columns are sent as JSON text instead (text[] columns keep array params).
+   */
+  private static async jsonColumns(schema: string, table: string, columns: string[]): Promise<Set<string>> {
+    if (!columns.length) return new Set();
+    const res = await pool.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 AND data_type IN ('jsonb','json') AND column_name = ANY($3::text[])`,
+      [schema, table, columns]);
+    return new Set(((res && res.rows) || []).map((r: any) => String(r.column_name)));
   }
 
   /**
@@ -1429,23 +1418,10 @@ export class QueryEngineService {
    * @returns the SQL literal text.
    */
   private static formatInline(val: any): string {
-    if (val === null) return 'NULL';
+    if (val === null || val === undefined) return 'NULL';
     if (typeof val === 'string') return `'${val.replace(/'/g, "''")}'`;
     if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
     return val.toString();
-  }
-
-  /**
-   * Flag (informational only — does not block execution) whether a raw SQL
-   * string contains a destructive/DDL keyword. Used by (@link executeRawSql) to
-   * annotate its result with `safetyApplied`.
-   * @param sql the SQL text to scan.
-   * @returns true if the text contains DROP, TRUNCATE, ALTER, GRANT, or REVOKE (case-insensitive).
-   */
-  private static detectUnsafeOperations(sql: string): boolean {
-    const unsafeKeywords = ['DROP', 'TRUNCATE', 'ALTER', 'GRANT', 'REVOKE'];
-    const upperSql = sql.toUpperCase();
-    return unsafeKeywords.some(keyword => upperSql.includes(keyword));
   }
 
   /**
@@ -1460,11 +1436,30 @@ export class QueryEngineService {
    *   unique index on the view; default true).
    * @param schema logical schema name (`'default'` → the tenant's default schema).
    */
+  /**
+   * Resolves and verifies a materialized view of THIS tenant (name validated, schema confined to the tenant's
+   * namespaces, the object must exist and be a materialized view). Throws 400 / 403 / 404 before anything runs.
+   * @returns the quoted `"schema"."view"` reference.
+   */
+  static async resolveMaterializedView(tenantId: string, viewName: string, schema: string = 'default'): Promise<string> {
+    const schemaName = this.toTenantSchemaName(tenantId, schema === 'default' ? undefined : schema);
+    const name = assertIdent(viewName, 'view name');
+    const { rows } = await pool.query('SELECT 1 FROM pg_matviews WHERE schemaname = $1 AND matviewname = $2', [schemaName, name]);
+    if (!rows.length) throw new NotFoundError('Materialized view not found');
+    return `${quoteAnyIdent(schemaName)}.${quoteIdent(name, 'view name')}`;
+  }
+
   static async refreshMaterializedView(tenantId: string, viewName: string, concurrent: boolean = true, schema: string = 'default') {
-    const cleanTenant = tenantId.replace(/[^a-zA-Z0-9_]/g, '');
-    const schemaName = schema === 'default' ? `tenant_${cleanTenant}` : `tenant_${cleanTenant}_${schema.replace(/[^a-zA-Z0-9_]/g, '')}`;
-    const sql = `REFRESH MATERIALIZED VIEW ${concurrent ? 'CONCURRENTLY ' : ''}"${schemaName}"."${viewName}"`;
-    await queryWithContext(sql, [], { tenantId, username: 'system' });
+    const ref = await this.resolveMaterializedView(tenantId, viewName, schema);
+    // REFRESH needs ownership of the view (manifest apply creates it as the owner role), so it runs on the owner pool;
+    // the target was verified above to be a materialized view inside the caller's own tenant schemas.
+    try {
+      await pool.query(`REFRESH MATERIALIZED VIEW ${concurrent ? 'CONCURRENTLY ' : ''}${ref}`);
+    } catch (e: any) {
+      // CONCURRENTLY needs a unique index and a populated view (55000); fall back to a plain refresh instead of failing.
+      if (concurrent && e && e.code === '55000') await pool.query(`REFRESH MATERIALIZED VIEW ${ref}`);
+      else throw e;
+    }
   }
 
   /**
@@ -1476,13 +1471,18 @@ export class QueryEngineService {
    * @param config the query/DML/DDL request (see (@link QueryConfig)).
    * @returns a job id to poll via (@link getJobStatus).
    */
-  static executeAsyncQuery(tenantId: string, config: QueryConfig): string {
+  static executeAsyncQuery(tenantId: string, config: QueryConfig, userId?: string, session?: SessionCtx): string {
     const jobId = randomUUID();
-    this.jobs.set(jobId, { status: 'PENDING' });
+    const owner = String(userId ?? '');
+    // Evict finished jobs older than an hour so the map cannot grow without bound.
+    const cutoff = Date.now() - 3600_000;
+    for (const [id, j] of this.jobs) if (j.createdAt < cutoff) this.jobs.delete(id);
+    const base = { tenantId, userId: owner, createdAt: Date.now() };
+    this.jobs.set(jobId, { status: 'PENDING', ...base });
 
-    this.executeQuery(tenantId, config)
-        .then(data => this.jobs.set(jobId, { status: 'COMPLETED', result: data }))
-        .catch(err => this.jobs.set(jobId, { status: 'FAILED', error: err.message }));
+    this.executeQuery(tenantId, config, session)
+        .then(data => this.jobs.set(jobId, { status: 'COMPLETED', result: data, ...base }))
+        .catch(err => this.jobs.set(jobId, { status: 'FAILED', error: err.message, ...base }));
 
     return jobId;
   }

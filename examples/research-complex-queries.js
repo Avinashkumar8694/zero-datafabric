@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 /**
  * Research Complex Queries Script
- * Runs complex queries in AST and SQL modes (single & multiple sources)
+ * Runs complex AST queries (single & multiple sources)
  */
 const axios = require('axios');
 const { BASE_URL, login, authHeaders } = require('./_client');
@@ -38,39 +38,7 @@ async function run() {
   // SECTION 1: SINGLE-SOURCE COMPLEX QUERIES
   // ==========================================
 
-  // A. SQL Mode: Window Function
-  try {
-    const res = await axios.post(`${BASE_URL}/queries/exec`, {
-      sql: `
-        SELECT sku, stock,
-               ROW_NUMBER() OVER (ORDER BY stock DESC) as rank,
-               AVG(stock) OVER () as avg_stock
-        FROM "tenant_tenant_A_Global_Supply_Chain"."local_inventory"
-        LIMIT 5
-      `
-    }, { headers });
-    printResult('1A. Single-Source SQL: Window Function (Hub)', res);
-  } catch (err) {
-    console.error('1A failed:', err.response ? err.response.data : err.message);
-  }
-
-  // B. SQL Mode: Aggregate with HAVING
-  try {
-    const res = await axios.post(`${BASE_URL}/queries/exec`, {
-      sql: `
-        SELECT sku, SUM(stock) as total_stock
-        FROM "tenant_tenant_A_Global_Supply_Chain"."local_inventory"
-        GROUP BY sku
-        HAVING SUM(stock) > 100
-        LIMIT 5
-      `
-    }, { headers });
-    printResult('1B. Single-Source SQL: Aggregate with HAVING (Hub)', res);
-  } catch (err) {
-    console.error('1B failed:', err.response ? err.response.data : err.message);
-  }
-
-  // C. AST Mode: Window Function (Capability Compensation)
+  // A. AST Mode: Window Function (Capability Compensation)
   try {
     const res = await axios.post(`${BASE_URL}/analytics/query`, {
       queryConfig: {
@@ -87,12 +55,12 @@ async function run() {
         }
       }
     }, { headers });
-    printResult('1C. Single-Source AST: Window Function (Hub)', res);
+    printResult('1A. Single-Source AST: Window Function (Hub)', res);
   } catch (err) {
-    console.error('1C failed:', err.response ? err.response.data : err.message);
+    console.error('1A failed:', err.response ? err.response.data : err.message);
   }
 
-  // D. AST Mode: Aggregate with HAVING
+  // B. AST Mode: Aggregate with HAVING
   try {
     const res = await axios.post(`${BASE_URL}/analytics/query`, {
       queryConfig: {
@@ -107,16 +75,16 @@ async function run() {
         }
       }
     }, { headers });
-    printResult('1D. Single-Source AST: Aggregate with HAVING (Hub)', res);
+    printResult('1B. Single-Source AST: Aggregate with HAVING (Hub)', res);
   } catch (err) {
-    console.error('1D failed:', err.response ? err.response.data : err.message);
+    console.error('1B failed:', err.response ? err.response.data : err.message);
   }
 
   // ==========================================
   // SECTION 2: MULTI-SOURCE COMPLEX QUERIES
   // ==========================================
 
-  // E. AST Mode: Cross-Engine JOIN with Filter, Order, and Limit
+  // C. AST Mode: Cross-Engine JOIN with Filter, Order, and Limit
   try {
     const res = await axios.post(`${BASE_URL}/analytics/query`, {
       queryConfig: {
@@ -137,12 +105,12 @@ async function run() {
         }
       }
     }, { headers });
-    printResult('2E. Multi-Source AST: Cross-Engine JOIN with Predicate & Ordering', res);
+    printResult('2C. Multi-Source AST: Cross-Engine JOIN with Predicate & Ordering', res);
   } catch (err) {
-    console.error('2E failed:', err.response ? err.response.data : err.message);
+    console.error('2C failed:', err.response ? err.response.data : err.message);
   }
 
-  // F. AST Mode: Cross-Engine JOIN + Aggregate
+  // D. AST Mode: Cross-Engine JOIN + Aggregate
   try {
     const res = await axios.post(`${BASE_URL}/analytics/query`, {
       queryConfig: {
@@ -163,12 +131,12 @@ async function run() {
         }
       }
     }, { headers });
-    printResult('2F. Multi-Source AST: Cross-Engine JOIN + Aggregate Group By', res);
+    printResult('2D. Multi-Source AST: Cross-Engine JOIN + Aggregate Group By', res);
   } catch (err) {
-    console.error('2F failed:', err.response ? err.response.data : err.message);
+    console.error('2D failed:', err.response ? err.response.data : err.message);
   }
 
-  // G. AST Mode: Cross-Engine UNION + Aggregate
+  // E. AST Mode: Cross-Engine UNION + Aggregate
   try {
     const res = await axios.post(`${BASE_URL}/analytics/query`, {
       queryConfig: {
@@ -184,9 +152,9 @@ async function run() {
         }
       }
     }, { headers });
-    printResult('2G. Multi-Source AST: Cross-Engine UNION + AVG Aggregate', res);
+    printResult('2E. Multi-Source AST: Cross-Engine UNION + AVG Aggregate', res);
   } catch (err) {
-    console.error('2G failed:', err.response ? err.response.data : err.message);
+    console.error('2E failed:', err.response ? err.response.data : err.message);
   }
 }
 

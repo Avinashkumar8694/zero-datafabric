@@ -1,31 +1,21 @@
 import request from 'supertest';
 import { app } from '../../index';
-import { getAdminToken, cleanupTenant } from './test_helper';
+import { pool } from '../../config/database';
+import { getAdminToken, cleanupTenant, createTenantViaApi, uniqueTenantId, describeIfRemotePg, remotePgConfig } from './test_helper';
 
-describe('Admin: Industrial Connection Virtualization', () => {
+// Registers the remote warehouse Postgres (docker-compose :5436, override with REMOTE_PG_HOST / REMOTE_PG_PORT); skipped when it is unreachable.
+describeIfRemotePg()('Admin: Industrial Connection Virtualization', () => {
     let adminToken: string;
-    const ts = Date.now();
-    const testTenantId = `conn_test_${ts}`;
+    const testTenantId = uniqueTenantId('conn');
     let tenantToken: string;
 
     beforeAll(async () => {
         adminToken = await getAdminToken();
-        const res = await request(app).post('/api/admin/tenants').set('Authorization', `Bearer ${adminToken}`).send({ id: testTenantId, name: 'Industrial Conn' });
-        if (res.status !== 201) {
-            console.error('Tenant Creation FAILED:', res.body);
-            throw new Error('Tenant creation failed');
-        }
-        
-        const tokenRes = await request(app).post('/api/auth/token').set('Authorization', `Bearer ${adminToken}`).send({ tenantId: testTenantId });
-        tenantToken = tokenRes.body.token;
+        tenantToken = await createTenantViaApi(adminToken, testTenantId, 'Industrial Conn');
 
         // Verify Schema exists in DB
-        const { pool } = require('../../config/database');
         const schemaRes = await pool.query('SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1', [`tenant_${testTenantId}`]);
-        if (schemaRes.rows.length === 0) {
-            console.error(`CRITICAL: Schema tenant_${testTenantId} NOT FOUND in DB!`);
-            throw new Error('Schema missing');
-        }
+        if (schemaRes.rows.length === 0) throw new Error(`Schema tenant_${testTenantId} missing`);
     });
 
     afterAll(async () => {
@@ -36,53 +26,40 @@ describe('Admin: Industrial Connection Virtualization', () => {
         const res = await request(app)
             .post('/api/admin/connections')
             .set('Authorization', `Bearer ${tenantToken}`)
-            .send({
-                name: 'remote_warehouse',
-                config: {
-                    type: 'postgres',
-                    host: '127.0.0.1',
-                    port: 5436,
-                    dbName: 'remote_warehouse',
-                    user: 'remote_admin',
-                    pass: 'remote_password',
-                    syncType: 'VIRTUAL'
-                }
-            });
+            .send({ name: 'remote_warehouse', config: remotePgConfig() });
 
         expect([200, 201]).toContain(res.status);
         expect(res.body.status).toBeDefined();
 
-        // 1. Verify table import (remote_warehouse has a table called 'transactions' - assumed based on repo pattern)
-        // We'll trigger a crawl to see if it's found
-        await request(app).post('/api/metadata/crawl').set('Authorization', `Bearer ${adminToken}`).send({ tenantId: testTenantId });
+        // Crawl the tenant's sources, then check the catalog call succeeds for this tenant
+        const crawl = await request(app).post('/api/metadata/crawl').set('Authorization', `Bearer ${adminToken}`).send({ tenantId: testTenantId });
+        expect(crawl.status).toBe(200);
 
-        // 2. Check Catalog for virtualized tables
         const catalogRes = await request(app)
             .get('/api/admin/catalog')
             .set('Authorization', `Bearer ${adminToken}`)
             .set('x-tenant-id', testTenantId);
 
         expect(catalogRes.status).toBe(200);
-        // In local test without real DB, this might be 0, but the call should succeed
-        expect(catalogRes.body).toBeDefined();
+        expect(Array.isArray(catalogRes.body)).toBe(true);
     });
 
-    it('Failure: Prevent duplicate connection names', async () => {
-        await request(app)
+    it('Idempotent: registering the same connection name again re-integrates it (200), it never duplicates', async () => {
+        const again = await request(app)
             .post('/api/admin/connections')
             .set('Authorization', `Bearer ${tenantToken}`)
-            .send({
-                name: 'remote_warehouse',
-                config: { 
-                    type: 'postgres', 
-                    host: 'localhost', 
-                    port: 5436, 
-                    dbName: 'remote_warehouse', 
-                    user: 'remote_admin', 
-                    pass: 'remote_password', 
-                    syncType: 'VIRTUAL' 
-                }
-            })
-            .expect(200); // Idempotent re-registration returns 200
+            .send({ name: 'remote_warehouse', config: remotePgConfig() });
+        expect(again.status).toBe(200); // RE-INTEGRATED
+
+        const { rows } = await pool.query('SELECT count(*)::int AS n FROM public.data_sources WHERE tenant_id = $1 AND name = $2', [testTenantId, 'remote_warehouse']);
+        expect(rows[0].n).toBe(1);
+    });
+
+    it('Security: a hub-pointing connection is refused', async () => {
+        const res = await request(app)
+            .post('/api/admin/connections')
+            .set('Authorization', `Bearer ${tenantToken}`)
+            .send({ name: 'hub_self', config: { ...remotePgConfig(), host: '127.0.0.1', port: 5434 } });
+        expect([400, 403]).toContain(res.status);
     });
 });

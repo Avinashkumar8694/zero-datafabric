@@ -265,25 +265,23 @@ The Engine pushes down the fetch requests to the respective sources, pulls the r
 
 ### Scenario 8: Recursive Queries (Hierarchical Data Fetch)
 **Objective**: Fetch a full organizational chart or category tree of unknown depth.
-**How it works**: Uses the `withRecursive` configuration to generate a `WITH RECURSIVE` Common Table Expression (CTE). The query defines a `baseQuery` (e.g. finding the CEO), and a `recursiveQuery` that joins the employees table to the CTE to find all subordinates recursively.
+**How it works**: Uses the AST `query.recursive` traversal. The fabric walks the hierarchy level by level (each level is a normal single-source query, so pushdown and policies apply), seeding from `startWith` (default: rows whose parent column is `NULL`) and following `connectBy`.
 ```json
 {
   "tenantId": "acme-corp",
   "queryConfig": {
     "type": "SELECT",
-    "withRecursive": {
-      "name": "org_tree",
-      "baseQuery": "SELECT id, manager_id, name, 1 as depth FROM \"tenant_acme-corp\".\"employees\" WHERE manager_id IS NULL",
-      "recursiveQuery": "SELECT e.id, e.manager_id, e.name, t.depth + 1 FROM \"tenant_acme-corp\".\"employees\" e INNER JOIN org_tree t ON e.manager_id = t.id"
-    },
-    "table": "org_tree",
-    "select": ["id", "manager_id", "name", "depth"],
-    "orderBy": [
-      {
-        "field": "depth",
-        "dir": "ASC"
+    "query": {
+      "from": { "resource": "employees" },
+      "select": ["id", "manager_id", "name"],
+      "recursive": {
+        "resource": "employees",
+        "select": ["id", "manager_id", "name"],
+        "connectBy": { "parent": "manager_id", "child": "id" },
+        "direction": "down",
+        "maxDepth": 25
       }
-    ]
+    }
   }
 }
 ```

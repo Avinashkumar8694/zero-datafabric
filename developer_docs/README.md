@@ -13,8 +13,8 @@ underlying engine. The fabric:
   `GROUP BY` aggregates) instead of fetching whole tables and filtering in memory;
 - **federates across sources** — cross-engine joins (bind-join), multi-source
   aggregates (partial-aggregate merge), and set operations (UNION/INTERSECT/EXCEPT);
-- **runs complex native SQL at the owning engine** — window functions, recursive
-  CTEs, materialized-view reads;
+- **expresses complex analytics as AST** — window functions, recursive queries,
+  materialized-view reads (querying is AST-only; there is no raw SQL execution);
 - returns an **execution trace** with every response, so you can see which engine
   ran what and how long it took.
 
@@ -33,12 +33,12 @@ underlying engine. The fabric:
 | Guide | Contents |
 |-------|----------|
 | [query-language.md](query-language.md) | The AST query language — every clause and operator, joins, set-ops, aggregates, with examples. |
-| [recursive-and-window-queries.md](recursive-and-window-queries.md) | Recursive CTEs, window functions, materialized views — native SQL executed at the source. |
-| [analytics-api.md](analytics-api.md) | The query endpoints: `/api/analytics/query` (+async, jobs, refresh-view) and `/api/queries` (engine/exec/native/transpile); AST vs SQL modes. |
+| [recursive-and-window-queries.md](recursive-and-window-queries.md) | Recursive queries, window functions, materialized views — as AST. |
+| [analytics-api.md](analytics-api.md) | The query endpoints: `/api/analytics/query` (+async, jobs, refresh-view) and `/api/queries` (engine/transpile); AST-only (no raw SQL). |
 | [streaming-responses.md](streaming-responses.md) | `stream: true \| false` — buffered JSON envelope vs NDJSON row stream + `{__meta__}` trailer; processing, response shape, and curl/Node/browser client patterns. |
 | [sync-and-cdc.md](sync-and-cdc.md) | Source sync strategies **VIRTUAL / SYNC / CDC** — how data is replicated into the hub, how new records are handled, watermark CDC config, the `/api/metadata/sync` endpoint, and the query-planner effect. |
 | [replication.md](replication.md) | Source→source **replication** (any source → Postgres) + **disaster-recovery restore** — jobs, FULL/INCREMENTAL strategy, scheduling, the `/api/replication` API and the Replication page. |
-| [saved-analytics-api.md](saved-analytics-api.md) | `/api/saved-analytics` CRUD + `/top` + `/:id/run`; `{{variable}}` binding, AST vs SQL saved configs, recursive+aggregate composition patterns. |
+| [saved-analytics-api.md](saved-analytics-api.md) | `/api/saved-analytics` CRUD + `/top` + `/:id/run`; `{{variable}}` binding, AST-only saved configs, recursive composition patterns. |
 
 **Data & governance**
 
@@ -46,7 +46,7 @@ underlying engine. The fabric:
 |-------|----------|
 | [crud-api.md](crud-api.md) | The `/api/data` fetch / create / update / delete field reference and `where`-map operators. |
 | [data-crud-api.md](data-crud-api.md) | Full `/api/data` surface including `call` and `sequence`, error-code mapping, governance & audit. |
-| [governance-api.md](governance-api.md) | `/api/policies` (row predicates + masking), `/api/constraints`, `/api/grants`; AST vs SQL modes and the push-down / compensate / reject philosophy. |
+| [governance-api.md](governance-api.md) | `/api/policies` (row predicates + masking), `/api/constraints`, `/api/grants`; the push-down / compensate / reject philosophy. |
 | [metadata-manifests.md](metadata-manifests.md) | Declarative schema management: every resource type, column strategy, constraint, index, RLS, trigger, relationship, downstream. |
 | [connectors.md](connectors.md) | Per-engine reference: config, supported operations, pushdown behavior, quirks. |
 
@@ -105,10 +105,13 @@ curl -s "${H[@]}" http://localhost:4000/api/analytics/query -d '{
               "on":{"left":"o.customer_id","operator":"EQ","right":"w.customer_id"}}],
     "where":[{"column":"o.customer_id","operator":"EQ","value":42}]}}}'
 
-# 4. Complex native SQL at the source (recursive CTE)
-curl -s "${H[@]}" http://localhost:4000/api/queries/exec -d '{
-  "source":"Retail_Core","schema":"public",
-  "sql":"WITH RECURSIVE t AS (SELECT id,referred_by,1 lvl FROM customers WHERE referred_by IS NULL UNION ALL SELECT c.id,c.referred_by,t.lvl+1 FROM customers c JOIN t ON c.referred_by=t.id) SELECT lvl, count(*) FROM t GROUP BY lvl ORDER BY lvl"}'
+# 4. Recursive traversal (AST, query.recursive)
+curl -s "${H[@]}" http://localhost:4000/api/analytics/query -d '{
+  "queryConfig":{"type":"SELECT","schema":"public","query":{
+    "from":{"resource":"customers","source":"Retail_Core"},
+    "select":["id","referred_by"],
+    "recursive":{"source":"Retail_Core","resource":"customers","select":["id","referred_by"],
+                "connectBy":{"parent":"referred_by","child":"id"},"maxDepth":10}}}}'
 ```
 
 Every response carries a `plan` describing how it ran — see

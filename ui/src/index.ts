@@ -101,8 +101,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // UI Routes
+// Public landing page. API_BASE is where the backend (and its Swagger specs) is reachable from the browser.
+const API_BASE = (process.env.API_BASE || 'http://localhost:4000').replace(/\/+$/, '');
+
 app.get('/', (req, res) => {
-  res.render('index', { title: 'Zero Data Fabric - Home' });
+  res.render('landing', { title: 'Zero Data Fabric - Federated data layer', API_BASE });
 });
 
 app.get('/login', (req, res) => {
@@ -123,6 +126,11 @@ app.get('/tenants', (req, res) => {
 
 app.get('/settings', (req, res) => {
   res.render('settings', { title: 'Zero Data Fabric - Settings' });
+});
+
+// Platform administration (system settings, plans, workspaces, licence, workers). The page shows a 403 state to non-admins; the API enforces it.
+app.get('/system', (req, res) => {
+  res.render('system', { title: 'Zero Data Fabric - System' });
 });
 
 app.get('/connections', (req, res) => {

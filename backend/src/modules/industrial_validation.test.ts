@@ -78,9 +78,9 @@ describe('Module 5: Industrial Edge-Case Validation', () => {
         await pool.query("UPDATE public.tenants SET status = 'SUSPENDED' WHERE id = $1", [testTenant]);
 
         const res = await request(app)
-            .post('/api/queries/exec')
+            .post('/api/queries/engine')
             .set('Authorization', `Bearer ${adminToken}`)
-            .send({ sql: 'SELECT 1' });
+            .send({ type: 'SELECT', table: 'edge_probe', limit: 1 });
 
         // Currently, we don't check tenant status in the query engine.
         // Let's implement this "Industrial" check.
@@ -95,12 +95,12 @@ describe('Module 5: Industrial Edge-Case Validation', () => {
   describe('5.3 Async Query State', () => {
     it('should poll status of an async query', async () => {
         const res = await request(app)
-            .post('/api/queries/exec')
+            .post('/api/analytics/query-async')
             .set('Authorization', `Bearer ${adminToken}`)
-            .send({ sql: 'SELECT pg_sleep(0.1)', async: true });
+            .send({ queryConfig: { type: 'SELECT', table: 'edge_probe', limit: 1 } });
 
         expect(res.status).toBe(202);
-        const queryId = res.body.queryId;
+        const queryId = res.body.jobId;
 
         const statusRes = await request(app)
             .get(`/api/queries/status/${queryId}`)

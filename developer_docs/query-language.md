@@ -152,9 +152,8 @@ source computes its partial groups, and the fabric merges them.
 | filter / projection / sort / limit | ✓ | ✓ | ✓ | ✓ (find) | ✓ (query DSL) |
 | `GROUP BY` aggregate | ✓ | ✓ | ✓ | ✓ (`$group`) | ✓ (aggs) |
 | bind-join (as `IN` filter) | ✓ | ✓ | ✓ | ✓ (`$in`) | ✓ |
-| SQL via `/queries/exec` | ✓ native (window/recursive) | ✓ native | ✓ native | ✓ fabric-translated → `find`/`$group` (no joins) | ✓ ES `_sql` (subset, no JOINs) |
 
-For window functions & recursive CTEs, see
+Querying is AST-only (no raw SQL execution; `POST /api/queries/transpile` previews the SQL an AST compiles to). For window functions & recursive queries, see
 [recursive-and-window-queries.md](recursive-and-window-queries.md).
 
 ## Reading the result

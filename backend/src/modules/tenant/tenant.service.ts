@@ -1,4 +1,6 @@
 import { pool } from '../../config/database';
+import { assertCreatableTenantId, assertTenantIdSafe } from '../../utils/tenantScope';
+import { quoteAnyIdent, belongsToTenant, escapeLike } from '../../utils/identifiers';
 
 /**
  * TenantService — tenant lifecycle management: registry CRUD plus the
@@ -22,6 +24,10 @@ export class TenantService {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      // 0. Id rules: assertTenantId syntax + no-overlap (X.startsWith(E+'_') or E.startsWith(X+'_') => 409 TENANT_ID_OVERLAP),
+      //    serialised with an advisory lock so two concurrent creations cannot both pass.
+      id = await assertCreatableTenantId(client, id);
       
       // 1. Register in the master registry
       const result = await client.query(
@@ -33,7 +39,7 @@ export class TenantService {
       await client.query('SELECT fabric_admin.create_tenant_namespace($1)', [id]);
       
       // 3. Grant CREATE permission (missing in the DB function)
-      await client.query(`GRANT CREATE ON SCHEMA "tenant_${id}" TO fabric_user`);
+      await client.query(`GRANT CREATE ON SCHEMA ${quoteAnyIdent(`tenant_${id}`)} TO fabric_user`);
 
       await client.query('COMMIT');
       return result.rows[0];
@@ -85,8 +91,15 @@ export class TenantService {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      // 1. Drop the tenant schema (virtualized data)
-      await client.query(`DROP SCHEMA IF EXISTS tenant_${id} CASCADE`);
+      // 1. Drop the tenant's schemas (virtualized data): exactly tenant_<id> and tenant_<id>_<logical>, never a LIKE prefix.
+      const tid = assertTenantIdSafe(id);
+      const { rows: schemas } = await client.query(
+        `SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1 OR schema_name LIKE $2 ESCAPE '\\'`,
+        [`tenant_${tid}`, `${escapeLike(`tenant_${tid}_`)}%`]
+      );
+      for (const r of schemas) {
+        if (belongsToTenant(String(r.schema_name), tid)) await client.query(`DROP SCHEMA IF EXISTS ${quoteAnyIdent(r.schema_name)} CASCADE`);
+      }
       // 2. Remove from registry
       await client.query('DELETE FROM public.tenants WHERE id = $1', [id]);
       await client.query('COMMIT');

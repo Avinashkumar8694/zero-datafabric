@@ -95,8 +95,8 @@ export const createAnalytic = async (req: Request, res: Response) => {
     if (!body?.name) return res.status(400).json({ error: 'name is required' });
     res.status(201).json(await SavedAnalyticsService.create(u.tenant_id, u.username || 'system', body));
   } catch (err: any) {
-    const code = /required/.test(err.message) ? 400 : 500;
-    res.status(code).json({ error: err.message });
+    const code = err.status || (/required/.test(err.message) ? 400 : 500);
+    res.status(code).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
   }
 };
 

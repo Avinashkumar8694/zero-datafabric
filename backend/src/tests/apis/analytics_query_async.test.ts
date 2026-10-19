@@ -1,33 +1,29 @@
 import request from 'supertest';
 import { app } from '../../index';
-import { getAdminToken, cleanupTenant } from './test_helper';
+import { getAdminToken, cleanupTenant, createTenantViaApi, uniqueTenantId } from './test_helper';
 
 describe('Analytics: Industrial Async Processing & Job Lifecycle', () => {
-    let adminToken: string;
-    const ts = Date.now();
-    const testTenantId = `async_test_${ts}`;
     let tenantToken: string;
+    const testTenantId = uniqueTenantId('asy');
 
     beforeAll(async () => {
-        adminToken = await getAdminToken();
-        await request(app).post('/api/admin/tenants').set('Authorization', `Bearer ${adminToken}`).send({ id: testTenantId, name: 'Industrial Async' });
-        
-        const tokenRes = await request(app).post('/api/auth/token').set('Authorization', `Bearer ${adminToken}`).send({ tenantId: testTenantId });
-        tenantToken = tokenRes.body.token;
+        tenantToken = await createTenantViaApi(await getAdminToken(), testTenantId, 'Industrial Async');
 
         // Provision multi-schema environment
-        await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send({
+        const applied = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send({
             version: "1.0",
             schemas: [
                 {
                     name: "reporting",
-                    tables: [{
+                    resources: [{
+                        type: 'TABLE',
                         name: "aggregated_stats",
                         columns: [{ name: "id", type: "SERIAL", primaryKey: true }, { name: "metric", type: "INTEGER" }]
                     }]
                 }
             ]
         });
+        expect(applied.status).toBe(200);
 
         // Seed data
         await request(app).post('/api/analytics/query').set('Authorization', `Bearer ${tenantToken}`).send({
@@ -75,7 +71,7 @@ describe('Analytics: Industrial Async Processing & Job Lifecycle', () => {
             
             expect(pollRes.status).toBe(200);
             jobStatus = pollRes.body.status;
-            if (jobStatus === 'COMPLETED') results = pollRes.body.result;
+            if (jobStatus === 'COMPLETED') results = pollRes.body.result?.data;
             
             if (jobStatus !== 'COMPLETED') {
                 await new Promise(r => setTimeout(r, 200));

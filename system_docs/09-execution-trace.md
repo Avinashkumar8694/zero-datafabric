@@ -30,7 +30,7 @@ classDiagram
 
 `operation` values: `scan`, `aggregate`, `join-driving`, `bind-join`,
 `join-probe`, `partial-aggregate`, `union-leg` / `intersect-leg` / `except-leg`,
-`single-sql`, `raw-sql`, `create` / `update` / `delete`.
+`single-sql`, `create` / `update` / `delete`.
 
 ## How it's produced
 

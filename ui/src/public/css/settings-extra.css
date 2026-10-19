@@ -1,0 +1,41 @@
+/* Settings tabs, worker nodes and developer tokens. Uses the shared console tokens from style.css. */
+.st-tabs { display: flex; gap: 6px; margin-bottom: 1.5rem; overflow-x: auto; -webkit-overflow-scrolling: touch; border-bottom: 1px solid var(--border); scrollbar-width: thin; }
+.st-tab { appearance: none; background: none; border: 0; color: var(--text-muted); font: inherit; font-weight: 600; font-size: .9rem; padding: .75rem 1rem; min-height: 44px; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; display: inline-flex; align-items: center; gap: .5rem; }
+.st-tab:hover { color: var(--text); }
+.st-tab[aria-selected='true'] { color: var(--accent-text, var(--accent)); border-bottom-color: var(--accent); }
+.st-panel[hidden] { display: none; }
+.settings-container.wide { max-width: 1100px; }
+
+.wk-banner { display: flex; gap: .75rem; align-items: flex-start; padding: .9rem 1rem; border-radius: 12px; border: 1px solid var(--border); background: var(--input-bg); margin-bottom: 1rem; font-size: .88rem; }
+.wk-banner.warn { border-color: rgba(245, 158, 11, .4); background: rgba(245, 158, 11, .08); color: #f59e0b; }
+.wk-banner.err { border-color: rgba(248, 113, 113, .4); background: rgba(248, 113, 113, .08); color: var(--danger, #f87171); }
+.wk-banner.ok { border-color: rgba(76, 214, 161, .35); background: rgba(76, 214, 161, .08); color: var(--ok, #4cd6a1); }
+.wk-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+.wk-tile { background: var(--input-bg); border: 1px solid var(--border); border-radius: 12px; padding: .8rem 1rem; }
+.wk-tile b { display: block; font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; }
+.wk-tile span { color: var(--text-muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; }
+.wk-bar { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+.wk-bar .btn-primary, .wk-bar .btn-outline, .wk-card .btn-outline, .wk-form .btn-primary, .wk-form .btn-outline { min-height: 40px; }
+.wk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.wk-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1rem; display: flex; flex-direction: column; gap: .6rem; min-width: 0; }
+.wk-card h4 { margin: 0; font-size: 1.05rem; display: flex; justify-content: space-between; gap: .5rem; align-items: center; }
+.wk-card .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .8rem; color: var(--text-muted); overflow-wrap: anywhere; }
+.wk-meta { display: flex; flex-wrap: wrap; gap: .4rem; font-size: .78rem; color: var(--text-muted); }
+.wk-chip { border: 1px solid var(--border); background: var(--input-bg); border-radius: 99px; padding: .15rem .6rem; }
+.wk-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: auto; }
+.wk-st-ACTIVE, .wk-st-UP { background: rgba(76, 214, 161, .16); color: var(--ok, #4cd6a1); }
+.wk-st-DRAINING, .wk-st-PENDING { background: rgba(245, 158, 11, .16); color: #f59e0b; }
+.wk-st-DOWN, .wk-st-DRIFT, .wk-st-FAILED { background: rgba(248, 113, 113, .16); color: var(--danger, #f87171); }
+.wk-st-INACTIVE { background: var(--input-bg); color: var(--text-muted); }
+.wk-form { background: var(--input-bg); border: 1px solid var(--border); border-radius: 14px; padding: 1rem; margin-bottom: 1rem; }
+.wk-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .75rem; align-items: end; }
+.wk-section { margin: 1.5rem 0 .75rem; font-size: 1.05rem; font-weight: 700; display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap; }
+.wk-empty { text-align: center; color: var(--text-muted); padding: 1.5rem; border: 1px dashed var(--border); border-radius: 14px; }
+.wk-secret { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.wk-secret code { flex: 1 1 260px; overflow-wrap: anywhere; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: .6rem .75rem; font-size: .82rem; }
+.wk-scopes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .4rem; }
+.wk-scopes label { display: flex; gap: .4rem; align-items: center; font-size: .85rem; min-height: 36px; }
+.wk-toast { position: fixed; right: 16px; bottom: 16px; left: 16px; max-width: 420px; margin-left: auto; z-index: 200; padding: .8rem 1rem; border-radius: 12px; background: var(--card); border: 1px solid var(--border); box-shadow: 0 12px 40px rgba(0, 0, 0, .35); font-size: .9rem; }
+@media (max-width: 600px) { .wk-grid { grid-template-columns: 1fr; } .settings-container.wide { padding: 1rem 0; } }
+.wk-form .form-group { display: flex; flex-direction: column; gap: .35rem; margin: 0; min-width: 0; }
+.wk-form input:not([type='checkbox']) { width: 100%; min-height: 40px; box-sizing: border-box; }

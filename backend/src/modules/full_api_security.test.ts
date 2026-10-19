@@ -33,7 +33,7 @@ describe('Module 6: Full API Security & Authorization Validation', () => {
       ['POST', '/api/admin/connections'],
       ['GET', '/api/admin/audit-logs'],
       ['GET', '/api/admin/catalog'],
-      ['POST', '/api/queries/exec'],
+      ['POST', '/api/queries/engine'],
       ['POST', '/api/auth/token'],
     ];
 
@@ -83,9 +83,16 @@ describe('Module 6: Full API Security & Authorization Validation', () => {
       expect(res.status).toBe(200);
     });
 
-    it('POST /api/queries/exec should be accessible for user', async () => {
-        const res = await testRoute('POST', '/api/queries/exec', userToken, { sql: 'SELECT 1' });
-        expect(res.status).toBe(200);
+    it('POST /api/queries/exec is removed (404) and raw SQL bodies are rejected', async () => {
+        // The AST-only guard runs before routing: SQL bodies get 400, AST bodies reach the router and 404.
+        const guarded = await testRoute('POST', '/api/queries/exec', userToken, { sql: 'SELECT 1' });
+        expect(guarded.status).toBe(400);
+        expect(guarded.body.code).toBe('SQL_NOT_SUPPORTED');
+        const gone = await testRoute('POST', '/api/queries/exec', userToken, { type: 'SELECT', table: 't' });
+        expect(gone.status).toBe(404);
+        const rejected = await testRoute('POST', '/api/queries/engine', userToken, { sql: 'SELECT 1' });
+        expect(rejected.status).toBe(400);
+        expect(rejected.body.code).toBe('SQL_NOT_SUPPORTED');
     });
   });
 });

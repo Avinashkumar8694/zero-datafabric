@@ -1,10 +1,10 @@
 import request from 'supertest';
 import { app } from '../../index';
-import { getAdminToken, cleanupTenant } from './test_helper';
+import { getAdminToken, cleanupTenant, uniqueTenantId } from './test_helper';
 
 describe('POST /api/admin/tenants', () => {
     let adminToken: string;
-    const testId = 'create_test_tenant';
+    const testId = uniqueTenantId('tcr');
 
     beforeAll(async () => {
         adminToken = await getAdminToken();

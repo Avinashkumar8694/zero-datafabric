@@ -531,7 +531,7 @@
     <div class="home-nav-cta">
       <a href="javascript:void(0)" id="navLoginBtn" class="btn-home-ghost">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        Sign In with SSO
+        Sign In
       </a>
       <a href="/dashboard" id="navDashBtn" class="btn-home-primary" style="display:none">
         Go to Dashboard →
@@ -559,7 +559,7 @@
     <div class="hero-actions">
       <a href="javascript:void(0)" id="heroLoginBtn" class="btn-hero-cta">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        Sign in with SSO
+        Sign In
         <span class="arrow-icon">→</span>
       </a>
       <a href="#features" class="btn-hero-secondary">
@@ -658,7 +658,7 @@
       </p>
       <a href="javascript:void(0)" id="ctaLoginBtn" class="btn-hero-cta" style="margin: 0 auto; width: fit-content;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        Sign in with SSO — it's free
+        Sign In — it's free
         <span class="arrow-icon">→</span>
       </a>
     </div>
@@ -677,31 +677,56 @@
 </div>
 
 <script>
-  // ── SSO redirect: all login buttons go directly to the SSO endpoint ──
   const API_BASE_URL = window.location.hostname.includes('fabrixly.com')
       ? `/api`
       : `http://${window.location.hostname}:4000/api`;
 
-  function redirectToSSO() {
-    window.location.href = '/login';
+  // ── Determine login destination based on license selfHosted flag ──────────
+  // selfHosted: true  → /login  (custom branded login page, may have SSO button if OIDC set)
+  // selfHosted: false → directly to SSO endpoint (no intermediate page)
+  let loginSettings = null;
+
+  async function loadLoginSettings() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings/login`);
+      if (res.ok) loginSettings = await res.json();
+    } catch (e) {
+      console.warn('[Home] Could not load login settings:', e);
+    }
   }
 
-  document.getElementById('heroLoginBtn').addEventListener('click', redirectToSSO);
-  document.getElementById('navLoginBtn').addEventListener('click', redirectToSSO);
-  document.getElementById('ctaLoginBtn').addEventListener('click', redirectToSSO);
+  function getLoginDestination() {
+    if (!loginSettings) {
+      // Fallback: go to /login if we couldn't load settings
+      return { type: 'page', url: '/login' };
+    }
+    if (loginSettings.selfhost === true) {
+      // Self-host mode: go to custom login page
+      return { type: 'page', url: '/login' };
+    } else {
+      // Cloud/SaaS: skip the login page, go directly to SSO
+      return { type: 'sso', url: `${API_BASE_URL}/auth/sso` };
+    }
+  }
+
+  function handleSignIn() {
+    const dest = getLoginDestination();
+    window.location.href = dest.url;
+  }
+
+  // Wire all three sign-in buttons
+  document.getElementById('heroLoginBtn').addEventListener('click', handleSignIn);
+  document.getElementById('navLoginBtn').addEventListener('click', handleSignIn);
+  document.getElementById('ctaLoginBtn').addEventListener('click', handleSignIn);
 
   // If already logged in, swap nav button to "Go to Dashboard"
   if (localStorage.getItem('token')) {
     document.getElementById('navLoginBtn').style.display = 'none';
     document.getElementById('navDashBtn').style.display = 'inline-flex';
-    document.getElementById('heroLoginBtn').textContent = 'Go to Dashboard →';
-    document.getElementById('heroLoginBtn').addEventListener('click', () => {
-      window.location.href = '/dashboard';
-    }, { once: true });
-    document.getElementById('ctaLoginBtn').textContent = 'Go to Dashboard →';
-    document.getElementById('ctaLoginBtn').addEventListener('click', () => {
-      window.location.href = '/dashboard';
-    }, { once: true });
+    document.getElementById('heroLoginBtn').innerHTML = 'Go to Dashboard →';
+    document.getElementById('heroLoginBtn').onclick = () => { window.location.href = '/dashboard'; };
+    document.getElementById('ctaLoginBtn').innerHTML = 'Go to Dashboard →';
+    document.getElementById('ctaLoginBtn').onclick = () => { window.location.href = '/dashboard'; };
   }
 
   // Handle SSO callback token (IDS redirects back here with ?token=...)
@@ -712,7 +737,7 @@
     window.location.href = '/dashboard';
   }
 
-  // Fetch plan limits dynamically from the backend
+  // Fetch plan limits dynamically (only show trial CTA if not selfhost)
   async function loadDynamicLimits() {
     try {
       const res = await fetch(`${API_BASE_URL}/plans`);
@@ -731,7 +756,18 @@
       console.warn('[Home] Failed to load dynamic plan limits:', e);
     }
   }
-  loadDynamicLimits();
+
+  // Init: load settings then apply selfhost-aware UI changes
+  (async () => {
+    await loadLoginSettings();
+    await loadDynamicLimits();
+
+    // If selfHosted, hide the trial CTA section (no plans needed)
+    if (loginSettings && loginSettings.selfhost === true) {
+      const ctaSection = document.getElementById('plans');
+      if (ctaSection) ctaSection.style.display = 'none';
+    }
+  })();
 </script>
 
 <%- include('partials/footer') %>

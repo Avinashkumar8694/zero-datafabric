@@ -30,6 +30,7 @@ import * as metadataController from './controllers/metadataController';
 import { ElasticsearchMutationWorker } from './modules/metadata/es_mutation_worker';
 import { initCache } from './config/cache';
 import { licensingMiddleware } from './middleware/licensing.middleware';
+import { LicenseValidationService } from './utils/licensing';
 
 import morgan from 'morgan';
 
@@ -171,6 +172,50 @@ if (process.env.NODE_ENV !== 'test') {
         INSERT INTO public.settings (key, value)
         VALUES ('license_key', '{
           "license_key": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJsaWNlbnNlZSI6Ik9yZ2FuaXphdGlvbiBBIiwibmFtZSI6IkIyQi1GYWJyaXhseS1JRFMiLCJpc3N1ZWRBdCI6IjIwMjYtMDctMTJUMDk6NDA6MDAuMDAwWiIsImV4cGlyZXNBdCI6IjIwMzEtMTItMTJUMDk6NDA6MDAuMDAwWiIsInNlbGZIb3N0ZWQiOnRydWUsInByb2R1Y3QiOiJpZGVudGl0eS1zZXJ2ZXIiLCJsaW1pdHMiOnsibWF1Ijo1MDAsIm1heF9vcmdhbml6YXRpb25zIjo1LCJtYXhfY2xpZW50cyI6MjAsIm1heF9yb2xlcyI6NTAsImRhdGFfcmV0ZW50aW9uX2RheXMiOjcsIm0ybV90b2tlbl9saW1pdCI6MjAwMH0sImZlYXR1cmVzIjp7InBhc3N3b3JkbGVzc19lbmFibGVkIjp0cnVlLCJtYWdpY19saW5rX2VuYWJsZWQiOnRydWUsIm9tb2JpbGVfYXV0aF9lbmFibGVkIjp0cnVlLCJzb2NpYWxfbG9naW4vZW5hYmxlZCI6dHJ1ZSwic29jaWFsX2xvZ2luIjp0cnVlLCJlbnRlcnByaXNlX3Nzb19lbmFibGVkIjp0cnVlLCJjdXN0b21fZG9tYWluX2VuYWJsZWQiOnRydWUsInJlbW92ZV9icmFuZGluZyI6dHJ1ZSwiY3VzdG9tX2JyYW5kaW5nIjp0cnVlLCJjdXN0b21fZW1haWxfdGVtcGxhdGVzIjp0cnVlLCJhZHZhbmNlZF9jc3MiOnRydWUsIm1mYV9lbmFibGVkIjp0cnVlLCJtZmFfZW5mb3JjZWQiOnRydWUsImF1ZGl0X2xvZ3NfZW5hYmxlZCI6dHJ1ZSwibTJtX2VuYWJsZWQiOnRydWUsImNhbGxiYWNrX3ZhbGlkYXRpb25fZW5hYmxlZCI6dHJ1ZSwiYWxsb3dlZF9zb2NpYWxfcHJvdmlkZXJzIjpbIioiLCJnb29nbGUiLCJnaXRodWIiLCJmYWNlYm9vayIsIm1pY3Jvc29mdCIsImFwcGxlIiwia2V5Y2xvYWsiXSwiYWxsb3dlZF9tZmFfbWV0aG9kcyI6WyIqIiwidG90cCIsInBhc3NrZXkiLCJzbXMtb3RwIiwiZW1haWwtb3RwIiwiYmFja3VwLWNvZGUiXX0sIm1heF9pbnN0YWxsYXRpb25zIjoxLCJ2YWxpZGF0aW9uX3VybCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwNS9hcGkvbGljZW5zZXMvdmFsaWRhdGUiLCJpYXQiOjE3ODM4NDkzNjR9.X4O_dVbnVJmAHW2vvcs7VEX9pkASVoIbGScI_umtdYUljyeLt18IlSzaqyqjGWhNBqw7cc7fmRa_3blg4EV3ttn9ZPcISPPUDpHInPOY8tkQF8hjrEg9WaO95gmBtkhdRbPNGeORgrj0Ptynx_HhlWaIWrpbVD95FhQDlPL8nQE5DZPrTTzcluBxDhEOe5RcT6tlkSbZzJuwXoedDxj2iVVzxu3hp7OnFc7r-2qrlBXjx9TIXdtUB8khem61y2p7Z3A_ys96Gxnn35d8j90Ns70C1iu1avalUNGNYiZH1mI3j7BrV_kDsWsikW5g8z9dOqm7sD4hXbqHJHo5yxFdJQ\"\n        }'::jsonb)\n        ON CONFLICT (key) DO NOTHING\n      `);
+
+      // Ensure instance_id exists in settings (stable across restarts)
+      const settingsRow = await pool.query(`
+        INSERT INTO public.settings (key, value)
+        VALUES ('instance_id', to_jsonb(gen_random_uuid()::text))
+        ON CONFLICT (key) DO NOTHING
+        RETURNING value
+      `);
+      const instanceIdRow = await pool.query(
+        "SELECT value FROM public.settings WHERE key = 'instance_id'"
+      );
+      const instanceId: string = instanceIdRow.rows[0]?.value?.replace ? instanceIdRow.rows[0].value.replace(/"/g, '') : instanceIdRow.rows[0]?.value || require('crypto').randomUUID();
+
+
+      // ── Start License Validation Daemon BEFORE opening server port (mirrors IDS) ──
+      // Runs first tick immediately (awaited), then every 24 hours via setInterval.
+      const licenseValidationService = new LicenseValidationService();
+      await licenseValidationService.start(
+        instanceId,
+        // getLicenseKey: ENV takes priority, then settings table
+        async () => {
+          if (process.env.LICENSE_KEY) return process.env.LICENSE_KEY;
+          const r = await pool.query("SELECT value FROM public.settings WHERE key = 'license_key'");
+          return r.rows[0]?.value?.license_key || '';
+        },
+        // onStatusChange: persist validation state to DB after every tick (mirrors IDS SystemSettings)
+        async (status, errorMessage, lastSuccessAt) => {
+          try {
+            await pool.query(
+              `INSERT INTO public.settings (key, value)
+               VALUES ('license_validation', jsonb_build_object(
+                 'status', $1::text,
+                 'error_message', $2::text,
+                 'last_successful_validation_at', $3::text,
+                 'updated_at', now()::text
+               ))
+               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+              [status, errorMessage ?? null, lastSuccessAt?.toISOString() ?? null]
+            );
+          } catch (e) {
+            // Non-fatal — don't crash if DB write fails
+          }
+        }
+      );
 
       server.listen(PORT, '0.0.0.0', () => {
         console.log(`\x1b[32m✔ Industrial Data Fabric Orchestrator running on port ${PORT}\x1b[0m`);

@@ -356,8 +356,9 @@ export const crawlTenant = async (req: Request, res: Response) => {
 export const getSources = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
-        const rows = await cached(`meta:${user.tenant_id}:sources`, META_TTL, async () =>
-            (await queryWithContext('SELECT id, name, type, status FROM public.data_sources', [], { tenantId: user.tenant_id, username: user.username })).rows);
+        const cacheKey = user.internal_role === 'ADMIN' ? 'meta:admin:sources' : `meta:${user.tenant_id}:sources`;
+        const rows = await cached(cacheKey, META_TTL, async () =>
+            (await queryWithContext('SELECT id, name, type, status FROM public.data_sources', [], { tenantId: user.tenant_id, username: user.username, role: user.internal_role })).rows);
         res.json(rows);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -380,8 +381,9 @@ export const getSchemas = async (req: Request, res: Response) => {
         const sourceId = req.query.sourceId as string;
         if (!sourceId) return res.status(400).json({ error: 'sourceId is required' });
         const user = (req as any).user;
-        const rows = await cached(`meta:${user.tenant_id}:schemas:${sourceId}`, META_TTL, async () =>
-            (await queryWithContext('SELECT id as "schemaId", name, physical_name as "physicalName" FROM public.catalog_schemas WHERE source_id = $1', [sourceId], { tenantId: user.tenant_id, username: user.username })).rows);
+        const cacheKey = user.internal_role === 'ADMIN' ? `meta:admin:schemas:${sourceId}` : `meta:${user.tenant_id}:schemas:${sourceId}`;
+        const rows = await cached(cacheKey, META_TTL, async () =>
+            (await queryWithContext('SELECT id as "schemaId", name, physical_name as "physicalName" FROM public.catalog_schemas WHERE source_id = $1', [sourceId], { tenantId: user.tenant_id, username: user.username, role: user.internal_role })).rows);
         res.json(rows);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -405,8 +407,9 @@ export const getTables = async (req: Request, res: Response) => {
         const schemaId = req.query.schemaId as string;
         if (!schemaId) return res.status(400).json({ error: 'schemaId is required' });
         const user = (req as any).user;
-        const rows = await cached(`meta:${user.tenant_id}:tables:${schemaId}`, META_TTL, async () =>
-            (await queryWithContext('SELECT id as "tableId", name, physical_name as "physicalName", row_count as "rowCount", resource_type as "resourceType" FROM public.catalog_tables WHERE schema_id = $1', [schemaId], { tenantId: user.tenant_id, username: user.username })).rows);
+        const cacheKey = user.internal_role === 'ADMIN' ? `meta:admin:tables:${schemaId}` : `meta:${user.tenant_id}:tables:${schemaId}`;
+        const rows = await cached(cacheKey, META_TTL, async () =>
+            (await queryWithContext('SELECT id as "tableId", name, physical_name as "physicalName", row_count as "rowCount", resource_type as "resourceType" FROM public.catalog_tables WHERE schema_id = $1', [schemaId], { tenantId: user.tenant_id, username: user.username, role: user.internal_role })).rows);
         res.json(rows);
     } catch (err: any) {
         res.status(500).json({ error: err.message });

@@ -144,11 +144,15 @@ export const ssoCallback = async (req: Request, res: Response) => {
       throw new Error('Identity provider did not return an ID token');
     }
 
-    // ── Step 2: Decode ID token — email may or may not be present ───────────
+    // ── Step 2: Decode ID token — extract email/username robustly ───────────
     const decoded = jwt.decode(id_token) as any;
     console.log('[SSO] ID token claims:', JSON.stringify(decoded));
 
-    let email: string | null = decoded?.email?.toLowerCase() || null;
+    let email: string | null = decoded?.email?.toLowerCase() || 
+                               decoded?.upn?.toLowerCase() || 
+                               decoded?.preferred_username?.toLowerCase() || 
+                               decoded?.email_address?.toLowerCase() || 
+                               null;
     let sub: string = decoded?.sub || '';
 
     // ── Step 3: If email missing, call userinfo endpoint ────────────────────
@@ -158,7 +162,11 @@ export const ssoCallback = async (req: Request, res: Response) => {
           headers: { Authorization: `Bearer ${access_token}` }
         });
         console.log('[SSO] Userinfo claims:', JSON.stringify(userInfoRes.data));
-        email = userInfoRes.data?.email?.toLowerCase() || null;
+        email = userInfoRes.data?.email?.toLowerCase() || 
+                userInfoRes.data?.upn?.toLowerCase() || 
+                userInfoRes.data?.preferred_username?.toLowerCase() || 
+                userInfoRes.data?.email_address?.toLowerCase() || 
+                null;
         sub   = userInfoRes.data?.sub || sub;
       } catch (uiErr: any) {
         console.warn('[SSO] Userinfo endpoint failed:', uiErr.message);
@@ -176,12 +184,25 @@ export const ssoCallback = async (req: Request, res: Response) => {
 
     const userEmail = email as string;
 
+    // ── Step 4.5: Extract SSO Role/Groups (resolves role variance sso-to-sso) ─
+    const ssoClaimsList = [
+      ...(Array.isArray(decoded?.roles) ? decoded.roles : (decoded?.roles ? [decoded.roles] : [])),
+      ...(Array.isArray(decoded?.groups) ? decoded.groups : (decoded?.groups ? [decoded.groups] : [])),
+      ...(Array.isArray(decoded?.realm_access?.roles) ? decoded.realm_access.roles : []),
+      ...(decoded?.role ? [decoded.role] : [])
+    ];
+    const normalizedSsoRoles = ssoClaimsList.map((r: any) => String(r).toUpperCase());
+    const isSsoAdmin = normalizedSsoRoles.includes('ADMIN') || normalizedSsoRoles.includes('SYSTEM_ADMIN');
+
     // ── Step 5: Lookup or auto-provision user ───────────────────────────────
     const userRes = await pool.query('SELECT * FROM public.users WHERE username = $1', [userEmail]);
 
     let user: any;
 
-    const isAdminEmail = userEmail === 'admin@fabrixly.com' || userEmail === 'admin@system.com' || userEmail === 'arjunkumargupta108@gmail.com';
+    const isAdminEmail = userEmail === 'admin@fabrixly.com' || 
+                         userEmail === 'admin@system.com' || 
+                         userEmail === 'arjunkumargupta108@gmail.com' ||
+                         isSsoAdmin;
 
     if (userRes.rows.length > 0) {
       user = userRes.rows[0];

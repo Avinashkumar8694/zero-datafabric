@@ -129,7 +129,7 @@ export const deleteTenant = async (req: Request, res: Response) => {
 export const getConnections = async (req: Request, res: Response) => {
   const user = (req as any).user;
   try {
-    const result = await queryWithContext('SELECT * FROM public.data_sources', [], { tenantId: user.tenant_id, username: user.username });
+    const result = await queryWithContext('SELECT * FROM public.data_sources', [], { tenantId: user.tenant_id, username: user.username, role: user.internal_role });
     const probeWithTimeout = async (probe: Promise<any>, ms = 1500) => {
       const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('probe-timeout')), ms));
       return Promise.race([probe, timeout]);
@@ -422,9 +422,10 @@ export const getCatalogSummary = async (req: Request, res: Response) => {
           s.source_id IN (SELECT id FROM public.data_sources WHERE tenant_id = $1)
           OR s.physical_name LIKE 'tenant_' || $1 || '%'
       ))
-      ORDER BY s.physical_name, t.physical_name ASC`, [user.tenant_id], {
+      ORDER BY s.physical_name, t.physical_name ASC`, [user.internal_role === 'ADMIN' ? null : user.tenant_id], {
       tenantId: user.tenant_id,
-      username: user.username || 'unknown'
+      username: user.username || 'unknown',
+      role: user.internal_role
     });
     res.json(rows);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
@@ -448,7 +449,7 @@ export const listNotificationChannels = async (req: Request, res: Response) => {
        FROM public.notification_channels
        ORDER BY channel_type, name`,
       [],
-      { tenantId: user.tenant_id, username: user.username }
+      { tenantId: user.tenant_id, username: user.username, role: user.internal_role }
     );
     res.json(rows);
   } catch (err: any) {

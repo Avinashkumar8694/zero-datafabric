@@ -32,11 +32,37 @@
         function getToken() {
             return localStorage.getItem('token');
         }
+        function getDecodedToken() {
+            const token = getToken();
+            if (!token) return null;
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                return JSON.parse(jsonPayload);
+            } catch (e) {
+                return null;
+            }
+        }
         function performLogout() {
+            let isSso = localStorage.getItem('auth_method') === 'sso';
+            if (!isSso) {
+                const decoded = getDecodedToken();
+                if (decoded && decoded.auth_method === 'sso') {
+                    isSso = true;
+                }
+            }
             localStorage.removeItem('token');
             localStorage.removeItem('active_tenant');
-            const homeUrl = window.location.origin + '/';
-            window.location.href = `${API_BASE}/auth/sso/logout?redirect_uri=${encodeURIComponent(homeUrl)}`;
+            localStorage.removeItem('auth_method');
+            if (isSso) {
+                const homeUrl = window.location.origin + '/';
+                window.location.href = `${API_BASE}/auth/sso/logout?redirect_uri=${encodeURIComponent(homeUrl)}`;
+            } else {
+                window.location.href = '/login';
+            }
         }
         {
             const publicPaths = ['/', '/login', '/logout'];

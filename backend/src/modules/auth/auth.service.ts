@@ -64,7 +64,7 @@ export class AuthService {
       return null;
     }
 
-    const token = this.generateToken(user.tenant_id, user.role, user.username, user.id);
+    const token = this.generateToken(user.tenant_id, user.role, user.username, user.id, 'local');
     console.log(`[Auth] Login successful for: ${username}, Tenant: ${user.tenant_id}, Role: ${user.role}`);
     return { token, user: { id: user.id, username: user.username, tenant_id: user.tenant_id } };
   }
@@ -78,9 +78,10 @@ export class AuthService {
    * @param internalRole - The user's application role (e.g. ADMIN/USER); defaults to `'USER'`.
    * @param username - The authenticated username; defaults to `'unknown'`.
    * @param userId - The authenticated user's ID.
+   * @param authMethod - Method used to authenticate: 'local' (password) or 'sso'.
    * @returns A signed JWT string.
    */
-  static generateToken(tenantId: string | null, internalRole: string = 'USER', username: string = 'unknown', userId?: string) {
+  static generateToken(tenantId: string | null, internalRole: string = 'USER', username: string = 'unknown', userId?: string, authMethod: string = 'local') {
     // Map internal roles to DB roles for PostgREST
     const dbRole = 'fabric_user';
 
@@ -90,6 +91,7 @@ export class AuthService {
       internal_role: internalRole, // Store actual role for app logic
       tenant_id: tenantId,
       username: username,
+      auth_method: authMethod,
       iat: Math.floor(Date.now() / 1000),
       iss: 'zero-data-fabric'
     };

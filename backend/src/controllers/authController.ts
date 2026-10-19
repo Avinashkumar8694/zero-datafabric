@@ -86,8 +86,9 @@ export const refreshToken = async (req: Request, res: Response) => {
     }
   }
 
-  const token = AuthService.generateToken(tenantId, user.internal_role, user.username || 'unknown', user.id);
-  console.log(`[Auth] Issued tenant-scoped token for ${user.username} -> ${tenantId}`);
+  const authMethod = (user as any).auth_method || 'local';
+  const token = AuthService.generateToken(tenantId, user.internal_role, user.username || 'unknown', user.id, authMethod);
+  console.log(`[Auth] Issued tenant-scoped token for ${user.username} -> ${tenantId} (method: ${authMethod})`);
   res.json({ token });
 };
 
@@ -336,10 +337,10 @@ export const ssoCallback = async (req: Request, res: Response) => {
     }
 
     // ── Step 6: Issue fabric JWT and redirect to UI ─────────────────────────
-    const token = AuthService.generateToken(user.tenant_id, user.role, user.username, user.id);
-    console.log(`[SSO] Login successful: ${userEmail} tenant=${user.tenant_id} role=${user.role}`);
+    const token = AuthService.generateToken(user.tenant_id, user.role, user.username, user.id, 'sso');
+    console.log(`[SSO] Login successful: ${userEmail} tenant=${user.tenant_id} role=${user.role} (method: sso)`);
 
-    res.redirect(`${UI_BASE}/login?token=${token}`);
+    res.redirect(`${UI_BASE}/login?token=${token}&auth_method=sso`);
   } catch (err: any) {
     console.error('[SSO Callback] Error:', err.message);
     res.status(500).json({ error: 'SSO Login failed', details: err.message });

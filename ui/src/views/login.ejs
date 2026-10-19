@@ -73,8 +73,10 @@
     // Check for SSO callback token in query params
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
+    const authMethod = urlParams.get('auth_method') || 'sso';
     if (token) {
         localStorage.setItem('token', token);
+        localStorage.setItem('auth_method', authMethod);
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         
         // Log timezone on the backend before redirecting to dashboard
@@ -189,6 +191,7 @@
             const data = await res.json();
             if (data.token) {
                 localStorage.setItem('token', data.token);
+                localStorage.setItem('auth_method', 'local');
                 
                 // Track user timezone on login
                 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;

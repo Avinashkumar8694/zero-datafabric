@@ -102,10 +102,22 @@ app.use(express.urlencoded({ extended: true }));
 
 // UI Routes
 // Public landing page. API_BASE is where the backend (and its Swagger specs) is reachable from the browser.
-const API_BASE = (process.env.API_BASE || 'http://localhost:4000').replace(/\/+$/, '');
+const API_BASE_ENV = (process.env.API_BASE || '').replace(/\/+$/, '');
+/**
+ * Public URL of the API for links in the landing page. An explicit API_BASE wins. Otherwise it follows the request,
+ * the same way the console's own `API_BASE` does: on a fabrixly.com host the API is reachable on the same origin
+ * (reverse proxy routes /api and /api-docs), anywhere else it is the same host on port 4000.
+ */
+function apiBaseFor(req: express.Request): string {
+  if (API_BASE_ENV) return API_BASE_ENV;
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || 'localhost').split(',')[0]!.trim();
+  const hostname = host.replace(/:\d+$/, '');
+  if (hostname.includes('fabrixly.com')) return `https://${hostname}`;
+  return `http://${hostname}:${process.env.API_PORT || 4000}`;
+}
 
 app.get('/', (req, res) => {
-  res.render('landing', { title: 'Zero Data Fabric - Federated data layer', API_BASE });
+  res.render('landing', { title: 'Zero Data Fabric - Federated data layer', API_BASE: apiBaseFor(req) });
 });
 
 app.get('/login', (req, res) => {

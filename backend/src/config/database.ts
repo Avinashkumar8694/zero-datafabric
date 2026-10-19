@@ -16,8 +16,22 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Build the connection string from individual DB_* vars if DATABASE_URL is not set.
+// This ensures the replication-engine (which imports this module) works in Docker
+// even when DATABASE_URL is not explicitly defined in the environment file.
+const buildConnectionString = () => {
+  const host = process.env.DB_HOST || 'localhost';
+  const port = process.env.DB_PORT || '5432';
+  const user = process.env.DB_USERNAME || 'fabric_admin';
+  const pass = process.env.DB_PASSWORD || 'super_secret_password';
+  const db   = process.env.DB_DATABASE || process.env.DB_NAME || 'datafabric';
+  return `postgres://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}:${port}/${db}`;
+};
+
+const connectionString = process.env.DATABASE_URL || buildConnectionString();
+
 const pool = new Pool({
-  connectionString: String(process.env.DATABASE_URL || 'postgres://fabric_admin:super_secret_password@localhost:5432/datafabric'),
+  connectionString,
   statement_timeout: 10000, // 10 seconds industrial timeout
 });
 
@@ -35,7 +49,7 @@ const pool = new Pool({
  * @returns The `pg` query result for `sql`.
  * @throws Re-throws any error from setting context or running `sql`, after rolling back the transaction.
  */
-async function queryWithContext(sql: string, params: any[], context: { tenantId: string, username: string }) {
+async function queryWithContext(sql: string, params: any[], context: { tenantId: string, username: string, role?: string }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -47,6 +61,14 @@ async function queryWithContext(sql: string, params: any[], context: { tenantId:
     await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [context.tenantId]);
     await client.query(`SELECT set_config('app.user_name', $1, true)`, [context.username]);
     await client.query(`SELECT set_config('app.current_region', $1, true)`, [process.env.DEFAULT_REGION || 'AP']);
+    
+    // 2.5 Inject request.jwt.claims to satisfy RLS policies checking role/internal_role GUC
+    const claims = {
+      tenant_id: context.tenantId,
+      username: context.username,
+      internal_role: context.role || 'USER'
+    };
+    await client.query(`SELECT set_config('request.jwt.claims', $1, true)`, [JSON.stringify(claims)]);
     
     // 3. Set Search Path to Tenant Primary + tenant sub-schemas (e.g., tenant_<id>_Global_Supply_Chain)
     const baseSchema = `tenant_${context.tenantId.replace(/[^a-zA-Z0-9_]/g, '')}`;

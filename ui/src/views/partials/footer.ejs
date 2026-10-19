@@ -4,8 +4,12 @@
 
     <script>
         // Shared UI Orchestration
-        if (!getToken() && window.location.pathname !== '/login' && window.location.pathname !== '/logout') {
-            window.location.href = '/logout';
+        {
+            const publicPaths = ['/', '/login', '/logout'];
+            const isPublic = publicPaths.some(p => window.location.pathname === p || window.location.pathname.startsWith(p + '?'));
+            if (!getToken() && !isPublic) {
+                window.location.href = '/logout';
+            }
         }
 
         // Active Link Highlighting
@@ -25,6 +29,15 @@
             document.getElementById('displayUsername').innerText = payload.username || 'Admin';
             document.getElementById('displayTenant').innerText = payload.tenant_id || 'System';
             document.getElementById('userAvatar').innerText = (payload.username || 'A')[0].toUpperCase();
+
+            // Hide Admin-only features if user is not ADMIN
+            if (payload.internal_role !== 'ADMIN') {
+                const adminLinks = ['nav-iam', 'nav-audit'];
+                adminLinks.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.display = 'none';
+                });
+            }
         } catch (e) {}
     </script>
 </body>

@@ -1,5 +1,16 @@
 <%- include('partials/header') %>
 
+<style>
+    @media (max-width: 480px) {
+        .metadata-actions {
+            flex-direction: column !important;
+        }
+        .metadata-actions button {
+            width: 100% !important;
+        }
+    }
+</style>
+
 <div class="fade-in">
     <div class="glass-card">
         <h3>Metadata Orchestration</h3>
@@ -10,7 +21,7 @@
             <section class="glass-card" style="background: var(--bg);">
                 <h4>Orchestration Blueprint</h4>
                 <p class="text-muted" style="font-size: 0.8rem; margin-bottom: 1.5rem;">Download the definitive V7.0 specification as a reference for your target state.</p>
-                <div style="display: flex; gap: 0.5rem;">
+                <div class="metadata-actions" style="display: flex; gap: 0.5rem;">
                     <button onclick="downloadTemplate()" class="btn-outline" style="flex: 1;">Download Spec</button>
                     <button onclick="loadTemplateForAnalysis()" class="btn-primary" style="flex: 1;">Load Industrial Blueprint</button>
                 </div>
@@ -22,7 +33,7 @@
                 <p class="text-muted" style="font-size: 0.8rem; margin-bottom: 1.5rem;">Select a manifest file (.json) to analyze or apply schema changes.</p>
                 <div style="display: flex; gap: 0.5rem; flex-direction: column;">
                     <input type="file" id="manifestFile" accept=".json" class="context-select" style="width: 100%; height: auto; padding: 0.5rem;">
-                    <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                    <div class="metadata-actions" style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
                         <button onclick="analyzeManifest()" id="diffBtn" class="btn-outline" style="flex: 1;">Analyze Drift (Diff)</button>
                         <button onclick="applyManifest()" id="applyBtn" class="btn-primary" style="flex: 1;">Orchestrate (Apply)</button>
                     </div>

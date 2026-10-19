@@ -29,7 +29,7 @@ export enum SyncType {
 
 /** Connection + sync configuration for a remote data source registration. */
 export interface RemoteSourceConfig {
-  type: 'postgres' | 'mysql' | 'mongodb' | 'snowflake' | 'elasticsearch';
+  type: 'postgres' | 'mysql' | 'mongodb' | 'snowflake' | 'elasticsearch' | 'oracle' | 'oracledb';
   host?: string;
   port?: number;
   dbName?: string;
@@ -173,6 +173,21 @@ export class IntegrationService {
       } catch (err: any) {
         throw new Error(`MySQL Connection Failed: ${err.message}`);
       }
+    } else if (config.type === 'oracle' || config.type === 'oracledb') {
+      let oracledb: any;
+      try { oracledb = require('oracledb'); }
+      catch { throw new Error("Oracle Connection Failed: the 'oracledb' package is not installed (npm i oracledb)."); }
+      const c: any = config;
+      const svc = c.serviceName || c.service || c.dbName || (c as any).database || c.sid || 'FREEPDB1';
+      const connectString = c.connectString || c.connectionString || `${c.host || 'localhost'}:${c.port || 1521}/${svc}`;
+      let conn: any;
+      try {
+        conn = await oracledb.getConnection({ user: c.user || c.username, password: c.pass || (c as any).password, connectString });
+        await conn.execute('SELECT 1 FROM dual');
+        return true;
+      } catch (err: any) {
+        throw new Error(`Oracle Connection Failed: ${err.message}`);
+      } finally { if (conn) { try { await conn.close(); } catch { /* ignore */ } } }
     } else if (config.type === 'snowflake') {
       // Snowflake runs as an external service (not local Docker). Keep permissive validation:
       // once credentials/account are configured, downstream orchestration should work immediately.
@@ -322,7 +337,7 @@ export class IntegrationService {
         }
 
         // 3. Auto-Crawl for Metadata Hierarchy
-        const supportsCatalogCrawl = ['postgres', 'mysql', 'mongodb', 'snowflake', 'elasticsearch'].includes(config.type);
+        const supportsCatalogCrawl = ['postgres', 'mysql', 'mongodb', 'snowflake', 'elasticsearch', 'oracle', 'oracledb'].includes(config.type);
         if (supportsCatalogCrawl) {
             try {
                 await MetadataService.crawlSource(sourceId);

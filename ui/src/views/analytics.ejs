@@ -13,11 +13,78 @@
   .an-vars-table th, .an-vars-table td { padding: 0.3rem 0.4rem; text-align: left; }
   .an-vars-table input, .an-vars-table select { width: 100%; box-sizing: border-box; }
   .an-code { width: 100%; min-height: 160px; box-sizing: border-box; font-family: monospace; font-size: 0.8rem; }
+
+  /* Responsive Builder Grid */
+  .builder-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.85rem;
+    align-items: flex-end;
+    margin-top: 0.75rem;
+  }
+  .builder-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    width: 100%;
+    min-width: 0;
+  }
+  .builder-field label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+  .builder-field select,
+  .builder-field button {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: 42px;
+    box-sizing: border-box;
+    font-size: 0.85rem;
+  }
+  .builder-field select {
+    padding: 0.5rem 0.75rem;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .builder-field select:focus {
+    border-color: var(--primary);
+  }
+  .builder-field button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+  }
+
+  @media (max-width: 640px) {
+    #kpiRow { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important; }
+    .builder-grid {
+      grid-template-columns: 1fr !important;
+      gap: 0.85rem !important;
+    }
+    .analytics-top-header {
+      flex-direction: column !important;
+      align-items: stretch !important;
+      gap: 0.75rem !important;
+    }
+    .analytics-top-header a.btn-outline {
+      width: 100% !important;
+      justify-content: center !important;
+      text-align: center !important;
+    }
+  }
 </style>
 
 <div class="fade-in">
   <div class="glass-card">
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+    <div class="analytics-top-header" style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap;">
       <h3 style="margin:0;">Analytics Dashboard</h3>
       <a href="/analytics/custom" class="btn-outline" style="font-size:0.8rem;"><i class="fas fa-wand-magic-sparkles"></i> Custom analytics →</a>
     </div>
@@ -37,32 +104,32 @@
   <!-- Configurable query builder -->
   <div class="glass-card" style="margin-top:1rem;">
     <h4>Build an analytic</h4>
-    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:0.75rem; align-items:end; margin-top:0.75rem;">
-      <div>
-        <label class="text-muted" style="font-size:0.75rem;">Source</label>
-        <select id="cfgSource" class="context-select" style="width:100%;"></select>
+    <div class="builder-grid">
+      <div class="builder-field">
+        <label>Source</label>
+        <select id="cfgSource"></select>
       </div>
-      <div>
-        <label class="text-muted" style="font-size:0.75rem;">Resource</label>
-        <select id="cfgResource" class="context-select" style="width:100%;"></select>
+      <div class="builder-field">
+        <label>Resource</label>
+        <select id="cfgResource"></select>
       </div>
-      <div>
-        <label class="text-muted" style="font-size:0.75rem;">Dimension (group by)</label>
-        <select id="cfgDimension" class="context-select" style="width:100%;"></select>
+      <div class="builder-field">
+        <label>Dimension (group by)</label>
+        <select id="cfgDimension"></select>
       </div>
-      <div>
-        <label class="text-muted" style="font-size:0.75rem;">Aggregate</label>
-        <select id="cfgAgg" class="context-select" style="width:100%;">
+      <div class="builder-field">
+        <label>Aggregate</label>
+        <select id="cfgAgg">
           <option value="COUNT">COUNT</option><option value="SUM">SUM</option>
           <option value="AVG">AVG</option><option value="MIN">MIN</option><option value="MAX">MAX</option>
         </select>
       </div>
-      <div>
-        <label class="text-muted" style="font-size:0.75rem;">Measure (column)</label>
-        <select id="cfgMeasure" class="context-select" style="width:100%;"></select>
+      <div class="builder-field">
+        <label>Measure (column)</label>
+        <select id="cfgMeasure"></select>
       </div>
-      <div>
-        <button onclick="runBuilder()" class="btn-primary" style="width:100%;">Run</button>
+      <div class="builder-field">
+        <button onclick="runBuilder()" class="btn-primary">Run</button>
       </div>
     </div>
   </div>

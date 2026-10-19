@@ -12,12 +12,24 @@
   .ql-leg { background: var(--bg); border-radius:6px; padding:0.5rem 0.7rem; margin:0.3rem 0; font-size:0.8rem; }
   pre.ql-code { background: var(--bg); border-radius:6px; padding:0.6rem; font-size:0.75rem; white-space:pre-wrap; word-break:break-word; max-height:240px; overflow:auto; }
   .table-wrapper { max-width:100%; overflow:auto; }
+
+  @media (max-width: 640px) {
+    #qlModal .glass-card, #auditModal .glass-card {
+      width: 96% !important;
+      padding: 1.25rem 1rem !important;
+    }
+    .audit-header {
+      flex-direction: column !important;
+      align-items: flex-start !important;
+      gap: 0.75rem !important;
+    }
+  }
 </style>
 
 <div class="fade-in">
     <!-- Query execution audit trail -->
     <div class="glass-card">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <div class="audit-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.75rem;">
             <div>
                 <h3 style="margin:0;">Query Execution Log</h3>
                 <p class="text-muted" style="margin:0;">Every query the fabric runs — legs, turnaround time (TAT), memory, and plan. Click <strong>View</strong> for the full trace.</p>
@@ -37,7 +49,7 @@
 
     <!-- Governance audit logs (row changes) -->
     <div class="glass-card" style="margin-top:1rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div class="audit-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
             <div>
                 <h3 style="margin:0;">Security Forensics & Audit Logs</h3>
                 <p class="text-muted" style="margin:0;">Immutable history of row-level fabric operations.</p>

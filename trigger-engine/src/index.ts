@@ -1,3 +1,8 @@
+import * as path from 'path';
+import * as dotenv from 'dotenv';
+// Load .env if present (local dev). In Docker, env vars are injected by compose.
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import { TriggerTranspiler } from './modules/triggers/trigger.transpiler';

@@ -4,6 +4,7 @@ services:
   # Master Coordinator Node
   db:
     image: citusdata/citus:latest
+    platform: linux/amd64
     container_name: datafabric-hub
     environment:
       POSTGRES_USER: fabric_admin
@@ -28,7 +29,7 @@ services:
     image: postgrest/postgrest:v12.0.0
     container_name: datafabric-postgrest
     ports:
-      - "3000:3000"
+      - "3005:3000"
     environment:
       PGRST_DB_URI: postgres://authenticator:fabric_password@db:5432/datafabric
       PGRST_DB_SCHEMA: public
@@ -94,6 +95,18 @@ services:
     ports:
       - "3307:3306"
     command: --default-authentication-plugin=mysql_native_password
+    restart: unless-stopped
+
+  # Oracle Database source (Oracle Free 23c). Service name: FREEPDB1
+  oracle:
+    image: gvenzl/oracle-free:23-slim
+    container_name: datafabric-oracle
+    environment:
+      ORACLE_PASSWORD: oracle_password        # SYS/SYSTEM password
+      APP_USER: retail                         # app schema/user the fabric connects as
+      APP_USER_PASSWORD: retail_password
+    ports:
+      - "1521:1521"
     restart: unless-stopped
 
   # Search Engine for Downstream Provisioning

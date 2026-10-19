@@ -1,0 +1,867 @@
+
+> backend@1.0.0 test:unit
+> jest src/modules --runInBand
+
+  console.warn
+    [QueryEngine] Lifecycle check bypassed: Cannot destructure property 'rows' of '(intermediate value)' as it is undefined.
+
+      296 |         if (err.message.includes('suspended')) throw err;
+      297 |         // Ignore "relation not exists" or connection errors in dev/test
+    > 298 |         console.warn(`[QueryEngine] Lifecycle check bypassed: ${err.message}`);
+          |                 ^
+      299 |     }
+      300 |
+      301 |     // ---- RECURSIVE query: in-fabric iterative traversal (any engine) ----
+
+      at Function.executeQuery (src/modules/query-engine/query-engine.service.ts:298:17)
+      at Object.<anonymous> (src/modules/query-engine/query-engine.service.test.ts:23:7)
+
+  console.warn
+    [QueryEngine] Lifecycle check bypassed: Cannot destructure property 'rows' of '(intermediate value)' as it is undefined.
+
+      296 |         if (err.message.includes('suspended')) throw err;
+      297 |         // Ignore "relation not exists" or connection errors in dev/test
+    > 298 |         console.warn(`[QueryEngine] Lifecycle check bypassed: ${err.message}`);
+          |                 ^
+      299 |     }
+      300 |
+      301 |     // ---- RECURSIVE query: in-fabric iterative traversal (any engine) ----
+
+      at Function.executeQuery (src/modules/query-engine/query-engine.service.ts:298:17)
+      at Object.<anonymous> (src/modules/query-engine/query-engine.service.test.ts:30:7)
+
+  console.log
+    [SQL Gen] SELECT -> SELECT count(*) FROM "tenant_demo"."users"
+
+      at Function.generateSql (src/modules/query-engine/query-engine.service.ts:1420:13)
+
+  console.warn
+    [QueryEngine] Lifecycle check bypassed: Cannot destructure property 'rows' of '(intermediate value)' as it is undefined.
+
+      296 |         if (err.message.includes('suspended')) throw err;
+      297 |         // Ignore "relation not exists" or connection errors in dev/test
+    > 298 |         console.warn(`[QueryEngine] Lifecycle check bypassed: ${err.message}`);
+          |                 ^
+      299 |     }
+      300 |
+      301 |     // ---- RECURSIVE query: in-fabric iterative traversal (any engine) ----
+
+      at Function.executeQuery (src/modules/query-engine/query-engine.service.ts:298:17)
+      at Object.<anonymous> (src/modules/query-engine/query-engine.service.test.ts:37:7)
+
+  console.log
+    [SQL Gen] SELECT -> SELECT * FROM "tenant_demo"."users" LIMIT 10
+
+      at Function.generateSql (src/modules/query-engine/query-engine.service.ts:1420:13)
+
+  console.warn
+    [QueryEngine] Lifecycle check bypassed: Cannot destructure property 'rows' of '(intermediate value)' as it is undefined.
+
+      296 |         if (err.message.includes('suspended')) throw err;
+      297 |         // Ignore "relation not exists" or connection errors in dev/test
+    > 298 |         console.warn(`[QueryEngine] Lifecycle check bypassed: ${err.message}`);
+          |                 ^
+      299 |     }
+      300 |
+      301 |     // ---- RECURSIVE query: in-fabric iterative traversal (any engine) ----
+
+      at Function.executeQuery (src/modules/query-engine/query-engine.service.ts:298:17)
+      at Object.<anonymous> (src/modules/query-engine/query-engine.service.test.ts:45:7)
+
+  console.warn
+    [QueryEngine] Lifecycle check bypassed: Cannot destructure property 'rows' of '(intermediate value)' as it is undefined.
+
+      296 |         if (err.message.includes('suspended')) throw err;
+      297 |         // Ignore "relation not exists" or connection errors in dev/test
+    > 298 |         console.warn(`[QueryEngine] Lifecycle check bypassed: ${err.message}`);
+          |                 ^
+      299 |     }
+      300 |
+      301 |     // ---- RECURSIVE query: in-fabric iterative traversal (any engine) ----
+
+      at Function.executeQuery (src/modules/query-engine/query-engine.service.ts:298:17)
+      at Object.<anonymous> (src/modules/query-engine/query-engine.service.test.ts:52:7)
+
+  console.log
+    [SQL Gen] DELETE -> DELETE FROM "tenant_demo"."users" WHERE "id" = $1 RETURNING *
+
+      at Function.generateSql (src/modules/query-engine/query-engine.service.ts:1420:13)
+
+  console.log
+    [Events] Emitting query.mutation: {"tenantId":"demo","action":"DELETE","table":"users","schema":"tenant_demo","rowCount":0,"timestamp":"2026-07-15T06:15:39.491Z"}
+
+      at Function.emit (src/modules/events/event.service.ts:66:13)
+
+  console.warn
+    [QueryEngine] Lifecycle check bypassed: Cannot destructure property 'rows' of '(intermediate value)' as it is undefined.
+
+      296 |         if (err.message.includes('suspended')) throw err;
+      297 |         // Ignore "relation not exists" or connection errors in dev/test
+    > 298 |         console.warn(`[QueryEngine] Lifecycle check bypassed: ${err.message}`);
+          |                 ^
+      299 |     }
+      300 |
+      301 |     // ---- RECURSIVE query: in-fabric iterative traversal (any engine) ----
+
+      at Function.executeQuery (src/modules/query-engine/query-engine.service.ts:298:17)
+      at Object.<anonymous> (src/modules/query-engine/query-engine.service.test.ts:78:7)
+
+  console.log
+    [SQL Gen] SELECT -> SELECT * FROM "tenant_demo"."users" WHERE "age" > $1 AND "email" ILIKE $2
+
+      at Function.generateSql (src/modules/query-engine/query-engine.service.ts:1420:13)
+
+PASS src/modules/query-engine/query-engine.service.test.ts
+  QueryEngineService (Industrial Safety Shield)
+    Safety Shield (SELECT)
+      ✓ should block unrestricted SELECT (no filter, no limit) (38 ms)
+      ✓ should allow aggregate SELECT without filter or limit (3 ms)
+      ✓ should allow SELECT with limit (1 ms)
+    Safety Shield (DML)
+      ✓ should block DELETE without filter (1 ms)
+      ✓ should allow DELETE with filter (5 ms)
+    Filter Operators
+      ✓ should correctly parse $gt and $like operators (2 ms)
+
+  console.log
+    ◇ injected env (12) from .env // tip: ⌘ override existing { override: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+PASS src/modules/query-engine/analytics.service.test.ts
+  SavedAnalyticsService — variable binding
+    ✓ resolveValues applies types, defaults, and required checks (7 ms)
+    ✓ bindAst replaces a whole-string token with the TYPED value, embedded tokens as string
+    ✓ bindSql escapes literals (numbers bare, strings quoted, quotes doubled)
+
+  console.log
+    [Federation] local leg Fabric_Hub_Postgres.local_inv: SELECT COUNT(*) AS "__cnt" FROM "tenant_tenant_x"."local_inv" LIMIT 50000 :: []
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:408:15)
+
+  console.log
+    [Federation] connector leg Mongo_Src.remote_inv (MONGODB): db.remote_inv.aggregate([{"$group":{"_id":null,"__cnt":{"$sum":1}}},{"$project":{"_id":0,"__cnt":"$__cnt"}},{"$limit":50000}])
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+
+  console.log
+    [Federation] local leg Fabric_Hub_Postgres.local_inv: SELECT "sku" FROM "tenant_tenant_x"."local_inv" LIMIT 50000 :: []
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:408:15)
+          at fetchLegStream.next (<anonymous>)
+
+  console.log
+    [Federation] connector leg Mongo_Src.remote_inv (MONGODB): db.remote_inv.find({ filter: {}, project: {"sku":1,"_id":0}, limit: 50000 })
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+
+  console.log
+    [Federation] local leg Fabric_Hub_Postgres.a: SELECT COUNT(*) AS "__cnt" FROM "tenant_tenant_x"."a" LIMIT 2 :: []
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:408:15)
+
+  console.log
+    [Federation] connector leg Mongo_Src.b (MONGODB): db.b.aggregate([{"$group":{"_id":null,"__cnt":{"$sum":1}}},{"$project":{"_id":0,"__cnt":"$__cnt"}},{"$limit":2}])
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+
+  console.log
+    [Federation] local leg Fabric_Hub_Postgres.a: SELECT "x" FROM "tenant_tenant_x"."a" LIMIT 2 :: []
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:408:15)
+          at fetchLegStream.next (<anonymous>)
+
+  console.log
+    [Federation] connector leg Mongo_Src.b (MONGODB): db.b.find({ filter: {}, project: {"x":1,"_id":0}, limit: 2 })
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+
+  console.log
+    [Federation] local leg Fabric_Hub_Postgres.customers: SELECT COUNT(*) AS "__cnt" FROM "tenant_tenant_x"."customers" LIMIT 50000 :: []
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:408:15)
+
+  console.log
+    [Federation] connector leg Mongo_Src.orders (MONGODB): db.orders.aggregate([{"$group":{"_id":null,"__cnt":{"$sum":1}}},{"$project":{"_id":0,"__cnt":"$__cnt"}},{"$limit":50000}])
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 1)
+
+  console.log
+    [Federation] local leg Fabric_Hub_Postgres.customers: SELECT * FROM "tenant_tenant_x"."customers" LIMIT 50000 :: []
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:408:15)
+
+  console.log
+    [Federation] connector leg Mongo_Src.orders (MONGODB): db.orders.find({ filter: {}, limit: 50000 })
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 1)
+
+  console.log
+    [Federation] local leg Fabric_Hub_Postgres.customers: SELECT * FROM "tenant_tenant_x"."customers" LIMIT 50000 :: []
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:408:15)
+          at fetchLegStream.next (<anonymous>)
+
+  console.log
+    [Federation] connector leg Mongo_Src.orders (MONGODB): db.orders.find({ filter: {"cust_id":{"$in":[1,2]}}, limit: 50000 })
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 0)
+
+  console.log
+    [Federation] connector leg Postgres_DS1.customer (POSTGRES): SELECT * FROM "public"."customer" WHERE "id" = $1 LIMIT 50000
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+
+  console.log
+    [Federation] connector leg Mongo_DS2.customer (MONGODB): db.customer.find({ filter: {"id":{"$in":[5]}}, limit: 50000 })
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 0)
+
+  console.log
+    [Federation] local leg Fabric_Hub_Postgres.orders: SELECT "region", SUM("amount") AS "total", COUNT(*) AS "n" FROM "tenant_tenant_x"."orders" GROUP BY "region" LIMIT 50000 :: []
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:408:15)
+
+  console.log
+    [Federation] connector leg Mongo_Src.orders (MONGODB): db.orders.aggregate([{"$group":{"_id":{"region":"$region"},"total":{"$sum":"$amount"},"n":{"$sum":1}}},{"$project":{"_id":0,"region":"$_id.region","total":"$total","n":"$n"}},{"$limit":50000}])
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+
+  console.log
+    [Federation] connector leg Postgres_DS1.customer (POSTGRES): SELECT COUNT(*) AS "__cnt" FROM "public"."customer" WHERE "id" = $1 LIMIT 50000
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 0)
+
+  console.log
+    [Federation] connector leg Mongo_DS2.customer (MONGODB): db.customer.aggregate([{"$match":{"id":9}},{"$group":{"_id":null,"__cnt":{"$sum":1}}},{"$project":{"_id":0,"__cnt":"$__cnt"}},{"$limit":50000}])
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 1)
+
+  console.log
+    [Federation] connector leg Postgres_DS1.customer (POSTGRES): SELECT * FROM "public"."customer" WHERE "id" = $1 LIMIT 50000
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 0)
+
+  console.log
+    [Federation] connector leg Mongo_DS2.customer (MONGODB): db.customer.find({ filter: {"id":9}, limit: 50000 })
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 1)
+
+  console.log
+    [Federation] connector leg PG_Big.big (POSTGRES): SELECT COUNT(*) AS "__cnt" FROM "public"."big" WHERE "id" > $1 LIMIT 50000
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 0)
+
+  console.log
+    [Federation] connector leg Mongo_Small.small (MONGODB): db.small.aggregate([{"$group":{"_id":null,"__cnt":{"$sum":1}}},{"$project":{"_id":0,"__cnt":"$__cnt"}},{"$limit":50000}])
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 1)
+
+  console.log
+    [Federation] connector leg Mongo_Small.small (MONGODB): db.small.find({ filter: {}, limit: 50000 })
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+
+  console.log
+    [Federation] connector leg PG_Big.big (POSTGRES): SELECT "id" FROM "public"."big" WHERE "id" IN ($1) LIMIT 50000
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 0)
+
+  console.log
+    [Federation] connector leg PG_A.a (POSTGRES): SELECT COUNT(*) AS "__cnt" FROM "public"."a" WHERE "id" > $1 LIMIT 50000
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 0)
+
+  console.log
+    [Federation] connector leg Mongo_B.b (MONGODB): db.b.aggregate([{"$group":{"_id":null,"__cnt":{"$sum":1}}},{"$project":{"_id":0,"__cnt":"$__cnt"}},{"$limit":50000}])
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 1)
+
+  console.log
+    [Federation] connector leg Mongo_B.b (MONGODB): db.b.find({ filter: {}, project: {"tag":1,"id":1,"_id":0}, limit: 50000 })
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 0)
+
+  console.log
+    [Federation] connector leg PG_A.a (POSTGRES): SELECT "id" FROM "public"."a" WHERE "id" > $1 LIMIT 50000
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 1)
+
+  console.log
+    [Federation] connector leg PG_Drv.drv (POSTGRES): SELECT * FROM "public"."drv" WHERE "id" > $1 LIMIT 50000
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+
+  console.log
+    [Federation] connector leg Mongo_P.p (MONGODB): db.p.find({ filter: {"id":{"$in":[1,2]}}, project: {"tag":1,"id":1,"_id":0}, limit: 50000 })
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 0)
+
+  console.log
+    [Federation] connector leg Mongo_P.p (MONGODB): db.p.find({ filter: {"id":{"$in":[3,4]}}, project: {"tag":1,"id":1,"_id":0}, limit: 50000 })
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 1)
+
+  console.log
+    [Federation] connector leg Mongo_P.p (MONGODB): db.p.find({ filter: {"id":{"$in":[5]}}, project: {"tag":1,"id":1,"_id":0}, limit: 50000 })
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 2)
+
+  console.log
+    [Federation] connector leg PG.r (POSTGRES): SELECT * FROM "public"."r" WHERE "id" > $1 LIMIT 50000
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+
+  console.log
+    [Federation] connector leg MG.d (MONGODB): db.d.find({ filter: {"id":{"$in":[1,2]}}, project: {"grade":1,"id":1,"_id":0}, limit: 50000 })
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 0)
+
+  console.log
+    [Federation] connector leg PG.r (POSTGRES): SELECT * FROM "public"."r" WHERE "id" > $1 LIMIT 50000
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+
+  console.log
+    [Federation] connector leg MG.d (MONGODB): db.d.find({ filter: {"id":{"$in":[1,2,3]}}, project: {"grade":1,"id":1,"_id":0}, limit: 50000 })
+
+      at Function.fetchLegDirect (src/modules/query-engine/federation.ts:440:15)
+          at async Promise.all (index 0)
+
+PASS src/modules/query-engine/federation.test.ts
+  FederationExecutor
+    ✓ UNION combines legs from different engines with distinct semantics (24 ms)
+    ✓ warns (does not silently truncate) when a leg hits the row cap (3 ms)
+    ✓ performs a cross-engine INNER hash join with alias-qualified output (2 ms)
+    ✓ LEFT join preserves unmatched left rows (qualified) (1 ms)
+    ✓ pushes the filter to the driving side and bind-joins the key to the other source (1 ms)
+    ✓ multi-source aggregate: pushes partial GROUP BY to each source and merges (no full fetch) (2 ms)
+    ✓ transitively propagates a constant to BOTH sides across the join key (1 ms)
+    ✓ cost-based driving side: drives from the smaller leg (live cardinality probe) (2 ms)
+    ✓ broadcast hash join: both sides small → fetched in parallel, neither bound (1 ms)
+    ✓ batched bind: a large key set is chunked into IN(...) batches, not a full scan (2 ms)
+    ✓ DISTINCT dedupes a cross-engine join projection (1 ms)
+    ✓ applies OFFSET+LIMIT on an in-fabric grouped cross-engine result (1 ms)
+    joinLegProjections (projection pushdown)
+      ✓ fetches only selected columns + join keys per leg (1 ms)
+      ✓ always includes join keys even when not selected
+      ✓ bails to * (null) on an unqualified column in a multi-table join
+      ✓ bails to * on a raw expression / star select
+      ✓ handles alias.* and COUNT(*) without dropping data
+
+  console.log
+    [ElasticsearchConnector] Pushdown search on inventory: {"query":{"bool":{"filter":[{"term":{"status":"ACTIVE"}},{"range":{"qty":{"gt":5}}}]}},"_source":["sku","qty"],"sort":[{"qty":"desc"}],"size":25}
+
+      at ElasticsearchConnector.query (src/modules/metadata/connectors/factory.ts:1156:17)
+
+  console.log
+    [ElasticsearchConnector] Pushdown aggregate on orders: {"size":0,"query":{"match_all":{}},"aggs":{"g_0":{"terms":{"field":"region","size":10000},"aggs":{"total":{"sum":{"field":"amount"}}}}}}
+
+      at ElasticsearchConnector.query (src/modules/metadata/connectors/factory.ts:1142:21)
+
+PASS src/modules/metadata/connectors/connectors.test.ts
+  ElasticsearchConnector pushdown
+    ✓ pushes filters as query-DSL and projection/sort/size (8 ms)
+    ✓ pushes GROUP BY as terms + metric aggs and flattens buckets (3 ms)
+  Snowflake dialect SQL
+    ✓ uses ? binds and double-quoted identifiers (7 ms)
+
+PASS src/modules/query-engine/pushdown.test.ts
+  PushdownCompiler
+    toSql (postgres)
+      ✓ pushes filter operators as parameterized predicates (1 ms)
+      ✓ pushes projection, order, limit and offset (1 ms)
+      ✓ handles $in with a placeholder list
+      ✓ treats a bare value as equality
+    toSql (mysql)
+      ✓ uses ? placeholders and backtick identifiers (1 ms)
+    toMongo
+      ✓ maps equality and comparison operators
+      ✓ translates $like to an anchored regex
+      ✓ projects, sorts, limits and skips
+      ✓ omits projection when selecting *
+    toJoinSql (co-located pushdown)
+      ✓ compiles a self-join + GROUP BY + aggregate as ONE parameterized statement (1 ms)
+      ✓ parameterizes IN lists and honours HAVING + ORDER BY + LIMIT
+      ✓ emits Oracle row-limiting + :n binds and no AS for table aliases (1 ms)
+      ✓ rejects raw expressions so the caller falls back to federation (13 ms)
+      ✓ rejects an unknown operator (no raw operator injection) (1 ms)
+      ✓ compiles a non-recursive WITH (CTE) as native SQL, CTE ref not schema-qualified (1 ms)
+      ✓ rejects a recursive CTE (unionAll) so it falls back to the recursive executor
+      ✓ compiles a derived-table subquery in FROM as (subselect) alias
+      ✓ rejects a derived table with no alias (1 ms)
+      ✓ compiles a co-located UNION of two legs
+
+PASS src/modules/query-engine/sql_translator.test.ts
+  sqlToAst — SQL → fabric AST translator (for non-SQL engines like MongoDB)
+    ✓ translates a GROUP BY aggregate (2 ms)
+    ✓ translates SUM/AVG with aliases
+    ✓ translates WHERE with operators, IN, and literals (2 ms)
+    ✓ translates ORDER BY, LIMIT, OFFSET
+    ✓ strips schema qualifiers and quotes from the table
+    ✓ rejects JOINs with guidance to use AST mode (11 ms)
+    ✓ rejects set operations and subqueries (3 ms)
+    ✓ translates SELECT DISTINCT into a GROUP BY on the columns (1 ms)
+    ✓ translates HAVING (alias and aggregate expr) into result-column predicates (1 ms)
+    ✓ rejects untranslatable expressions (sequences / functions / window / CASE) — no silent mistranslation
+
+  console.log
+    ◇ injected env (12) from .env // tip: ⌘ suppress logs { quiet: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+PASS src/modules/security/policy.service.test.ts
+  PolicyService — engine-agnostic policy compilation
+    compileFilter
+      ✓ resolves a session reference (tenant isolation)
+      ✓ resolves the region session ref (2 ms)
+      ✓ maps IS_NULL / IS_NOT_NULL to $eq/$ne null (hide-deleted)
+      ✓ supports IN, comparison ops, and literal values
+      ✓ merges multiple clauses on the same column (range)
+    mergeIntoFilter
+      ✓ merges a policy predicate into an existing operator filter
+      ✓ combines a bare-equality user filter with a policy condition on the same column (1 ms)
+      ✓ policy filter wins when no existing filter
+    applyMasks
+      ✓ REDACT / NULL / PARTIAL / HASH strategies
+      ✓ leaves null values and absent columns untouched; does not mutate input
+    physicalSchema
+      ✓ prefixes a logical schema, leaves physical untouched
+
+  console.log
+    ◇ injected env (12) from .env // tip: ⌘ enable debugging { debug: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+PASS src/modules/query-engine/stream.test.ts
+  stream helpers
+    wantsStream
+      ✓ detects the flag in body, queryConfig, config, or query string
+      ✓ defaults to false (2 ms)
+    streamNdjson
+      ✓ emits one line per row then a __meta__ trailer, and ends (1 ms)
+      ✓ handles an empty result (only the trailer)
+
+  console.log
+    ◇ injected env (12) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+PASS src/modules/query-engine/constraint.service.test.ts
+  ConstraintService — engine-agnostic validation
+    ✓ accepts a valid row
+    ✓ flags NOT NULL on create
+    ✓ flags ENUM, CHECK-comparison, and CHECK-regex violations
+    ✓ on update, only validates columns actually being written
+    ✓ UNIQUE and FK use async lookups
+    ✓ parses simple Postgres CHECK expressions into structured rules (1 ms)
+    ✓ builds a spec from a manifest table (column flags + enum ref + CHECK)
+
+  console.log
+    ◇ injected env (12) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+PASS src/modules/security/grant.service.test.ts
+  GrantService.decide — engine-agnostic privilege decisions
+    ✓ default-allows when no grants are declared (ungoverned)
+    ✓ ADMIN and SYSTEM bypass a governed table
+    ✓ allows a role that holds the privilege
+    ✓ denies a role that lacks the privilege, and an unknown role
+
+PASS src/modules/query-engine/compensate.test.ts
+  Capability Compensation Engine — window functions
+    ✓ detects + extracts window specs
+    ✓ RANK / DENSE_RANK / ROW_NUMBER per partition with ties (1 ms)
+    ✓ running SUM and LAG per partition
+
+PASS src/modules/query-engine/aggregate.test.ts
+  aggregate parsing
+    ✓ parses object aggregate specs + group columns
+    ✓ parses string aggregate specs like count(*) and avg(price)
+    ✓ returns null for a non-aggregate select
+  partial-aggregate decomposition
+    ✓ expands AVG into hidden SUM + COUNT partials
+  mergePartials (fan aggregate across sources)
+    ✓ sums COUNT/SUM, mins/maxes, and recomputes AVG from partials
+  aggregateRaw (post-join, raw rows, alias-qualified keys tolerated)
+    ✓ groups raw joined rows and computes finals
+  PushdownCompiler aggregate emission
+    ✓ emits GROUP BY SQL for postgres
+    ✓ builds a Mongo $group aggregation pipeline
+
+  console.log
+    ◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+FAIL src/modules/tenant/tenant.test.ts
+  ● Test suite failed to run
+
+    Jest encountered an unexpected token
+
+    Jest failed to parse a file. This happens e.g. when your code or its dependencies use non-standard JavaScript syntax, or when Jest is not configured to support such syntax.
+
+    Out of the box Jest supports Babel, which will be used to transform your files into valid JS based on your Babel configuration.
+
+    By default "node_modules" folder is ignored by transformers.
+
+    Here's what you can do:
+     • If you are trying to use ECMAScript Modules, see https://jestjs.io/docs/ecmascript-modules for how to enable it.
+     • If you are trying to use TypeScript, see https://jestjs.io/docs/getting-started#using-typescript
+     • To have some of your "node_modules" files transformed, you can specify a custom "transformIgnorePatterns" in your config.
+     • If you need a custom transformation specify a "transform" option in your config.
+     • If you simply want to mock your non-JS modules (e.g. binary assets) you can stub them out with the "moduleNameMapper" config option.
+
+    You'll find more details and examples of these config options in the docs:
+    https://jestjs.io/docs/configuration
+    For information about custom transformations, see:
+    https://jestjs.io/docs/code-transformation
+
+    Details:
+
+    /Users/avinashkumargupta/Documents/projects/Zero/zero-datafabric/backend/node_modules/marked/lib/marked.esm.js:76
+    Please report this to https://github.com/markedjs/marked.`,e){let s="<p>An error occurred:</p><pre>"+O(n.message+"",!0)+"</pre>";return t?Promise.resolve(s):s}if(t)return Promise.reject(n);throw n}}};var z=new D;function g(l,e){return z.parse(l,e)}g.options=g.setOptions=function(l){return z.setOptions(l),g.defaults=z.defaults,N(g.defaults),g};g.getDefaults=M;g.defaults=T;g.use=function(...l){return z.use(...l),g.defaults=z.defaults,N(g.defaults),g};g.walkTokens=function(l,e){return z.walkTokens(l,e)};g.parseInline=z.parseInline;g.Parser=b;g.parser=b.parse;g.Renderer=y;g.TextRenderer=L;g.Lexer=x;g.lexer=x.lex;g.Tokenizer=w;g.Hooks=P;g.parse=g;var Kt=g.options,Wt=g.setOptions,Xt=g.use,Jt=g.walkTokens,Vt=g.parseInline,Yt=g,en=b.parse,tn=x.lex;export{P as Hooks,x as Lexer,D as Marked,b as Parser,y as Renderer,L as TextRenderer,w as Tokenizer,T as defaults,M as getDefaults,tn as lexer,g as marked,Kt as options,Yt as parse,Vt as parseInline,en as parser,Wt as setOptions,Xt as use,Jt as walkTokens};
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  ^^^^^^
+
+    SyntaxError: Unexpected token 'export'
+
+      2 | import path from 'path';
+      3 | import fs from 'fs';
+    > 4 | import { marked } from 'marked';
+        | ^
+      5 |
+      6 | const DEVELOPER_DOCS_DIR = path.join(__dirname, '..', '..', '..', 'developer_docs');
+      7 |
+
+      at Runtime.createScriptFromCode (node_modules/jest-runtime/build/index.js:1505:14)
+      at Object.<anonymous> (src/controllers/developerDocsController.ts:4:1)
+      at Object.<anonymous> (src/routes/developerDocsRoutes.ts:2:1)
+      at Object.<anonymous> (src/index.ts:24:1)
+      at Object.<anonymous> (src/modules/tenant/tenant.test.ts:2:1)
+
+  console.log
+    ◇ injected env (0) from .env // tip: ⌘ enable debugging { debug: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+FAIL src/modules/security/security.test.ts
+  ● Test suite failed to run
+
+    Jest encountered an unexpected token
+
+    Jest failed to parse a file. This happens e.g. when your code or its dependencies use non-standard JavaScript syntax, or when Jest is not configured to support such syntax.
+
+    Out of the box Jest supports Babel, which will be used to transform your files into valid JS based on your Babel configuration.
+
+    By default "node_modules" folder is ignored by transformers.
+
+    Here's what you can do:
+     • If you are trying to use ECMAScript Modules, see https://jestjs.io/docs/ecmascript-modules for how to enable it.
+     • If you are trying to use TypeScript, see https://jestjs.io/docs/getting-started#using-typescript
+     • To have some of your "node_modules" files transformed, you can specify a custom "transformIgnorePatterns" in your config.
+     • If you need a custom transformation specify a "transform" option in your config.
+     • If you simply want to mock your non-JS modules (e.g. binary assets) you can stub them out with the "moduleNameMapper" config option.
+
+    You'll find more details and examples of these config options in the docs:
+    https://jestjs.io/docs/configuration
+    For information about custom transformations, see:
+    https://jestjs.io/docs/code-transformation
+
+    Details:
+
+    /Users/avinashkumargupta/Documents/projects/Zero/zero-datafabric/backend/node_modules/marked/lib/marked.esm.js:76
+    Please report this to https://github.com/markedjs/marked.`,e){let s="<p>An error occurred:</p><pre>"+O(n.message+"",!0)+"</pre>";return t?Promise.resolve(s):s}if(t)return Promise.reject(n);throw n}}};var z=new D;function g(l,e){return z.parse(l,e)}g.options=g.setOptions=function(l){return z.setOptions(l),g.defaults=z.defaults,N(g.defaults),g};g.getDefaults=M;g.defaults=T;g.use=function(...l){return z.use(...l),g.defaults=z.defaults,N(g.defaults),g};g.walkTokens=function(l,e){return z.walkTokens(l,e)};g.parseInline=z.parseInline;g.Parser=b;g.parser=b.parse;g.Renderer=y;g.TextRenderer=L;g.Lexer=x;g.lexer=x.lex;g.Tokenizer=w;g.Hooks=P;g.parse=g;var Kt=g.options,Wt=g.setOptions,Xt=g.use,Jt=g.walkTokens,Vt=g.parseInline,Yt=g,en=b.parse,tn=x.lex;export{P as Hooks,x as Lexer,D as Marked,b as Parser,y as Renderer,L as TextRenderer,w as Tokenizer,T as defaults,M as getDefaults,tn as lexer,g as marked,Kt as options,Yt as parse,Vt as parseInline,en as parser,Wt as setOptions,Xt as use,Jt as walkTokens};
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  ^^^^^^
+
+    SyntaxError: Unexpected token 'export'
+
+      2 | import path from 'path';
+      3 | import fs from 'fs';
+    > 4 | import { marked } from 'marked';
+        | ^
+      5 |
+      6 | const DEVELOPER_DOCS_DIR = path.join(__dirname, '..', '..', '..', 'developer_docs');
+      7 |
+
+      at Runtime.createScriptFromCode (node_modules/jest-runtime/build/index.js:1505:14)
+      at Object.<anonymous> (src/controllers/developerDocsController.ts:4:1)
+      at Object.<anonymous> (src/routes/developerDocsRoutes.ts:2:1)
+      at Object.<anonymous> (src/index.ts:24:1)
+      at Object.<anonymous> (src/modules/security/security.test.ts:2:1)
+
+  console.log
+    ◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+FAIL src/modules/query-engine/query-engine.test.ts
+  ● Test suite failed to run
+
+    Jest encountered an unexpected token
+
+    Jest failed to parse a file. This happens e.g. when your code or its dependencies use non-standard JavaScript syntax, or when Jest is not configured to support such syntax.
+
+    Out of the box Jest supports Babel, which will be used to transform your files into valid JS based on your Babel configuration.
+
+    By default "node_modules" folder is ignored by transformers.
+
+    Here's what you can do:
+     • If you are trying to use ECMAScript Modules, see https://jestjs.io/docs/ecmascript-modules for how to enable it.
+     • If you are trying to use TypeScript, see https://jestjs.io/docs/getting-started#using-typescript
+     • To have some of your "node_modules" files transformed, you can specify a custom "transformIgnorePatterns" in your config.
+     • If you need a custom transformation specify a "transform" option in your config.
+     • If you simply want to mock your non-JS modules (e.g. binary assets) you can stub them out with the "moduleNameMapper" config option.
+
+    You'll find more details and examples of these config options in the docs:
+    https://jestjs.io/docs/configuration
+    For information about custom transformations, see:
+    https://jestjs.io/docs/code-transformation
+
+    Details:
+
+    /Users/avinashkumargupta/Documents/projects/Zero/zero-datafabric/backend/node_modules/marked/lib/marked.esm.js:76
+    Please report this to https://github.com/markedjs/marked.`,e){let s="<p>An error occurred:</p><pre>"+O(n.message+"",!0)+"</pre>";return t?Promise.resolve(s):s}if(t)return Promise.reject(n);throw n}}};var z=new D;function g(l,e){return z.parse(l,e)}g.options=g.setOptions=function(l){return z.setOptions(l),g.defaults=z.defaults,N(g.defaults),g};g.getDefaults=M;g.defaults=T;g.use=function(...l){return z.use(...l),g.defaults=z.defaults,N(g.defaults),g};g.walkTokens=function(l,e){return z.walkTokens(l,e)};g.parseInline=z.parseInline;g.Parser=b;g.parser=b.parse;g.Renderer=y;g.TextRenderer=L;g.Lexer=x;g.lexer=x.lex;g.Tokenizer=w;g.Hooks=P;g.parse=g;var Kt=g.options,Wt=g.setOptions,Xt=g.use,Jt=g.walkTokens,Vt=g.parseInline,Yt=g,en=b.parse,tn=x.lex;export{P as Hooks,x as Lexer,D as Marked,b as Parser,y as Renderer,L as TextRenderer,w as Tokenizer,T as defaults,M as getDefaults,tn as lexer,g as marked,Kt as options,Yt as parse,Vt as parseInline,en as parser,Wt as setOptions,Xt as use,Jt as walkTokens};
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  ^^^^^^
+
+    SyntaxError: Unexpected token 'export'
+
+      2 | import path from 'path';
+      3 | import fs from 'fs';
+    > 4 | import { marked } from 'marked';
+        | ^
+      5 |
+      6 | const DEVELOPER_DOCS_DIR = path.join(__dirname, '..', '..', '..', 'developer_docs');
+      7 |
+
+      at Runtime.createScriptFromCode (node_modules/jest-runtime/build/index.js:1505:14)
+      at Object.<anonymous> (src/controllers/developerDocsController.ts:4:1)
+      at Object.<anonymous> (src/routes/developerDocsRoutes.ts:2:1)
+      at Object.<anonymous> (src/index.ts:24:1)
+      at Object.<anonymous> (src/modules/query-engine/query-engine.test.ts:2:1)
+
+  console.log
+    ◇ injected env (0) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+FAIL src/modules/integration/integration.test.ts
+  ● Test suite failed to run
+
+    Jest encountered an unexpected token
+
+    Jest failed to parse a file. This happens e.g. when your code or its dependencies use non-standard JavaScript syntax, or when Jest is not configured to support such syntax.
+
+    Out of the box Jest supports Babel, which will be used to transform your files into valid JS based on your Babel configuration.
+
+    By default "node_modules" folder is ignored by transformers.
+
+    Here's what you can do:
+     • If you are trying to use ECMAScript Modules, see https://jestjs.io/docs/ecmascript-modules for how to enable it.
+     • If you are trying to use TypeScript, see https://jestjs.io/docs/getting-started#using-typescript
+     • To have some of your "node_modules" files transformed, you can specify a custom "transformIgnorePatterns" in your config.
+     • If you need a custom transformation specify a "transform" option in your config.
+     • If you simply want to mock your non-JS modules (e.g. binary assets) you can stub them out with the "moduleNameMapper" config option.
+
+    You'll find more details and examples of these config options in the docs:
+    https://jestjs.io/docs/configuration
+    For information about custom transformations, see:
+    https://jestjs.io/docs/code-transformation
+
+    Details:
+
+    /Users/avinashkumargupta/Documents/projects/Zero/zero-datafabric/backend/node_modules/marked/lib/marked.esm.js:76
+    Please report this to https://github.com/markedjs/marked.`,e){let s="<p>An error occurred:</p><pre>"+O(n.message+"",!0)+"</pre>";return t?Promise.resolve(s):s}if(t)return Promise.reject(n);throw n}}};var z=new D;function g(l,e){return z.parse(l,e)}g.options=g.setOptions=function(l){return z.setOptions(l),g.defaults=z.defaults,N(g.defaults),g};g.getDefaults=M;g.defaults=T;g.use=function(...l){return z.use(...l),g.defaults=z.defaults,N(g.defaults),g};g.walkTokens=function(l,e){return z.walkTokens(l,e)};g.parseInline=z.parseInline;g.Parser=b;g.parser=b.parse;g.Renderer=y;g.TextRenderer=L;g.Lexer=x;g.lexer=x.lex;g.Tokenizer=w;g.Hooks=P;g.parse=g;var Kt=g.options,Wt=g.setOptions,Xt=g.use,Jt=g.walkTokens,Vt=g.parseInline,Yt=g,en=b.parse,tn=x.lex;export{P as Hooks,x as Lexer,D as Marked,b as Parser,y as Renderer,L as TextRenderer,w as Tokenizer,T as defaults,M as getDefaults,tn as lexer,g as marked,Kt as options,Yt as parse,Vt as parseInline,en as parser,Wt as setOptions,Xt as use,Jt as walkTokens};
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  ^^^^^^
+
+    SyntaxError: Unexpected token 'export'
+
+      2 | import path from 'path';
+      3 | import fs from 'fs';
+    > 4 | import { marked } from 'marked';
+        | ^
+      5 |
+      6 | const DEVELOPER_DOCS_DIR = path.join(__dirname, '..', '..', '..', 'developer_docs');
+      7 |
+
+      at Runtime.createScriptFromCode (node_modules/jest-runtime/build/index.js:1505:14)
+      at Object.<anonymous> (src/controllers/developerDocsController.ts:4:1)
+      at Object.<anonymous> (src/routes/developerDocsRoutes.ts:2:1)
+      at Object.<anonymous> (src/index.ts:24:1)
+      at Object.<anonymous> (src/modules/integration/integration.test.ts:2:1)
+
+  console.log
+    ◇ injected env (0) from .env // tip: ⌘ enable debugging { debug: true }
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+FAIL src/modules/auth/auth.test.ts
+  ● Test suite failed to run
+
+    Jest encountered an unexpected token
+
+    Jest failed to parse a file. This happens e.g. when your code or its dependencies use non-standard JavaScript syntax, or when Jest is not configured to support such syntax.
+
+    Out of the box Jest supports Babel, which will be used to transform your files into valid JS based on your Babel configuration.
+
+    By default "node_modules" folder is ignored by transformers.
+
+    Here's what you can do:
+     • If you are trying to use ECMAScript Modules, see https://jestjs.io/docs/ecmascript-modules for how to enable it.
+     • If you are trying to use TypeScript, see https://jestjs.io/docs/getting-started#using-typescript
+     • To have some of your "node_modules" files transformed, you can specify a custom "transformIgnorePatterns" in your config.
+     • If you need a custom transformation specify a "transform" option in your config.
+     • If you simply want to mock your non-JS modules (e.g. binary assets) you can stub them out with the "moduleNameMapper" config option.
+
+    You'll find more details and examples of these config options in the docs:
+    https://jestjs.io/docs/configuration
+    For information about custom transformations, see:
+    https://jestjs.io/docs/code-transformation
+
+    Details:
+
+    /Users/avinashkumargupta/Documents/projects/Zero/zero-datafabric/backend/node_modules/marked/lib/marked.esm.js:76
+    Please report this to https://github.com/markedjs/marked.`,e){let s="<p>An error occurred:</p><pre>"+O(n.message+"",!0)+"</pre>";return t?Promise.resolve(s):s}if(t)return Promise.reject(n);throw n}}};var z=new D;function g(l,e){return z.parse(l,e)}g.options=g.setOptions=function(l){return z.setOptions(l),g.defaults=z.defaults,N(g.defaults),g};g.getDefaults=M;g.defaults=T;g.use=function(...l){return z.use(...l),g.defaults=z.defaults,N(g.defaults),g};g.walkTokens=function(l,e){return z.walkTokens(l,e)};g.parseInline=z.parseInline;g.Parser=b;g.parser=b.parse;g.Renderer=y;g.TextRenderer=L;g.Lexer=x;g.lexer=x.lex;g.Tokenizer=w;g.Hooks=P;g.parse=g;var Kt=g.options,Wt=g.setOptions,Xt=g.use,Jt=g.walkTokens,Vt=g.parseInline,Yt=g,en=b.parse,tn=x.lex;export{P as Hooks,x as Lexer,D as Marked,b as Parser,y as Renderer,L as TextRenderer,w as Tokenizer,T as defaults,M as getDefaults,tn as lexer,g as marked,Kt as options,Yt as parse,Vt as parseInline,en as parser,Wt as setOptions,Xt as use,Jt as walkTokens};
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  ^^^^^^
+
+    SyntaxError: Unexpected token 'export'
+
+      2 | import path from 'path';
+      3 | import fs from 'fs';
+    > 4 | import { marked } from 'marked';
+        | ^
+      5 |
+      6 | const DEVELOPER_DOCS_DIR = path.join(__dirname, '..', '..', '..', 'developer_docs');
+      7 |
+
+      at Runtime.createScriptFromCode (node_modules/jest-runtime/build/index.js:1505:14)
+      at Object.<anonymous> (src/controllers/developerDocsController.ts:4:1)
+      at Object.<anonymous> (src/routes/developerDocsRoutes.ts:2:1)
+      at Object.<anonymous> (src/index.ts:24:1)
+      at Object.<anonymous> (src/modules/auth/auth.test.ts:2:1)
+
+  console.log
+    ◇ injected env (0) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+FAIL src/modules/industrial_validation.test.ts
+  ● Test suite failed to run
+
+    Jest encountered an unexpected token
+
+    Jest failed to parse a file. This happens e.g. when your code or its dependencies use non-standard JavaScript syntax, or when Jest is not configured to support such syntax.
+
+    Out of the box Jest supports Babel, which will be used to transform your files into valid JS based on your Babel configuration.
+
+    By default "node_modules" folder is ignored by transformers.
+
+    Here's what you can do:
+     • If you are trying to use ECMAScript Modules, see https://jestjs.io/docs/ecmascript-modules for how to enable it.
+     • If you are trying to use TypeScript, see https://jestjs.io/docs/getting-started#using-typescript
+     • To have some of your "node_modules" files transformed, you can specify a custom "transformIgnorePatterns" in your config.
+     • If you need a custom transformation specify a "transform" option in your config.
+     • If you simply want to mock your non-JS modules (e.g. binary assets) you can stub them out with the "moduleNameMapper" config option.
+
+    You'll find more details and examples of these config options in the docs:
+    https://jestjs.io/docs/configuration
+    For information about custom transformations, see:
+    https://jestjs.io/docs/code-transformation
+
+    Details:
+
+    /Users/avinashkumargupta/Documents/projects/Zero/zero-datafabric/backend/node_modules/marked/lib/marked.esm.js:76
+    Please report this to https://github.com/markedjs/marked.`,e){let s="<p>An error occurred:</p><pre>"+O(n.message+"",!0)+"</pre>";return t?Promise.resolve(s):s}if(t)return Promise.reject(n);throw n}}};var z=new D;function g(l,e){return z.parse(l,e)}g.options=g.setOptions=function(l){return z.setOptions(l),g.defaults=z.defaults,N(g.defaults),g};g.getDefaults=M;g.defaults=T;g.use=function(...l){return z.use(...l),g.defaults=z.defaults,N(g.defaults),g};g.walkTokens=function(l,e){return z.walkTokens(l,e)};g.parseInline=z.parseInline;g.Parser=b;g.parser=b.parse;g.Renderer=y;g.TextRenderer=L;g.Lexer=x;g.lexer=x.lex;g.Tokenizer=w;g.Hooks=P;g.parse=g;var Kt=g.options,Wt=g.setOptions,Xt=g.use,Jt=g.walkTokens,Vt=g.parseInline,Yt=g,en=b.parse,tn=x.lex;export{P as Hooks,x as Lexer,D as Marked,b as Parser,y as Renderer,L as TextRenderer,w as Tokenizer,T as defaults,M as getDefaults,tn as lexer,g as marked,Kt as options,Yt as parse,Vt as parseInline,en as parser,Wt as setOptions,Xt as use,Jt as walkTokens};
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  ^^^^^^
+
+    SyntaxError: Unexpected token 'export'
+
+      2 | import path from 'path';
+      3 | import fs from 'fs';
+    > 4 | import { marked } from 'marked';
+        | ^
+      5 |
+      6 | const DEVELOPER_DOCS_DIR = path.join(__dirname, '..', '..', '..', 'developer_docs');
+      7 |
+
+      at Runtime.createScriptFromCode (node_modules/jest-runtime/build/index.js:1505:14)
+      at Object.<anonymous> (src/controllers/developerDocsController.ts:4:1)
+      at Object.<anonymous> (src/routes/developerDocsRoutes.ts:2:1)
+      at Object.<anonymous> (src/index.ts:24:1)
+      at Object.<anonymous> (src/modules/industrial_validation.test.ts:2:1)
+
+  console.log
+    ◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+
+      at _log (node_modules/dotenv/lib/main.js:131:11)
+
+FAIL src/modules/full_api_security.test.ts
+  ● Test suite failed to run
+
+    Jest encountered an unexpected token
+
+    Jest failed to parse a file. This happens e.g. when your code or its dependencies use non-standard JavaScript syntax, or when Jest is not configured to support such syntax.
+
+    Out of the box Jest supports Babel, which will be used to transform your files into valid JS based on your Babel configuration.
+
+    By default "node_modules" folder is ignored by transformers.
+
+    Here's what you can do:
+     • If you are trying to use ECMAScript Modules, see https://jestjs.io/docs/ecmascript-modules for how to enable it.
+     • If you are trying to use TypeScript, see https://jestjs.io/docs/getting-started#using-typescript
+     • To have some of your "node_modules" files transformed, you can specify a custom "transformIgnorePatterns" in your config.
+     • If you need a custom transformation specify a "transform" option in your config.
+     • If you simply want to mock your non-JS modules (e.g. binary assets) you can stub them out with the "moduleNameMapper" config option.
+
+    You'll find more details and examples of these config options in the docs:
+    https://jestjs.io/docs/configuration
+    For information about custom transformations, see:
+    https://jestjs.io/docs/code-transformation
+
+    Details:
+
+    /Users/avinashkumargupta/Documents/projects/Zero/zero-datafabric/backend/node_modules/marked/lib/marked.esm.js:76
+    Please report this to https://github.com/markedjs/marked.`,e){let s="<p>An error occurred:</p><pre>"+O(n.message+"",!0)+"</pre>";return t?Promise.resolve(s):s}if(t)return Promise.reject(n);throw n}}};var z=new D;function g(l,e){return z.parse(l,e)}g.options=g.setOptions=function(l){return z.setOptions(l),g.defaults=z.defaults,N(g.defaults),g};g.getDefaults=M;g.defaults=T;g.use=function(...l){return z.use(...l),g.defaults=z.defaults,N(g.defaults),g};g.walkTokens=function(l,e){return z.walkTokens(l,e)};g.parseInline=z.parseInline;g.Parser=b;g.parser=b.parse;g.Renderer=y;g.TextRenderer=L;g.Lexer=x;g.lexer=x.lex;g.Tokenizer=w;g.Hooks=P;g.parse=g;var Kt=g.options,Wt=g.setOptions,Xt=g.use,Jt=g.walkTokens,Vt=g.parseInline,Yt=g,en=b.parse,tn=x.lex;export{P as Hooks,x as Lexer,D as Marked,b as Parser,y as Renderer,L as TextRenderer,w as Tokenizer,T as defaults,M as getDefaults,tn as lexer,g as marked,Kt as options,Yt as parse,Vt as parseInline,en as parser,Wt as setOptions,Xt as use,Jt as walkTokens};
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  ^^^^^^
+
+    SyntaxError: Unexpected token 'export'
+
+      2 | import path from 'path';
+      3 | import fs from 'fs';
+    > 4 | import { marked } from 'marked';
+        | ^
+      5 |
+      6 | const DEVELOPER_DOCS_DIR = path.join(__dirname, '..', '..', '..', 'developer_docs');
+      7 |
+
+      at Runtime.createScriptFromCode (node_modules/jest-runtime/build/index.js:1505:14)
+      at Object.<anonymous> (src/controllers/developerDocsController.ts:4:1)
+      at Object.<anonymous> (src/routes/developerDocsRoutes.ts:2:1)
+      at Object.<anonymous> (src/index.ts:24:1)
+      at Object.<anonymous> (src/modules/full_api_security.test.ts:2:1)
+
+Test Suites: 7 failed, 12 passed, 19 total
+Tests:       95 passed, 95 total
+Snapshots:   0 total
+Time:        2.519 s
+Ran all test suites matching /src\/modules/i.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

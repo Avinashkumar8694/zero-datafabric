@@ -27,6 +27,7 @@ System-level design docs. Each feature has its own page with architecture
 | [16-observability-and-query-log.md](16-observability-and-query-log.md) | The QueryLogService audit trail (`fabric_system.query_logs`), captured telemetry, the execution trace, and the audit UI |
 | [17-concepts-and-glossary.md](17-concepts-and-glossary.md) | Every key concept and term defined — fabric, federation, virtualization, compensation, connectors, catalog, sync types, bind-join, control/data plane, and more |
 | [18-federated-search-and-streaming.md](18-federated-search-and-streaming.md) | Research: the multi-source search model (bottom-up but flat), a recursive bottom-up plan-tree design, and node-to-node + response **streaming** (`stream: true`) — evidenced by live leg traces |
+| [19-replication-engine-microservice.md](19-replication-engine-microservice.md) | The copy-job microservice: fabric assigns SYNC/CDC/REPLICATE/RESTORE jobs, a separate `replication-engine` executes them with keyset paging, row-level checkpoints, crash-reclaim/resume (no data loss), pause/resume, live % progress, and Oracle support |
 
 ## System context
 

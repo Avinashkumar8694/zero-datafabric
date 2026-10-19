@@ -15,24 +15,29 @@ import { TenantService } from '../modules/tenant/tenant.service';
 import { AuthService } from '../modules/auth/auth.service';
 import { pool, queryWithContext } from '../config/database';
 import { invalidateTenant } from '../config/cache';
+import { LicensingService } from '../services/licensing.service';
 
 // --- Tenant Management ---
 
 /**
- * List every tenant registered on the platform.
+ * List tenants. Admins see all tenants; non-admins see only their own tenant.
  *
- * @param req - Express request (admin-only; no tenant scoping — this is a global list).
+ * @param req - Express request.
  * @param res - Express response.
- * @returns 200 with all rows from `public.tenants`, newest first.
- * @throws Responds 500 `(error)` on a database failure.
+ * @returns 200 with tenant rows.
  */
 export const getTenants = async (req: Request, res: Response) => {
   try {
+    const user = (req as any).user;
+    if (user && user.internal_role !== 'ADMIN') {
+      const { rows } = await pool.query('SELECT * FROM public.tenants WHERE id = $1', [user.tenant_id]);
+      return res.json(rows);
+    }
     const { rows } = await pool.query('SELECT * FROM public.tenants ORDER BY created_at DESC');
     res.json(rows);
-  } catch (err: any) { 
+  } catch (err: any) {
     console.error(`[Admin] Error in ${req.url}:`, err.message);
-    res.status(500).json({ error: err.message }); 
+    res.status(500).json({ error: err.message });
   }
 };
 
@@ -49,7 +54,17 @@ export const createTenant = async (req: Request, res: Response) => {
   const { id, name } = req.body;
   if (!id || !name) return res.status(400).json({ error: 'id and name are required' });
   try {
-    const result = await TenantService.createTenant(id, name);
+    const user = (req as any).user;
+    
+    // Check plan limits for non-admin users
+    if (user && user.internal_role !== 'ADMIN') {
+      const limitCheck = await LicensingService.canCreateTenant(user.id);
+      if (!limitCheck.allowed) {
+        return res.status(403).json({ error: limitCheck.reason });
+      }
+    }
+    
+    const result = await TenantService.createTenant(id, name, 'STANDARD', user?.id);
     res.status(201).json(result);
   } catch (err: any) { 
     console.error(`[Admin] Error in ${req.url}:`, err.message);
@@ -114,7 +129,7 @@ export const deleteTenant = async (req: Request, res: Response) => {
 export const getConnections = async (req: Request, res: Response) => {
   const user = (req as any).user;
   try {
-    const result = await queryWithContext('SELECT * FROM public.data_sources', [], { tenantId: user.tenant_id, username: user.username });
+    const result = await queryWithContext('SELECT * FROM public.data_sources', [], { tenantId: user.tenant_id, username: user.username, role: user.internal_role });
     const probeWithTimeout = async (probe: Promise<any>, ms = 1500) => {
       const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('probe-timeout')), ms));
       return Promise.race([probe, timeout]);
@@ -163,6 +178,23 @@ export const createConnection = async (req: Request, res: Response) => {
   const user = (req as any).user;
   if (!name || !config) return res.status(400).json({ error: 'name and config are required' });
   try {
+    // Enforce connections limit for non-admin users
+    if (user.internal_role !== 'ADMIN') {
+      const context = { tenantId: user.tenant_id, username: user.username };
+      const existing = await queryWithContext('SELECT COUNT(*) FROM public.data_sources', [], context);
+      const currentCount = parseInt(existing.rows[0].count);
+      
+      const existsCheck = await queryWithContext('SELECT id FROM public.data_sources WHERE name = $1', [name], context);
+      const isNew = existsCheck.rows.length === 0;
+
+      if (isNew) {
+        const allowed = await LicensingService.checkLimit(user.id, 'max_connections', currentCount);
+        if (!allowed) {
+          return res.status(400).json({ error: 'Connection limit exceeded. Your current plan restricts you to a maximum of 2 connections.' });
+        }
+      }
+    }
+
     const result = await IntegrationService.registerRemoteSource(user.tenant_id, name, config, { username: user.username });
     await invalidateTenant(user.tenant_id);
     const statusCode = result.status === 'RE-INTEGRATED' ? 200 : 201;
@@ -315,17 +347,32 @@ export const deleteUser = async (req: Request, res: Response) => {
 export const getDashboardStats = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
-    const [tenants, connections, audits] = await Promise.all([
-      pool.query('SELECT COUNT(*) FROM public.tenants'),
-      pool.query('SELECT COUNT(*) FROM public.data_sources'),
-      pool.query("SELECT COUNT(*) FROM public.audit_logs WHERE changed_at > NOW() - INTERVAL '24 hours'")
-    ]);
-    
-    res.json({
-      tenants: parseInt(tenants.rows[0].count),
-      connections: parseInt(connections.rows[0].count),
-      audits: parseInt(audits.rows[0].count)
-    });
+    if (user.internal_role === 'ADMIN') {
+      const [tenants, connections, audits] = await Promise.all([
+        pool.query('SELECT COUNT(*) FROM public.tenants'),
+        pool.query('SELECT COUNT(*) FROM public.data_sources'),
+        pool.query("SELECT COUNT(*) FROM public.audit_logs WHERE changed_at > NOW() - INTERVAL '24 hours'")
+      ]);
+      
+      res.json({
+        tenants: parseInt(tenants.rows[0].count),
+        connections: parseInt(connections.rows[0].count),
+        audits: parseInt(audits.rows[0].count)
+      });
+    } else {
+      const context = { tenantId: user.tenant_id, username: user.username };
+      const [tenants, connections, audits] = await Promise.all([
+        queryWithContext('SELECT COUNT(*) FROM public.tenants', [], context),
+        queryWithContext('SELECT COUNT(*) FROM public.data_sources', [], context),
+        queryWithContext("SELECT COUNT(*) FROM public.audit_logs WHERE changed_at > NOW() - INTERVAL '24 hours'", [], context)
+      ]);
+      
+      res.json({
+        tenants: parseInt(tenants.rows[0].count),
+        connections: parseInt(connections.rows[0].count),
+        audits: parseInt(audits.rows[0].count)
+      });
+    }
   } catch (err: any) { 
     console.error(`[Admin] Error in ${req.url}:`, err.message);
     res.status(500).json({ error: err.message }); 
@@ -375,9 +422,10 @@ export const getCatalogSummary = async (req: Request, res: Response) => {
           s.source_id IN (SELECT id FROM public.data_sources WHERE tenant_id = $1)
           OR s.physical_name LIKE 'tenant_' || $1 || '%'
       ))
-      ORDER BY s.physical_name, t.physical_name ASC`, [user.tenant_id], {
+      ORDER BY s.physical_name, t.physical_name ASC`, [user.internal_role === 'ADMIN' ? null : user.tenant_id], {
       tenantId: user.tenant_id,
-      username: user.username || 'unknown'
+      username: user.username || 'unknown',
+      role: user.internal_role
     });
     res.json(rows);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
@@ -401,7 +449,7 @@ export const listNotificationChannels = async (req: Request, res: Response) => {
        FROM public.notification_channels
        ORDER BY channel_type, name`,
       [],
-      { tenantId: user.tenant_id, username: user.username }
+      { tenantId: user.tenant_id, username: user.username, role: user.internal_role }
     );
     res.json(rows);
   } catch (err: any) {

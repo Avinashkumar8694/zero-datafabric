@@ -135,7 +135,7 @@ export class Transpiler {
                     if (c.collation) d += ` COLLATE "${c.collation}"`;
                     if (c.primaryKey && !table.identity) d += ' PRIMARY KEY';
                     if (c.default && !hasDefault && c.strategy !== 'FUNCTIONAL') {
-                        const isLiteral = !c.default.includes('(') && isNaN(Number(c.default)) && !['NOW()', 'CURRENT_TIMESTAMP'].includes(c.default.toUpperCase());
+                        const isLiteral = !c.default.includes('(') && !c.default.startsWith("'") && isNaN(Number(c.default)) && !['NOW()', 'CURRENT_TIMESTAMP'].includes(c.default.toUpperCase());
                         const finalDefault = isLiteral ? `'${c.default}'` : c.default;
                         d += ` DEFAULT ${finalDefault}`;
                     }
@@ -408,18 +408,423 @@ export class Transpiler {
      * @param schemaName Physical (tenant-qualified) schema the trigger's table lives in.
      * @param tableName Physical table name the trigger is attached to.
      * @param tenantId Tenant scope; when supplied, the trigger is also registered in `trigger_registry` (source=MANIFEST).
-     * @returns The SQL statements needed to create the trigger (and its backing function, if any).
      */
     private static async callTriggerEngine(trigger: any, schemaName: string, tableName: string, tenantId?: string): Promise<string[]> {
-        // Manifest triggers are compiled natively at apply time by
-        // TriggerActionCompiler, which now handles ALL declarative forms:
-        //   • procedure — EXECUTE an existing trigger function
-        //   • execute   — AUDIT/WEBHOOK/EMAIL/TELEGRAM/FUNCTION/EXCEPTION
-        //   • action    — the mini INSERT/UPDATE/DELETE/RAISE/PERFORM/sql DSL
-        // For WEBHOOK/EMAIL/TELEGRAM the generated function enqueues a durable
-        // job the trigger-engine worker dispatches later; the CREATE itself needs
-        // no running microservice. transpileTriggerSql also registers the trigger
-        // in the control plane (trigger_registry, source=MANIFEST).
         return TriggerService.transpileTriggerSql(trigger, schemaName, tableName, tenantId);
     }
+
+    // =========================================================================
+    //  MySQL DDL Transpiler
+    // =========================================================================
+
+    /** Maps a manifest's portable type name to its MySQL-native type. */
+    private static normalizeMysqlType(t: string): string {
+        if (!t) return t;
+        const map: Record<string, string> = {
+            'STRING': 'VARCHAR(255)', 'TEXT': 'TEXT', 'INTEGER': 'INT', 'BIGINT': 'BIGINT',
+            'BOOLEAN': 'TINYINT(1)', 'TIMESTAMP': 'DATETIME', 'UUID': 'CHAR(36)',
+            'JSONB': 'JSON', 'NUMERIC': 'DECIMAL(18,4)', 'SERIAL': 'INT AUTO_INCREMENT',
+        };
+        return map[t.toUpperCase()] || t;
+    }
+
+    /**
+     * Compiles a single diff into MySQL DDL statements.
+     * Handles: CREATE_SCHEMA (as CREATE DATABASE), CREATE_TABLE (backtick quoting,
+     * AUTO_INCREMENT, ENGINE=InnoDB), ADD_COLUMN, CREATE_VIEW, CREATE_FUNCTION/PROCEDURE.
+     * @param diff A single diff entry to compile.
+     * @param tenantId Tenant scope.
+     * @param manifest Full manifest.
+     * @returns The ordered MySQL DDL statements.
+     */
+    static async toMysql(diff: any, tenantId: string, manifest?: MetadataManifest): Promise<string[]> {
+        const schemaName = `tenant_${tenantId}_${diff.schema || diff.name}`;
+        const sql: string[] = [];
+
+        switch (diff.action) {
+            case 'CREATE_SCHEMA':
+                sql.push(`CREATE DATABASE IF NOT EXISTS \`${schemaName}\``);
+                break;
+
+            case 'CREATE_TABLE': {
+                const table = diff as TableDefinition;
+                const cols = table.columns.map(c => {
+                    let d = `\`${c.name}\` `;
+                    if (c.strategy === 'UUID_V7') {
+                        d += `CHAR(36) DEFAULT (UUID())`;
+                    } else if (c.strategy === 'LEGACY_SERIAL' || c.strategy === 'IDENTITY_ALWAYS') {
+                        d += `INT AUTO_INCREMENT`;
+                    } else {
+                        d += this.normalizeMysqlType(c.type);
+                        if (c.length && c.type.toUpperCase() === 'STRING') d = `\`${c.name}\` VARCHAR(${c.length})`;
+                    }
+                    if (c.primaryKey) d += ' PRIMARY KEY';
+                    if (c.default && c.strategy !== 'UUID_V7' && c.strategy !== 'LEGACY_SERIAL') {
+                        const upper = c.default.toUpperCase();
+                        if (upper === 'NOW()' || upper === 'CURRENT_TIMESTAMP') d += ` DEFAULT CURRENT_TIMESTAMP`;
+                        else if (c.default.includes('(')) d += ` DEFAULT (${c.default})`;
+                        else if (isNaN(Number(c.default))) d += ` DEFAULT '${c.default}'`;
+                        else d += ` DEFAULT ${c.default}`;
+                    }
+                    if (c.unique && !c.primaryKey) d += ' UNIQUE';
+                    if (c.nullable === false && !c.primaryKey) d += ' NOT NULL';
+                    return d;
+                });
+                sql.push(`CREATE TABLE IF NOT EXISTS \`${schemaName}\`.\`${table.name}\` (${cols.join(', ')}) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+                for (const c of table.columns) {
+                    if (c.index && !c.primaryKey) {
+                        sql.push(`CREATE INDEX \`idx_${table.name}_${c.name}\` ON \`${schemaName}\`.\`${table.name}\` (\`${c.name}\`)`);
+                    }
+                }
+                break;
+            }
+
+            case 'ADD_COLUMN': {
+                const col = diff.column;
+                let colDef = `\`${col.name}\` ${this.normalizeMysqlType(col.type)}`;
+                if (col.nullable === false) colDef += ' NOT NULL';
+                sql.push(`ALTER TABLE \`${schemaName}\`.\`${diff.table}\` ADD COLUMN ${colDef}`);
+                break;
+            }
+
+            case 'CREATE_VIEW': {
+                const view = diff as ViewDefinition;
+                const viewQuery = QueryTranspiler.toSql(view.query, schemaName);
+                sql.push(`CREATE OR REPLACE VIEW \`${schemaName}\`.\`${view.name}\` AS ${viewQuery}`);
+                break;
+            }
+
+            case 'CREATE_FUNCTION':
+            case 'CREATE_PROCEDURE': {
+                const fn = diff as any;
+                const rawArgs = fn.arguments || fn.parameters || [];
+                const args = rawArgs.map((a: any) => `${a.mode || 'IN'} \`${a.name}\` ${this.normalizeMysqlType(a.type)}`).join(', ') || '';
+                const ret = fn.type === 'FUNCTION' ? `RETURNS ${this.normalizeMysqlType(fn.returnType || 'TEXT')}` : '';
+                const deterministic = fn.volatility === 'IMMUTABLE' ? 'DETERMINISTIC' : 'NOT DETERMINISTIC';
+                let body = fn.body.trim();
+                if (!body.toUpperCase().startsWith('BEGIN')) body = `BEGIN\n    ${body}\nEND`;
+                sql.push(`DROP ${fn.type} IF EXISTS \`${schemaName}\`.\`${fn.name}\``);
+                sql.push(`CREATE ${fn.type} \`${schemaName}\`.\`${fn.name}\`(${args}) ${ret} ${deterministic}\n${body}`);
+                break;
+            }
+        }
+        return sql;
+    }
+
+    // =========================================================================
+    //  Oracle DDL Transpiler
+    // =========================================================================
+
+    /** Maps a manifest's portable type name to its Oracle-native type. */
+    private static normalizeOracleType(t: string): string {
+        if (!t) return t;
+        const map: Record<string, string> = {
+            'STRING': 'VARCHAR2(255)', 'TEXT': 'CLOB', 'INTEGER': 'NUMBER(10)', 'BIGINT': 'NUMBER(19)',
+            'BOOLEAN': 'NUMBER(1)', 'TIMESTAMP': 'TIMESTAMP', 'UUID': 'RAW(16)',
+            'JSONB': 'CLOB', 'NUMERIC': 'NUMBER(18,4)', 'SERIAL': 'NUMBER(10)',
+        };
+        return map[t.toUpperCase()] || t;
+    }
+
+    /**
+     * Compiles a single diff into Oracle DDL statements.
+     * Handles: CREATE_SCHEMA (as DBA comment), CREATE_TABLE, ADD_COLUMN,
+     * CREATE_SEQUENCE (native), CREATE_VIEW, CREATE_MATERIALIZED_VIEW, CREATE_FUNCTION/PROCEDURE.
+     * @param diff A single diff entry to compile.
+     * @param tenantId Tenant scope.
+     * @param manifest Full manifest.
+     * @returns The ordered Oracle DDL statements.
+     */
+    static async toOracle(diff: any, tenantId: string, manifest?: MetadataManifest): Promise<string[]> {
+        const schemaName = `tenant_${tenantId}_${diff.schema || diff.name}`.toUpperCase();
+        const sql: string[] = [];
+
+        switch (diff.action) {
+            case 'CREATE_SCHEMA':
+                sql.push(`-- Oracle schema: CREATE USER "${schemaName}" handled by DBA/provisioning layer`);
+                break;
+
+            case 'CREATE_SEQUENCE': {
+                const seq = diff as SequenceDefinition;
+                let seqSql = `CREATE SEQUENCE "${schemaName}"."${seq.name}" START WITH ${seq.start || 1} INCREMENT BY ${seq.increment || 1}`;
+                if (seq.minValue) seqSql += ` MINVALUE ${seq.minValue}`;
+                if (seq.maxValue) seqSql += ` MAXVALUE ${seq.maxValue}`;
+                if (seq.cache) seqSql += ` CACHE ${seq.cache}`;
+                sql.push(seqSql);
+                break;
+            }
+
+            case 'CREATE_TABLE': {
+                const table = diff as TableDefinition;
+                const cols = table.columns.map(c => {
+                    let d = `"${c.name}" `;
+                    if (c.strategy === 'UUID_V7') d += `RAW(16) DEFAULT SYS_GUID()`;
+                    else if (c.strategy === 'IDENTITY_ALWAYS') d += `NUMBER GENERATED ALWAYS AS IDENTITY`;
+                    else if (c.strategy === 'LEGACY_SERIAL') d += `NUMBER GENERATED BY DEFAULT AS IDENTITY`;
+                    else {
+                        d += this.normalizeOracleType(c.type);
+                        if (c.length && c.type.toUpperCase() === 'STRING') d = `"${c.name}" VARCHAR2(${c.length})`;
+                    }
+                    if (c.primaryKey) d += ' PRIMARY KEY';
+                    if (c.default && !['UUID_V7', 'IDENTITY_ALWAYS', 'LEGACY_SERIAL'].includes(c.strategy || '')) {
+                        const upper = c.default.toUpperCase();
+                        if (upper === 'NOW()' || upper === 'CURRENT_TIMESTAMP') d += ` DEFAULT SYSTIMESTAMP`;
+                        else if (c.default.includes('(')) d += ` DEFAULT ${c.default}`;
+                        else if (isNaN(Number(c.default))) d += ` DEFAULT '${c.default}'`;
+                        else d += ` DEFAULT ${c.default}`;
+                    }
+                    if (c.unique && !c.primaryKey) d += ' UNIQUE';
+                    if (c.nullable === false && !c.primaryKey) d += ' NOT NULL';
+                    return d;
+                });
+                sql.push(`CREATE TABLE "${schemaName}"."${table.name}" (${cols.join(', ')})`);
+                for (const c of table.columns) {
+                    if (c.index && !c.primaryKey) {
+                        sql.push(`CREATE INDEX "IDX_${table.name}_${c.name}" ON "${schemaName}"."${table.name}" ("${c.name}")`);
+                    }
+                }
+                break;
+            }
+
+            case 'ADD_COLUMN': {
+                const col = diff.column;
+                let colDef = `"${col.name}" ${this.normalizeOracleType(col.type)}`;
+                if (col.nullable === false) colDef += ' NOT NULL';
+                sql.push(`ALTER TABLE "${schemaName}"."${diff.table}" ADD (${colDef})`);
+                break;
+            }
+
+            case 'CREATE_VIEW': {
+                const view = diff as ViewDefinition;
+                const viewQuery = QueryTranspiler.toSql(view.query, schemaName);
+                sql.push(`CREATE OR REPLACE VIEW "${schemaName}"."${view.name}" AS ${viewQuery}`);
+                break;
+            }
+
+            case 'CREATE_MATERIALIZED_VIEW': {
+                const view = diff as ViewDefinition;
+                const viewQuery = QueryTranspiler.toSql(view.query, schemaName);
+                sql.push(`CREATE MATERIALIZED VIEW "${schemaName}"."${view.name}" AS ${viewQuery}`);
+                break;
+            }
+
+            case 'CREATE_FUNCTION':
+            case 'CREATE_PROCEDURE': {
+                const fn = diff as any;
+                const rawArgs = fn.arguments || fn.parameters || [];
+                const args = rawArgs.map((a: any) => `"${a.name}" ${a.mode || 'IN'} ${this.normalizeOracleType(a.type)}`).join(', ') || '';
+                const ret = fn.type === 'FUNCTION' ? `RETURN ${this.normalizeOracleType(fn.returnType || 'VARCHAR2(4000)')}` : '';
+                let body = fn.body.trim();
+                if (!body.toUpperCase().startsWith('BEGIN')) body = `BEGIN\n    ${body}\nEND;`;
+                sql.push(`CREATE OR REPLACE ${fn.type} "${schemaName}"."${fn.name}"(${args}) ${ret} IS\n${body}`);
+                break;
+            }
+        }
+        return sql;
+    }
+
+    // =========================================================================
+    //  Snowflake DDL Transpiler
+    // =========================================================================
+
+    /** Maps a manifest's portable type name to its Snowflake-native type. */
+    private static normalizeSnowflakeType(t: string): string {
+        if (!t) return t;
+        const map: Record<string, string> = {
+            'STRING': 'VARCHAR', 'TEXT': 'TEXT', 'INTEGER': 'INTEGER', 'BIGINT': 'BIGINT',
+            'BOOLEAN': 'BOOLEAN', 'TIMESTAMP': 'TIMESTAMP_NTZ', 'UUID': 'VARCHAR(36)',
+            'JSONB': 'VARIANT', 'NUMERIC': 'NUMBER(18,4)', 'SERIAL': 'INTEGER AUTOINCREMENT',
+        };
+        return map[t.toUpperCase()] || t;
+    }
+
+    /**
+     * Compiles a single diff into Snowflake DDL statements.
+     * Handles: CREATE_SCHEMA, CREATE_TABLE, ADD_COLUMN, CREATE_SEQUENCE (native),
+     * CREATE_VIEW, CREATE_FUNCTION/PROCEDURE (JavaScript UDF or SQL).
+     * @param diff A single diff entry to compile.
+     * @param tenantId Tenant scope.
+     * @param manifest Full manifest.
+     * @returns The ordered Snowflake DDL statements.
+     */
+    static async toSnowflake(diff: any, tenantId: string, manifest?: MetadataManifest): Promise<string[]> {
+        const schemaName = `TENANT_${tenantId}_${diff.schema || diff.name}`.toUpperCase();
+        const sql: string[] = [];
+
+        switch (diff.action) {
+            case 'CREATE_SCHEMA':
+                sql.push(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+                break;
+
+            case 'CREATE_SEQUENCE': {
+                const seq = diff as SequenceDefinition;
+                sql.push(`CREATE SEQUENCE IF NOT EXISTS "${schemaName}"."${seq.name}" START = ${seq.start || 1} INCREMENT = ${seq.increment || 1}`);
+                break;
+            }
+
+            case 'CREATE_TABLE': {
+                const table = diff as TableDefinition;
+                const cols = table.columns.map(c => {
+                    let d = `"${c.name}" `;
+                    if (c.strategy === 'UUID_V7') d += `VARCHAR(36) DEFAULT UUID_STRING()`;
+                    else if (c.strategy === 'IDENTITY_ALWAYS') d += `INTEGER AUTOINCREMENT`;
+                    else if (c.strategy === 'LEGACY_SERIAL') d += `INTEGER AUTOINCREMENT`;
+                    else {
+                        d += this.normalizeSnowflakeType(c.type);
+                        if (c.length && c.type.toUpperCase() === 'STRING') d = `"${c.name}" VARCHAR(${c.length})`;
+                    }
+                    if (c.primaryKey) d += ' PRIMARY KEY';
+                    if (c.default && !['UUID_V7', 'IDENTITY_ALWAYS', 'LEGACY_SERIAL'].includes(c.strategy || '')) {
+                        const upper = c.default.toUpperCase();
+                        if (upper === 'NOW()' || upper === 'CURRENT_TIMESTAMP') d += ` DEFAULT CURRENT_TIMESTAMP()`;
+                        else if (c.default.includes('(')) d += ` DEFAULT ${c.default}`;
+                        else if (isNaN(Number(c.default))) d += ` DEFAULT '${c.default}'`;
+                        else d += ` DEFAULT ${c.default}`;
+                    }
+                    if (c.unique && !c.primaryKey) d += ' UNIQUE';
+                    if (c.nullable === false && !c.primaryKey) d += ' NOT NULL';
+                    return d;
+                });
+                sql.push(`CREATE TABLE IF NOT EXISTS "${schemaName}"."${table.name}" (${cols.join(', ')})`);
+                break;
+            }
+
+            case 'ADD_COLUMN': {
+                const col = diff.column;
+                let colDef = `"${col.name}" ${this.normalizeSnowflakeType(col.type)}`;
+                if (col.nullable === false) colDef += ' NOT NULL';
+                sql.push(`ALTER TABLE "${schemaName}"."${diff.table}" ADD COLUMN ${colDef}`);
+                break;
+            }
+
+            case 'CREATE_VIEW': {
+                const view = diff as ViewDefinition;
+                const viewQuery = QueryTranspiler.toSql(view.query, schemaName);
+                sql.push(`CREATE OR REPLACE VIEW "${schemaName}"."${view.name}" AS ${viewQuery}`);
+                break;
+            }
+
+            case 'CREATE_FUNCTION':
+            case 'CREATE_PROCEDURE': {
+                const fn = diff as any;
+                const rawArgs = fn.arguments || fn.parameters || [];
+                const args = rawArgs.map((a: any) => `${a.name} ${this.normalizeSnowflakeType(a.type)}`).join(', ') || '';
+                const ret = fn.type === 'FUNCTION' ? `RETURNS ${this.normalizeSnowflakeType(fn.returnType || 'VARCHAR')}` : '';
+                let body = fn.body.trim();
+                sql.push(`CREATE OR REPLACE ${fn.type} "${schemaName}"."${fn.name}"(${args}) ${ret} LANGUAGE SQL AS '${body.replace(/'/g, "''")}'`);
+                break;
+            }
+        }
+        return sql;
+    }
+
+    // =========================================================================
+    //  Elasticsearch DDL Transpiler
+    // =========================================================================
+
+    /**
+     * Compiles a single diff into Elasticsearch index/template ops.
+     * Only CREATE_TABLE is meaningful (creates an index with property mappings).
+     * @param diff A single diff entry to compile.
+     * @param tenantId Tenant scope.
+     * @param manifest Full manifest.
+     * @returns Op descriptors for the Elasticsearch dispatcher.
+     */
+    static async toElasticsearch(diff: any, tenantId: string, manifest?: MetadataManifest): Promise<any[]> {
+        const ops: any[] = [];
+        switch (diff.action) {
+            case 'CREATE_TABLE': {
+                const esTypeMap: Record<string, string> = {
+                    'STRING': 'keyword', 'TEXT': 'text', 'INTEGER': 'integer', 'BIGINT': 'long',
+                    'BOOLEAN': 'boolean', 'TIMESTAMP': 'date', 'UUID': 'keyword',
+                    'NUMERIC': 'double', 'JSONB': 'object',
+                };
+                const properties: Record<string, any> = {};
+                if (diff.columns) {
+                    for (const col of diff.columns) {
+                        properties[col.name] = { type: esTypeMap[col.type?.toUpperCase()] || 'keyword' };
+                    }
+                }
+                ops.push({
+                    action: 'createIndex',
+                    name: `${tenantId}_${diff.name}`.toLowerCase(),
+                    mappings: { properties },
+                });
+                break;
+            }
+        }
+        return ops;
+    }
+
+    // =========================================================================
+    //  Fabric Compensation Actions (executed on the Hub for non-native engines)
+    // =========================================================================
+
+    /**
+     * Compiles fabric compensation actions into SQL executed on the Hub Postgres.
+     * These provide engine-agnostic equivalents for features the target engine
+     * doesn't support natively:
+     *  - `REGISTER_FABRIC_SEQUENCE` — Seeds in `fabric_system.fabric_sequences`.
+     *  - `REGISTER_HUB_FUNCTION` — Provisions on Hub Postgres as a value-service.
+     *  - `REGISTER_FABRIC_ENUM` — Records enum values for application-level validation.
+     *  - `REGISTER_VIRTUAL_VIEW` — Registers the view AST in the fabric query engine.
+     * @param diff A compensation diff entry.
+     * @param tenantId Tenant scope.
+     * @param manifest Full manifest.
+     * @returns SQL statements to execute on the hub for compensation.
+     */
+    static async toFabricCompensation(diff: any, tenantId: string, manifest?: MetadataManifest): Promise<string[]> {
+        const sql: string[] = [];
+
+        switch (diff.action) {
+            case 'REGISTER_FABRIC_SEQUENCE': {
+                const seq = diff as SequenceDefinition;
+                sql.push(`INSERT INTO fabric_system.fabric_sequences (tenant_id, name, current_value, increment)
+                    VALUES ('${tenantId}', '${seq.name}', ${(seq.start || 1) - (seq.increment || 1)}, ${seq.increment || 1})
+                    ON CONFLICT (tenant_id, name) DO NOTHING`);
+                break;
+            }
+
+            case 'REGISTER_HUB_FUNCTION': {
+                const schemaName = `tenant_${tenantId}_${diff.schema}`;
+                const fn = diff as any;
+                const rawArgs = fn.arguments || fn.parameters || [];
+                const args = rawArgs.map((a: any) => `"${a.name}" ${a.mode || 'IN'} ${this.normalizeType(a.type)}`).join(', ') || '';
+                const ret = fn.returnType ? `RETURNS ${this.normalizeType(fn.returnType)}` : 'RETURNS VOID';
+                let body = fn.body.trim();
+                if (!body.toUpperCase().startsWith('BEGIN')) body = `BEGIN\n    ${body}\nEND;`;
+                sql.push(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+                sql.push(`CREATE OR REPLACE FUNCTION "${schemaName}"."${fn.name}"(${args}) ${ret} AS $$ ${body} $$ LANGUAGE plpgsql`);
+                break;
+            }
+
+            case 'REGISTER_FABRIC_ENUM': {
+                const enumDef = diff as EnumDefinition;
+                const valuesJson = JSON.stringify(enumDef.values);
+                sql.push(`CREATE TABLE IF NOT EXISTS fabric_system.fabric_enums (
+                    tenant_id TEXT NOT NULL, schema_name TEXT NOT NULL, enum_name TEXT NOT NULL,
+                    allowed_values JSONB NOT NULL, target_source TEXT, target_engine TEXT,
+                    PRIMARY KEY (tenant_id, schema_name, enum_name))`);
+                sql.push(`INSERT INTO fabric_system.fabric_enums (tenant_id, schema_name, enum_name, allowed_values, target_source, target_engine)
+                    VALUES ('${tenantId}', '${diff.schema}', '${enumDef.name}', '${valuesJson}'::jsonb, '${diff.targetSource}', '${diff.engineType}')
+                    ON CONFLICT (tenant_id, schema_name, enum_name) DO UPDATE SET allowed_values = EXCLUDED.allowed_values`);
+                break;
+            }
+
+            case 'REGISTER_VIRTUAL_VIEW': {
+                const view = diff as any;
+                const queryJson = JSON.stringify(view.query).replace(/'/g, "''");
+                sql.push(`CREATE TABLE IF NOT EXISTS fabric_system.virtual_views (
+                    tenant_id TEXT NOT NULL, schema_name TEXT NOT NULL, view_name TEXT NOT NULL,
+                    query_ast JSONB NOT NULL, target_source TEXT, target_engine TEXT, materialized BOOLEAN DEFAULT FALSE,
+                    PRIMARY KEY (tenant_id, schema_name, view_name))`);
+                sql.push(`INSERT INTO fabric_system.virtual_views (tenant_id, schema_name, view_name, query_ast, target_source, target_engine, materialized)
+                    VALUES ('${tenantId}', '${diff.schema}', '${view.name}', '${queryJson}'::jsonb, '${diff.targetSource}', '${diff.engineType}', ${view.materialized || false})
+                    ON CONFLICT (tenant_id, schema_name, view_name) DO UPDATE SET query_ast = EXCLUDED.query_ast`);
+                break;
+            }
+        }
+        return sql;
+    }
 }
+

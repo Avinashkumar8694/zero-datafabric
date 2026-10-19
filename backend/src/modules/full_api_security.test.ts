@@ -54,11 +54,7 @@ describe('Module 6: Full API Security & Authorization Validation', () => {
       ['POST', '/api/admin/users'],
       ['PUT', `/api/admin/users/${dummyId}`],
       ['DELETE', `/api/admin/users/${dummyId}`],
-      ['GET', '/api/admin/connections'],
-      ['POST', '/api/admin/connections'],
-      ['DELETE', `/api/admin/connections/${dummyId}`],
       ['GET', '/api/admin/audit-logs'],
-      ['GET', '/api/admin/catalog'],
     ];
 
     adminOnlyRoutes.forEach(([method, path]) => {
@@ -69,7 +65,19 @@ describe('Module 6: Full API Security & Authorization Validation', () => {
     });
   });
 
-  describe('6.4 Full Admin Access (200/201/202/404)', () => {
+  describe('6.4 Tenant User Access to Connections and Catalog (200/404/500)', () => {
+    it('GET /api/admin/connections should be accessible for non-admin user', async () => {
+      const res = await testRoute('GET', '/api/admin/connections', userToken);
+      expect(res.status).toBe(200);
+    });
+
+    it('GET /api/admin/catalog should be accessible for non-admin user', async () => {
+      const res = await testRoute('GET', '/api/admin/catalog', userToken);
+      expect(res.status).toBe(200);
+    });
+  });
+
+  describe('6.5 Full Admin Access (200/201/202/404)', () => {
     it('GET /api/admin/tenants should be accessible for admin', async () => {
       const res = await testRoute('GET', '/api/admin/tenants', adminToken);
       expect(res.status).toBe(200);

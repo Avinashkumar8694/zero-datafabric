@@ -1,8 +1,22 @@
 <%- include('partials/header') %>
 
+<style>
+    .dashboard-main-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1.5rem;
+    }
+    @media (max-width: 960px) {
+        .dashboard-main-grid {
+            grid-template-columns: 1fr;
+            gap: 1.25rem;
+        }
+    }
+</style>
+
 <div class="fade-in">
     <!-- Stats Row -->
-    <div class="grid">
+    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));">
         <div class="glass-card">
             <p class="text-muted">Total Tenants</p>
             <h1 id="stat-tenants">--</h1>
@@ -15,9 +29,13 @@
             <p class="text-muted">Security Audits (24h)</p>
             <h1 id="stat-audits">--</h1>
         </div>
+        <div class="glass-card" id="dataResetCard" style="display: none; border-left: 4px solid #f59e0b;">
+            <p class="text-muted">Next Data Reset</p>
+            <h1 id="stat-reset-time" style="font-size: 1.25rem; color: #d97706; margin-top: 0.5rem; font-weight: bold;">--</h1>
+        </div>
     </div>
 
-    <div class="grid" style="grid-template-columns: 2fr 1fr;">
+    <div class="dashboard-main-grid">
         <!-- Recent Activity -->
         <section class="glass-card">
             <h3>Recent Fabric Events</h3>
@@ -73,6 +91,20 @@
             document.getElementById('stat-tenants').innerText = stats.tenants || '0';
             document.getElementById('stat-connections').innerText = stats.connections || '0';
             document.getElementById('stat-audits').innerText = stats.audits || '0';
+
+            // Load next data reset time
+            const subRes = await fetch(`${API_BASE}/subscriptions/me`, { headers: getAuthHeaders() });
+            if (subRes.ok) {
+                const sub = await subRes.json();
+                if (sub && sub.next_data_reset_at) {
+                    const card = document.getElementById('dataResetCard');
+                    if (card) {
+                        card.style.display = 'block';
+                        const resetDate = new Date(sub.next_data_reset_at);
+                        document.getElementById('stat-reset-time').innerText = resetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' (' + resetDate.toLocaleDateString() + ')';
+                    }
+                }
+            }
         } catch (e) {
             console.error('[Dashboard] Stats fetch failed', e);
             document.getElementById('stat-tenants').innerText = '--';

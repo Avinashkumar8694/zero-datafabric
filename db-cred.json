@@ -4,9 +4,9 @@
     "host": "localhost",
     "port": 5434,
     "user": "fabric_admin",
-    "pass": "fabric_password",
+    "pass": "mqh6A5GJWdwJZmHyc1fm3luB",
     "database": "datafabric",
-    "dsn": "postgresql://fabric_admin:fabric_password@localhost:5434/datafabric"
+    "dsn": "postgresql://fabric_admin:mqh6A5GJWdwJZmHyc1fm3luB@localhost:5434/datafabric"
   },
   "remote_warehouse": {
     "type": "postgresql",

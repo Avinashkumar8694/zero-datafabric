@@ -3,18 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zero Data Fabric - Logout</title>
+    <title>Zero Data Fabric - Logging Out...</title>
     <link rel="stylesheet" href="/css/style.css">
-</head>
-<body style="display:flex; align-items:center; justify-content:center; min-height:100vh; background:#f8fafc;">
-    <div class="glass-card" style="max-width:520px; width:90%; text-align:center;">
-        <h2 style="margin-bottom:0.75rem;">Session Ended</h2>
-        <p class="text-muted" style="margin-bottom:1.25rem;">Your session has expired or you have been logged out.</p>
-        <a href="/login" class="btn-primary" style="display:inline-block; text-decoration:none; padding:0.7rem 1.2rem;">Go To Login</a>
-    </div>
     <script>
+        const API_BASE = window.location.hostname.includes('fabrixly.com') 
+            ? `/api` 
+            : `http://${window.location.hostname}:4000/api`;
         localStorage.removeItem('token');
         localStorage.removeItem('active_tenant');
+        const homeUrl = window.location.origin + '/';
+        window.location.href = `${API_BASE}/auth/sso/logout?redirect_uri=${encodeURIComponent(homeUrl)}`;
     </script>
+</head>
+<body style="display:flex; align-items:center; justify-content:center; min-height:100vh; background:#04060f; color:#fff;">
+    <div style="text-align:center;">
+        <div class="logo-icon" style="margin:0 auto 1.5rem auto; width:48px; height:48px; background:linear-gradient(135deg, #0061FF, #6366f1); border-radius:12px;"></div>
+        <h2 style="font-family:'Outfit', sans-serif; font-size:1.5rem; margin-bottom:0.5rem;">Logging Out...</h2>
+        <p style="color:#94a3b8; font-size:0.9rem;">Terminating session and returning to home...</p>
+    </div>
 </body>
 </html>

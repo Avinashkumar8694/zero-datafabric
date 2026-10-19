@@ -12,6 +12,15 @@
   .trg-form-grid .full { grid-column:1 / -1; }
   .trg-input, .trg-select, .trg-text { width:100%; border:1px solid var(--border); border-radius:8px; padding:0.55rem 0.65rem; font-size:0.85rem; }
   .trg-text { min-height:120px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+
+  @media (max-width: 960px) {
+    .trg-grid { grid-template-columns: 1fr !important; }
+    .trg-head { flex-wrap: wrap; gap: 0.6rem; }
+  }
+  @media (max-width: 640px) {
+    .trg-form-grid { grid-template-columns: 1fr !important; }
+    .trg-modal-card { padding: 1rem 0.75rem !important; }
+  }
 </style>
 
 <div class="fade-in">

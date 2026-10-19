@@ -1,0 +1,20 @@
+{
+  "name": "replication-engine",
+  "version": "1.0.0",
+  "description": "Sync / CDC / Replication / Disaster-Recovery copy-job microservice",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "TS_NODE_TRANSPILE_ONLY=1 node --expose-gc -r ts-node/register src/index.ts",
+    "dev": "ts-node --transpile-only src/index.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "pg": "^8.20.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.6.0"
+  }
+}

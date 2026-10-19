@@ -5,22 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><%= title %></title>
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
     <script>
         // Global Industrial API Orchestration
-        const API_BASE = `http://${window.location.hostname}:4000/api`;
+        const API_BASE = window.location.hostname.includes('fabrixly.com') 
+            ? `/api`
+            : `http://${window.location.hostname}:4000/api`;
         function getToken() {
             return localStorage.getItem('token');
         }
         function performLogout() {
             localStorage.removeItem('token');
             localStorage.removeItem('active_tenant');
-            window.location.href = '/logout';
+            const homeUrl = window.location.origin + '/';
+            window.location.href = `${API_BASE}/auth/sso/logout?redirect_uri=${encodeURIComponent(homeUrl)}`;
         }
-        if (!getToken() && !window.location.pathname.includes('/login') && !window.location.pathname.includes('/logout')) {
-            window.location.href = '/logout';
+        {
+            const publicPaths = ['/', '/login', '/logout'];
+            const isPublic = publicPaths.some(p => window.location.pathname === p || window.location.pathname.startsWith(p + '?'));
+            if (!getToken() && !isPublic) {
+                window.location.href = '/login';
+            }
         }
 
         // Industrial Identity Propagation Helper
@@ -47,16 +55,19 @@
         const nativeFetch = window.fetch.bind(window);
         window.fetch = async (...args) => {
             const response = await nativeFetch(...args);
-            if (response.status === 401 || response.status === 403) {
-                performLogout();
+            if (response.status === 401) {
+                const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
+                if (!url.includes('/api/settings/login')) {
+                    performLogout();
+                }
             }
             return response;
         };
     </script>
 </head>
-<body class="light-theme <%= title.includes('Login') ? 'login-page' : '' %>">
+<body class="<%= title.includes('Login') || title.includes('Home') ? 'login-page' : '' %>">
     <div class="app-layout">
-        <% if (!title.includes('Login')) { %>
+        <% if (!title.includes('Login') && !title.includes('Home') && !title.includes('Logout')) { %>
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="sidebar-header">
@@ -64,11 +75,15 @@
                     <div class="logo-icon"></div>
                     <span>Zero Fabric</span>
                 </div>
+                <button id="sidebarCloseBtn" class="sidebar-close-btn" aria-label="Close Navigation">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
             <nav class="sidebar-nav">
                 <a href="/dashboard" class="nav-item" id="nav-dashboard"><i class="fas fa-chart-line"></i> Overview</a>
                 <a href="/tenants" class="nav-item" id="nav-tenants"><i class="fas fa-building"></i> Tenants</a>
                 <a href="/connections" class="nav-item" id="nav-connections"><i class="fas fa-link"></i> Connections</a>
+                <a href="/replication" class="nav-item" id="nav-replication"><i class="fas fa-copy"></i> Replication</a>
                 <a href="/workbench" class="nav-item" id="nav-workbench"><i class="fas fa-terminal"></i> Workbench</a>
                 <a href="/analytics" class="nav-item" id="nav-analytics"><i class="fas fa-chart-pie"></i> Analytics</a>
                 <a href="/analytics/custom" class="nav-item" id="nav-custom-analytics"><i class="fas fa-wand-magic-sparkles"></i> Custom Analytics</a>
@@ -77,6 +92,8 @@
                 <a href="/iam" class="nav-item" id="nav-iam"><i class="fas fa-users-cog"></i> Identity</a>
                 <a href="/audit" class="nav-item" id="nav-audit"><i class="fas fa-shield-halved"></i> Audit Logs</a>
                 <a href="/triggers" class="nav-item" id="nav-triggers"><i class="fas fa-bolt"></i> Triggers</a>
+                <a href="/plans" class="nav-item" id="nav-plans"><i class="fas fa-tags"></i> Plans</a>
+                <a href="/integration-guide" class="nav-item" id="nav-integration-guide"><i class="fas fa-book"></i> Integration Guide</a>
                 <div class="nav-spacer"></div>
                 <a href="/settings" class="nav-item" id="nav-settings"><i class="fas fa-cog"></i> Settings</a>
             </nav>
@@ -91,22 +108,38 @@
                 <button id="logoutBtn" class="logout-btn">Log Out</button>
             </div>
         </aside>
+        <div id="sidebarOverlay" class="sidebar-overlay"></div>
         <% } %>
 
         <!-- Main Content Area -->
         <main class="main-content">
-            <% if (!title.includes('Login')) { %>
+            <% if (!title.includes('Login') && !title.includes('Home') && !title.includes('Logout')) { %>
             <header class="top-bar">
                 <div class="top-bar-left">
+                    <button id="sidebarToggleBtn" class="sidebar-toggle-btn" aria-label="Toggle Navigation">
+                        <i class="fas fa-bars"></i>
+                    </button>
                     <h2><%= title.split(' - ')[1] %></h2>
                 </div>
                 <div class="top-bar-right">
                     <div class="identity-context">
                         <select id="tenantSwitcher" class="context-select"></select>
                     </div>
-                    <button id="topLogoutBtn" class="btn-outline" style="padding: 0.4rem 1rem; font-size: 0.8rem;">Log Out</button>
+                    <button id="topLogoutBtn" class="btn-outline top-logout-btn" title="Log Out" aria-label="Log Out">
+                        <i class="fas fa-arrow-right-from-bracket"></i>
+                        <span class="top-logout-text">Log Out</span>
+                    </button>
                 </div>
             </header>
+            
+            <!-- Expired Trial Warning Banner -->
+            <div id="trialExpiredBanner" class="alert-bar" style="display: none; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; padding: 1rem 1.5rem; margin-bottom: 1.5rem; border-radius: 12px; align-items: center; gap: 1rem; margin-top: 1rem;">
+                <div style="font-size: 1.5rem;"><i class="fas fa-triangle-exclamation"></i></div>
+                <div style="flex-grow: 1;">
+                    <strong style="display: block; font-size: 0.95rem; margin-bottom: 0.15rem;">Trial Subscription Expired</strong>
+                    <span style="font-size: 0.85rem;">Your trial period has expired. You are not allowed to perform any actions. Please <a href="mailto:fabric@fabrixly.com?subject=Trial%20Extension%20/%20Self%20Deployment%20Inquiry" style="color: #991b1b; text-decoration: underline; font-weight: 600;">contact us at fabric@fabrixly.com</a> for self-deployment setup and subscription options.</span>
+                </div>
+            </div>
             <% } %>
             <div class="content-wrapper">
 
@@ -160,7 +193,7 @@
             const switcher = document.getElementById('tenantSwitcher');
             if (!switcher) return;
             try {
-                const res = await fetch(`${API_BASE}/admin/tenants`, { headers: getAuthHeaders() });
+                const res = await fetch(`${API_BASE}/tenants`, { headers: getAuthHeaders() });
                 const tenants = await res.json();
                 if (Array.isArray(tenants)) {
                     switcher.innerHTML = tenants.map(t => `<option value="${t.id}">${t.name} (${t.id})</option>`).join('');
@@ -188,8 +221,141 @@
             } catch (err) { console.error('[Identity] Switch failed'); }
         });
 
-        window.addEventListener('load', loadTenantSwitcher);
+        function getDecodedToken() {
+            const token = getToken();
+            if (!token) return null;
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                return JSON.parse(jsonPayload);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function checkTrialStatus() {
+            // Exclude pages that do not show top bar
+            if (window.location.pathname.includes('/login') || window.location.pathname.includes('/logout') || window.location.pathname === '/') {
+                return;
+            }
+            try {
+                const res = await fetch(`${API_BASE}/subscriptions/me`, { headers: getAuthHeaders() });
+                if (!res.ok) return;
+                const sub = await res.json();
+                if (sub) {
+                    if (sub.plan_name === 'selfhost') {
+                        // Hide Plans related configuration / tab
+                        const plansTab = document.getElementById('nav-plans');
+                        if (plansTab) plansTab.style.display = 'none';
+                    }
+                    if (sub.is_trial_expired) {
+                        const banner = document.getElementById('trialExpiredBanner');
+                        if (banner) {
+                            banner.style.display = 'flex';
+                        }
+                        
+                        // Disable all action buttons and forms on the page
+                        setTimeout(() => {
+                            const inputs = document.querySelectorAll('input, select, textarea, button');
+                            inputs.forEach(el => {
+                                if (el.id !== 'tenantSwitcher' && el.id !== 'logoutBtn' && el.id !== 'topLogoutBtn') {
+                                    el.disabled = true;
+                                    el.style.opacity = '0.6';
+                                    el.style.cursor = 'not-allowed';
+                                }
+                            });
+                            
+                            // Disable links
+                            const links = document.querySelectorAll('a');
+                            links.forEach(el => {
+                                if (!el.href.startsWith('mailto:') && !el.id?.includes('logout') && el.href !== window.location.href) {
+                                    el.style.pointerEvents = 'none';
+                                    el.style.opacity = '0.5';
+                                }
+                            });
+                        }, 500);
+                    }
+                }
+            } catch (e) {
+                console.error('[TrialCheck] Error checking subscription trial status:', e);
+            }
+        }
+
+        window.addEventListener('load', () => {
+            loadTenantSwitcher();
+            checkTrialStatus();
+
+            // Populate profile details and gate admin tabs
+            const decoded = getDecodedToken();
+            if (decoded) {
+                const username = decoded.username || decoded.email || 'User';
+                const tenant = decoded.tenant_id || 'tenant_A';
+                const role = decoded.internal_role || 'USER';
+                
+                const displayUsername = document.getElementById('displayUsername');
+                if (displayUsername) displayUsername.innerText = username;
+                
+                const displayTenant = document.getElementById('displayTenant');
+                if (displayTenant) displayTenant.innerText = tenant;
+                
+                const userAvatar = document.getElementById('userAvatar');
+                if (userAvatar) userAvatar.innerText = username.charAt(0).toUpperCase();
+                
+                // Hide Admin-only tabs if not admin
+                if (role !== 'ADMIN') {
+                    const adminTabs = ['nav-plans', 'nav-settings', 'nav-tenants', 'nav-iam', 'nav-audit'];
+                    adminTabs.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.style.display = 'none';
+                    });
+                }
+            }
+        });
 
         document.getElementById('logoutBtn')?.addEventListener('click', performLogout);
         document.getElementById('topLogoutBtn')?.addEventListener('click', performLogout);
+
+        // Mobile Sidebar Controls
+        function toggleMobileSidebar(forceClose = false) {
+            const sidebar = document.querySelector('.sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (!sidebar || !overlay) return;
+            if (forceClose || sidebar.classList.contains('mobile-open')) {
+                sidebar.classList.remove('mobile-open');
+                overlay.classList.remove('active');
+                document.body.style.overflow = '';
+            } else {
+                sidebar.classList.add('mobile-open');
+                overlay.classList.add('active');
+                if (window.innerWidth <= 1024) {
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+        }
+
+        document.getElementById('sidebarToggleBtn')?.addEventListener('click', () => toggleMobileSidebar());
+        document.getElementById('sidebarCloseBtn')?.addEventListener('click', () => toggleMobileSidebar(true));
+        document.getElementById('sidebarOverlay')?.addEventListener('click', () => toggleMobileSidebar(true));
+
+        document.querySelectorAll('.nav-item').forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth <= 1024) {
+                    toggleMobileSidebar(true);
+                }
+            });
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') toggleMobileSidebar(true);
+        });
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 1024) {
+                toggleMobileSidebar(true);
+            }
+        });
     </script>
+

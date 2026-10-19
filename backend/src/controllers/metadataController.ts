@@ -20,6 +20,8 @@ import { cached, invalidateTenant } from '../config/cache';
 import { ConnectorFactory } from '../modules/metadata/connectors/factory';
 import { renderFabricDdl, renderFabricAst } from '../modules/metadata/ddl_render';
 import { PhysicalSync } from '../modules/sync/physical_sync.service';
+import { CopyJobEngine } from '../modules/jobs/copy_job_engine';
+import { LicensingService } from '../services/licensing.service';
 
 const orchestrator = new MetadataOrchestrator();
 // Catalog reads change ONLY on sync (crawl/apply/register/remove), and every such
@@ -354,8 +356,9 @@ export const crawlTenant = async (req: Request, res: Response) => {
 export const getSources = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
-        const rows = await cached(`meta:${user.tenant_id}:sources`, META_TTL, async () =>
-            (await queryWithContext('SELECT id, name, type, status FROM public.data_sources', [], { tenantId: user.tenant_id, username: user.username })).rows);
+        const cacheKey = user.internal_role === 'ADMIN' ? 'meta:admin:sources' : `meta:${user.tenant_id}:sources`;
+        const rows = await cached(cacheKey, META_TTL, async () =>
+            (await queryWithContext('SELECT id, name, type, status FROM public.data_sources', [], { tenantId: user.tenant_id, username: user.username, role: user.internal_role })).rows);
         res.json(rows);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -378,8 +381,9 @@ export const getSchemas = async (req: Request, res: Response) => {
         const sourceId = req.query.sourceId as string;
         if (!sourceId) return res.status(400).json({ error: 'sourceId is required' });
         const user = (req as any).user;
-        const rows = await cached(`meta:${user.tenant_id}:schemas:${sourceId}`, META_TTL, async () =>
-            (await queryWithContext('SELECT id as "schemaId", name, physical_name as "physicalName" FROM public.catalog_schemas WHERE source_id = $1', [sourceId], { tenantId: user.tenant_id, username: user.username })).rows);
+        const cacheKey = user.internal_role === 'ADMIN' ? `meta:admin:schemas:${sourceId}` : `meta:${user.tenant_id}:schemas:${sourceId}`;
+        const rows = await cached(cacheKey, META_TTL, async () =>
+            (await queryWithContext('SELECT id as "schemaId", name, physical_name as "physicalName" FROM public.catalog_schemas WHERE source_id = $1', [sourceId], { tenantId: user.tenant_id, username: user.username, role: user.internal_role })).rows);
         res.json(rows);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -403,8 +407,9 @@ export const getTables = async (req: Request, res: Response) => {
         const schemaId = req.query.schemaId as string;
         if (!schemaId) return res.status(400).json({ error: 'schemaId is required' });
         const user = (req as any).user;
-        const rows = await cached(`meta:${user.tenant_id}:tables:${schemaId}`, META_TTL, async () =>
-            (await queryWithContext('SELECT id as "tableId", name, physical_name as "physicalName", row_count as "rowCount", resource_type as "resourceType" FROM public.catalog_tables WHERE schema_id = $1', [schemaId], { tenantId: user.tenant_id, username: user.username })).rows);
+        const cacheKey = user.internal_role === 'ADMIN' ? `meta:admin:tables:${schemaId}` : `meta:${user.tenant_id}:tables:${schemaId}`;
+        const rows = await cached(cacheKey, META_TTL, async () =>
+            (await queryWithContext('SELECT id as "tableId", name, physical_name as "physicalName", row_count as "rowCount", resource_type as "resourceType" FROM public.catalog_tables WHERE schema_id = $1', [schemaId], { tenantId: user.tenant_id, username: user.username, role: user.internal_role })).rows);
         res.json(rows);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -549,6 +554,23 @@ export const applyMetadata = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
         if (!user) return res.status(401).json({ error: 'Authentication required' });
+
+        // Enforce max tables limit for non-admin users
+        if (user.internal_role !== 'ADMIN') {
+            const currentTablesRes = await queryWithContext(
+                `SELECT COUNT(*) FROM public.catalog_tables t
+                 JOIN public.catalog_schemas s ON t.schema_id = s.id
+                 JOIN public.data_sources d ON s.source_id = d.id
+                 WHERE d.tenant_id = $1`,
+                [user.tenant_id],
+                { tenantId: user.tenant_id, username: user.username }
+            );
+            const currentCount = parseInt(currentTablesRes.rows[0].count);
+            const allowed = await LicensingService.checkLimit(user.id, 'max_tables', currentCount);
+            if (!allowed) {
+                return res.status(400).json({ error: 'Table limit exceeded. Your plan restricts you to a maximum of 5 tables.' });
+            }
+        }
         
         let content = '';
         if (req.file) {
@@ -632,6 +654,24 @@ export const rollbackMetadata = async (req: Request, res: Response) => {
 export const migrateMetadata = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
+
+        // Enforce max tables limit for non-admin users
+        if (user.internal_role !== 'ADMIN') {
+            const currentTablesRes = await queryWithContext(
+                `SELECT COUNT(*) FROM public.catalog_tables t
+                 JOIN public.catalog_schemas s ON t.schema_id = s.id
+                 JOIN public.data_sources d ON s.source_id = d.id
+                 WHERE d.tenant_id = $1`,
+                [user.tenant_id],
+                { tenantId: user.tenant_id, username: user.username }
+            );
+            const currentCount = parseInt(currentTablesRes.rows[0].count);
+            const allowed = await LicensingService.checkLimit(user.id, 'max_tables', currentCount);
+            if (!allowed) {
+                return res.status(400).json({ error: 'Table limit exceeded. Your plan restricts you to a maximum of 5 tables.' });
+            }
+        }
+
         const { migrationPlan } = req.body;
         const results = await MetadataService.migrateMetadata(user.tenant_id, migrationPlan);
         res.json({ results });
@@ -783,11 +823,14 @@ export const syncSource = async (req: Request, res: Response) => {
         const tenantId = user?.internal_role === 'ADMIN' && req.body.tenantId ? req.body.tenantId : user.tenant_id;
         const source = req.body.source as string;
         if (!source) return res.status(400).json({ error: 'source is required' });
-        const result = req.body.mode === 'cdc'
-            ? await PhysicalSync.refreshCdc(tenantId, source)
-            : await PhysicalSync.backfill(tenantId, source);
-        invalidateTenant(tenantId).catch(() => {});
-        res.json(result);
+        const config = {
+            pageSize: req.body.pageSize ? Number(req.body.pageSize) : undefined,
+            memCeilingMb: req.body.memCeilingMb ? Number(req.body.memCeilingMb) : undefined,
+            maxRows: req.body.maxRows ? Number(req.body.maxRows) : undefined,
+        };
+        // Enqueue a copy job for the replication microservice/worker (non-blocking).
+        const run = await CopyJobEngine.enqueue(tenantId, req.body.mode === 'cdc' ? 'CDC' : 'SYNC', { jobRef: source, config });
+        res.status(202).json({ status: 'QUEUED', runId: run.id, run });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }

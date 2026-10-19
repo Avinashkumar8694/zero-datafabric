@@ -50,6 +50,45 @@ export class ManifestParser {
             delete manifest.resources;
         }
 
+        // Normalize legacy tables/views/functions under schema level
+        if (manifest && manifest.schemas) {
+            for (const schema of manifest.schemas) {
+                if (!schema.resources) {
+                    schema.resources = [];
+                    if (schema.enums) {
+                        for (const item of schema.enums) {
+                            schema.resources.push({ ...item, type: 'ENUM' });
+                        }
+                    }
+                    if (schema.sequences) {
+                        for (const item of schema.sequences) {
+                            schema.resources.push({ ...item, type: 'SEQUENCE' });
+                        }
+                    }
+                    if (schema.functions) {
+                        for (const item of schema.functions) {
+                            schema.resources.push({ ...item, type: 'FUNCTION' });
+                        }
+                    }
+                    if (schema.procedures) {
+                        for (const item of schema.procedures) {
+                            schema.resources.push({ ...item, type: 'PROCEDURE' });
+                        }
+                    }
+                    if (schema.tables) {
+                        for (const item of schema.tables) {
+                            schema.resources.push({ ...item, type: 'TABLE' });
+                        }
+                    }
+                    if (schema.views) {
+                        for (const item of schema.views) {
+                            schema.resources.push({ ...item, type: 'VIEW' });
+                        }
+                    }
+                }
+            }
+        }
+
         return manifest;
     }
 }

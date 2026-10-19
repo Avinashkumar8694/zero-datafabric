@@ -57,6 +57,10 @@ CDC   :  source ──(full copy once)───────▶  hub replica     
 
 **Register API** (`POST /api/admin/connections`) — `config.syncType` = `VIRTUAL|SYNC|CDC`; for CDC add `config.cdc = { column, intervalMs }`.
 
+**From the Connections list:** SYNC/CDC sources show a **Sync** button (full backfill) and CDC sources also a **CDC** button (incremental refresh) — one-click manual triggers.
+
+**Scheduled full SYNC:** a SYNC source may set `config.sync.scheduleMs` (Connections form → "Scheduled full re-sync") to be periodically re-backfilled by the SYNC scheduler — so a SYNC replica can stay fresh without CDC. State is tracked in `fabric_system.sync_schedule`.
+
 **Manual (re)sync** (`POST /api/metadata/sync`):
 ```bash
 # full backfill / re-sync
@@ -85,6 +89,25 @@ Verified live: after SYNC, `SELECT … FROM products` on `Retail_MySQL` ran as
 MySQL source; reverting to VIRTUAL returned it to `SINGLE_CONNECTOR` (live federation).
 
 ---
+
+## Reliability — it won't OOM or crash mid-sync
+
+Copies are engineered to survive large tables and overlapping triggers:
+
+- **Bounded memory (paged copy):** the backfill reads the source in fixed batches
+  (`FABRIC_COPY_BATCH`, default 1000 rows) and inserts each batch before reading the
+  next — heap stays ≈ one batch regardless of table size, not the whole table. Verified:
+  a 5,005-row sync ran at ~260 MB heap (logged per run).
+- **Memory guard:** heap is sampled between batches; if it crosses `FABRIC_COPY_MEM_CEILING_MB`
+  (default 1024) it tries GC and, if still over, **aborts that copy with a clear error**
+  (recorded per-table) rather than letting the process OOM. A `FABRIC_COPY_MAX_ROWS` hard
+  cap (default 5,000,000) stops any runaway read.
+- **Concurrency lock:** a source can only sync once at a time — a scheduler tick that
+  fires while a manual sync is running is **skipped**, not stacked (no double memory /
+  duplicate work). Verified: two simultaneous syncs → one ran, one skipped.
+- **Crash isolation:** connectors always close in `finally`; per-table errors are collected
+  into the result rather than aborting the whole run; the poller/scheduler are best-effort
+  (a failure logs and the loop continues). A backfill failure never takes down the server.
 
 ## Limits (honest)
 

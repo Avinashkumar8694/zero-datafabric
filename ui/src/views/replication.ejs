@@ -7,11 +7,27 @@
   .rf-field label { display:block; font-size:0.72rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:0.35rem; }
   .rf-field select, .rf-field input { width:100%; padding:0.5rem 0.6rem; border:1px solid var(--border,#e2e8f0); border-radius:8px; font-size:0.85rem; background:var(--bg); }
   .badge { font-size:0.7rem; padding:0.15rem 0.5rem; border-radius:6px; }
+
+  @media (max-width: 640px) {
+    #replModal .glass-card, #restoreModal .glass-card {
+      width: 95% !important;
+      padding: 1.25rem 1rem !important;
+    }
+    #replModal [style*="grid-template-columns"] {
+      grid-template-columns: 1fr !important;
+      gap: 0.6rem !important;
+    }
+    .repl-header {
+      flex-direction: column !important;
+      align-items: flex-start !important;
+      gap: 0.75rem !important;
+    }
+  }
 </style>
 
 <div class="fade-in">
   <div class="glass-card">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+    <div class="repl-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem; flex-wrap:wrap; gap:0.75rem;">
       <div>
         <h2 style="margin:0;">Replication</h2>
         <p class="text-muted" style="margin:0.2rem 0 0;">Copy a data source into another source (destination = PostgreSQL). One-way today; disaster-recovery restore replays a replica back into a chosen source. Distinct from the fabric's inbound SYNC/CDC (which loads a source into the hub for querying).</p>

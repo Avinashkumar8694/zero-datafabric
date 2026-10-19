@@ -1,9 +1,51 @@
 <%- include('partials/header') %>
 
-<div class="card" style="max-width: 900px; margin: 0 auto; padding: 2rem;">
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem;">
+<style>
+    .settings-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+    .settings-grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+    .settings-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 2rem;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+    .auth-modes-row {
+        display: flex;
+        gap: 2rem;
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        padding-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+    @media (max-width: 768px) {
+        .settings-container {
+            padding: 1rem 0;
+        }
+        .settings-grid-2 {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+        .auth-modes-row {
+            flex-direction: column;
+            gap: 0.85rem;
+        }
+    }
+</style>
+
+<div class="card settings-container">
+    <div class="settings-header">
         <div>
-            <h1 style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 2.2rem; background: linear-gradient(135deg, #fff 0%, var(--text-muted) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+            <h1 style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: clamp(1.6rem, 4vw, 2.2rem); background: linear-gradient(135deg, #fff 0%, var(--text-muted) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
                 System Settings
             </h1>
             <p style="color: var(--text-muted); font-size: 0.95rem; margin-top: 0.25rem;">
@@ -29,7 +71,7 @@
                 <i class="fas fa-palette" style="color: #6366f1; margin-right: 0.5rem;"></i> Custom Branding & Layout
             </h3>
             
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+            <div class="settings-grid-2">
                 <div class="form-group">
                     <label>Login Portal Title</label>
                     <input type="text" id="loginTitle" placeholder="e.g. Acme Enterprise Portal" required />
@@ -52,7 +94,7 @@
                 <i class="fas fa-shield-alt" style="color: #10b981; margin-right: 0.5rem;"></i> Identity Provider Configuration
             </h3>
 
-            <div style="display: flex; gap: 2rem; margin-bottom: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 1rem;">
+            <div class="auth-modes-row">
                 <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; color: #fff; font-size: 0.95rem;">
                     <input type="checkbox" id="allowPasswordLogin" style="width: 18px; height: 18px; accent-color: var(--primary);" />
                     Enable Username / Password Login
@@ -69,7 +111,7 @@
                     <input type="url" id="oidcIssuer" placeholder="https://ids.fabrixly.com" />
                 </div>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                <div class="settings-grid-2">
                     <div class="form-group">
                         <label>OIDC Client ID</label>
                         <input type="text" id="oidcClientId" placeholder="zero-datafabric" />
@@ -82,7 +124,7 @@
             </div>
         </div>
 
-        <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+        <div style="display: flex; justify-content: flex-end; gap: 1rem; flex-wrap: wrap;">
             <button type="button" class="btn-outline" onclick="window.location.reload();">Reset</button>
             <button type="submit" id="saveBtn" class="btn">Save Configuration</button>
         </div>

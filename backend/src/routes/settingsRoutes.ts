@@ -41,7 +41,9 @@ router.get('/login', async (req, res) => {
                 logo_url: "",
                 bg_color: "#04060f",
                 allow_password_login: true,
-                sso_enabled: true
+                sso_enabled: true,
+                oidc_issuer: process.env.OIDC_ISSUER || "https://ids.fabrixly.com",
+                oidc_client_id: process.env.OIDC_CLIENT_ID || "zero-datafabric"
             });
         }
         

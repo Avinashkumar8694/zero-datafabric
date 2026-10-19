@@ -74,14 +74,14 @@ export const refreshToken = async (req: Request, res: Response) => {
 };
 
 async function getOidcSettings() {
+  const defaults = {
+    issuer: process.env.OIDC_ISSUER || process.env.IDS_BASE_URL || 'https://ids.fabrixly.com/oidc',
+    client_id: process.env.OIDC_CLIENT_ID || 'zero-datafabric',
+    client_secret: process.env.OIDC_CLIENT_SECRET || 'bc79a2ed33935010666d9e4e1e0f29d7c80f0cd01d4a45267b6bc9b51fb9dd1d'
+  };
+
   try {
     const { rows } = await pool.query("SELECT value FROM public.settings WHERE key = 'custom_login'");
-    const defaults = {
-      issuer: process.env.IDS_BASE_URL || 'https://ids.fabrixly.com',
-      client_id: process.env.OIDC_CLIENT_ID || 'zero-datafabric',
-      client_secret: process.env.OIDC_CLIENT_SECRET || 'super-secret-key-fabric'
-    };
-    
     if (rows.length > 0) {
       const custom = rows[0].value || {};
       return {
@@ -92,21 +92,58 @@ async function getOidcSettings() {
     }
     return defaults;
   } catch {
-    return {
-      issuer: process.env.IDS_BASE_URL || 'https://ids.fabrixly.com',
-      client_id: process.env.OIDC_CLIENT_ID || 'zero-datafabric',
-      client_secret: process.env.OIDC_CLIENT_SECRET || 'super-secret-key-fabric'
-    };
+    return defaults;
   }
+}
+
+interface OidcEndpoints {
+  issuer: string;
+  authorization_endpoint: string;
+  token_endpoint: string;
+  userinfo_endpoint: string;
+  end_session_endpoint: string;
+  client_id: string;
+  client_secret: string;
+}
+
+async function getOidcResolved(): Promise<OidcEndpoints> {
+  const settings = await getOidcSettings();
+  const rawIssuer = settings.issuer.trim().replace(/\/+$/, '');
+  const basePrefix = rawIssuer.endsWith('/oidc') ? rawIssuer : `${rawIssuer}/oidc`;
+
+  let endpoints: OidcEndpoints = {
+    issuer: rawIssuer,
+    authorization_endpoint: `${basePrefix}/auth`,
+    token_endpoint: `${basePrefix}/token`,
+    userinfo_endpoint: `${basePrefix}/me`,
+    end_session_endpoint: `${basePrefix}/session/end`,
+    client_id: settings.client_id,
+    client_secret: settings.client_secret
+  };
+
+  try {
+    const wellKnownUrl = `${rawIssuer}/.well-known/openid-configuration`;
+    const res = await axios.get(wellKnownUrl, { timeout: 3000 });
+    if (res.data) {
+      if (res.data.authorization_endpoint) endpoints.authorization_endpoint = res.data.authorization_endpoint;
+      if (res.data.token_endpoint) endpoints.token_endpoint = res.data.token_endpoint;
+      if (res.data.userinfo_endpoint) endpoints.userinfo_endpoint = res.data.userinfo_endpoint;
+      if (res.data.end_session_endpoint) endpoints.end_session_endpoint = res.data.end_session_endpoint;
+    }
+  } catch {
+    // Standard endpoints will be used
+  }
+
+  return endpoints;
 }
 
 /**
  * Redirect user to OIDC provider login interface.
  */
 export const sso = async (req: Request, res: Response) => {
-  const oidc = await getOidcSettings();
+  const oidc = await getOidcResolved();
   const redirectUri = encodeURIComponent(`${API_BASE}/api/auth/sso/callback`);
-  const oidcUrl = `${oidc.issuer}/oidc/auth?client_id=${oidc.client_id}&redirect_uri=${redirectUri}&response_type=code&scope=openid%20email%20profile&state=state_datafabric`;
+  const oidcUrl = `${oidc.authorization_endpoint}?client_id=${oidc.client_id}&redirect_uri=${redirectUri}&response_type=code&scope=openid%20email%20profile&state=state_datafabric`;
   res.redirect(oidcUrl);
 };
 
@@ -126,7 +163,7 @@ export const ssoCallback = async (req: Request, res: Response) => {
   }
 
   try {
-    const oidc = await getOidcSettings();
+    const oidc = await getOidcResolved();
     // ── Step 1: Exchange authorization code for tokens ──────────────────────
     const params = new URLSearchParams();
     params.append('grant_type', 'authorization_code');
@@ -135,7 +172,7 @@ export const ssoCallback = async (req: Request, res: Response) => {
     params.append('client_id', oidc.client_id);
     params.append('client_secret', oidc.client_secret);
 
-    const tokenRes = await axios.post(`${oidc.issuer}/oidc/token`, params, {
+    const tokenRes = await axios.post(oidc.token_endpoint, params, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
     });
 
@@ -158,7 +195,7 @@ export const ssoCallback = async (req: Request, res: Response) => {
     // ── Step 3: If email missing, call userinfo endpoint ────────────────────
     if (!email && access_token) {
       try {
-        const userInfoRes = await axios.get(`${oidc.issuer}/oidc/me`, {
+        const userInfoRes = await axios.get(oidc.userinfo_endpoint, {
           headers: { Authorization: `Bearer ${access_token}` }
         });
         console.log('[SSO] Userinfo claims:', JSON.stringify(userInfoRes.data));
@@ -304,3 +341,26 @@ export const saveTimezone = async (req: Request, res: Response) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+/**
+ * Redirect user to OIDC Identity Server end session / logout interface.
+ * Once logged out from the Identity Server, the user is redirected to the home page.
+ */
+export const ssoLogout = async (req: Request, res: Response) => {
+  try {
+    const oidc = await getOidcResolved();
+    const returnUrl = String(req.query.redirect_uri || `${UI_BASE}/`);
+
+    const postLogoutUri = encodeURIComponent(returnUrl);
+    const clientId = encodeURIComponent(oidc.client_id);
+    const separator = oidc.end_session_endpoint.includes('?') ? '&' : '?';
+    const finalUrl = `${oidc.end_session_endpoint}${separator}post_logout_redirect_uri=${postLogoutUri}&client_id=${clientId}`;
+
+    console.log(`[SSO Logout] Redirecting to SSO Identity Server logout: ${finalUrl}`);
+    res.redirect(finalUrl);
+  } catch (err: any) {
+    console.error('[SSO Logout] Error redirecting to logout:', err.message);
+    res.redirect(`${UI_BASE}/`);
+  }
+};
+

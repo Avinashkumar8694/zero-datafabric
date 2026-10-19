@@ -4,7 +4,12 @@
     <!-- Sidebar: Hierarchical Tree -->
     <div class="fabric-sidebar">
         <div class="sidebar-header">
-            <h1 class="sidebar-title">Management Studio</h1>
+            <div class="sidebar-title-row">
+                <h1 class="sidebar-title">Management Studio</h1>
+                <button id="toggleTreeBtn" class="tree-toggle-mobile" aria-label="Toggle Tree" onclick="toggleMobileTree()">
+                    <i class="fas fa-chevron-up" id="treeToggleIcon"></i>
+                </button>
+            </div>
             <div class="search-container">
                 <i class="fas fa-search search-icon"></i>
                 <input type="text" id="catalogSearch" placeholder="Search resources..." onkeyup="filterTree()">
@@ -182,8 +187,152 @@
         overflow-wrap: anywhere;
         word-break: break-word;
     }
+
     .status-indicator { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.75rem; }
     .status-indicator::before { content: ''; width: 8px; height: 8px; background: #10b981; border-radius: 50%; }
+
+    .sidebar-title-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+
+    .sidebar-title-row .sidebar-title {
+        margin-bottom: 0;
+    }
+
+    .tree-toggle-mobile {
+        display: none;
+        background: #f1f5f9;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        width: 30px;
+        height: 30px;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: var(--text-dim);
+        font-size: 0.8rem;
+    }
+
+    @media (max-width: 960px) {
+        .fabric-container {
+            flex-direction: column !important;
+            height: auto !important;
+            min-height: calc(100vh - 70px) !important;
+            width: 100% !important;
+            overflow: visible !important;
+        }
+
+        .fabric-sidebar {
+            width: 100% !important;
+            border-right: none !important;
+            border-bottom: 2px solid var(--border-color) !important;
+            max-height: 280px !important;
+            flex-shrink: 0 !important;
+            box-sizing: border-box !important;
+        }
+
+        .tree-toggle-mobile {
+            display: inline-flex !important;
+        }
+
+        .fabric-main {
+            width: 100% !important;
+            flex: 1 !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+            overflow: visible !important;
+        }
+
+        .welcome-content {
+            padding: 3rem 1.25rem !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+        }
+
+        .welcome-content h2 {
+            font-size: 1.25rem !important;
+            margin-bottom: 0.5rem !important;
+        }
+
+        .welcome-content p {
+            font-size: 0.88rem !important;
+            max-width: 320px !important;
+            line-height: 1.5 !important;
+        }
+
+        .welcome-icon {
+            font-size: 3rem !important;
+            margin-bottom: 1.25rem !important;
+        }
+
+        .grid-layout {
+            grid-template-columns: 1fr !important;
+            gap: 1rem !important;
+        }
+
+        .lineage-flow {
+            flex-direction: column !important;
+            gap: 1.25rem !important;
+            padding: 2rem 1rem !important;
+        }
+
+        .resource-header {
+            padding: 1.25rem 1rem !important;
+        }
+
+        .resource-identity {
+            gap: 0.75rem !important;
+            margin-bottom: 1rem !important;
+        }
+
+        .res-header-icon {
+            font-size: 1.2rem !important;
+            padding: 0.75rem !important;
+        }
+
+        .resource-tabs {
+            flex-wrap: wrap !important;
+            gap: 0.4rem !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+        }
+
+        .tab-btn {
+            padding: 0.4rem 0.75rem !important;
+            font-size: 0.8rem !important;
+        }
+
+        .tab-content {
+            padding: 1rem !important;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .fabric-sidebar {
+            max-height: 230px !important;
+        }
+
+        .sidebar-header {
+            padding: 0.85rem 1rem !important;
+        }
+
+        .tree-item {
+            padding: 0.45rem 1rem !important;
+            font-size: 0.85rem !important;
+        }
+
+        .welcome-content {
+            padding: 2rem 0.75rem !important;
+        }
+
+        .welcome-icon {
+            font-size: 2.25rem !important;
+            margin-bottom: 1rem !important;
+        }
+    }
 </style>
 
 <script>
@@ -194,6 +343,19 @@
         if (v === null || v === undefined) return '';
         const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
         return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function toggleMobileTree() {
+        const tree = document.getElementById('fabricTree');
+        const icon = document.getElementById('treeToggleIcon');
+        if (!tree || !icon) return;
+        if (tree.style.display === 'none') {
+            tree.style.display = 'block';
+            icon.className = 'fas fa-chevron-up';
+        } else {
+            tree.style.display = 'none';
+            icon.className = 'fas fa-chevron-down';
+        }
     }
 
     async function loadTree() {
@@ -302,6 +464,9 @@
             
             document.getElementById('welcomeView').classList.remove('active');
             document.getElementById('resourceView').classList.add('active');
+            if (window.innerWidth <= 960) {
+                document.getElementById('resourceView')?.scrollIntoView({ behavior: 'smooth' });
+            }
             
             // High-Fidelity Fetch: Resolve deep metadata for any resource type
             const res = await fetch(`${API_BASE}/metadata/resource/${tableId}`, { headers: getAuthHeaders() });

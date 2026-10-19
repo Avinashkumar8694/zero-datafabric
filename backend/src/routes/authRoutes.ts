@@ -21,5 +21,7 @@ router.post('/timezone', requireAuth, authController.saveTimezone); // POST /api
 // SSO Routes
 router.get('/sso', authController.sso); // GET /api/auth/sso — redirect to Identity Server
 router.get('/sso/callback', authController.ssoCallback); // GET /api/auth/sso/callback — handle OIDC code exchange and sign user in
+router.get('/sso/logout', authController.ssoLogout); // GET /api/auth/sso/logout — trigger logout on SSO Identity Server
+router.get('/logout', authController.ssoLogout); // GET /api/auth/logout — alias
 
 export default router;

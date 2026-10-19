@@ -4,6 +4,7 @@ services:
   # Master Coordinator Node
   db:
     image: citusdata/citus:latest
+    platform: linux/amd64
     container_name: datafabric-hub
     environment:
       POSTGRES_USER: fabric_admin

@@ -1,7 +1,21 @@
 <%- include('partials/header') %>
 
+<style>
+    .tenants-layout-grid {
+        display: grid;
+        grid-template-columns: 1fr 2fr;
+        gap: 1.5rem;
+    }
+    @media (max-width: 960px) {
+        .tenants-layout-grid {
+            grid-template-columns: 1fr;
+            gap: 1.25rem;
+        }
+    }
+</style>
+
 <div class="fade-in">
-    <div class="grid" style="grid-template-columns: 1fr 2fr;">
+    <div class="tenants-layout-grid">
         <!-- Provisioning Form -->
         <section class="glass-card">
             <h3>Provision New Tenant</h3>

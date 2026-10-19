@@ -3,7 +3,12 @@
 <div class="wb-shell fade-in">
     <aside class="wb-left">
         <div class="wb-left-head">
-            <h3>Workbench Explorer</h3>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                <h3 style="margin:0;">Workbench Explorer</h3>
+                <button class="tree-toggle-mobile" aria-label="Toggle Explorer" onclick="toggleWbTree()">
+                    <i class="fas fa-chevron-up" id="wbTreeIcon"></i>
+                </button>
+            </div>
             <input id="explorerSearch" class="wb-input" placeholder="Search sources, schemas, resources..." oninput="filterExplorer()">
         </div>
         <div id="explorerTree" class="wb-tree">
@@ -165,14 +170,54 @@
     .wb-er-node { font-family:'JetBrains Mono', monospace; color:#0f172a; }
     .wb-er-card { background:#dbeafe; color:#1d4ed8; font-weight:700; border-radius:6px; padding:0.1rem 0.45rem; font-size:0.72rem; }
     .wb-er-arrow { color:#2563eb; font-weight:700; }
+    .tree-toggle-mobile {
+        display: none;
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        width: 30px;
+        height: 30px;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: #64748b;
+        font-size: 0.8rem;
+    }
     @media (max-width: 1100px) {
+        .tree-toggle-mobile { display: inline-flex; }
         .wb-shell { flex-direction:column; height:auto; }
         .wb-left { width:100%; height:260px; }
         .wb-join-grid { grid-template-columns:1fr; }
     }
+    @media (max-width: 768px) {
+        .wb-main { padding: 0.5rem; }
+        .wb-top { flex-direction: column; align-items: stretch; }
+        .wb-actions { flex-wrap: wrap; }
+        .wb-toolbar { flex-direction: column; align-items: stretch; }
+        .wb-run-controls { justify-content: space-between; }
+        .wb-left { height: 220px; }
+    }
+    @media (max-width: 480px) {
+        .wb-run-controls { flex-direction: column; align-items: stretch; }
+        .wb-run-controls button { width: 100%; }
+        .tab-btn { flex: 1; text-align: center; }
+    }
 </style>
 
 <script>
+    function toggleWbTree() {
+        const tree = document.getElementById('explorerTree');
+        const icon = document.getElementById('wbTreeIcon');
+        if (!tree || !icon) return;
+        if (tree.style.display === 'none') {
+            tree.style.display = 'block';
+            icon.className = 'fas fa-chevron-up';
+        } else {
+            tree.style.display = 'none';
+            icon.className = 'fas fa-chevron-down';
+        }
+    }
+
     let mode = 'SQL';
     let explorerItems = [];
     let selectedResource = null;

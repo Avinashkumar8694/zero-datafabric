@@ -1,7 +1,21 @@
 <%- include('partials/header') %>
 
+<style>
+    .iam-layout-grid {
+        display: grid;
+        grid-template-columns: 1fr 2fr;
+        gap: 1.5rem;
+    }
+    @media (max-width: 960px) {
+        .iam-layout-grid {
+            grid-template-columns: 1fr;
+            gap: 1.25rem;
+        }
+    }
+</style>
+
 <div class="fade-in">
-    <div class="grid" style="grid-template-columns: 1fr 2fr;">
+    <div class="iam-layout-grid">
         <!-- User Creation -->
         <section class="glass-card">
             <h3 id="formTitle">Provision New Identity</h3>

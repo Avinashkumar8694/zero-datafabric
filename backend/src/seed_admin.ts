@@ -20,9 +20,17 @@ async function seed() {
             'http://localhost:4000/api/auth/sso/callback',
         ].filter((v, i, a) => a.indexOf(v) === i).join(',');
 
-        const uiBase = process.env.UI_BASE_URL || 'http://localhost:3001';
-        const logoutUris = [uiBase, 'http://localhost:3001']
-            .filter((v, i, a) => a.indexOf(v) === i).join(',');
+        const uiBase = process.env.UI_BASE_URL || 'http://localhost:3006';
+        const logoutUris = [
+            uiBase,
+            `${uiBase}/`,
+            'http://localhost:3006',
+            'http://localhost:3006/',
+            'http://localhost:3001',
+            'http://localhost:3001/',
+            'http://localhost:3000',
+            'http://localhost:3000/'
+        ].filter((v, i, a) => a.indexOf(v) === i).join(',');
 
         const clientSecret = process.env.OIDC_CLIENT_SECRET || 'super-secret-key-fabric';
 
@@ -73,53 +81,75 @@ async function seed() {
         await client.query("INSERT INTO public.tenants (id, name) VALUES ('tenant_A', 'System Admin') ON CONFLICT (id) DO NOTHING");
         console.log('Tenant A ensured.');
         
-        // 2. Seed Admin User and admin@fabrixly.com
-        const passwordHash = '$2b$10$CxBK2AyOtIyt4hCsEZPqEOhGQloahPxyalyChP9hNprweiD/4PZY2'; // 'admin'
-        const adminRes = await client.query(
-            "INSERT INTO public.users (username, password_hash, tenant_id, role) VALUES ('admin', $1, 'tenant_A', 'ADMIN') ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash RETURNING id",
-            [passwordHash]
-        );
-        const adminEmailRes = await client.query(
-            "INSERT INTO public.users (username, password_hash, tenant_id, role) VALUES ('admin@fabrixly.com', $1, 'tenant_A', 'ADMIN') ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash RETURNING id",
-            [passwordHash]
-        );
-        const adminArjunRes = await client.query(
-            "INSERT INTO public.users (username, password_hash, tenant_id, role) VALUES ('arjunkumargupta108@gmail.com', $1, 'tenant_A', 'ADMIN') ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash, tenant_id = 'tenant_A', role = 'ADMIN' RETURNING id",
-            [passwordHash]
-        );
-        console.log('Admin users seeded.');
+        // 2. Seed Admin and Local Test Users
+        const adminHash = '$2b$10$N8CKyrZ43RVNuuuaUetvOeQlCKkKIf8HQ5uyy.O4.7uBLoXmGVgH6'; // 'admin123'
+        const userHash = '$2b$10$NJbOuJohycpXKstBzrHkJOwFlx3dUd/yg1uOe4zLwAAWzpFggb3Nu';  // 'password123'
 
-        const adminId = adminRes.rows[0]?.id || (await client.query("SELECT id FROM public.users WHERE username = 'admin'")).rows[0]?.id;
-        const adminEmailId = adminEmailRes.rows[0]?.id || (await client.query("SELECT id FROM public.users WHERE username = 'admin@fabrixly.com'")).rows[0]?.id;
-        const adminArjunId = adminArjunRes.rows[0]?.id || (await client.query("SELECT id FROM public.users WHERE username = 'arjunkumargupta108@gmail.com'")).rows[0]?.id;
+        const usersToSeed = [
+            { username: 'admin', passwordHash: adminHash, role: 'ADMIN' },
+            { username: 'admin@fabrixly.com', passwordHash: adminHash, role: 'ADMIN' },
+            { username: 'arjunkumargupta108@gmail.com', passwordHash: adminHash, role: 'ADMIN' },
+            { username: 'developer', passwordHash: userHash, role: 'USER' },
+            { username: 'developer@fabrixly.com', passwordHash: userHash, role: 'USER' },
+            { username: 'analyst', passwordHash: userHash, role: 'USER' },
+            { username: 'analyst@fabrixly.com', passwordHash: userHash, role: 'USER' },
+            { username: 'demo_user', passwordHash: userHash, role: 'USER' },
+            { username: 'demo@fabrixly.com', passwordHash: userHash, role: 'USER' },
+        ];
+
+        for (const u of usersToSeed) {
+            await client.query(
+                `INSERT INTO public.users (username, password_hash, tenant_id, role)
+                 VALUES ($1, $2, 'tenant_A', $3)
+                 ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = EXCLUDED.role, tenant_id = 'tenant_A'`,
+                [u.username, u.passwordHash, u.role]
+            );
+        }
+        console.log(`Seeded ${usersToSeed.length} local login users.`);
+
+        const adminRes = await client.query("SELECT id FROM public.users WHERE username = 'admin'");
+        const adminEmailRes = await client.query("SELECT id FROM public.users WHERE username = 'admin@fabrixly.com'");
+        const adminArjunRes = await client.query("SELECT id FROM public.users WHERE username = 'arjunkumargupta108@gmail.com'");
+
+        const adminId = adminRes.rows[0]?.id;
+        const adminEmailId = adminEmailRes.rows[0]?.id;
+        const adminArjunId = adminArjunRes.rows[0]?.id;
 
         // Associate user_id with the 'tenant_A' tenant registry record
         await client.query("UPDATE public.tenants SET user_id = $1 WHERE id = 'tenant_A'", [adminId]);
 
-        // Seed subscription for admin users
-        const trialPlan = await client.query("SELECT id FROM public.plans WHERE name = 'trial'");
-        if (trialPlan.rows.length > 0) {
-            const planId = trialPlan.rows[0].id;
-            if (adminId) {
-                await client.query(
-                    "INSERT INTO public.subscriptions (user_id, plan_id, status) VALUES ($1, $2, 'active') ON CONFLICT (user_id) DO NOTHING",
-                    [adminId, planId]
-                );
+        // Seed SelfHost subscription for admin users to enable self-hosted native login
+        const selfhostPlan = await client.query("SELECT id FROM public.plans WHERE name = 'selfhost'");
+        if (selfhostPlan.rows.length > 0) {
+            const planId = selfhostPlan.rows[0].id;
+            for (const uid of [adminId, adminEmailId, adminArjunId]) {
+                if (uid) {
+                    await client.query(
+                        `INSERT INTO public.subscriptions (user_id, plan_id, status)
+                         VALUES ($1, $2, 'active')
+                         ON CONFLICT (user_id) DO UPDATE SET plan_id = EXCLUDED.plan_id, status = 'active'`,
+                        [uid, planId]
+                    );
+                }
             }
-            if (adminEmailId) {
-                await client.query(
-                    "INSERT INTO public.subscriptions (user_id, plan_id, status) VALUES ($1, $2, 'active') ON CONFLICT (user_id) DO NOTHING",
-                    [adminEmailId, planId]
-                );
-            }
-            if (adminArjunId) {
-                await client.query(
-                    "INSERT INTO public.subscriptions (user_id, plan_id, status) VALUES ($1, $2, 'active') ON CONFLICT (user_id) DO NOTHING",
-                    [adminArjunId, planId]
-                );
-            }
-            console.log('Subscriptions seeded for admin users.');
+            console.log('Selfhost subscriptions seeded for admin users.');
         }
+
+        // Seed custom_login settings (enabling Data Fabric native password login + SSO)
+        await client.query(`
+            INSERT INTO public.settings (key, value)
+            VALUES ('custom_login', $1)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+        `, [JSON.stringify({
+            title: "Zero Data Fabric",
+            logo_url: "",
+            bg_color: "#04060f",
+            allow_password_login: true,
+            sso_enabled: true,
+            oidc_issuer: "https://ids.fabrixly.com/oidc",
+            oidc_client_id: "zero-datafabric"
+        })]);
+        console.log('Custom login settings configured (allow_password_login: true).');
 
         // 3. Seed Data Sources (Industrial GSC v4.0 Connections)
         const sources = [

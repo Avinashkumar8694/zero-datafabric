@@ -176,6 +176,16 @@
     @media (max-width: 900px) {
         .endpoint-cell code { max-width: 220px; }
     }
+    @media (max-width: 640px) {
+        #connectionModal .modal-card {
+            padding: 1.25rem 1rem !important;
+            max-width: 95vw !important;
+        }
+        #connectionForm [style*="grid-template-columns"] {
+            grid-template-columns: 1fr !important;
+            gap: 0.75rem !important;
+        }
+    }
 </style>
 
 <script>

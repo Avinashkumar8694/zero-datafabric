@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><%= title %></title>
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
@@ -19,7 +20,8 @@
         function performLogout() {
             localStorage.removeItem('token');
             localStorage.removeItem('active_tenant');
-            window.location.href = '/logout';
+            const homeUrl = window.location.origin + '/';
+            window.location.href = `${API_BASE}/auth/sso/logout?redirect_uri=${encodeURIComponent(homeUrl)}`;
         }
         {
             const publicPaths = ['/', '/login', '/logout'];
@@ -73,6 +75,9 @@
                     <div class="logo-icon"></div>
                     <span>Zero Fabric</span>
                 </div>
+                <button id="sidebarCloseBtn" class="sidebar-close-btn" aria-label="Close Navigation">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
             <nav class="sidebar-nav">
                 <a href="/dashboard" class="nav-item" id="nav-dashboard"><i class="fas fa-chart-line"></i> Overview</a>
@@ -103,6 +108,7 @@
                 <button id="logoutBtn" class="logout-btn">Log Out</button>
             </div>
         </aside>
+        <div id="sidebarOverlay" class="sidebar-overlay"></div>
         <% } %>
 
         <!-- Main Content Area -->
@@ -110,13 +116,19 @@
             <% if (!title.includes('Login') && !title.includes('Home') && !title.includes('Logout')) { %>
             <header class="top-bar">
                 <div class="top-bar-left">
+                    <button id="sidebarToggleBtn" class="sidebar-toggle-btn" aria-label="Toggle Navigation">
+                        <i class="fas fa-bars"></i>
+                    </button>
                     <h2><%= title.split(' - ')[1] %></h2>
                 </div>
                 <div class="top-bar-right">
                     <div class="identity-context">
                         <select id="tenantSwitcher" class="context-select"></select>
                     </div>
-                    <button id="topLogoutBtn" class="btn-outline" style="padding: 0.4rem 1rem; font-size: 0.8rem;">Log Out</button>
+                    <button id="topLogoutBtn" class="btn-outline top-logout-btn" title="Log Out" aria-label="Log Out">
+                        <i class="fas fa-arrow-right-from-bracket"></i>
+                        <span class="top-logout-text">Log Out</span>
+                    </button>
                 </div>
             </header>
             
@@ -305,4 +317,45 @@
 
         document.getElementById('logoutBtn')?.addEventListener('click', performLogout);
         document.getElementById('topLogoutBtn')?.addEventListener('click', performLogout);
+
+        // Mobile Sidebar Controls
+        function toggleMobileSidebar(forceClose = false) {
+            const sidebar = document.querySelector('.sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (!sidebar || !overlay) return;
+            if (forceClose || sidebar.classList.contains('mobile-open')) {
+                sidebar.classList.remove('mobile-open');
+                overlay.classList.remove('active');
+                document.body.style.overflow = '';
+            } else {
+                sidebar.classList.add('mobile-open');
+                overlay.classList.add('active');
+                if (window.innerWidth <= 1024) {
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+        }
+
+        document.getElementById('sidebarToggleBtn')?.addEventListener('click', () => toggleMobileSidebar());
+        document.getElementById('sidebarCloseBtn')?.addEventListener('click', () => toggleMobileSidebar(true));
+        document.getElementById('sidebarOverlay')?.addEventListener('click', () => toggleMobileSidebar(true));
+
+        document.querySelectorAll('.nav-item').forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth <= 1024) {
+                    toggleMobileSidebar(true);
+                }
+            });
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') toggleMobileSidebar(true);
+        });
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 1024) {
+                toggleMobileSidebar(true);
+            }
+        });
     </script>
+

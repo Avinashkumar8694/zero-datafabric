@@ -279,8 +279,11 @@ export class QueryTranspiler {
     private static qualify(path: string, schemaPrefix?: string): string {
         if (!path || path === '*') return path;
         pathOf(path, 'column');
-        if (path.includes('.') || !schemaPrefix) return path;
-        return `"${path}"`;
+        if (path.includes('.')) {
+            return path.split('.').map(p => p.startsWith('"') && p.endsWith('"') ? p : `"${p}"`).join('.');
+        }
+        if (!schemaPrefix) return path;
+        return `"${path.replace(/"/g, '')}"`;
     }
 
     /**

@@ -1,0 +1,2786 @@
+{
+  "version": "4.0",
+  "namespace": "Payment_MS",
+  "targetSource": "Fabric_Hub_Postgres",
+  "schemas": [
+    {
+      "name": "Payment_MS",
+      "targetSource": "Fabric_Hub_Postgres",
+      "resources": [
+        {
+          "type": "ENUM",
+          "name": "tenant_status_enum",
+          "values": [
+            "active",
+            "suspended",
+            "deleted",
+            "pending_verification"
+          ]
+        },
+        {
+          "type": "ENUM",
+          "name": "tenant_plan_enum",
+          "values": [
+            "free",
+            "starter",
+            "pro",
+            "enterprise"
+          ]
+        },
+        {
+          "type": "ENUM",
+          "name": "member_role_enum",
+          "values": [
+            "system_admin",
+            "owner",
+            "admin",
+            "developer",
+            "finance",
+            "viewer"
+          ]
+        },
+        {
+          "type": "ENUM",
+          "name": "member_status_enum",
+          "values": [
+            "pending",
+            "active",
+            "disabled"
+          ]
+        },
+        {
+          "type": "ENUM",
+          "name": "payment_status_enum",
+          "values": [
+            "created",
+            "pending",
+            "authorized",
+            "captured",
+            "completed",
+            "failed",
+            "cancelled",
+            "refunded",
+            "partially_refunded",
+            "expired"
+          ]
+        },
+        {
+          "type": "ENUM",
+          "name": "payment_method_enum",
+          "values": [
+            "card",
+            "upi",
+            "netbanking",
+            "wallet",
+            "emi",
+            "bank_transfer"
+          ]
+        },
+        {
+          "type": "ENUM",
+          "name": "payment_provider_type_enum",
+          "values": [
+            "razorpay",
+            "stripe",
+            "paypal",
+            "cashfree",
+            "phonepe",
+            "tappay",
+            "hyperpay",
+            "ccavenue"
+          ]
+        },
+        {
+          "type": "ENUM",
+          "name": "refund_status_enum",
+          "values": [
+            "pending",
+            "pending_approval",
+            "approved",
+            "rejected",
+            "processing",
+            "completed",
+            "failed"
+          ]
+        },
+        {
+          "type": "ENUM",
+          "name": "refund_reason_enum",
+          "values": [
+            "customer_request",
+            "duplicate",
+            "fraudulent",
+            "order_cancelled",
+            "product_not_delivered",
+            "product_defective",
+            "other"
+          ]
+        },
+        {
+          "type": "ENUM",
+          "name": "api_key_status_enum",
+          "values": [
+            "active",
+            "revoked"
+          ]
+        },
+        {
+          "type": "ENUM",
+          "name": "api_key_type_enum",
+          "values": [
+            "live",
+            "test"
+          ]
+        },
+        {
+          "type": "ENUM",
+          "name": "audit_event_category_enum",
+          "values": [
+            "authentication",
+            "data_modification",
+            "payments",
+            "refunds",
+            "api_keys",
+            "providers",
+            "team",
+            "tenant",
+            "security",
+            "other"
+          ]
+        },
+        {
+          "type": "ENUM",
+          "name": "actor_type_enum",
+          "values": [
+            "user",
+            "api_key",
+            "system",
+            "webhook"
+          ]
+        },
+        {
+          "type": "ENUM",
+          "name": "webhook_status_enum",
+          "values": [
+            "active",
+            "disabled",
+            "failed"
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "tenants",
+          "columns": [
+            {
+              "name": "id",
+              "type": "STRING",
+              "length": 50,
+              "primaryKey": true
+            },
+            {
+              "name": "name",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "slug",
+              "type": "STRING",
+              "length": 100,
+              "unique": true
+            },
+            {
+              "name": "status",
+              "type": "ENUM",
+              "ref": "tenant_status_enum",
+              "default": "active"
+            },
+            {
+              "name": "plan",
+              "type": "STRING",
+              "default": "free",
+              "length": 50
+            },
+            {
+              "name": "settings",
+              "type": "JSONB"
+            },
+            {
+              "name": "billing",
+              "type": "JSONB"
+            },
+            {
+              "name": "ownerUserId",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "ownerEmail",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "metadata",
+              "type": "JSONB"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "updatedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "deletedAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "planStartedAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "planExpiresAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "planOverrides",
+              "type": "JSONB"
+            },
+            {
+              "name": "trialUsedAt",
+              "type": "TIMESTAMP"
+            }
+          ],
+          "maintenance": {
+            "fillfactor": 85,
+            "autovacuum_enabled": true
+          }
+        },
+        {
+          "type": "TABLE",
+          "name": "roles",
+          "columns": [
+            {
+              "name": "id",
+              "type": "STRING",
+              "length": 50,
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "name",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "description",
+              "type": "STRING",
+              "length": 500
+            },
+            {
+              "name": "permissions",
+              "type": "JSONB"
+            },
+            {
+              "name": "isDefault",
+              "type": "BOOLEAN",
+              "default": "false"
+            },
+            {
+              "name": "createdBy",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "updatedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "tenant_members",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "userId",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "email",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "displayName",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "avatarUrl",
+              "type": "STRING",
+              "length": 500
+            },
+            {
+              "name": "role",
+              "type": "ENUM",
+              "ref": "member_role_enum",
+              "default": "viewer"
+            },
+            {
+              "name": "status",
+              "type": "ENUM",
+              "ref": "member_status_enum",
+              "default": "pending"
+            },
+            {
+              "name": "customPermissions",
+              "type": "JSONB"
+            },
+            {
+              "name": "roleId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "invitedBy",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "invitationToken",
+              "type": "STRING",
+              "length": 128
+            },
+            {
+              "name": "invitationExpiry",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "acceptedAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "updatedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "api_keys",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "name",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "prefix",
+              "type": "STRING",
+              "length": 16
+            },
+            {
+              "name": "hash",
+              "type": "STRING",
+              "length": 128
+            },
+            {
+              "name": "permissions",
+              "type": "JSONB"
+            },
+            {
+              "name": "type",
+              "type": "ENUM",
+              "ref": "api_key_type_enum",
+              "default": "live"
+            },
+            {
+              "name": "status",
+              "type": "ENUM",
+              "ref": "api_key_status_enum",
+              "default": "active"
+            },
+            {
+              "name": "expiresAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "lastUsedAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "createdBy",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "revokedAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "revokedBy",
+              "type": "STRING",
+              "length": 255
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "provider_configs",
+          "columns": [
+            {
+              "name": "id",
+              "type": "STRING",
+              "length": 50,
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "provider",
+              "type": "ENUM",
+              "ref": "payment_provider_type_enum"
+            },
+            {
+              "name": "name",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "isEnabled",
+              "type": "BOOLEAN",
+              "default": "true"
+            },
+            {
+              "name": "isDefault",
+              "type": "BOOLEAN",
+              "default": "false"
+            },
+            {
+              "name": "mode",
+              "type": "ENUM",
+              "ref": "api_key_type_enum",
+              "default": "live"
+            },
+            {
+              "name": "credentials",
+              "type": "JSONB"
+            },
+            {
+              "name": "webhookSecret",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "webhookUrl",
+              "type": "STRING",
+              "length": 500
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "updatedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "channel",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "deletedAt",
+              "type": "TIMESTAMP"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "payments",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "orderId",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "amount",
+              "type": "NUMERIC"
+            },
+            {
+              "name": "currency",
+              "type": "STRING",
+              "length": 10,
+              "default": "INR"
+            },
+            {
+              "name": "status",
+              "type": "ENUM",
+              "ref": "payment_status_enum",
+              "default": "created"
+            },
+            {
+              "name": "provider",
+              "type": "ENUM",
+              "ref": "payment_provider_type_enum"
+            },
+            {
+              "name": "providerPaymentId",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "providerOrderId",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "providerConfigId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "customerId",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "customerEmail",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "customerPhone",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "paymentMethod",
+              "type": "ENUM",
+              "ref": "payment_method_enum"
+            },
+            {
+              "name": "paymentMethodDetails",
+              "type": "JSONB"
+            },
+            {
+              "name": "description",
+              "type": "STRING",
+              "length": 500
+            },
+            {
+              "name": "metadata",
+              "type": "JSONB"
+            },
+            {
+              "name": "clientReturnUrl",
+              "type": "STRING",
+              "length": 500
+            },
+            {
+              "name": "clientCallbackUrl",
+              "type": "STRING",
+              "length": 500
+            },
+            {
+              "name": "errorMessage",
+              "type": "TEXT"
+            },
+            {
+              "name": "errorCode",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "authorizedAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "capturedAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "failedAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "cancelledAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "updatedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "checkoutToken",
+              "type": "STRING",
+              "length": 128,
+              "unique": true
+            },
+            {
+              "name": "autoCapture",
+              "type": "BOOLEAN",
+              "default": "true"
+            },
+            {
+              "name": "capturedAmount",
+              "type": "NUMERIC"
+            },
+            {
+              "name": "authorizedAmount",
+              "type": "NUMERIC"
+            },
+            {
+              "name": "providerFee",
+              "type": "NUMERIC"
+            },
+            {
+              "name": "capturedBy",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "customerIp",
+              "type": "STRING",
+              "length": 45
+            },
+            {
+              "name": "paymentLinkId",
+              "type": "UUID"
+            },
+            {
+              "name": "manualReviewStatus",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "manualReviewNotes",
+              "type": "TEXT"
+            },
+            {
+              "name": "manualReviewedBy",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "manualReviewedAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "requestHash",
+              "type": "STRING",
+              "length": 64
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "refunds",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "paymentId",
+              "type": "UUID"
+            },
+            {
+              "name": "refundId",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "amount",
+              "type": "NUMERIC"
+            },
+            {
+              "name": "currency",
+              "type": "STRING",
+              "length": 10,
+              "default": "INR"
+            },
+            {
+              "name": "status",
+              "type": "ENUM",
+              "ref": "refund_status_enum",
+              "default": "pending"
+            },
+            {
+              "name": "reason",
+              "type": "ENUM",
+              "ref": "refund_reason_enum"
+            },
+            {
+              "name": "providerRefundId",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "notes",
+              "type": "TEXT"
+            },
+            {
+              "name": "metadata",
+              "type": "JSONB"
+            },
+            {
+              "name": "requestedBy",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "approvedBy",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "approvedAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "rejectedAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "rejectionReason",
+              "type": "TEXT"
+            },
+            {
+              "name": "processedAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "failedAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "failureReason",
+              "type": "TEXT"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "updatedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "idempotencyKey",
+              "type": "STRING",
+              "length": 128
+            },
+            {
+              "name": "requestHash",
+              "type": "STRING",
+              "length": 64
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "webhooks",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "url",
+              "type": "STRING",
+              "length": 500
+            },
+            {
+              "name": "secret",
+              "type": "STRING",
+              "length": 500
+            },
+            {
+              "name": "events",
+              "type": "JSONB"
+            },
+            {
+              "name": "status",
+              "type": "ENUM",
+              "ref": "webhook_status_enum",
+              "default": "active"
+            },
+            {
+              "name": "description",
+              "type": "STRING",
+              "length": 500
+            },
+            {
+              "name": "metadata",
+              "type": "JSONB"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "updatedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "failureCount",
+              "type": "INT",
+              "default": "0"
+            },
+            {
+              "name": "lastError",
+              "type": "TEXT"
+            },
+            {
+              "name": "lastSuccessAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "lastFailureAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "disabledAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "providerConfigId",
+              "type": "STRING",
+              "length": 50
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "webhook_delivery_logs",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "webhookId",
+              "type": "UUID"
+            },
+            {
+              "name": "eventType",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "payload",
+              "type": "JSONB"
+            },
+            {
+              "name": "responseStatus",
+              "type": "INT"
+            },
+            {
+              "name": "responseBody",
+              "type": "TEXT"
+            },
+            {
+              "name": "executionTimeMs",
+              "type": "INT"
+            },
+            {
+              "name": "status",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "attempt",
+              "type": "INT",
+              "default": "1"
+            },
+            {
+              "name": "nextRetryAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "error",
+              "type": "TEXT"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "audit_logs",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "actorId",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "actorType",
+              "type": "ENUM",
+              "ref": "actor_type_enum"
+            },
+            {
+              "name": "actorEmail",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "category",
+              "type": "ENUM",
+              "ref": "audit_event_category_enum"
+            },
+            {
+              "name": "action",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "resourceType",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "resourceId",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "ipAddress",
+              "type": "STRING",
+              "length": 45
+            },
+            {
+              "name": "userAgent",
+              "type": "STRING",
+              "length": 500
+            },
+            {
+              "name": "details",
+              "type": "JSONB"
+            },
+            {
+              "name": "timestamp",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "api_clients",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "name",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "clientId",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "clientSecretHash",
+              "type": "STRING",
+              "length": 128
+            },
+            {
+              "name": "permissions",
+              "type": "JSONB"
+            },
+            {
+              "name": "isActive",
+              "type": "BOOLEAN",
+              "default": "true"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "updatedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "ip_block_entries",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "ipOrCidr",
+              "type": "STRING",
+              "length": 45
+            },
+            {
+              "name": "reason",
+              "type": "STRING",
+              "length": 500
+            },
+            {
+              "name": "blockedBy",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "expiresAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "cashback_rules",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "name",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "description",
+              "type": "STRING",
+              "length": 500
+            },
+            {
+              "name": "isActive",
+              "type": "BOOLEAN",
+              "default": "true"
+            },
+            {
+              "name": "priority",
+              "type": "INT",
+              "default": "0"
+            },
+            {
+              "name": "conditions",
+              "type": "JSONB"
+            },
+            {
+              "name": "rewardType",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "rewardValue",
+              "type": "NUMERIC"
+            },
+            {
+              "name": "minOrderAmount",
+              "type": "NUMERIC"
+            },
+            {
+              "name": "maxRewardAmount",
+              "type": "NUMERIC"
+            },
+            {
+              "name": "maxUsagePerCustomer",
+              "type": "INT"
+            },
+            {
+              "name": "totalUsageLimit",
+              "type": "INT"
+            },
+            {
+              "name": "currentUsageCount",
+              "type": "INT",
+              "default": "0"
+            },
+            {
+              "name": "validFrom",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "validTo",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "updatedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "cashback_ledger_entries",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "customerId",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "ruleId",
+              "type": "UUID"
+            },
+            {
+              "name": "paymentId",
+              "type": "UUID"
+            },
+            {
+              "name": "amount",
+              "type": "NUMERIC"
+            },
+            {
+              "name": "status",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "notes",
+              "type": "TEXT"
+            },
+            {
+              "name": "expiresAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "updatedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "ENUM",
+          "name": "dispute_status_enum",
+          "values": [
+            "needs_response",
+            "under_review",
+            "won",
+            "lost",
+            "closed"
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "disputes",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "paymentId",
+              "type": "UUID"
+            },
+            {
+              "name": "disputeId",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "amount",
+              "type": "NUMERIC"
+            },
+            {
+              "name": "currency",
+              "type": "STRING",
+              "length": 10,
+              "default": "INR"
+            },
+            {
+              "name": "status",
+              "type": "ENUM",
+              "ref": "dispute_status_enum",
+              "default": "needs_response"
+            },
+            {
+              "name": "reason",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "evidence",
+              "type": "JSONB"
+            },
+            {
+              "name": "responseDueAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "resolvedAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "updatedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "customers",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "customerId",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "email",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "phone",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "name",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "metadata",
+              "type": "JSONB"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "updatedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "refund_rules",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "name",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "description",
+              "type": "STRING",
+              "length": 500
+            },
+            {
+              "name": "isActive",
+              "type": "BOOLEAN",
+              "default": "true"
+            },
+            {
+              "name": "priority",
+              "type": "STRING",
+              "default": "0",
+              "length": 50
+            },
+            {
+              "name": "ruleType",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "deductionType",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "deductionValue",
+              "type": "NUMERIC"
+            },
+            {
+              "name": "conditions",
+              "type": "JSONB"
+            },
+            {
+              "name": "validFrom",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "validTo",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "updatedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "payment_links",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "title",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "description",
+              "type": "STRING",
+              "length": 500
+            },
+            {
+              "name": "amount",
+              "type": "NUMERIC"
+            },
+            {
+              "name": "currency",
+              "type": "STRING",
+              "length": 10,
+              "default": "INR"
+            },
+            {
+              "name": "status",
+              "type": "STRING",
+              "length": 50,
+              "default": "active"
+            },
+            {
+              "name": "shortCode",
+              "type": "STRING",
+              "length": 50,
+              "unique": true
+            },
+            {
+              "name": "expiresAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "maxUses",
+              "type": "INT"
+            },
+            {
+              "name": "currentUses",
+              "type": "INT",
+              "default": "0"
+            },
+            {
+              "name": "metadata",
+              "type": "JSONB"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "updatedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "allowedMethods",
+              "type": "JSONB"
+            },
+            {
+              "name": "enforceMethods",
+              "type": "BOOLEAN",
+              "default": "false"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "plans",
+          "columns": [
+            {
+              "name": "id",
+              "type": "STRING",
+              "length": 50,
+              "primaryKey": true
+            },
+            {
+              "name": "name",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "description",
+              "type": "STRING",
+              "length": 500
+            },
+            {
+              "name": "limits",
+              "type": "JSONB"
+            },
+            {
+              "name": "trialDays",
+              "type": "INT",
+              "default": "7"
+            },
+            {
+              "name": "status",
+              "type": "STRING",
+              "length": 50,
+              "default": "active"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "updatedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "plan_requests",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "planId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "status",
+              "type": "STRING",
+              "length": 50,
+              "default": "pending"
+            },
+            {
+              "name": "contactEmail",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "message",
+              "type": "TEXT"
+            },
+            {
+              "name": "requestedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "respondedAt",
+              "type": "TIMESTAMP"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "background_jobs",
+          "columns": [
+            {
+              "name": "id",
+              "type": "STRING",
+              "length": 100,
+              "primaryKey": true
+            },
+            {
+              "name": "schedule",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "batchSize",
+              "type": "STRING",
+              "default": "100",
+              "length": 50
+            },
+            {
+              "name": "concurrency",
+              "type": "INT",
+              "default": "1"
+            },
+            {
+              "name": "timeoutMs",
+              "type": "STRING",
+              "default": "60000",
+              "length": 50
+            },
+            {
+              "name": "rateLimitQuota",
+              "type": "INTEGER",
+              "length": 50,
+              "default": "1000"
+            },
+            {
+              "name": "autoRetry",
+              "type": "BOOLEAN",
+              "length": 10,
+              "default": "true"
+            },
+            {
+              "name": "lastRunAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "cursor",
+              "type": "STRING",
+              "length": 255
+            },
+            {
+              "name": "isEnabled",
+              "type": "STRING",
+              "default": "true",
+              "length": 10
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "updatedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "background_job_runs",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "jobId",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "status",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "startedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "completedAt",
+              "type": "DATE"
+            },
+            {
+              "name": "durationMs",
+              "type": "INT"
+            },
+            {
+              "name": "itemsProcessed",
+              "type": "INT",
+              "default": "0"
+            },
+            {
+              "name": "retryCountString",
+              "type": "INTEGER",
+              "length": 20,
+              "default": "0"
+            },
+            {
+              "name": "error",
+              "type": "TEXT"
+            },
+            {
+              "name": "metadata",
+              "type": "JSONB"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "job_queue_items",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "jobType",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "payload",
+              "type": "JSONB"
+            },
+            {
+              "name": "status",
+              "type": "STRING",
+              "length": 50,
+              "default": "pending"
+            },
+            {
+              "name": "attempt",
+              "type": "INT",
+              "default": "0"
+            },
+            {
+              "name": "maxAttempts",
+              "type": "INT",
+              "default": "5"
+            },
+            {
+              "name": "priorityScore",
+              "type": "NUMERIC",
+              "length": 20,
+              "default": "100.00"
+            },
+            {
+              "name": "scheduledFor",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "lockedAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "completedAt",
+              "type": "TIMESTAMP"
+            },
+            {
+              "name": "error",
+              "type": "TEXT"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            },
+            {
+              "name": "updatedAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "edge_case_records",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "nullStrToInt",
+              "type": "INTEGER",
+              "length": 50
+            },
+            {
+              "name": "nullNumToStr",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "nullBoolToStr",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "nullTsToDate",
+              "type": "DATE"
+            },
+            {
+              "name": "maxIntStr",
+              "type": "INTEGER",
+              "length": 50
+            },
+            {
+              "name": "minIntStr",
+              "type": "INTEGER",
+              "length": 50
+            },
+            {
+              "name": "bigIntStr",
+              "type": "BIGINT",
+              "length": 50
+            },
+            {
+              "name": "highPrecisionStr",
+              "type": "NUMERIC",
+              "length": 50
+            },
+            {
+              "name": "negativeNumStr",
+              "type": "NUMERIC",
+              "length": 50
+            },
+            {
+              "name": "boolTrueStr",
+              "type": "BOOLEAN",
+              "length": 10
+            },
+            {
+              "name": "boolFalseStr",
+              "type": "BOOLEAN",
+              "length": 10
+            },
+            {
+              "name": "boolOneStr",
+              "type": "BOOLEAN",
+              "length": 10
+            },
+            {
+              "name": "boolZeroStr",
+              "type": "BOOLEAN",
+              "length": 10
+            },
+            {
+              "name": "jsonStr",
+              "type": "JSONB"
+            },
+            {
+              "name": "unicodeText",
+              "type": "STRING",
+              "length": 500
+            }
+          ]
+        },
+        {
+          "type": "VIEW",
+          "name": "view_high_value_ranked_payments",
+          "query": {
+            "with": [
+              {
+                "name": "captured_payments",
+                "columns": [
+                  "id",
+                  "tenantId",
+                  "customerId",
+                  "amount",
+                  "currency",
+                  "status"
+                ],
+                "base": {
+                  "select": [
+                    "id",
+                    "tenantId",
+                    "customerId",
+                    "amount",
+                    "currency",
+                    "status"
+                  ],
+                  "from": {
+                    "resource": "payments"
+                  },
+                  "where": [
+                    {
+                      "column": "status",
+                      "operator": "EQ",
+                      "value": "captured"
+                    }
+                  ]
+                }
+              }
+            ],
+            "select": [
+              "cp.id",
+              "cp.tenantId",
+              "t.name",
+              "cp.amount",
+              "cp.currency",
+              {
+                "expression": "cp.amount * 0.18",
+                "alias": "estimated_tax"
+              },
+              {
+                "window": "RANK",
+                "partitionBy": [
+                  "cp.tenantId"
+                ],
+                "orderBy": [
+                  {
+                    "column": "cp.amount",
+                    "direction": "DESC"
+                  }
+                ],
+                "alias": "payment_rank"
+              },
+              {
+                "window": "DENSE_RANK",
+                "partitionBy": [
+                  "cp.tenantId"
+                ],
+                "orderBy": [
+                  {
+                    "column": "cp.amount",
+                    "direction": "DESC"
+                  }
+                ],
+                "alias": "payment_dense_rank"
+              },
+              {
+                "window": "ROW_NUMBER",
+                "partitionBy": [
+                  "cp.tenantId"
+                ],
+                "orderBy": [
+                  {
+                    "column": "cp.amount",
+                    "direction": "DESC"
+                  }
+                ],
+                "alias": "payment_row_num"
+              }
+            ],
+            "from": {
+              "resource": "captured_payments",
+              "alias": "cp"
+            },
+            "joins": [
+              {
+                "type": "INNER",
+                "resource": "tenants",
+                "alias": "t",
+                "on": {
+                  "left": "cp.tenantId",
+                  "operator": "EQ",
+                  "right": "t.id"
+                }
+              },
+              {
+                "type": "LEFT",
+                "resource": "customers",
+                "alias": "c",
+                "on": {
+                  "left": "cp.customerId",
+                  "operator": "EQ",
+                  "right": "c.customerId"
+                }
+              }
+            ],
+            "orderBy": [
+              {
+                "column": "cp.amount",
+                "direction": "DESC"
+              }
+            ]
+          }
+        },
+        {
+          "type": "MATERIALIZED_VIEW",
+          "name": "mv_tenant_revenue_analytics",
+          "indexes": [
+            {
+              "columns": [
+                "tenantId"
+              ]
+            },
+            {
+              "columns": [
+                "tenant_rank"
+              ]
+            }
+          ],
+          "query": {
+            "select": [
+              "p.tenantId",
+              "t.name",
+              {
+                "aggregate": "COUNT",
+                "column": "p.id",
+                "alias": "total_payments"
+              },
+              {
+                "aggregate": "SUM",
+                "column": "p.amount",
+                "alias": "total_revenue"
+              },
+              {
+                "aggregate": "AVG",
+                "column": "p.amount",
+                "alias": "avg_ticket_size"
+              },
+              {
+                "aggregate": "MAX",
+                "column": "p.amount",
+                "alias": "max_payment"
+              },
+              {
+                "aggregate": "MIN",
+                "column": "p.amount",
+                "alias": "min_payment"
+              },
+              {
+                "window": "RANK",
+                "orderBy": [
+                  {
+                    "column": "p.tenantId",
+                    "direction": "ASC"
+                  }
+                ],
+                "alias": "tenant_rank"
+              }
+            ],
+            "from": {
+              "resource": "payments",
+              "alias": "p"
+            },
+            "joins": [
+              {
+                "type": "INNER",
+                "resource": "tenants",
+                "alias": "t",
+                "on": {
+                  "left": "p.tenantId",
+                  "operator": "EQ",
+                  "right": "t.id"
+                }
+              },
+              {
+                "type": "LEFT",
+                "resource": "customers",
+                "alias": "c",
+                "on": {
+                  "left": "p.customerId",
+                  "operator": "EQ",
+                  "right": "c.customerId"
+                }
+              }
+            ],
+            "where": [
+              {
+                "column": "p.status",
+                "operator": "EQ",
+                "value": "captured"
+              }
+            ],
+            "groupBy": [
+              "p.tenantId",
+              "t.name"
+            ],
+            "having": [
+              {
+                "column": "total_revenue",
+                "operator": "GT",
+                "value": 0
+              }
+            ],
+            "orderBy": [
+              {
+                "column": "total_revenue",
+                "direction": "DESC"
+              }
+            ]
+          }
+        },
+        {
+          "type": "SEQUENCE",
+          "name": "seq_invoice_number",
+          "start": 10001,
+          "increment": 1,
+          "minValue": 1,
+          "maxValue": 99999999,
+          "cache": 10
+        },
+        {
+          "type": "SEQUENCE",
+          "name": "seq_settlement_batch",
+          "start": 5000,
+          "increment": 10
+        },
+        {
+          "type": "FUNCTION",
+          "name": "calculate_processing_fee",
+          "arguments": [
+            {
+              "name": "amount",
+              "type": "NUMERIC",
+              "mode": "IN"
+            },
+            {
+              "name": "tier",
+              "type": "STRING",
+              "mode": "IN"
+            }
+          ],
+          "returnType": "NUMERIC",
+          "body": "\n    IF tier = 'enterprise' THEN\n      RETURN ROUND(amount * 0.012 + 5.00, 2);\n    ELSIF tier = 'growth' THEN\n      RETURN ROUND(amount * 0.018 + 10.00, 2);\n    ELSE\n      RETURN ROUND(amount * 0.025 + 15.00, 2);\n    END IF;\n  "
+        },
+        {
+          "type": "FUNCTION",
+          "name": "calculate_referral_bonus",
+          "arguments": [
+            {
+              "name": "amount",
+              "type": "NUMERIC",
+              "mode": "IN"
+            },
+            {
+              "name": "depth",
+              "type": "INTEGER",
+              "mode": "IN"
+            }
+          ],
+          "returnType": "NUMERIC",
+          "body": "\n    IF depth <= 1 THEN\n      RETURN ROUND(amount * 0.05, 2);\n    ELSE\n      RETURN ROUND(amount * 0.05 * (1.0 / depth) + \"tenant_tenant_A_Payment_MS\".calculate_referral_bonus(amount, depth - 1), 2);\n    END IF;\n  "
+        },
+        {
+          "type": "PROCEDURE",
+          "name": "mark_batch_settled",
+          "arguments": [
+            {
+              "name": "target_tenant",
+              "type": "STRING",
+              "mode": "IN"
+            }
+          ],
+          "body": "\n    UPDATE \"tenant_tenant_A_Payment_MS\".payments\n    SET \"status\" = 'captured'\n    WHERE \"tenantId\" = target_tenant AND \"status\" = 'authorized';\n  "
+        },
+        {
+          "type": "TABLE",
+          "name": "invoices",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "invoiceNumber",
+              "type": "BIGINT",
+              "default": "nextval('seq_invoice_number')"
+            },
+            {
+              "name": "amount",
+              "type": "NUMERIC"
+            },
+            {
+              "name": "fee",
+              "type": "NUMERIC"
+            },
+            {
+              "name": "status",
+              "type": "STRING",
+              "length": 50,
+              "default": "issued"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "affiliate_referrals",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "parentAffiliateId",
+              "type": "UUID"
+            },
+            {
+              "name": "affiliateName",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "tier",
+              "type": "STRING",
+              "length": 50,
+              "default": "bronze"
+            },
+            {
+              "name": "commissionRate",
+              "type": "NUMERIC",
+              "default": "0.05"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "VIEW",
+          "name": "view_affiliate_hierarchy_tree",
+          "query": {
+            "with": [
+              {
+                "name": "referral_tree",
+                "columns": [
+                  "id",
+                  "affiliateName",
+                  "parentAffiliateId",
+                  "level"
+                ],
+                "base": {
+                  "select": [
+                    "id",
+                    "affiliateName",
+                    "parentAffiliateId",
+                    {
+                      "expression": "0",
+                      "alias": "level"
+                    }
+                  ],
+                  "from": {
+                    "resource": "affiliate_referrals"
+                  },
+                  "where": [
+                    {
+                      "column": "parentAffiliateId",
+                      "operator": "IS_NULL"
+                    }
+                  ]
+                },
+                "unionAll": {
+                  "select": [
+                    "a.id",
+                    "a.affiliateName",
+                    "a.parentAffiliateId",
+                    {
+                      "expression": "rt.level + 1",
+                      "alias": "level"
+                    }
+                  ],
+                  "from": {
+                    "resource": "affiliate_referrals",
+                    "alias": "a"
+                  },
+                  "joins": [
+                    {
+                      "type": "INNER",
+                      "resource": "referral_tree",
+                      "alias": "rt",
+                      "on": {
+                        "left": "a.parentAffiliateId",
+                        "operator": "EQ",
+                        "right": "rt.id"
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "select": [
+              "id",
+              "affiliateName",
+              "parentAffiliateId",
+              "level"
+            ],
+            "from": {
+              "resource": "referral_tree"
+            },
+            "orderBy": [
+              {
+                "column": "level",
+                "direction": "ASC"
+              }
+            ]
+          }
+        },
+        {
+          "type": "TABLE",
+          "name": "order_discounts",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "code",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "discountPercent",
+              "type": "INT"
+            },
+            {
+              "name": "amountSaved",
+              "type": "NUMERIC"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ],
+          "constraints": [
+            {
+              "name": "chk_discount_pct",
+              "type": "CHECK",
+              "expression": "discountPercent >= 0 AND discountPercent <= 100"
+            },
+            {
+              "name": "chk_amount_saved",
+              "type": "CHECK",
+              "expression": "amountSaved >= 0"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "payment_audit_tokens",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "tokenHash",
+              "type": "STRING",
+              "length": 64,
+              "strategy": "FUNCTIONAL",
+              "default": "MD5(tenantId || id::text)"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "invoices_with_tax",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "subtotal",
+              "type": "NUMERIC"
+            },
+            {
+              "name": "taxAmount",
+              "type": "NUMERIC",
+              "generated": "subtotal * 0.18",
+              "stored": true
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        },
+        {
+          "type": "TABLE",
+          "name": "high_volume_audit_partitioned",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7"
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "action",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "payload",
+              "type": "JSONB"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ],
+          "partitionBy": {
+            "type": "RANGE",
+            "column": "createdAt"
+          }
+        },
+        {
+          "type": "TABLE",
+          "name": "sensitive_financial_records",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "accountNumber",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "swiftCode",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "balance",
+              "type": "NUMERIC"
+            },
+            {
+              "name": "isAudited",
+              "type": "BOOLEAN",
+              "default": "false"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ],
+          "security": {
+            "enable_rls": true,
+            "policies": [
+              {
+                "name": "tenant_financial_policy",
+                "roles": [
+                  "PUBLIC"
+                ],
+                "using": "tenantId = 'tenant_pm_1'"
+              }
+            ],
+            "masking": [
+              {
+                "column": "accountNumber",
+                "roles": [
+                  "support"
+                ],
+                "expression": "'****' || RIGHT(accountNumber, 4)"
+              }
+            ],
+            "grants": [
+              {
+                "role": "PUBLIC",
+                "privileges": [
+                  "SELECT",
+                  "INSERT",
+                  "UPDATE"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "TABLE",
+          "name": "settlement_batches",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "strategy": "UUID_V7",
+              "primaryKey": true
+            },
+            {
+              "name": "tenantId",
+              "type": "STRING",
+              "length": 50
+            },
+            {
+              "name": "batchCode",
+              "type": "STRING",
+              "length": 100
+            },
+            {
+              "name": "totalAmount",
+              "type": "NUMERIC"
+            },
+            {
+              "name": "status",
+              "type": "STRING",
+              "length": 50,
+              "default": "pending"
+            },
+            {
+              "name": "createdAt",
+              "type": "TIMESTAMP",
+              "default": "NOW()"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "name": "rel_roles_tenant",
+      "cardinality": "1:M",
+      "from": {
+        "resource": "tenants",
+        "field": "id"
+      },
+      "to": {
+        "resource": "roles",
+        "field": "tenantId"
+      }
+    },
+    {
+      "name": "rel_tenant_members",
+      "cardinality": "1:M",
+      "from": {
+        "resource": "tenants",
+        "field": "id"
+      },
+      "to": {
+        "resource": "tenant_members",
+        "field": "tenantId"
+      }
+    },
+    {
+      "name": "rel_tenant_payments",
+      "cardinality": "1:M",
+      "from": {
+        "resource": "tenants",
+        "field": "id"
+      },
+      "to": {
+        "resource": "payments",
+        "field": "tenantId"
+      }
+    },
+    {
+      "name": "rel_payment_refunds",
+      "cardinality": "1:M",
+      "from": {
+        "resource": "payments",
+        "field": "id"
+      },
+      "to": {
+        "resource": "refunds",
+        "field": "paymentId"
+      }
+    },
+    {
+      "name": "rel_tenant_webhooks",
+      "cardinality": "1:M",
+      "from": {
+        "resource": "tenants",
+        "field": "id"
+      },
+      "to": {
+        "resource": "webhooks",
+        "field": "tenantId"
+      }
+    },
+    {
+      "name": "rel_payment_disputes",
+      "cardinality": "1:M",
+      "from": {
+        "resource": "payments",
+        "field": "id"
+      },
+      "to": {
+        "resource": "disputes",
+        "field": "paymentId"
+      }
+    },
+    {
+      "name": "rel_tenant_customers",
+      "cardinality": "1:M",
+      "from": {
+        "resource": "tenants",
+        "field": "id"
+      },
+      "to": {
+        "resource": "customers",
+        "field": "tenantId"
+      }
+    }
+  ]
+}

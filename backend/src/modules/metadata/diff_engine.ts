@@ -197,9 +197,19 @@ export class DiffEngine {
     private static async diffEnum(client: any, schemaName: string, shortSchemaName: string, res: EnumDefinition, diffs: any[], targetSource: string, engineType: EngineType, caps: EngineCapability) {
         if (caps.supportsEnums) {
             // Native enum support (Postgres) — check catalog before creating
-            const exists = await client.query(`SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = $1 AND t.typname = $2`, [schemaName, res.name]);
+            const exists = await client.query(`SELECT t.oid FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = $1 AND t.typname = $2`, [schemaName, res.name]);
             if (exists.rows.length === 0) {
                 diffs.push({ ...res, action: 'CREATE_ENUM', schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
+            } else {
+                // Check if any declared enum values are missing from live pg_enum
+                const typeOid = exists.rows[0].oid;
+                const { rows: liveEnums } = await client.query(`SELECT enumlabel FROM pg_enum WHERE enumtypid = $1`, [typeOid]);
+                const existingLabels = new Set(liveEnums.map((r: any) => r.enumlabel));
+                for (const val of res.values || []) {
+                    if (!existingLabels.has(val)) {
+                        diffs.push({ action: 'ALTER_ENUM_ADD_VALUE', name: res.name, value: val, schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
+                    }
+                }
             }
         } else {
             // No native enum: register in fabric catalog for application-level validation
@@ -231,6 +241,45 @@ export class DiffEngine {
         }
     }
 
+    public static normalizeCatalogType(dataType: string, udtName: string, charLen?: number): { family: string; length?: number | undefined } {
+        const dt = (dataType || '').toLowerCase();
+        const udt = (udtName || '').toLowerCase();
+        if (dt === 'character varying' || udt === 'varchar') return { family: 'VARCHAR', length: charLen || undefined };
+        if (dt === 'text' || udt === 'text') return { family: 'TEXT' };
+        if (dt === 'integer' || udt === 'int4' || dt === 'smallint' || udt === 'int2') return { family: 'INT' };
+        if (dt === 'bigint' || udt === 'int8') return { family: 'BIGINT' };
+        if (dt === 'numeric' || dt === 'decimal') return { family: 'NUMERIC' };
+        if (dt === 'boolean' || udt === 'bool') return { family: 'BOOL' };
+        if (dt.includes('timestamp')) return { family: 'TIMESTAMP' };
+        if (dt === 'date') return { family: 'DATE' };
+        if (dt === 'uuid') return { family: 'UUID' };
+        if (dt === 'jsonb' || dt === 'json') return { family: 'JSONB' };
+        if (dt === 'user-defined') return { family: 'ENUM' };
+        return { family: dt.toUpperCase() };
+    }
+
+    public static normalizeDeclaredType(declType: string, length?: number): { family: string; length?: number | undefined } {
+        const t = (declType || '').toUpperCase();
+        if (t === 'STRING') {
+            if (length) return { family: 'VARCHAR', length };
+            return { family: 'TEXT' };
+        }
+        if (t === 'VARCHAR') {
+            return { family: 'VARCHAR', length: length || undefined };
+        }
+        if (t === 'TEXT') return { family: 'TEXT' };
+        if (t === 'INT' || t === 'INTEGER') return { family: 'INT' };
+        if (t === 'BIGINT') return { family: 'BIGINT' };
+        if (t === 'NUMERIC' || t === 'DECIMAL' || t === 'FLOAT') return { family: 'NUMERIC' };
+        if (t === 'BOOL' || t === 'BOOLEAN') return { family: 'BOOL' };
+        if (t === 'TIMESTAMP') return { family: 'TIMESTAMP' };
+        if (t === 'DATE') return { family: 'DATE' };
+        if (t === 'UUID') return { family: 'UUID' };
+        if (t === 'JSONB') return { family: 'JSONB' };
+        if (t === 'ENUM') return { family: 'ENUM' };
+        return { family: t };
+    }
+
     /**
      * Diffs a declared TABLE against the target engine.
      * - Engines with catalog introspection (Postgres, MySQL, Oracle): checks if table exists,
@@ -245,9 +294,31 @@ export class DiffEngine {
                 diffs.push({ ...res, action: 'CREATE_TABLE', schema: shortSchemaName, targetSource, engineType, table: res.name, risk: 'LOW' });
             } else {
                 for (const col of res.columns) {
-                    const colExists = await client.query(`SELECT data_type FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 AND column_name = $3`, [schemaName, res.name, col.name]);
-                    if (colExists.rows.length === 0) {
+                    const colInfo = await client.query(`
+                        SELECT data_type, udt_name, character_maximum_length, is_nullable
+                        FROM information_schema.columns 
+                        WHERE table_schema = $1 AND table_name = $2 AND column_name = $3
+                    `, [schemaName, res.name, col.name]);
+                    if (colInfo.rows.length === 0) {
                         diffs.push({ action: 'ADD_COLUMN', schema: shortSchemaName, targetSource, engineType, table: res.name, column: col, risk: 'LOW' });
+                    } else {
+                        // Check if type or length changed
+                        const existing = colInfo.rows[0];
+                        const cat = DiffEngine.normalizeCatalogType(existing.data_type, existing.udt_name, existing.character_maximum_length);
+                        const dec = DiffEngine.normalizeDeclaredType(col.type, col.length);
+                        let typeChanged = false;
+                        if (cat.family !== dec.family) {
+                            typeChanged = true;
+                        } else if (dec.family === 'VARCHAR') {
+                            if (cat.length && dec.length && cat.length !== dec.length) {
+                                typeChanged = true;
+                            } else if (!cat.length && dec.length) {
+                                typeChanged = true;
+                            }
+                        }
+                        if (typeChanged) {
+                            diffs.push({ action: 'ALTER_COLUMN_TYPE', schema: shortSchemaName, targetSource, engineType, table: res.name, column: col, risk: 'LOW' });
+                        }
                     }
                 }
             }

@@ -28,7 +28,7 @@ export interface WindowSpec {
   offset?: number; // for LAG / LEAD (default 1)
 }
 
-const RANKING = new Set(['RANK', 'DENSE_RANK', 'ROW_NUMBER']);
+const RANKING = new Set(['RANK', 'DENSE_RANK', 'ROW_NUMBER', 'PERCENT_RANK', 'CUME_DIST']);
 const NAV = new Set(['LAG', 'LEAD']);
 const RUNNING = new Set(['SUM', 'AVG', 'COUNT', 'MIN', 'MAX']);
 
@@ -162,10 +162,26 @@ export function applyWindows(rows: any[], specs: WindowSpec[]): any[] {
 
       if (RANKING.has(spec.fn)) {
         let rank = 0, dense = 0, prevKey: string | null = null;
+        const n = part.length;
+        const ranks: number[] = [];
+        const denses: number[] = [];
         part.forEach((r, i) => {
           const key = JSON.stringify(spec.orderBy.map((o) => { const v = readCol(r, o.column) ?? null; return typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v.trim()) ? Number(v) : v; }));
           if (key !== prevKey) { dense++; rank = i + 1; prevKey = key; }
-          r[spec.alias] = spec.fn === 'ROW_NUMBER' ? i + 1 : spec.fn === 'DENSE_RANK' ? dense : rank;
+          ranks.push(rank);
+          denses.push(dense);
+        });
+        part.forEach((r, i) => {
+          if (spec.fn === 'ROW_NUMBER') r[spec.alias] = i + 1;
+          else if (spec.fn === 'DENSE_RANK') r[spec.alias] = denses[i];
+          else if (spec.fn === 'RANK') r[spec.alias] = ranks[i];
+          else if (spec.fn === 'PERCENT_RANK') {
+            r[spec.alias] = n <= 1 ? 0 : (ranks[i]! - 1) / (n - 1);
+          } else if (spec.fn === 'CUME_DIST') {
+            let last = i;
+            while (last + 1 < n && ranks[last + 1] === ranks[i]) last++;
+            r[spec.alias] = (last + 1) / n;
+          }
         });
       } else if (NAV.has(spec.fn)) {
         const off = spec.offset ?? 1;

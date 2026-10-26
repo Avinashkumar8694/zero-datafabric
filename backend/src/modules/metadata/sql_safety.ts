@@ -40,7 +40,7 @@ const MULTI_WORD_TYPES = new Set([
     'TIME WITHOUT TIME ZONE', 'TIME WITH TIME ZONE', 'BIT VARYING',
 ]);
 
-const TYPE_SHAPE = /^([A-Za-z][A-Za-z ]*?)\s*(\(\s*\d{1,5}\s*(,\s*\d{1,5}\s*)?\))?\s*((\[\s*\d{0,5}\s*\]\s*)*)$/;
+const TYPE_SHAPE = /^([A-Za-z][A-Za-z0-9 ]*?)\s*(\(\s*\d{1,5}\s*(,\s*\d{1,5}\s*)?\))?\s*((\[\s*\d{0,5}\s*\]\s*)*)$/;
 
 /**
  * Validates a column / argument / return type against an allow-list of base

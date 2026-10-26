@@ -122,7 +122,24 @@ export class Transpiler {
     private static normalizeType(t: string) {
         if (!t) return t;
         assertColumnType(t, 'type');
-        const map: any = { 'STRING': 'TEXT', 'INTEGER': 'INT', 'BOOLEAN': 'BOOL', 'TIMESTAMP': 'TIMESTAMP', 'UUID': 'UUID', 'BIGINT': 'BIGINT', 'JSONB': 'JSONB', 'NUMERIC': 'NUMERIC' };
+        const map: any = {
+            'STRING': 'TEXT',
+            'TEXT': 'TEXT',
+            'VARCHAR': 'VARCHAR',
+            'INTEGER': 'INT',
+            'INT': 'INT',
+            'BIGINT': 'BIGINT',
+            'BOOLEAN': 'BOOL',
+            'BOOL': 'BOOL',
+            'TIMESTAMP': 'TIMESTAMP',
+            'DATE': 'DATE',
+            'UUID': 'UUID',
+            'JSONB': 'JSONB',
+            'JSON': 'JSONB',
+            'NUMERIC': 'NUMERIC',
+            'DECIMAL': 'NUMERIC',
+            'FLOAT': 'DOUBLE PRECISION'
+        };
         return map[t.toUpperCase()] || t;
     }
 
@@ -155,7 +172,8 @@ export class Transpiler {
 
         // Physical schema (validated: tenant prefix + logical name, <= 63 chars, inside the caller's namespace)
         const needsSchema = !['PROVISION_DOWNSTREAM'].includes(diff.action);
-        const physical = needsSchema ? physicalSchemaName(tenantId, diff.schema || diff.name) : '';
+        const logicalSchema = diff.schema || diff.name || '';
+        const physical = needsSchema ? physicalSchemaName(tenantId, logicalSchema) : '';
         const S = physical ? quoteIdent(physical, 'schema') : '';
         const freeSql = allowsFreeSql(manifest);
 
@@ -222,9 +240,11 @@ export class Transpiler {
                     if (c.collation) d += ` COLLATE ${quoteAnyIdent(c.collation)}`;
                     if (c.primaryKey && !table.identity) d += ' PRIMARY KEY';
                     if (c.default !== undefined && c.default !== null && c.default !== '' && !hasDefault && c.strategy !== 'FUNCTIONAL') {
-                        d += ` DEFAULT ${renderDefault(c.default, `column ${c.name} default`)}`;
+                        let defStr = renderDefault(c.default, `column ${c.name} default`);
+                        defStr = defStr.replace(/\b(nextval|currval)\('([^']+)'\)/gi, (m, fn, seq) => `${fn}('${S}."${seq}"')`);
+                        d += ` DEFAULT ${defStr}`;
                     }
-                    if (c.generated) d += ` GENERATED ALWAYS AS (${assertSafeExpression(c.generated, `column ${c.name} generated`)}) STORED`;
+                    if (c.generated) d += ` GENERATED ALWAYS AS (${this.quoteColumnsForTable(assertSafeExpression(c.generated, `column ${c.name} generated`), table.columns)}) STORED`;
                     if (c.unique) d += ' UNIQUE';
                     if (c.nullable === false) d += ' NOT NULL';
                     
@@ -242,7 +262,7 @@ export class Transpiler {
                             if (!['GIST', 'GIN', 'BTREE', 'HASH', 'SPGIST', 'BRIN'].includes(method)) throw new ManifestSqlError('INVALID_CONSTRAINT', 'Invalid EXCLUDE index method');
                             cols.push(`CONSTRAINT ${quoteIdent(con.name, 'constraint name')} EXCLUDE USING ${method} (${con.columns?.map(c => `${quoteIdent(c.name, 'constraint column')} WITH ${exclusionOperator(c.operator)}`).join(', ')})`);
                         } else if (con.type === 'CHECK') {
-                            cols.push(`CONSTRAINT ${quoteIdent(con.name, 'constraint name')} CHECK (${assertSafeExpression(con.expression, `constraint ${con.name}`)})`);
+                            cols.push(`CONSTRAINT ${quoteIdent(con.name, 'constraint name')} CHECK (${this.quoteColumnsForTable(assertSafeExpression(con.expression, `constraint ${con.name}`), table.columns)})`);
                         }
                     }
                 }
@@ -307,7 +327,7 @@ export class Transpiler {
                                 if (String(role).toUpperCase() !== 'PUBLIC') sql.push(createRoleSql(role));
                             }
                             const roles = roleList.length ? roleList.map(roleRef).join(', ') : 'PUBLIC';
-                            sql.push(`CREATE POLICY ${P} ON ${T} FOR ALL TO ${roles} USING (${assertSafeExpression(pol.using, `policy ${pol.name}`)})`);
+                            sql.push(`CREATE POLICY ${P} ON ${T} FOR ALL TO ${roles} USING (${this.quoteColumnsForTable(assertSafeExpression(pol.using, `policy ${pol.name}`), table.columns)})`);
                         }
                     }
                 }
@@ -339,6 +359,70 @@ export class Transpiler {
                     }
                 }
                 break;
+
+            case 'ADD_COLUMN': {
+                const col = diff.column;
+                const T = `${S}.${quoteIdent(diff.table, 'table name')}`;
+                const customTypes = new Set<string>(manifest?.schemas.find(s => s.name === logicalSchema)?.resources.filter(r => r.type === 'ENUM').map(r => r.name) || []);
+                const isCustomType = customTypes.has(col.type);
+                const isEnumRef = String(col.type).toUpperCase() === 'ENUM' && !!col.ref;
+                const mappedType = isCustomType || isEnumRef ? col.type : this.normalizeType(String(col.type));
+                let d = quoteIdent(col.name, 'column name') + ' ';
+                if (col.strategy === 'IDENTITY_ALWAYS') {
+                    d += `${mappedType} GENERATED ALWAYS AS IDENTITY`;
+                } else if (col.strategy === 'UUID_V7') {
+                    d += `UUID DEFAULT gen_random_uuid()`;
+                } else if (col.strategy === 'LEGACY_SERIAL') {
+                    d += `SERIAL`;
+                } else if (String(col.type).toUpperCase() === 'ENUM' && col.ref) {
+                    d += `${S}.${quoteIdent(col.ref, 'enum reference')}`;
+                } else {
+                    const sized = !isCustomType && col.length && String(col.type).toUpperCase() === 'STRING';
+                    d += isCustomType ? `${S}.${quoteIdent(col.type, 'type')}` : (sized ? `VARCHAR(${Math.trunc(sqlNumber(col.length, 'length'))})` : mappedType);
+                }
+                if (col.default !== undefined && col.default !== null && col.default !== '') {
+                    let defStr = renderDefault(col.default, `column ${col.name} default`);
+                    defStr = defStr.replace(/\b(nextval|currval)\('([^']+)'\)/gi, (m, fn, seq) => `${fn}('${S}."${seq}"')`);
+                    d += ` DEFAULT ${defStr}`;
+                }
+                if (col.unique) d += ' UNIQUE';
+                if (col.nullable === false) d += ' NOT NULL';
+                sql.push(`ALTER TABLE ${T} ADD COLUMN IF NOT EXISTS ${d}`);
+                break;
+            }
+
+            case 'ALTER_COLUMN_TYPE': {
+                const col = diff.column;
+                const T = `${S}.${quoteIdent(diff.table, 'table name')}`;
+                const customTypes = new Set<string>(manifest?.schemas.find(s => s.name === logicalSchema)?.resources.filter(r => r.type === 'ENUM').map(r => r.name) || []);
+                const isCustomType = customTypes.has(col.type);
+                const isEnumRef = String(col.type).toUpperCase() === 'ENUM' && !!col.ref;
+                const mappedType = isCustomType || isEnumRef ? col.type : this.normalizeType(String(col.type));
+                let targetType = '';
+                if (String(col.type).toUpperCase() === 'ENUM' && col.ref) {
+                    targetType = `${S}.${quoteIdent(col.ref, 'enum reference')}`;
+                } else {
+                    const colTypeUpper = String(col.type).toUpperCase();
+                    const sized = !isCustomType && col.length && (colTypeUpper === 'STRING' || colTypeUpper === 'VARCHAR');
+                    targetType = isCustomType ? `${S}.${quoteIdent(col.type, 'type')}` : (sized ? `VARCHAR(${Math.trunc(sqlNumber(col.length, 'length'))})` : mappedType);
+                }
+                const colQ = quoteIdent(col.name, 'column name');
+                // Industrial Robustness: drop default first to prevent incompatible default cast error, alter type with USING (casting to text for VARCHAR to avoid silent data truncation), then re-apply default if specified
+                const usingCast = targetType.toUpperCase().startsWith('VARCHAR') ? 'text' : targetType;
+                sql.push(`ALTER TABLE ${T} ALTER COLUMN ${colQ} DROP DEFAULT`);
+                sql.push(`ALTER TABLE ${T} ALTER COLUMN ${colQ} TYPE ${targetType} USING ${colQ}::${usingCast}`);
+                if (col.default !== undefined && col.default !== null && col.default !== '') {
+                    sql.push(`ALTER TABLE ${T} ALTER COLUMN ${colQ} SET DEFAULT ${renderDefault(col.default, `column ${col.name} default`)}`);
+                }
+                break;
+            }
+
+            case 'ALTER_ENUM_ADD_VALUE': {
+                const enumName = quoteIdent(diff.name, 'enum name');
+                const val = sqlLiteral(diff.value);
+                sql.push(`ALTER TYPE ${S}.${enumName} ADD VALUE IF NOT EXISTS ${val}`);
+                break;
+            }
 
             case 'CREATE_VIEW':
             case 'CREATE_MATERIALIZED_VIEW':
@@ -451,6 +535,16 @@ export class Transpiler {
             // Replace whole-word occurrences not already preceded by NEW./OLD./a dot or quote.
             const re = new RegExp(`(?<![\\w."])\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b(?![\\w"])`, 'g');
             out = out.replace(re, `NEW.${quoteIdent(name, 'column name')}`);
+        }
+        return out;
+    }
+
+    private static quoteColumnsForTable(expr: string, columns: ColumnDefinition[]): string {
+        let out = expr;
+        const names = columns.map(c => c.name).sort((a, b) => b.length - a.length);
+        for (const name of names) {
+            const re = new RegExp(`(?<![\\w."])\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b(?![\\w"])`, 'g');
+            out = out.replace(re, quoteIdent(name, 'column name'));
         }
         return out;
     }

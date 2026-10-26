@@ -44,6 +44,8 @@ export interface ResolvedLeg {
   physicalTable: string | null;
   /** connector config for connector-only legs */
   config: any;
+  /** estimated or exact table row count for Cost-Based Optimization (CBO) */
+  rowCount?: number | null;
 }
 
 export interface QueryPlan {
@@ -196,7 +198,8 @@ export class QueryPlanner {
     if (!effectiveSource || effectiveSource === LOCAL_SOURCE) {
       const cat = await pool.query(
         `SELECT ds.name as source_name, ds.type as engine, ds.sync_type as sync_type, ds.config as config,
-                cs.physical_name as physical_schema, ct.physical_name as physical_table, ct.resource_type
+                cs.physical_name as physical_schema, ct.physical_name as physical_table, ct.resource_type,
+                ct.row_count
          FROM public.catalog_tables ct
          JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
          JOIN public.data_sources ds ON cs.source_id = ds.id
@@ -205,6 +208,7 @@ export class QueryPlanner {
         [tenantId, resource]
       );
       if (cat.rows.length === 0 || cat.rows[0].engine === 'POSTGRES' || cat.rows[0].resource_type === 'MATERIALIZED_VIEW') {
+        const rc = cat.rows[0]?.row_count != null ? Number(cat.rows[0].row_count) : null;
         return {
           source: LOCAL_SOURCE,
           resource,
@@ -214,6 +218,7 @@ export class QueryPlanner {
           physicalSchema: cat.rows[0]?.physical_schema || null,
           physicalTable: cat.rows[0]?.physical_table || resource,
           config: { local: true },
+          rowCount: rc,
         };
       }
       const row = cat.rows[0];
@@ -226,13 +231,15 @@ export class QueryPlanner {
         physicalSchema: row.physical_schema,
         physicalTable: row.physical_table || resource,
         config: row.config || {},
+        rowCount: row.row_count != null ? Number(row.row_count) : null,
       };
     }
 
     // Prefer a catalog row so we know the physical schema/table for connector execution.
     const { rows } = await pool.query(
       `SELECT ds.type AS engine, ds.sync_type AS sync_type, ds.config AS config,
-              cs.physical_name AS physical_schema, ct.physical_name AS physical_table, ct.resource_type
+              cs.physical_name AS physical_schema, ct.physical_name AS physical_table, ct.resource_type,
+              ct.row_count
        FROM public.data_sources ds
        JOIN public.catalog_schemas cs ON cs.source_id = ds.id
        JOIN public.catalog_tables ct ON ct.schema_id = cs.id
@@ -251,6 +258,7 @@ export class QueryPlanner {
         physicalSchema: rows[0].physical_schema || null,
         physicalTable: rows[0].physical_table || resource,
         config: { local: true },
+        rowCount: rows[0].row_count != null ? Number(rows[0].row_count) : null,
       };
     }
 
@@ -259,6 +267,7 @@ export class QueryPlanner {
     let config: any = {};
     let physicalSchema: string | null = null;
     let physicalTable: string | null = resource;
+    let rowCount: number | null = null;
 
     if (rows.length > 0) {
       engine = String(rows[0].engine || 'POSTGRES').toUpperCase();
@@ -266,6 +275,7 @@ export class QueryPlanner {
       config = rows[0].config || {};
       physicalSchema = rows[0].physical_schema || null;
       physicalTable = rows[0].physical_table || resource;
+      rowCount = rows[0].row_count != null ? Number(rows[0].row_count) : null;
     } else {
       // Fall back to the source record alone (table not crawled into the catalog yet).
       const alt = await pool.query(
@@ -288,7 +298,7 @@ export class QueryPlanner {
     // and the connector path works uniformly for every object type and every engine.
     const reachableInPg = syncType === 'SYNC' || syncType === 'CDC';
 
-    return { source: effectiveSource, resource, engine, syncType, reachableInPg, physicalSchema, physicalTable, config };
+    return { source: effectiveSource, resource, engine, syncType, reachableInPg, physicalSchema, physicalTable, config, rowCount };
   }
 
   /**

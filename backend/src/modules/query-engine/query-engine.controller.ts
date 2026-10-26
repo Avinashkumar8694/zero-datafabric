@@ -3,6 +3,7 @@ import { QueryEngineService, QueryConfig } from './query-engine.service';
 import { QueryLogService } from './query-log.service';
 import { wantsStream, streamNdjson, pipeRowStream } from './stream';
 import { tryStream } from './stream_source';
+import { VectorizedEngine } from './vectorized.service';
 import { requestTenant, callerKey, httpStatusOf, pgClientError } from '../../utils/tenantScope';
 const { randomUUID } = require('crypto');
 
@@ -121,6 +122,16 @@ export class QueryEngineController {
       // SELECT-family queries; pass it through so plan/warnings reach the client. Wrap only
       // bare arrays (defensive — legacy callers) to preserve the { data } contract.
       const payload = Array.isArray(result) ? { data: result } : result;
+
+      // Opt-in Vectorized Apache Arrow IPC binary stream response
+      if (VectorizedEngine.wantsArrow(req)) {
+        const rows = payload.data || [];
+        const buffer = VectorizedEngine.toArrowIPCStream(rows);
+        res.setHeader('Content-Type', 'application/vnd.apache.arrow.stream');
+        res.setHeader('X-Fabric-Format', 'apache-arrow');
+        return res.status(200).send(Buffer.from(buffer));
+      }
+
       // Opt-in response streaming: NDJSON rows + a {__meta__} trailer (plan/legs).
       if (wantsStream(req)) {
         return streamNdjson(res, payload.data || [], { rowCount: payload.rowCount, strategy: payload.plan?.strategy, plan: payload.plan, warnings: payload.warnings });

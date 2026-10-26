@@ -68,6 +68,10 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+// In-memory CBO probe cache (60s TTL) to eliminate repeated network probe latency
+const cboProbeCache = new Map<string, { count: number; expiresAt: number }>();
+
+
 // AST where-operator codes -> canonical $ops understood by PushdownCompiler.
 const AST_OP_TO_CANONICAL: Record<string, string> = {
   EQ: '$eq', '=': '$eq',
@@ -301,18 +305,39 @@ export class FederationExecutor {
   private static async estimateLegRows(
     tenantId: string, lm: LegMeta, filter: Record<string, any> | undefined, plan: QueryPlan, tenantSchema: string
   ): Promise<number | null> {
+    const legKey = `${lm.source}::${lm.resource}`;
+    const resolved = plan.resolveMap[legKey];
+
+    // 1. Fast path: If no filter, use catalog row count directly (0ms)
+    if ((!filter || Object.keys(filter).length === 0) && resolved?.rowCount != null) {
+      return resolved.rowCount;
+    }
+
+    // 2. Cache lookup: Return recent probe if still warm
+    const filterKey = filter ? JSON.stringify(filter) : '';
+    const cacheKey = `${tenantId}::${legKey}::${filterKey}`;
+    const cached = cboProbeCache.get(cacheKey);
+    const now = Date.now();
+    if (cached && cached.expiresAt > now) {
+      return cached.count;
+    }
+
     try {
       const rows = await this.fetchLegDirect(
         tenantId,
         { source: lm.source, resource: lm.resource, canonical: { filter: filter || {}, aggregates: [{ func: 'COUNT', column: null, alias: '__cnt' }] } },
         plan, tenantSchema, [], [], 'card-probe'
       );
-      if (!rows || !rows[0]) return null;
+      if (!rows || !rows[0]) return resolved?.rowCount ?? null;
       const v = Object.values(rows[0])[0];   // COUNT-only row → single value, casing-proof (Oracle uppercases aliases)
       const n = Number(v);
-      return Number.isFinite(n) ? n : null;
+      if (Number.isFinite(n)) {
+        cboProbeCache.set(cacheKey, { count: n, expiresAt: now + 60000 });
+        return n;
+      }
+      return resolved?.rowCount ?? null;
     } catch {
-      return null;
+      return resolved?.rowCount ?? null;
     }
   }
 
@@ -1063,23 +1088,45 @@ export class FederationExecutor {
     const cards: Record<string, number | null> = {};
     const twoLegInnerEqui = legMetas.length === 2 && legMetas[1]!.joinType === 'INNER'
       && ['EQ', '='].includes(String(legMetas[1]!.on?.operator || 'EQ').toUpperCase());
-    if (costProbeEnabled() && twoLegInnerEqui) {
-      const L = legMetas[0]!, R = legMetas[1]!;
-      const [cl, cr] = await Promise.all([
-        this.estimateLegRows(tenantId, L, legFilters[L.alias], plan, tenantSchema),
-        this.estimateLegRows(tenantId, R, legFilters[R.alias], plan, tenantSchema),
-      ]);
-      cards[L.alias] = cl; cards[R.alias] = cr;
-      if (cl != null && cr != null) {
-        pushed.push(`cost probe: ${L.alias}~${cl} rows, ${R.alias}~${cr} rows`);
-        if (cr < cl) {
-          const on = R.on!;
-          legMetas[0] = { ...R, joinType: null, on: null };
-          legMetas[1] = { ...L, joinType: 'INNER', on: { left: on.right, operator: on.operator, right: on.left } };
-          pushed.push(`cost-based driving side: "${R.alias}" (~${cr}) drives; "${L.alias}" (~${cl}) is the bind/probe side`);
-        } else {
-          pushed.push(`cost-based driving side: "${L.alias}" (~${cl}) drives (FROM side already the smaller)`);
+    const multiLegInnerEqui = legMetas.length > 2 && legMetas.slice(1).every((lm) => lm.joinType === 'INNER'
+      && ['EQ', '='].includes(String(lm.on?.operator || 'EQ').toUpperCase()));
+
+    if (costProbeEnabled() && (twoLegInnerEqui || multiLegInnerEqui)) {
+      await Promise.all(legMetas.map(async (lm) => {
+        cards[lm.alias] = await this.estimateLegRows(tenantId, lm, legFilters[lm.alias], plan, tenantSchema);
+      }));
+
+      let bestIdx = 0;
+      let minCard = cards[legMetas[0]!.alias] ?? Infinity;
+      for (let i = 0; i < legMetas.length; i++) {
+        const c = cards[legMetas[i]!.alias];
+        if (c != null && c < minCard) {
+          minCard = c;
+          bestIdx = i;
         }
+      }
+
+      if (twoLegInnerEqui) {
+        const L = legMetas[0]!, R = legMetas[1]!;
+        const cl = cards[L.alias], cr = cards[R.alias];
+        if (cl != null && cr != null) {
+          pushed.push(`cost probe: ${L.alias}~${cl} rows, ${R.alias}~${cr} rows`);
+          if (cr < cl) {
+            const on = R.on!;
+            legMetas[0] = { ...R, joinType: null, on: null };
+            legMetas[1] = { ...L, joinType: 'INNER', on: { left: on.right, operator: on.operator, right: on.left } };
+            pushed.push(`cost-based driving side: "${R.alias}" (~${cr}) drives; "${L.alias}" (~${cl}) is the bind/probe side`);
+          } else {
+            pushed.push(`cost-based driving side: "${L.alias}" (~${cl}) drives (FROM side already the smaller)`);
+          }
+        }
+      } else if (multiLegInnerEqui && bestIdx !== 0 && Number.isFinite(minCard)) {
+        const chosen = legMetas[bestIdx]!;
+        const origDriving = legMetas[0]!;
+        const on = chosen.on!;
+        legMetas[0] = { ...chosen, joinType: null, on: null };
+        legMetas[bestIdx] = { ...origDriving, joinType: 'INNER', on: { left: on.right, operator: on.operator, right: on.left } };
+        pushed.push(`multi-leg CBO driving side: "${chosen.alias}" (~${minCard}) selected as driving leg across ${legMetas.length} legs`);
       }
     }
 

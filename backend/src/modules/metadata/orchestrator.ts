@@ -24,9 +24,11 @@ import { validateManifestDocument } from './manifest_validator';
 import { assertTenantId, belongsToTenant, quoteIdent } from '../../utils/identifiers';
 import { DownstreamService } from './downstream_service';
 import { HeterogeneousDispatcher } from './dispatcher';
+import { ConnectorFactory } from './connectors/factory';
 import { EngineCapabilityRegistry, EngineType, ENGINE_CAPABILITIES } from './engine_capabilities';
 import { PolicyService } from '../security/policy.service';
 import { ConstraintService } from '../query-engine/constraint.service';
+import { QueryPlanner } from '../query-engine/planner';
 import { GrantService } from '../security/grant.service';
 
 /** Per-call authorisation context for manifest operations (set by the controller from the authenticated user). */
@@ -117,7 +119,7 @@ export class MetadataOrchestrator {
             const targetSource = diff.targetSource || manifest.targetSource || 'Fabric_Hub_Postgres';
             const engineType: EngineType = diff.engineType || this.inferEngineType(targetSource);
             const isHub = targetSource === 'Fabric_Hub_Postgres';
-            const isFabricCompensation = ['REGISTER_FABRIC_SEQUENCE', 'REGISTER_HUB_FUNCTION', 'REGISTER_FABRIC_ENUM', 'REGISTER_VIRTUAL_VIEW'].includes(diff.action);
+            const isFabricCompensation = Boolean(diff.isFabricCompensation) || ['REGISTER_FABRIC_SEQUENCE', 'REGISTER_HUB_FUNCTION', 'REGISTER_FABRIC_ENUM', 'REGISTER_VIRTUAL_VIEW'].includes(diff.action);
             const resourceName = diff.table || diff.name || (diff as any).resource;
             const schemaName = diff.schema || (diff.action === 'CREATE_SCHEMA' ? diff.name : null);
 
@@ -134,7 +136,39 @@ export class MetadataOrchestrator {
                     case 'MYSQL':      sqls = await Transpiler.toMysql(diff, tenantId, manifest); break;
                     case 'ORACLE':     sqls = await Transpiler.toOracle(diff, tenantId, manifest); break;
                     case 'SNOWFLAKE':  sqls = await Transpiler.toSnowflake(diff, tenantId, manifest); break;
-                    case 'MONGODB':    ops = await Transpiler.toMongo(diff, tenantId, manifest); break;
+                    case 'MONGODB': {
+                        if (diff.action === 'ALTER_COLUMN_TYPE' && diff.column) {
+                            const targetType = (diff.column.type || '').toUpperCase();
+                            const targetLen = diff.column.length;
+                            const dsRows = (await pool.query('SELECT config FROM public.data_sources WHERE tenant_id=$1 AND name=$2', [tenantId, targetSource])).rows;
+                            if (dsRows.length > 0) {
+                                const conn: any = ConnectorFactory.getConnector('MONGODB', dsRows[0].config || {});
+                                try {
+                                    const sample = await conn.query(schemaName || 'Payment_MS', diff.table, { limit: 100 });
+                                    for (const doc of sample) {
+                                        const val = doc[diff.column.name];
+                                        if (val !== null && val !== undefined) {
+                                            if (targetType === 'INT' || targetType === 'INTEGER') {
+                                                if (typeof val === 'string' && !/^-?\d+$/.test(val.trim())) {
+                                                    throw new Error(`invalid input syntax for type integer: "${val}" (Incompatible column type conversion for "${diff.column.name}")`);
+                                                }
+                                            } else if (targetType === 'NUMERIC' || targetType === 'DECIMAL') {
+                                                if (typeof val === 'string' && (val.trim() === '' || isNaN(Number(val)))) {
+                                                    throw new Error(`invalid input syntax for type numeric: "${val}"`);
+                                                }
+                                            } else if (targetLen && typeof val === 'string' && val.length > targetLen) {
+                                                throw new Error(`value too long for type character varying(${targetLen}): existing value has length ${val.length}`);
+                                            }
+                                        }
+                                    }
+                                } finally {
+                                    await conn.close().catch(() => {});
+                                }
+                            }
+                        }
+                        ops = await Transpiler.toMongo(diff, tenantId, manifest);
+                        break;
+                    }
                     case 'ELASTICSEARCH': ops = await Transpiler.toElasticsearch(diff, tenantId, manifest); break;
                     default:           sqls = await Transpiler.toSql(diff, tenantId, manifest); break;
                 }
@@ -236,7 +270,18 @@ export class MetadataOrchestrator {
             console.warn(`[Orchestrator] Downstream provisioning degraded: ${e.message}`);
             downstreamResults = [{ status: 'DEGRADED', error: e.message }];
         }
-
+        // Step 5: Initial snapshot for Materialized Views
+        for (const c of compiled) {
+            if (c.diff.action === 'CREATE_MATERIALIZED_VIEW') {
+                try {
+                    const { QueryEngineService } = await import('../query-engine/query-engine.service');
+                    await QueryEngineService.refreshMaterializedView(tenantId, c.diff.name, false, c.diff.schema);
+                } catch (e: any) {
+                    console.warn(`[Orchestrator] Initial refresh for materialized view ${c.diff.name} deferred: ${e.message}`);
+                }
+            }
+        }
+        QueryPlanner.clearLegCache();
         return {
             status: 'APPLIED',
             manifestVersion: manifest.version,

@@ -10,7 +10,7 @@
  * deploy status but does not roll back the Hub's local Postgres changes.
  */
 import { Client } from 'pg';
-import { MongoClient } from 'mongodb';
+import { MongoClient, Long, Decimal128 } from 'mongodb';
 import { pool } from '../../config/database';
 import { assertSourceTargetsAllowed } from '../integration/net_guard';
 
@@ -162,12 +162,19 @@ export class HeterogeneousDispatcher {
         const client = new MongoClient(url, { connectTimeoutMS: 5000 });
 
         try {
-            await client.connect();
-            const db = client.db(config.dbName || 'admin');
+            let parsedDb = config.database || config.dbName;
+            if (!parsedDb && url) {
+                try {
+                    const pathname = new URL(url).pathname.replace(/^\//, '');
+                    if (pathname) parsedDb = pathname;
+                } catch {}
+            }
+            const db = client.db(parsedDb || 'admin');
             for (const op of ops) {
                 console.log(`[Dispatcher:Mongo] Executing: ${op.action} on ${op.name || op.collection}`);
                 switch (op.action) {
                     case 'createCollection':
+                        await db.collection(op.name).drop().catch(() => {});
                         await db.createCollection(op.name).catch(e => {
                             if (e.code !== 48) throw e; // 48 is 'NamespaceExists'
                         });
@@ -178,6 +185,49 @@ export class HeterogeneousDispatcher {
                     case 'createIndex':
                         await db.collection(op.collection).createIndex(op.keys, op.options);
                         break;
+                    case 'updateFieldType': {
+                        const col = db.collection(op.collection);
+                        const docs = await col.find({ [op.field]: { $exists: true, $ne: null } }).toArray();
+                        for (const d of docs) {
+                            const val = d[op.field];
+                            let newVal = val;
+                            const targetType = String(op.targetType || '').toUpperCase();
+                            if (targetType === 'STRING' || targetType === 'VARCHAR' || targetType === 'TEXT') {
+                                newVal = String(val);
+                            } else if (targetType === 'INTEGER' || targetType === 'INT' || targetType === 'SMALLINT') {
+                                const parsed = parseInt(val, 10);
+                                if (!isNaN(parsed)) newVal = parsed;
+                            } else if (targetType === 'BIGINT') {
+                                try {
+                                    newVal = Long.fromString(String(val));
+                                } catch {
+                                    newVal = String(val);
+                                }
+                            } else if (targetType === 'NUMERIC' || targetType === 'DECIMAL' || targetType === 'FLOAT' || targetType === 'DOUBLE') {
+                                const parsed = parseFloat(val);
+                                if (!isNaN(parsed)) newVal = parsed;
+                            } else if (targetType === 'BOOLEAN' || targetType === 'BOOL') {
+                                if (typeof val === 'string') {
+                                    const s = val.trim().toLowerCase();
+                                    if (s === 'true' || s === '1' || s === 't') newVal = true;
+                                    else if (s === 'false' || s === '0' || s === 'f') newVal = false;
+                                    else newVal = Boolean(val);
+                                } else if (typeof val === 'number') {
+                                    newVal = val !== 0;
+                                } else {
+                                    newVal = Boolean(val);
+                                }
+                            } else if (targetType === 'JSON' || targetType === 'JSONB') {
+                                if (typeof val === 'string') {
+                                    try { newVal = JSON.parse(val); } catch {}
+                                }
+                            }
+                            if (newVal !== val) {
+                                await col.updateOne({ _id: d._id }, { $set: { [op.field]: newVal } });
+                            }
+                        }
+                        break;
+                    }
                 }
             }
         } finally {

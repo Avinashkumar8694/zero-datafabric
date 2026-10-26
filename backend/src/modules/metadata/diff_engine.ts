@@ -82,7 +82,7 @@ export class DiffEngine {
                 const sortedResources = this.sortResources(schema.resources || []);
 
                 for (const resource of sortedResources) {
-                    await this.processResourceDiff(client, schemaName, schema.name, resource, diffs, targetSource, engineType, caps);
+                    await this.processResourceDiff(client, schemaName, schema.name, resource, diffs, targetSource, engineType, caps, tenantId);
                 }
 
                 // 4. Logical Deletion / Quarantine
@@ -166,7 +166,7 @@ export class DiffEngine {
      * @param engineType Resolved engine type for the target source.
      * @param caps Engine capability descriptor.
      */
-    private static async processResourceDiff(client: any, schemaName: string, shortSchemaName: string, resource: ResourceDefinition, diffs: any[], targetSource: string, engineType: EngineType, caps: EngineCapability) {
+    private static async processResourceDiff(client: any, schemaName: string, shortSchemaName: string, resource: ResourceDefinition, diffs: any[], targetSource: string, engineType: EngineType, caps: EngineCapability, tenantId?: string) {
         switch (resource.type) {
             case 'ENUM':
                 await this.diffEnum(client, schemaName, shortSchemaName, resource, diffs, targetSource, engineType, caps);
@@ -175,7 +175,7 @@ export class DiffEngine {
                 await this.diffSequence(client, schemaName, shortSchemaName, resource, diffs, targetSource, engineType, caps);
                 break;
             case 'TABLE':
-                await this.diffTable(client, schemaName, shortSchemaName, resource, diffs, targetSource, engineType, caps);
+                await this.diffTable(client, schemaName, shortSchemaName, resource, diffs, targetSource, engineType, caps, tenantId);
                 break;
             case 'VIEW':
             case 'MATERIALIZED_VIEW':
@@ -237,7 +237,7 @@ export class DiffEngine {
             }
         } else {
             // No native sequences: register in FabricSequenceService for write-time compensation
-            diffs.push({ ...res, action: 'REGISTER_FABRIC_SEQUENCE', schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
+            diffs.push({ ...res, action: 'CREATE_SEQUENCE', isFabricCompensation: true, schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
         }
     }
 
@@ -287,7 +287,7 @@ export class DiffEngine {
      * - Engines without introspection (Mongo, ES): always emits `CREATE_TABLE`
      *   (transpiler converts to createCollection / index template as appropriate).
      */
-    private static async diffTable(client: any, schemaName: string, shortSchemaName: string, res: TableDefinition, diffs: any[], targetSource: string, engineType: EngineType, caps: EngineCapability) {
+    private static async diffTable(client: any, schemaName: string, shortSchemaName: string, res: TableDefinition, diffs: any[], targetSource: string, engineType: EngineType, caps: EngineCapability, tenantId?: string) {
         if (caps.catalogIntrospection) {
             const exists = await client.query(`SELECT 1 FROM information_schema.tables WHERE table_schema = $1 AND table_name = $2 AND table_type = 'BASE TABLE'`, [schemaName, res.name]);
             if (exists.rows.length === 0) {
@@ -323,8 +323,39 @@ export class DiffEngine {
                 }
             }
         } else {
-            // No catalog introspection (Mongo, ES): assume creation needed
-            diffs.push({ ...res, action: 'CREATE_TABLE', schema: shortSchemaName, targetSource, engineType, table: res.name, risk: 'LOW' });
+            // No native catalog introspection (Mongo, ES): compare against Data Fabric's catalog
+            const prev = tenantId ? await client.query(
+                `SELECT ct.definition_ast FROM public.catalog_tables ct
+                 JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+                 JOIN public.data_sources ds ON cs.source_id = ds.id
+                 WHERE ds.tenant_id = $1 AND ct.name = $2 LIMIT 1`,
+                [tenantId, res.name]
+            ) : { rows: [] };
+
+            if (prev.rows.length === 0 || !prev.rows[0].definition_ast) {
+                diffs.push({ ...res, action: 'CREATE_TABLE', schema: shortSchemaName, targetSource, engineType, table: res.name, risk: 'LOW' });
+            } else {
+                const prevCols = prev.rows[0].definition_ast.columns || [];
+                const prevColMap = new Map<string, any>(prevCols.map((c: any) => [c.name, c]));
+                for (const col of res.columns) {
+                    const prevCol = prevColMap.get(col.name);
+                    if (!prevCol) {
+                        diffs.push({ action: 'ADD_COLUMN', schema: shortSchemaName, targetSource, engineType, table: res.name, column: col, risk: 'LOW' });
+                    } else {
+                        const prevDec = DiffEngine.normalizeDeclaredType(prevCol.type, prevCol.length);
+                        const curDec = DiffEngine.normalizeDeclaredType(col.type, col.length);
+                        let typeChanged = false;
+                        if (prevDec.family !== curDec.family) {
+                            typeChanged = true;
+                        } else if (curDec.family === 'VARCHAR' && prevDec.length !== curDec.length) {
+                            typeChanged = true;
+                        }
+                        if (typeChanged) {
+                            diffs.push({ action: 'ALTER_COLUMN_TYPE', schema: shortSchemaName, targetSource, engineType, table: res.name, column: col, risk: 'LOW' });
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -337,14 +368,12 @@ export class DiffEngine {
         const isMaterialized = res.type === 'MATERIALIZED_VIEW' || res.materialized;
 
         if (isMaterialized && !caps.supportsMaterializedViews) {
-            // Downgrade: engine doesn't support mviews — register as virtual in fabric
-            diffs.push({ ...res, action: 'REGISTER_VIRTUAL_VIEW', schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
+            diffs.push({ ...res, action: 'CREATE_MATERIALIZED_VIEW', isFabricCompensation: true, schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
             return;
         }
 
         if (!caps.supportsViews) {
-            // Engine doesn't support views at all — register as virtual in fabric engine
-            diffs.push({ ...res, action: 'REGISTER_VIRTUAL_VIEW', schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
+            diffs.push({ ...res, action: isMaterialized ? 'CREATE_MATERIALIZED_VIEW' : 'CREATE_VIEW', isFabricCompensation: true, schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
             return;
         }
 
@@ -384,7 +413,8 @@ export class DiffEngine {
             }
         } else {
             // No native function support: provision on the HUB and register as a value-service
-            diffs.push({ ...res, action: 'REGISTER_HUB_FUNCTION', schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
+            const action = res.type === 'PROCEDURE' ? 'CREATE_PROCEDURE' : 'CREATE_FUNCTION';
+            diffs.push({ ...res, action, isFabricCompensation: true, schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
         }
     }
 

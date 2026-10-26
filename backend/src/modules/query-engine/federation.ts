@@ -27,7 +27,7 @@
  * to a bounded full fetch (also warned).
  */
 
-import { queryWithContext } from '../../config/database';
+import { pool, queryWithContext } from '../../config/database';
 import { ConnectorFactory, ElasticsearchConnector } from '../metadata/connectors/factory';
 import { PushdownCompiler, CanonicalQuery } from './pushdown';
 import { QueryPlan, QueryPlanner, LOCAL_SOURCE, ResolvedLeg } from './planner';
@@ -443,6 +443,59 @@ export class FederationExecutor {
         rows = await connector.query(schema, table, bounded);
       } finally {
         await connector.close();
+      }
+      if (leg.engine === 'MONGODB' && Array.isArray(rows) && rows.length > 0) {
+        try {
+          const catRes = await pool.query(
+            `SELECT ct.definition_ast FROM public.catalog_tables ct
+             JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+             JOIN public.data_sources ds ON cs.source_id = ds.id
+             WHERE ds.tenant_id = $1 AND ct.name = $2 LIMIT 1`,
+            [tenantId, table]
+          );
+          const defAst = catRes.rows[0]?.definition_ast;
+          if (defAst && Array.isArray(defAst.columns)) {
+            const colMap = new Map<string, string>();
+            for (const c of defAst.columns) {
+              if (c.name && c.type) colMap.set(c.name, String(c.type).toUpperCase());
+            }
+            for (const r of rows) {
+              if (r._id && !r.id) r.id = String(r._id);
+              for (const [colName, colType] of colMap.entries()) {
+                const v = r[colName];
+                if (v === null || v === undefined) continue;
+                if (colType === 'STRING' || colType === 'VARCHAR' || colType === 'TEXT') {
+                  r[colName] = String(v);
+                } else if (colType === 'INTEGER' || colType === 'INT' || colType === 'SMALLINT') {
+                  const num = parseInt(v, 10);
+                  if (!isNaN(num)) r[colName] = num;
+                } else if (colType === 'BIGINT') {
+                  r[colName] = String(v);
+                } else if (colType === 'NUMERIC' || colType === 'DECIMAL' || colType === 'FLOAT' || colType === 'DOUBLE') {
+                  const num = parseFloat(v);
+                  if (!isNaN(num)) r[colName] = num;
+                } else if (colType === 'BOOLEAN' || colType === 'BOOL') {
+                  if (typeof v === 'string') {
+                    const s = v.trim().toLowerCase();
+                    if (s === 'true' || s === '1') r[colName] = true;
+                    else if (s === 'false' || s === '0') r[colName] = false;
+                    else r[colName] = Boolean(v);
+                  } else if (typeof v === 'number') {
+                    r[colName] = v !== 0;
+                  } else {
+                    r[colName] = Boolean(v);
+                  }
+                } else if (colType === 'JSON' || colType === 'JSONB') {
+                  if (typeof v === 'string') {
+                    try { r[colName] = JSON.parse(v); } catch {}
+                  }
+                }
+              }
+            }
+          }
+        } catch (e: any) {
+          console.warn(`[Federation] Mongo schema coercion failed: ${e.message}`);
+        }
       }
       if (policyMasks.length) {
         rows = PolicyService.applyMasks(rows, policyMasks, session);
@@ -1084,6 +1137,7 @@ export class FederationExecutor {
     let drivingChunk: any[] = [];
     const windowSize = 1000;
 
+    const cap = maxRowsPerLeg();
     for await (const row of drivingStream) {
       drivingChunk.push(row);
       if (drivingChunk.length >= windowSize) {
@@ -1093,15 +1147,20 @@ export class FederationExecutor {
         );
         acc.push(...joinedChunk);
         drivingChunk = [];
+        if (acc.length >= cap) {
+          warnings.push(`Cross-engine join output reached safe in-memory limit (${cap} rows); capped to prevent heap exhaustion.`);
+          break;
+        }
       }
     }
 
-    if (drivingChunk.length > 0) {
+    if (drivingChunk.length > 0 && acc.length < cap) {
       const joinedChunk = await this.joinChunk(
         tenantId, drivingChunk, driving.alias, legMetas.slice(1), legFilters,
         plan, tenantSchema, warnings, trace, selectFor, bindMax, pushed
       );
       acc.push(...joinedChunk);
+      if (acc.length > cap) acc = acc.slice(0, cap);
     }
 
     // Return post-WHERE joined rows; projection / aggregation / order+limit are

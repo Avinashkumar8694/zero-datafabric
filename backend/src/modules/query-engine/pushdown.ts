@@ -16,7 +16,7 @@
 
 export type SqlDialect = 'postgres' | 'mysql' | 'snowflake' | 'oracle';
 
-export type AggFunc = 'COUNT' | 'SUM' | 'MIN' | 'MAX' | 'AVG' | 'COUNT_DISTINCT' | 'PERCENTILE';
+export type AggFunc = 'COUNT' | 'SUM' | 'MIN' | 'MAX' | 'AVG' | 'COUNT_DISTINCT' | 'PERCENTILE' | 'STDDEV' | 'STDDEV_SAMP' | 'STDDEV_POP' | 'VARIANCE' | 'VAR_SAMP' | 'VAR_POP' | 'ARRAY_AGG' | string;
 
 export interface AggregateSpec {
   func: AggFunc;
@@ -619,14 +619,35 @@ export class PushdownCompiler {
 
     const group: Record<string, any> = { _id: groupBy.length ? id : null };
     const distinctAliases: string[] = [];
+    const varianceAliases: string[] = [];
     for (const a of aggregates) {
-      switch (a.func) {
+      const numPath = a.column ? { $toDouble: `$${a.column}` } : 1;
+      switch (String(a.func).toUpperCase()) {
         case 'COUNT': group[a.alias] = { $sum: 1 }; break;
-        case 'SUM': group[a.alias] = { $sum: `$${a.column}` }; break;
+        case 'SUM': group[a.alias] = { $sum: numPath }; break;
         case 'MIN': group[a.alias] = { $min: `$${a.column}` }; break;
         case 'MAX': group[a.alias] = { $max: `$${a.column}` }; break;
-        case 'AVG': group[a.alias] = { $avg: `$${a.column}` }; break;
+        case 'AVG': group[a.alias] = { $avg: numPath }; break;
         case 'COUNT_DISTINCT': group[a.alias] = { $addToSet: `$${a.column}` }; distinctAliases.push(a.alias); break;
+        case 'STDDEV':
+        case 'STDDEV_SAMP':
+          group[a.alias] = { $stdDevSamp: numPath };
+          break;
+        case 'STDDEV_POP':
+          group[a.alias] = { $stdDevPop: numPath };
+          break;
+        case 'VARIANCE':
+        case 'VAR_SAMP':
+          group['__' + a.alias + '_stddev'] = { $stdDevSamp: numPath };
+          varianceAliases.push(a.alias);
+          break;
+        case 'VAR_POP':
+          group['__' + a.alias + '_stddev'] = { $stdDevPop: numPath };
+          varianceAliases.push(a.alias);
+          break;
+        case 'ARRAY_AGG':
+          group[a.alias] = { $push: `$${a.column}` };
+          break;
       }
     }
     pipeline.push({ $group: group });
@@ -634,7 +655,15 @@ export class PushdownCompiler {
     // Flatten _id.<g> back to top-level columns and turn distinct sets into counts.
     const project: Record<string, any> = { _id: 0 };
     for (const g of groupFields) project[g] = `$_id.${this.ident(g)}`;
-    for (const a of aggregates) project[a.alias] = distinctAliases.includes(a.alias) ? { $size: `$${a.alias}` } : `$${a.alias}`;
+    for (const a of aggregates) {
+      if (distinctAliases.includes(a.alias)) {
+        project[a.alias] = { $size: `$${a.alias}` };
+      } else if (varianceAliases.includes(a.alias)) {
+        project[a.alias] = { $pow: [`$__${a.alias}_stddev`, 2] };
+      } else {
+        project[a.alias] = `$${a.alias}`;
+      }
+    }
     pipeline.push({ $project: project });
 
     if (orderBy && orderBy.length > 0) {
@@ -654,18 +683,56 @@ export class PushdownCompiler {
    */
   static toMongoJoin(ast: any): any[] {
     const pipeline: any[] = [];
-    const fromResource = ast.from?.resource;
+    let fromResource = ast.from?.resource;
     if (!fromResource) throw new Error('toMongoJoin: missing FROM resource');
+
+    const cteMap = new Map<string, any>();
+    if (Array.isArray(ast.with)) {
+      for (const cte of ast.with) {
+        if (cte && cte.name) cteMap.set(cte.name, cte);
+      }
+    }
+
+    const extraWhere: any[] = [];
+    if (cteMap.has(fromResource)) {
+      const cte = cteMap.get(fromResource);
+      if (cte.base?.from?.resource) fromResource = cte.base.from.resource;
+      if (Array.isArray(cte.base?.where)) extraWhere.push(...cte.base.where);
+    }
+
+    const fromName = ast.from?.alias || ast.from?.resource;
+
+    const resolveField = (raw: string): { outputKey: string; sourcePath: string } => {
+      const parts = raw.split('.');
+      if (parts.length > 1) {
+        const tableOrAlias = parts[0];
+        const col = parts.slice(1).join('.');
+        if (tableOrAlias === fromName) {
+          return { outputKey: col, sourcePath: `$${col}` };
+        } else {
+          return { outputKey: col, sourcePath: `$${tableOrAlias}.${col}` };
+        }
+      }
+      return { outputKey: raw, sourcePath: `$${raw}` };
+    };
 
     // 1. Process Joins using $lookup and $unwind
     if (Array.isArray(ast.joins)) {
       for (const j of ast.joins) {
-        const rightResource = j.resource;
+        let rightResource = j.resource;
+        if (cteMap.has(rightResource)) {
+          const cte = cteMap.get(rightResource);
+          if (cte.base?.from?.resource) rightResource = cte.base.from.resource;
+          if (Array.isArray(cte.base?.where)) extraWhere.push(...cte.base.where);
+        }
         const alias = j.alias || rightResource;
         const on = j.on || {};
         
-        // Strip alias prefixes to get clean field names (e.g. inv.sku -> sku)
-        const leftCol = String(on.left || '').includes('.') ? String(on.left).split('.').slice(1).join('.') : on.left;
+        // If leftCol belongs to the root from table, strip the table prefix (e.g. invoices.id -> id).
+        // If leftCol belongs to an already joined table (e.g. invoice_tags_bridge.tags_id), keep it intact!
+        const leftCol = String(on.left || '').startsWith(fromName + '.')
+          ? String(on.left).slice(fromName.length + 1)
+          : on.left;
         const rightCol = String(on.right || '').includes('.') ? String(on.right).split('.').slice(1).join('.') : on.right;
         
         pipeline.push({
@@ -686,14 +753,25 @@ export class PushdownCompiler {
       }
     }
 
+    const allWhere = [...extraWhere, ...(Array.isArray(ast.where) ? ast.where : [])];
+
     // 2. Process Filters ($match)
-    if (Array.isArray(ast.where) && ast.where.length > 0) {
+    if (allWhere.length > 0) {
       const matchObj: Record<string, any> = {};
-      for (const w of ast.where) {
-        if (!w || !w.column) continue;
+      for (const w of allWhere) {
+        if (!w) continue;
+        if (w.search) {
+          const col = w.search.column;
+          const query = String(w.search.query || '');
+          const words = query.trim().split(/\s+/).map((word: string) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+          const regexStr = words.map((word: string) => `(?=.*${word})`).join('') + '.*';
+          matchObj[col] = { $regex: new RegExp(regexStr, 'i') };
+          continue;
+        }
+        if (!w.column) continue;
         const colPath = w.column;
         const parts = colPath.split('.');
-        const cleanCol = parts.length > 1 && parts[0] === ast.from?.alias ? parts.slice(1).join('.') : colPath;
+        const cleanCol = parts.length > 1 && parts[0] === fromName ? parts.slice(1).join('.') : colPath;
         
         const rawOp = String(w.operator || 'EQ').toUpperCase();
         const op = rawOp === 'EQ' ? '$eq' : rawOp === 'NE' ? '$ne' : rawOp === 'GT' ? '$gt' : rawOp === 'GTE' ? '$gte' : rawOp === 'LT' ? '$lt' : rawOp === 'LTE' ? '$lte' : rawOp === 'IN' ? '$in' : null;
@@ -701,6 +779,10 @@ export class PushdownCompiler {
         
         if (op) {
           matchObj[cleanCol] = { [op]: val };
+        } else if (rawOp === 'IS_NULL') {
+          matchObj[cleanCol] = { $eq: null };
+        } else if (rawOp === 'IS_NOT_NULL') {
+          matchObj[cleanCol] = { $ne: null };
         }
       }
       if (Object.keys(matchObj).length > 0) {
@@ -708,19 +790,120 @@ export class PushdownCompiler {
       }
     }
 
+    // 2.5 Process Group By ($group)
+    const hasAggs = Array.isArray(ast.select) && ast.select.some((s: any) => s && typeof s === 'object' && s.aggregate);
+    const hasGroupBy = (Array.isArray(ast.groupBy) && ast.groupBy.length > 0) || hasAggs;
+    const countDistinctAliases: string[] = [];
+    const varianceAliases: string[] = [];
+    if (hasGroupBy) {
+      const groupId: any = (Array.isArray(ast.groupBy) && ast.groupBy.length > 0) ? {} : null;
+      const groupStage: Record<string, any> = { _id: groupId };
+      
+      if (Array.isArray(ast.groupBy)) {
+        for (const gb of ast.groupBy) {
+          const { outputKey, sourcePath } = resolveField(gb);
+          if (groupId) groupId[outputKey] = sourcePath;
+          groupStage[outputKey] = { $first: sourcePath };
+        }
+      }
+
+      if (Array.isArray(ast.select)) {
+        for (const s of ast.select) {
+          if (s && typeof s === 'object' && s.aggregate) {
+            const alias = s.alias || s.column || 'agg';
+            const agg = String(s.aggregate).toUpperCase();
+            const { sourcePath } = s.column ? resolveField(s.column) : { sourcePath: 1 };
+            const numPath = { $toDouble: sourcePath };
+            if (agg === 'COUNT') {
+              groupStage[alias] = { $sum: 1 };
+            } else if (agg === 'SUM') {
+              groupStage[alias] = { $sum: numPath };
+            } else if (agg === 'AVG') {
+              groupStage[alias] = { $avg: numPath };
+            } else if (agg === 'MAX') {
+              groupStage[alias] = { $max: numPath };
+            } else if (agg === 'MIN') {
+              groupStage[alias] = { $min: numPath };
+            } else if (agg === 'COUNT_DISTINCT') {
+              groupStage['__' + alias + '_set'] = { $addToSet: sourcePath };
+              countDistinctAliases.push(alias);
+            } else if (agg === 'STDDEV') {
+              groupStage[alias] = { $stdDevSamp: numPath };
+            } else if (agg === 'VARIANCE') {
+              groupStage['__' + alias + '_stddev'] = { $stdDevSamp: numPath };
+              varianceAliases.push(alias);
+            } else if (agg === 'ARRAY_AGG') {
+              groupStage[alias] = { $push: sourcePath };
+            }
+          }
+        }
+      }
+      pipeline.push({ $group: groupStage });
+      if (countDistinctAliases.length > 0 || varianceAliases.length > 0) {
+        const cdProject: Record<string, any> = {};
+        for (const k of Object.keys(groupStage)) {
+          if (k === '_id') continue;
+          if (k.startsWith('__')) continue;
+          cdProject[k] = 1;
+        }
+        for (const a of countDistinctAliases) {
+          cdProject[a] = { $size: `$__${a}_set` };
+        }
+        for (const v of varianceAliases) {
+          cdProject[v] = { $pow: [`$__${v}_stddev`, 2] };
+        }
+        pipeline.push({ $project: cdProject });
+      }
+
+      // Process Having ($match on aggregated fields)
+      if (Array.isArray(ast.having) && ast.having.length > 0) {
+        const havingMatch: Record<string, any> = {};
+        for (const h of ast.having) {
+          if (!h || !h.column) continue;
+          const rawOp = String(h.operator || 'EQ').toUpperCase();
+          const op = rawOp === 'EQ' ? '$eq' : rawOp === 'NE' ? '$ne' : rawOp === 'GT' ? '$gt' : rawOp === 'GTE' ? '$gte' : rawOp === 'LT' ? '$lt' : rawOp === 'LTE' ? '$lte' : null;
+          if (op) {
+            havingMatch[h.column] = { [op]: Number(h.value) };
+          }
+        }
+        if (Object.keys(havingMatch).length > 0) {
+          pipeline.push({ $match: havingMatch });
+        }
+      }
+    }
+
+    // 2.7 Process Distinct
+    if (ast.distinct === true && Array.isArray(ast.select)) {
+      const distinctGroup: Record<string, any> = {};
+      const distinctProject: Record<string, any> = { _id: 0 };
+      for (const s of ast.select) {
+        const col = typeof s === 'string' ? s : (s.alias || s.column);
+        distinctGroup[col] = `$${col}`;
+        distinctProject[col] = `$_id.${col}`;
+      }
+      pipeline.push({ $group: { _id: distinctGroup } });
+      pipeline.push({ $project: distinctProject });
+    }
+
     // 3. Process Projections ($project)
-    if (Array.isArray(ast.select) && ast.select.length > 0 && !ast.select.includes('*')) {
+    if (!ast.distinct && Array.isArray(ast.select) && ast.select.length > 0 && !ast.select.includes('*')) {
       const projectObj: Record<string, any> = { _id: 0 };
+
       for (const s of ast.select) {
         if (typeof s === 'string') {
-          const parts = s.split('.');
-          const cleanCol = parts.length > 1 && parts[0] === ast.from?.alias ? parts.slice(1).join('.') : s;
-          projectObj[cleanCol] = `$${cleanCol}`;
-        } else if (s && typeof s === 'object' && s.column) {
-          const alias = s.alias || s.column;
-          const parts = s.column.split('.');
-          const cleanCol = parts.length > 1 && parts[0] === ast.from?.alias ? parts.slice(1).join('.') : s.column;
-          projectObj[alias] = `$${cleanCol}`;
+          const { outputKey, sourcePath } = resolveField(s);
+          const src = hasGroupBy ? `$${outputKey}` : sourcePath;
+          projectObj[outputKey] = src;
+          if (s !== outputKey) projectObj[s] = src;
+        } else if (s && typeof s === 'object') {
+          if (s.alias) {
+            projectObj[s.alias] = `$${s.alias}`;
+          } else if (s.column) {
+            const { outputKey, sourcePath } = resolveField(s.column);
+            const src = hasGroupBy ? `$${outputKey}` : sourcePath;
+            projectObj[outputKey] = src;
+            if (s.column !== outputKey) projectObj[s.column] = src;
+          }
         }
       }
       pipeline.push({ $project: projectObj });
@@ -731,7 +914,7 @@ export class PushdownCompiler {
       const sortObj: Record<string, 1 | -1> = {};
       for (const o of ast.orderBy) {
         const parts = o.column.split('.');
-        const cleanCol = parts.length > 1 && parts[0] === ast.from?.alias ? parts.slice(1).join('.') : o.column;
+        const cleanCol = hasGroupBy ? (parts.length > 1 ? parts.slice(1).join('.') : o.column) : (parts.length > 1 && parts[0] === fromName ? parts.slice(1).join('.') : o.column);
         sortObj[cleanCol] = o.direction === 'DESC' ? -1 : 1;
       }
       pipeline.push({ $sort: sortObj });

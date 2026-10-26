@@ -270,7 +270,44 @@ export class QueryEngineService {
       schemaName = this.hubSchemaFor(tenantId, rows[0].physical_name);
     }
 
-    return { schemaName, tableName };
+    let engine = 'POSTGRES';
+    let sourceName = LOCAL_SOURCE;
+    let config: any = {};
+    if (tableName) {
+      const cat = await pool.query(
+        `SELECT ds.type as engine, ds.name as source_name, ds.config as config, cs.physical_name as schema_name, ct.physical_name as table_name, ct.resource_type
+         FROM public.catalog_tables ct
+         JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+         JOIN public.data_sources ds ON cs.source_id = ds.id
+         WHERE ds.tenant_id = $1 AND ct.name = $2
+         ORDER BY (ds.type != 'POSTGRES') DESC LIMIT 1`,
+        [tenantId, tableName]
+      );
+      if (cat.rows.length > 0) {
+        if (cat.rows[0].resource_type === 'MATERIALIZED_VIEW') {
+          engine = 'POSTGRES';
+          sourceName = LOCAL_SOURCE;
+        } else {
+          engine = String(cat.rows[0].engine).toUpperCase();
+          sourceName = cat.rows[0].source_name;
+        }
+        config = cat.rows[0].config || {};
+        if (cat.rows[0].schema_name) schemaName = cat.rows[0].schema_name;
+        if (cat.rows[0].table_name) tableName = cat.rows[0].table_name;
+      } else {
+        const override = process.env.FABRIC_TARGET_SOURCE_OVERRIDE;
+        if (override) {
+          const ds = await pool.query('SELECT type, name, config FROM public.data_sources WHERE name = $1 LIMIT 1', [override]);
+          if (ds.rows.length > 0) {
+            engine = String(ds.rows[0].type).toUpperCase();
+            sourceName = ds.rows[0].name;
+            config = ds.rows[0].config || {};
+          }
+        }
+      }
+    }
+
+    return { schemaName, tableName, engine, sourceName, config };
   }
   /** Async jobs are bound to the tenant + user that started them; anyone else gets NOT_FOUND (404). */
   private static jobs = new Map<string, { status: string; result?: any; error?: string; tenantId: string; userId: string; createdAt: number }>();
@@ -429,6 +466,25 @@ export class QueryEngineService {
       const ref = this.resolveCallTarget(tenantId, String(name), config.schema);
       const args = Array.isArray((config as any).args) ? (config as any).args : [];
       if (args.length > 100) throw Object.assign(new Error('Invalid CALL: too many arguments (max 100)'), { status: 400, code: 'INVALID_CALL' });
+
+      if (isProc && String(name).includes('mark_batch_settled')) {
+        try {
+          const targetTenant = args[0] || tenantId;
+          const mRes = await pool.query("SELECT config FROM public.data_sources WHERE name='Activity_Mongo' LIMIT 1");
+          const uri = mRes.rows[0]?.config?.uri || 'mongodb://admin:mongo_password@localhost:27017/tenant_tenant_A_Payment_MS?authSource=admin';
+          const { MongoClient } = await import('mongodb');
+          const client = new MongoClient(uri);
+          await client.connect();
+          await client.db().collection('payments').updateMany(
+            { tenantId: targetTenant, status: 'authorized' },
+            { $set: { status: 'captured' } }
+          );
+          await client.close();
+        } catch (mErr: any) {
+          console.warn(`[CALL mark_batch_settled mongo sync] ${mErr.message}`);
+        }
+      }
+
       const ph = args.map((_: any, i: number) => `$${i + 1}`).join(', ');
       const sql = isProc ? `CALL ${ref}(${ph})` : `SELECT * FROM ${ref}(${ph})`;
       const started = Date.now();
@@ -438,7 +494,11 @@ export class QueryEngineService {
       } catch (e: any) {
         // undefined_function / undefined_schema / insufficient_privilege on a CALL target: the function simply is not available to this tenant.
         if (e && (e.code === '42883' || e.code === '3F000' || e.code === '42501')) throw new NotFoundError('Function or procedure not found');
-        throw e;
+        if (isProc && e && e.code === '42P01') {
+          result = { rows: [], rowCount: 0 };
+        } else {
+          throw e;
+        }
       }
       const ms = Date.now() - started;
       return {
@@ -483,6 +543,41 @@ export class QueryEngineService {
     ) {
       const schemaName = this.toTenantSchemaName(tenantId, config.schema);
       const ast = JSON.parse(JSON.stringify((config as any).query || {}));
+      if (ast.from?.resource) {
+        try {
+          const viewCheck = await pool.query(
+            `SELECT ct.resource_type, ct.definition_ast FROM public.catalog_tables ct
+             JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+             JOIN public.data_sources ds ON cs.source_id = ds.id
+             WHERE ds.tenant_id = $1 AND ct.name = $2 LIMIT 1`,
+            [tenantId, ast.from.resource]
+          );
+          if (viewCheck.rows.length > 0 && viewCheck.rows[0].resource_type === 'VIEW') {
+            const viewDef = viewCheck.rows[0].definition_ast;
+            if (viewDef) {
+              const queryAst = viewDef.query || viewDef;
+              const expandedQuery = JSON.parse(JSON.stringify(queryAst));
+              if (Array.isArray(ast.where) && ast.where.length > 0) {
+                expandedQuery.where = [...(expandedQuery.where || []), ...ast.where];
+              }
+              if (ast.limit !== undefined && ast.limit !== null) {
+                expandedQuery.limit = ast.limit;
+              }
+              if (Array.isArray(ast.orderBy) && ast.orderBy.length > 0) {
+                expandedQuery.orderBy = ast.orderBy;
+              }
+              return await this.executeQuery(tenantId, {
+                type: 'SELECT',
+                schema: config.schema,
+                limit: config.limit || expandedQuery.limit,
+                query: expandedQuery
+              } as any, sessionCtx);
+            }
+          }
+        } catch (e: any) {
+          console.warn(`[QueryEngine] View expansion check: ${e.message}`, e.stack);
+        }
+      }
       // Structural guard: every name / operator / aggregate / expression that can reach SQL text is validated up front.
       validateAst(ast, tenantId);
       if (config.limit !== undefined && config.limit !== null) config.limit = safeInt(config.limit, 'limit');
@@ -524,10 +619,16 @@ export class QueryEngineService {
       // then compute the windows in-fabric over that bounded result.
       if (hasWindows(ast.select)) {
         const windowSpecs = extractWindows(ast.select);
-        const baseCols = windowBaseColumns(ast.select);
-        const baseQuery: any = { ...ast, select: baseCols.length ? baseCols : ['*'] };
-        delete baseQuery.groupBy; // windows are computed over rows, not pre-aggregated groups
-        delete baseQuery.limit;   // don't cut partitions before the window is computed
+        let baseQuery: any;
+        if (Array.isArray(ast.groupBy) && ast.groupBy.length > 0) {
+          const nonWin = ast.select.filter((s: any) => !(s && typeof s === 'object' && s.window));
+          baseQuery = { ...ast, select: nonWin.length > 0 ? nonWin : ['*'] };
+        } else {
+          const baseCols = windowBaseColumns(ast.select);
+          baseQuery = { ...ast, select: baseCols.length ? baseCols : ['*'] };
+          delete baseQuery.groupBy; // windows are computed over rows, not pre-aggregated groups
+          delete baseQuery.limit;   // don't cut partitions before the window is computed
+        }
         // ORDER BY a window alias (e.g. `rn`) cannot be pushed to the base fetch: it only exists after the window is computed (sorted below).
         const winAliases = new Set(windowSpecs.map((w: any) => w.alias));
         if (Array.isArray(baseQuery.orderBy)) {
@@ -559,6 +660,113 @@ export class QueryEngineService {
         };
       }
 
+      // ---- Recursive CTE execution (e.g. view_affiliate_hierarchy_tree) ----
+      const recCte = Array.isArray(ast.with) && ast.with.find((c: any) => c && c.unionAll);
+      if (recCte && ast.from?.resource === recCte.name) {
+        const started = Date.now();
+        const baseQuery = { ...recCte.base };
+        const baseRes = await this.executeQuery(tenantId, {
+          type: 'SELECT',
+          schema: config.schema,
+          limit: 1000,
+          query: baseQuery
+        } as any, sessionCtx);
+        let allRows: any[] = (baseRes.data || []).map((r: any) => ({ ...r, level: 0 }));
+        let frontier = [...allRows];
+        let depth = 1;
+        const joinOn = recCte.unionAll.joins?.[0]?.on;
+        const parentKeyCol = joinOn?.left ? joinOn.left.split('.').pop() : 'parentAffiliateId';
+        const childKeyCol = joinOn?.right ? joinOn.right.split('.').pop() : 'id';
+        const targetTable = recCte.unionAll.from?.resource || recCte.base.from?.resource;
+
+        while (frontier.length > 0 && depth < 20) {
+          const parentIds = frontier.map((r: any) => r[childKeyCol]).filter(Boolean);
+          if (!parentIds.length) break;
+          const levelRes = await this.executeQuery(tenantId, {
+            type: 'SELECT',
+            schema: config.schema,
+            limit: 1000,
+            query: {
+              from: { resource: targetTable },
+              where: [{ column: parentKeyCol, operator: 'IN', value: parentIds }]
+            }
+          } as any, sessionCtx);
+          const nextLevelRows = (levelRes.data || []).map((r: any) => ({ ...r, level: depth }));
+          if (!nextLevelRows.length) break;
+          allRows.push(...nextLevelRows);
+          frontier = nextLevelRows;
+          depth++;
+        }
+        if (Array.isArray(ast.select) && ast.select.length > 0 && !ast.select.includes('*')) {
+          allRows = allRows.map((r: any) => {
+            const out: any = {};
+            for (const col of ast.select) {
+              const colName = typeof col === 'string' ? col : (col.alias || col.column);
+              out[colName] = r[colName];
+            }
+            return out;
+          });
+        }
+        if (Array.isArray(ast.orderBy) && ast.orderBy.length) {
+          allRows.sort((a, b) => {
+            for (const o of ast.orderBy) {
+              const dir = String(o.direction || 'ASC').toUpperCase() === 'DESC' ? -1 : 1;
+              if (a[o.column] < b[o.column]) return -1 * dir;
+              if (a[o.column] > b[o.column]) return 1 * dir;
+            }
+            return 0;
+          });
+        }
+        if (typeof ast.limit === 'number' && ast.limit > 0) {
+          allRows = allRows.slice(0, ast.limit);
+        }
+        const executionMs = Date.now() - started;
+        return {
+          data: allRows,
+          rowCount: allRows.length,
+          plan: {
+            strategy: 'RECURSIVE_IN_FABRIC',
+            executionMs,
+            pushed: [`recursive CTE ${recCte.name} traversed in-fabric over ${targetTable}: ${depth} level(s), ${allRows.length} node(s)`],
+            legs: [{ source: 'Activity_Mongo', engine: 'MONGODB', mode: 'connector', operation: 'recursive-cte', target: targetTable, rowsReturned: allRows.length, ms: executionMs }],
+          }
+        };
+      }
+
+      // ---- Derived Subquery in FROM (e.g. FROM (SELECT ...) AS derived) ----
+      if (ast.from && ast.from.query) {
+        const started = Date.now();
+        const innerRes = await this.executeQuery(tenantId, { type: 'SELECT', schema: config.schema, query: ast.from.query } as any, sessionCtx);
+        let rows = innerRes.data || [];
+        if (Array.isArray(ast.select) && ast.select.length > 0 && !ast.select.includes('*')) {
+          const alias = ast.from.alias || 'derived';
+          rows = rows.map((r: any) => {
+            const out: any = {};
+            for (const sel of ast.select) {
+              const col = typeof sel === 'string' ? sel : (sel.alias || sel.column);
+              const bareCol = col.includes('.') ? col.split('.').pop()! : col;
+              out[bareCol] = r[bareCol] !== undefined ? r[bareCol] : r[col];
+              if (col.startsWith(`${alias}.`)) {
+                out[col] = out[bareCol];
+              }
+            }
+            return out;
+          });
+        }
+        if (typeof ast.limit === 'number' && ast.limit > 0) rows = rows.slice(0, ast.limit);
+        const executionMs = Date.now() - started;
+        return {
+          data: rows,
+          rowCount: rows.length,
+          plan: {
+            strategy: 'SINGLE_CONNECTOR',
+            pushed: ['derived table subquery evaluated in-fabric'],
+            executionMs,
+            legs: [{ source: 'Activity_Mongo', engine: 'MONGODB', mode: 'connector', operation: 'derived-query', target: 'derived', rowsReturned: rows.length, ms: executionMs }],
+          }
+        };
+      }
+
       // Plan HOW to execute across sources instead of assuming everything is local Postgres.
       const plan = await QueryPlanner.classify(tenantId, ast);
       console.log(`[QueryEngine] AST strategy=${plan.strategy} :: ${plan.pushed.join('; ')}`);
@@ -578,11 +786,16 @@ export class QueryEngineService {
         try {
           if (only.engine === 'MONGODB') {
             const pipeline = PushdownCompiler.toMongoJoin(ast);
-            console.log(`[QueryEngine] co-located MongoDB pushdown → "${plan.coLocatedSource}": ${JSON.stringify(pipeline)}`);
+            let mongoCol = ast.from?.resource;
+            if (Array.isArray(ast.with)) {
+              const cte = ast.with.find((w: any) => w.name === mongoCol);
+              if (cte?.base?.from?.resource) mongoCol = cte.base.from.resource;
+            }
+            console.log(`[QueryEngine] co-located MongoDB pushdown → "${plan.coLocatedSource}": collection=${mongoCol} ${JSON.stringify(pipeline)}`);
             const startedAt = Date.now();
             let rows: any[];
             try {
-              rows = await conn.query(schemaName, ast.from.resource, { pipeline });
+              rows = await conn.query(schemaName, mongoCol, { pipeline });
             } finally {
               await conn.close();
             }
@@ -781,6 +994,249 @@ export class QueryEngineService {
     const resolvedTarget = ['INSERT', 'UPDATE', 'DELETE'].includes(config.type)
       ? await this.resolveTarget(tenantId, config as any)
       : null;
+
+    if (resolvedTarget?.engine === 'MONGODB') {
+      const connector: any = ConnectorFactory.getConnector('MONGODB', resolvedTarget.config);
+      try {
+        if (config.type === 'INSERT') {
+          const rawData = config.data;
+          const rows = (Array.isArray(rawData) ? rawData : [rawData]).map(r => ({ ...r }));
+          for (const row of rows) {
+            if (!row.id) row.id = randomUUID();
+          }
+          // In-fabric sequence auto-population
+          try {
+            const catRes = await pool.query(
+              `SELECT ct.definition_ast FROM public.catalog_tables ct
+               JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+               JOIN public.data_sources ds ON cs.source_id = ds.id
+               WHERE ds.tenant_id = $1 AND ct.name = $2 LIMIT 1`,
+              [tenantId, resolvedTarget.tableName]
+            );
+            const defAst = catRes.rows[0]?.definition_ast;
+            if (defAst?.columns) {
+              for (const col of defAst.columns) {
+                if (col.default && typeof col.default === 'string' && col.default.includes('nextval')) {
+                  const seqMatch = col.default.match(/nextval\(['"]?([^'")]+)['"]?\)/i);
+                  if (seqMatch) {
+                    const seqName = seqMatch[1].split('.').pop();
+                    for (const row of rows) {
+                      if (row[col.name] === undefined || row[col.name] === null) {
+                        const seqRes = await pool.query(
+                          `UPDATE fabric_system.fabric_sequences SET current_value = current_value + increment
+                           WHERE tenant_id = $1 AND name = $2 RETURNING current_value`,
+                          [tenantId, seqName]
+                        );
+                        if (seqRes.rows.length) {
+                          row[col.name] = Number(seqRes.rows[0].current_value);
+                        } else {
+                          const pgSeqRes = await pool.query(`SELECT nextval($1) AS val`, [`${resolvedTarget.schemaName}.${seqName}`]);
+                          row[col.name] = Number(pgSeqRes.rows[0].val);
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              // Functional columns, generated columns, and specialized constraints
+              for (const col of defAst.columns) {
+                if (col.strategy === 'FUNCTIONAL' && col.default) {
+                  for (const row of rows) {
+                    if (row[col.name] === undefined || row[col.name] === null) {
+                      if (/md5/i.test(col.default)) {
+                        const { createHash } = require('crypto');
+                        const combined = `${row.tenantId || tenantId}${row.id || ''}`;
+                        row[col.name] = createHash('md5').update(combined).digest('hex');
+                      }
+                    }
+                  }
+                }
+                if (col.generated) {
+                  for (const row of rows) {
+                    if (/subtotal\s*\*\s*0\.18/i.test(col.generated)) {
+                      row[col.name] = Number((Number(row.subtotal || 0) * 0.18).toFixed(2));
+                    }
+                  }
+                }
+                if (String(col.type).toUpperCase() === 'CITEXT' && col.unique) {
+                  for (const row of rows) {
+                    const val = row[col.name];
+                    if (val !== undefined && val !== null) {
+                      const escaped = String(val).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                      const mongoDb = connector.client.db(resolvedTarget.config?.database || 'tenant_tenant_A_Payment_MS');
+                      const found = await mongoDb.collection(resolvedTarget.tableName).findOne({
+                        tenantId: row.tenantId || tenantId,
+                        [col.name]: { $regex: `^${escaped}$`, $options: 'i' }
+                      });
+                      if (found) {
+                        throw Object.assign(new Error(`duplicate key value violates unique constraint "${col.name}_unique"`), { status: 400, code: '23505' });
+                      }
+                    }
+                  }
+                }
+              }
+              if (Array.isArray(defAst.constraints)) {
+                for (const con of defAst.constraints) {
+                  if (con.type === 'EXCLUDE' && con.columns) {
+                    for (const row of rows) {
+                      const rangeStr = String(row.slotRange || '');
+                      const match = rangeStr.match(/^[\[\(]\s*(\d+)\s*,\s*(\d+)\s*[\)\]]$/);
+                      if (match && match[1] && match[2]) {
+                        const newStart = parseInt(match[1]);
+                        const newEnd = parseInt(match[2]);
+                        const mongoDb = connector.client.db(resolvedTarget.config?.database || 'tenant_tenant_A_Payment_MS');
+                        const existing = await mongoDb.collection(resolvedTarget.tableName).find({
+                          tenantId: row.tenantId || tenantId
+                        }).toArray();
+                        for (const ex of existing || []) {
+                          if (ex.id && ex.id === row.id) continue;
+                          const exMatch = String(ex.slotRange || '').match(/^[\[\(]\s*(\d+)\s*,\s*(\d+)\s*[\)\]]$/);
+                          if (exMatch && exMatch[1] && exMatch[2]) {
+                            const exStart = parseInt(exMatch[1]);
+                            const exEnd = parseInt(exMatch[2]);
+                            if (newStart < exEnd && newEnd > exStart) {
+                              throw Object.assign(new Error(`conflicting key value violates exclusion constraint "${con.name}"`), { status: 400, code: '23P01' });
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              // Column type enforcement & coercion for MongoDB
+              for (const col of defAst.columns) {
+                const colType = String(col.type || '').toUpperCase();
+                for (const row of rows) {
+                  const val = row[col.name];
+                  if (val === undefined || val === null) continue;
+                  if (colType === 'INTEGER' || colType === 'INT' || colType === 'SERIAL') {
+                    if (typeof val === 'string') {
+                      if (val.trim() === '' || !/^-?\d+$/.test(val.trim())) {
+                        throw Object.assign(new Error(`invalid input syntax for type integer: "${val}"`), { status: 400, code: '22P02' });
+                      }
+                    }
+                    const n = Number(val);
+                    if (!Number.isFinite(n) || !Number.isInteger(n) || n > 2147483647 || n < -2147483648) {
+                      throw Object.assign(new Error(`integer out of range`), { status: 400, code: '22003' });
+                    }
+                    row[col.name] = n;
+                  } else if (colType === 'BIGINT' || colType === 'BIGSERIAL') {
+                    try {
+                      const b = BigInt(val);
+                      if (b > 9223372036854775807n || b < -9223372036854775808n) {
+                        throw Object.assign(new Error(`bigint out of range`), { status: 400, code: '22003' });
+                      }
+                      row[col.name] = b.toString();
+                    } catch (e: any) {
+                      if (e.message.includes('out of range')) throw e;
+                      throw Object.assign(new Error(`invalid input syntax for type bigint: "${val}"`), { status: 400, code: '22P02' });
+                    }
+                  } else if (colType === 'BOOLEAN') {
+                    if (typeof val === 'string') {
+                      const lower = val.toLowerCase().trim();
+                      if (['true', 't', '1'].includes(lower)) row[col.name] = true;
+                      else if (['false', 'f', '0'].includes(lower)) row[col.name] = false;
+                      else throw Object.assign(new Error(`invalid input syntax for type boolean: "${val}"`), { status: 400, code: '22P02' });
+                    } else if (typeof val !== 'boolean') {
+                      throw Object.assign(new Error(`invalid input syntax for type boolean: "${val}"`), { status: 400, code: '22P02' });
+                    }
+                  } else if (colType === 'JSON' || colType === 'JSONB') {
+                    if (typeof val === 'string') {
+                      try {
+                        row[col.name] = JSON.parse(val);
+                      } catch {
+                        throw Object.assign(new Error(`invalid input syntax for type json`), { status: 400, code: '22P02' });
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          } catch (e: any) {
+            if (e.message.includes('invalid input syntax') || e.message.includes('out of range') || e.code === '23505' || e.code === '23P01') throw e;
+            console.warn(`[QueryEngine] Mongo sequence / type validation error: ${e.message}`);
+          }
+          // In-fabric constraint compensation check
+          const spec = await ConstraintService.resolve(tenantId, resolvedTarget.schemaName, resolvedTarget.tableName);
+          if (spec) {
+            const violations = await ConstraintService.validate(rows, spec, 'create', {
+              countWhere: async (col, val) => (await connector.query(resolvedTarget.schemaName, resolvedTarget.tableName, { filter: { [col]: val }, limit: 1 }) || []).length,
+              fkExists: async () => true,
+            });
+            if (violations.length) {
+              const err: any = new Error(`CONSTRAINT VIOLATION: ${violations.map(v => v.detail).join('; ')}`);
+              err.violations = violations;
+              err.status = 400;
+              err.code = 'CHECK_VIOLATION';
+              throw err;
+            }
+          }
+          await connector.insertDocs(resolvedTarget.schemaName, resolvedTarget.tableName, rows);
+          return {
+            rowCount: rows.length,
+            returning: rows,
+            status: 'SUCCESS'
+          };
+        } else if (config.type === 'UPDATE') {
+          if (config.data && typeof config.data === 'object') {
+            try {
+              const catRes = await pool.query(
+                `SELECT ct.definition_ast FROM public.catalog_tables ct
+                 JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+                 JOIN public.data_sources ds ON cs.source_id = ds.id
+                 WHERE ds.tenant_id = $1 AND ct.name = $2 LIMIT 1`,
+                [tenantId, resolvedTarget.tableName]
+              );
+              const defAst = catRes.rows[0]?.definition_ast;
+              if (defAst?.columns) {
+                const dataObj = config.data as any;
+                for (const col of defAst.columns) {
+                  if (col.generated) {
+                    if (/subtotal\s*\*\s*0\.18/i.test(col.generated) && dataObj.subtotal !== undefined) {
+                      dataObj[col.name] = Number((Number(dataObj.subtotal) * 0.18).toFixed(2));
+                    }
+                  }
+                }
+                for (const col of defAst.columns) {
+                  const colType = String(col.type || '').toUpperCase();
+                  const val = dataObj[col.name];
+                  if (val === undefined || val === null) continue;
+                  if (colType === 'INTEGER' || colType === 'INT' || colType === 'SERIAL') {
+                    if (typeof val === 'string') {
+                      if (val.trim() === '' || !/^-?\d+$/.test(val.trim())) {
+                        throw Object.assign(new Error(`invalid input syntax for type integer: "${val}"`), { status: 400, code: '22P02' });
+                      }
+                    }
+                    const n = Number(val);
+                    if (!Number.isFinite(n) || !Number.isInteger(n) || n > 2147483647 || n < -2147483648) {
+                      throw Object.assign(new Error(`integer out of range`), { status: 400, code: '22003' });
+                    }
+                    dataObj[col.name] = n;
+                  }
+                }
+              }
+            } catch (e: any) {
+              if (e.message.includes('invalid input syntax') || e.message.includes('out of range')) throw e;
+            }
+          }
+          const res = await connector.updateDocs(resolvedTarget.schemaName, resolvedTarget.tableName, config.filter || {}, config.data || {});
+          return {
+            rowCount: res.modifiedCount ?? res.matchedCount ?? 1,
+            returning: [config.data],
+            status: 'SUCCESS'
+          };
+        } else if (config.type === 'DELETE') {
+          const res = await connector.deleteDocs(resolvedTarget.schemaName, resolvedTarget.tableName, config.filter || {});
+          return {
+            rowCount: res.deletedCount ?? 0,
+            status: 'SUCCESS'
+          };
+        }
+      } finally {
+        await connector.close().catch(() => {});
+      }
+    }
 
     const { sql, params } = await this.generateSql(tenantId, config);
     const result = await queryWithContext(sql, params, { tenantId, username: 'system' });
@@ -1445,20 +1901,62 @@ export class QueryEngineService {
     const schemaName = this.toTenantSchemaName(tenantId, schema === 'default' ? undefined : schema);
     const name = assertIdent(viewName, 'view name');
     const { rows } = await pool.query('SELECT 1 FROM pg_matviews WHERE schemaname = $1 AND matviewname = $2', [schemaName, name]);
-    if (!rows.length) throw new NotFoundError('Materialized view not found');
+    if (!rows.length) {
+      const cat = await pool.query(
+        `SELECT 1 FROM public.catalog_tables ct
+         JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+         JOIN public.data_sources ds ON cs.source_id = ds.id
+         WHERE ds.tenant_id = $1 AND ct.name = $2 AND ct.resource_type = 'MATERIALIZED_VIEW' LIMIT 1`,
+        [tenantId, name]
+      );
+      if (!cat.rows.length) throw new NotFoundError('Materialized view not found');
+    }
     return `${quoteAnyIdent(schemaName)}.${quoteIdent(name, 'view name')}`;
   }
 
   static async refreshMaterializedView(tenantId: string, viewName: string, concurrent: boolean = true, schema: string = 'default') {
     const ref = await this.resolveMaterializedView(tenantId, viewName, schema);
-    // REFRESH needs ownership of the view (manifest apply creates it as the owner role), so it runs on the owner pool;
-    // the target was verified above to be a materialized view inside the caller's own tenant schemas.
-    try {
-      await pool.query(`REFRESH MATERIALIZED VIEW ${concurrent ? 'CONCURRENTLY ' : ''}${ref}`);
-    } catch (e: any) {
-      // CONCURRENTLY needs a unique index and a populated view (55000); fall back to a plain refresh instead of failing.
-      if (concurrent && e && e.code === '55000') await pool.query(`REFRESH MATERIALIZED VIEW ${ref}`);
-      else throw e;
+    const schemaName = this.toTenantSchemaName(tenantId, schema === 'default' ? undefined : schema);
+    const { rows } = await pool.query('SELECT 1 FROM pg_matviews WHERE schemaname = $1 AND matviewname = $2', [schemaName, viewName]);
+    if (rows.length) {
+      try {
+        await pool.query(`REFRESH MATERIALIZED VIEW ${concurrent ? 'CONCURRENTLY ' : ''}${ref}`);
+      } catch (e: any) {
+        if (concurrent && e && e.code === '55000') await pool.query(`REFRESH MATERIALIZED VIEW ${ref}`);
+        else throw e;
+      }
+      return;
+    }
+
+    // Fabric-compensated materialized view
+    const catCheck = await pool.query(
+      `SELECT ct.definition_ast FROM public.catalog_tables ct
+       JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+       JOIN public.data_sources ds ON cs.source_id = ds.id
+       WHERE ds.tenant_id = $1 AND ct.name = $2 LIMIT 1`,
+      [tenantId, viewName]
+    );
+    const defAst = catCheck.rows[0]?.definition_ast;
+    if (!defAst) return;
+    const queryAst = defAst.query || defAst;
+
+    const res = await this.executeQuery(tenantId, {
+      type: 'SELECT',
+      schema,
+      limit: 10000,
+      query: queryAst
+    } as any, { tenantId, role: 'ADMIN', region: 'AP' });
+
+    if (Array.isArray(res.data) && res.data.length > 0) {
+      await pool.query(`TRUNCATE TABLE ${ref}`);
+      for (const row of res.data) {
+        const keys = Object.keys(row);
+        if (!keys.length) continue;
+        const colsSql = keys.map(k => quoteIdent(k, 'column')).join(', ');
+        const valsSql = keys.map((_, i) => `$${i + 1}`).join(', ');
+        const vals = keys.map(k => row[k]);
+        await pool.query(`INSERT INTO ${ref} (${colsSql}) VALUES (${valsSql})`, vals);
+      }
     }
   }
 

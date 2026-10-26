@@ -34,6 +34,10 @@ const connectionString = process.env.DATABASE_URL || buildConnectionString();
 
 const pool = new Pool({
   connectionString,
+  max: Number(process.env.DB_POOL_MAX || 50),
+  min: Number(process.env.DB_POOL_MIN || 5),
+  idleTimeoutMillis: Number(process.env.DB_POOL_IDLE_TIMEOUT || 30000),
+  connectionTimeoutMillis: Number(process.env.DB_POOL_CONNECT_TIMEOUT || 10000),
   statement_timeout: 10000, // 10 seconds industrial timeout
 });
 

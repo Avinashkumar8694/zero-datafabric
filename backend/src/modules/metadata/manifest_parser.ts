@@ -123,6 +123,19 @@ export class ManifestParser {
             delete manifest.resources;
         }
 
+        // Dynamic Heterogeneous Engine Routing Override (e.g. Activity_Mongo)
+        const overrideSource = process.env.FABRIC_TARGET_SOURCE_OVERRIDE;
+        if (overrideSource && manifest && typeof manifest === 'object') {
+            manifest.targetSource = overrideSource;
+            if (Array.isArray(manifest.schemas)) {
+                for (const schema of manifest.schemas) {
+                    if (schema && typeof schema === 'object') {
+                        schema.targetSource = overrideSource;
+                    }
+                }
+            }
+        }
+
         // Normalize legacy tables/views/functions under schema level
         if (manifest && Array.isArray(manifest.schemas)) {
             for (const schema of manifest.schemas) {

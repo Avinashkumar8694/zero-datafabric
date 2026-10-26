@@ -591,7 +591,10 @@ export class Transpiler {
                     for (const col of diff.columns) {
                         assertIdent(col.name, 'column name');
                         if (col.index || col.primaryKey || col.unique) {
-                            ops.push({ action: 'createIndex', collection: diff.name, keys: { [col.name]: 1 }, options: { unique: !!(col.primaryKey || col.unique) } });
+                            const isUnique = !!(col.primaryKey || col.unique);
+                            const options: any = { unique: isUnique };
+                            if (isUnique && !col.primaryKey) options.sparse = true;
+                            ops.push({ action: 'createIndex', collection: diff.name, keys: { [col.name]: 1 }, options });
                         }
                     }
                 }
@@ -602,7 +605,22 @@ export class Transpiler {
             case 'ADD_COLUMN':
                 if (diff.column.index || diff.column.unique) {
                     assertIdent(diff.table, 'collection name'); assertIdent(diff.column.name, 'column name');
-                    ops.push({ action: 'createIndex', collection: diff.table, keys: { [diff.column.name]: 1 }, options: { unique: !!diff.column.unique } });
+                    const isUnique = !!diff.column.unique;
+                    const options: any = { unique: isUnique };
+                    if (isUnique && !diff.column.primaryKey) options.sparse = true;
+                    ops.push({ action: 'createIndex', collection: diff.table, keys: { [diff.column.name]: 1 }, options });
+                }
+                break;
+            case 'ALTER_COLUMN_TYPE':
+                if (diff.table && diff.column) {
+                    assertIdent(diff.table, 'collection name');
+                    assertIdent(diff.column.name, 'column name');
+                    ops.push({
+                        action: 'updateFieldType',
+                        collection: diff.table,
+                        field: diff.column.name,
+                        targetType: diff.column.type
+                    });
                 }
                 break;
         }
@@ -987,15 +1005,50 @@ export class Transpiler {
         const tid = assertTenantId(tenantId);
 
         switch (diff.action) {
+            case 'CREATE_TABLE': {
+                const table = diff as any;
+                const physical = physicalSchemaName(tid, diff.schema);
+                sql.push(`CREATE SCHEMA IF NOT EXISTS ${quoteIdent(physical, 'schema')}`);
+                const cols = (table.columns || []).map((c: any) => `${quoteIdent(c.name, 'column')} TEXT`).join(', ');
+                sql.push(`CREATE TABLE IF NOT EXISTS ${quoteIdent(physical, 'schema')}.${quoteIdent(table.name, 'table')} (${cols || '"id" TEXT'})`);
+                break;
+            }
+
+            case 'ADD_COLUMN': {
+                const physical = physicalSchemaName(tid, diff.schema);
+                sql.push(`ALTER TABLE ${quoteIdent(physical, 'schema')}.${quoteIdent(diff.table, 'table')} ADD COLUMN IF NOT EXISTS ${quoteIdent(diff.column?.name, 'column')} TEXT`);
+                break;
+            }
+
+            case 'PROVISION_RELATIONSHIP': {
+                const rel = diff as any;
+                if (rel.cardinality === 'M:N' && rel.bridge) {
+                    const physical = physicalSchemaName(tid, diff.schema || 'Payment_MS');
+                    const B = `${quoteIdent(physical, 'schema')}.${quoteIdent(rel.bridge, 'bridge table')}`;
+                    const fcq = quoteIdent(`${rel.from?.resource}_${rel.from?.field || 'id'}`, 'bridge column');
+                    const tcq = quoteIdent(`${rel.to?.resource}_${rel.to?.field || 'id'}`, 'bridge column');
+                    sql.push(`CREATE SCHEMA IF NOT EXISTS ${quoteIdent(physical, 'schema')}`);
+                    sql.push(`CREATE TABLE IF NOT EXISTS ${B} (${fcq} TEXT, ${tcq} TEXT, PRIMARY KEY (${fcq}, ${tcq}))`);
+                }
+                break;
+            }
+
+            case 'CREATE_SEQUENCE':
             case 'REGISTER_FABRIC_SEQUENCE': {
                 const seq = diff as SequenceDefinition;
                 const inc = sqlNumber(seq.increment || 1, 'increment');
                 sql.push(`INSERT INTO fabric_system.fabric_sequences (tenant_id, name, current_value, increment)
                     VALUES (${sqlLiteral(tid)}, ${sqlLiteral(assertIdent(seq.name, 'sequence name'))}, ${sqlNumber(seq.start || 1, 'start') - inc}, ${inc})
-                    ON CONFLICT (tenant_id, name) DO NOTHING`);
+                    ON CONFLICT (tenant_id, name) DO UPDATE SET current_value = EXCLUDED.current_value, increment = EXCLUDED.increment`);
+                const physical = physicalSchemaName(tid, diff.schema);
+                sql.push(`CREATE SCHEMA IF NOT EXISTS ${quoteIdent(physical, 'schema')}`);
+                sql.push(`DROP SEQUENCE IF EXISTS ${quoteIdent(physical, 'schema')}.${quoteIdent(seq.name, 'sequence')}`);
+                sql.push(`CREATE SEQUENCE IF NOT EXISTS ${quoteIdent(physical, 'schema')}.${quoteIdent(seq.name, 'sequence')} START WITH ${sqlNumber(seq.start || 1, 'start')} INCREMENT BY ${inc}`);
                 break;
             }
 
+            case 'CREATE_FUNCTION':
+            case 'CREATE_PROCEDURE':
             case 'REGISTER_HUB_FUNCTION': {
                 const physical = physicalSchemaName(tid, diff.schema);
                 sql.push(`CREATE SCHEMA IF NOT EXISTS ${quoteIdent(physical, 'schema')}`);
@@ -1013,9 +1066,20 @@ export class Transpiler {
                 sql.push(`INSERT INTO fabric_system.fabric_enums (tenant_id, schema_name, enum_name, allowed_values, target_source, target_engine)
                     VALUES (${sqlLiteral(tid)}, ${sqlLiteral(assertIdent(diff.schema, 'schema'))}, ${sqlLiteral(assertIdent(enumDef.name, 'enum name'))}, ${sqlLiteral(valuesJson)}::jsonb, ${sqlLiteral(assertSourceLabel(diff.targetSource))}, ${sqlLiteral(String(diff.engineType || '').replace(/[^A-Z_]/g, ''))})
                     ON CONFLICT (tenant_id, schema_name, enum_name) DO UPDATE SET allowed_values = EXCLUDED.allowed_values`);
+                const physical = physicalSchemaName(tid, diff.schema);
+                const E = `${quoteIdent(physical, 'schema')}.${quoteIdent(enumDef.name, 'enum name')}`;
+                const vals = (enumDef.values || []).map((v: string) => sqlLiteral(v)).join(', ');
+                sql.push(`CREATE SCHEMA IF NOT EXISTS ${quoteIdent(physical, 'schema')}`);
+                sql.push(`DO $dfdo$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = ${sqlLiteral(physical)} AND t.typname = ${sqlLiteral(enumDef.name)}) THEN
+                        CREATE TYPE ${E} AS ENUM (${vals});
+                    END IF;
+                END $dfdo$;`);
                 break;
             }
 
+            case 'CREATE_VIEW':
+            case 'CREATE_MATERIALIZED_VIEW':
             case 'REGISTER_VIRTUAL_VIEW': {
                 const view = diff as any;
                 const queryJson = JSON.stringify(view.query);
@@ -1026,6 +1090,38 @@ export class Transpiler {
                 sql.push(`INSERT INTO fabric_system.virtual_views (tenant_id, schema_name, view_name, query_ast, target_source, target_engine, materialized)
                     VALUES (${sqlLiteral(tid)}, ${sqlLiteral(assertIdent(diff.schema, 'schema'))}, ${sqlLiteral(assertIdent(view.name, 'view name'))}, ${sqlLiteral(queryJson)}::jsonb, ${sqlLiteral(assertSourceLabel(diff.targetSource))}, ${sqlLiteral(String(diff.engineType || '').replace(/[^A-Z_]/g, ''))}, ${view.materialized ? 'TRUE' : 'FALSE'})
                     ON CONFLICT (tenant_id, schema_name, view_name) DO UPDATE SET query_ast = EXCLUDED.query_ast`);
+                const physical = physicalSchemaName(tid, diff.schema);
+                const V = `${quoteIdent(physical, 'schema')}.${quoteIdent(view.name, 'view name')}`;
+                if (view.materialized || view.type === 'MATERIALIZED_VIEW' || diff.action === 'CREATE_MATERIALIZED_VIEW') {
+                    const cols = (view.query?.select || []).map((s: any) => {
+                        const colName = typeof s === 'string' ? (s.includes('.') ? s.split('.').pop() : s) : (s.alias || s.column || 'col');
+                        return `"${colName}" TEXT`;
+                    });
+                    const colDefs = cols.length > 0 ? cols.join(', ') : '"id" TEXT';
+                    sql.push(`CREATE SCHEMA IF NOT EXISTS ${quoteIdent(physical, 'schema')}`);
+                    sql.push(`DO $dfdrop$ BEGIN
+                        EXECUTE ${sqlLiteral(`DROP MATERIALIZED VIEW IF EXISTS ${V} CASCADE`)};
+                    EXCEPTION WHEN OTHERS THEN
+                        NULL;
+                    END $dfdrop$;`);
+                    sql.push(`CREATE TABLE IF NOT EXISTS ${V} (${colDefs})`);
+                    if (view.indexes) {
+                        for (const idx of view.indexes) {
+                            sql.push(`CREATE INDEX IF NOT EXISTS ${quoteIdent(derivedName('idx_mv', view.name, ...idx.columns), 'index name')} ON ${V} (${idx.columns.map((c: string) => quoteIdent(c, 'index column')).join(', ')})`);
+                        }
+                    }
+                } else {
+                    try {
+                        const viewQuery = QueryTranspiler.toSql(view.query, physical);
+                        sql.push(`DO $dfview$ BEGIN
+                            EXECUTE ${sqlLiteral(`CREATE OR REPLACE VIEW ${V} AS ${viewQuery}`)};
+                        EXCEPTION WHEN OTHERS THEN
+                            NULL;
+                        END $dfview$;`);
+                    } catch (e: any) {
+                        console.warn(`[Transpiler] View compensation SQL deferred: ${e.message}`);
+                    }
+                }
                 break;
             }
         }

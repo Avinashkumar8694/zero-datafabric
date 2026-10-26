@@ -37,7 +37,7 @@ import { ElasticsearchMutationWorker } from './modules/metadata/es_mutation_work
 import { initCache } from './config/cache';
 import { licensingMiddleware } from './middleware/licensing.middleware';
 import { LicenseValidationService } from './utils/licensing';
-
+import { MongoDBConnector, PostgresConnector } from './modules/metadata/connectors/factory';
 import morgan from 'morgan';
 
 const app = express();
@@ -130,6 +130,105 @@ app.get('/api/health', async (req, res) => {
   } catch (err) {
     res.status(503).json({ status: 'UNHEALTHY', error: 'Database Unreachable' });
   }
+});
+
+app.get('/api/metrics', async (req, res) => {
+  const uptime = process.uptime();
+  const mem = process.memoryUsage();
+  
+  let citusActive = 0;
+  let activeWorkers = 0;
+  try {
+    const citusCheck = await pool.query(`SELECT 1 FROM pg_extension WHERE extname = 'citus'`);
+    if (citusCheck.rows.length > 0) citusActive = 1;
+    const workersCheck = await pool.query(`SELECT count(*)::int as cnt FROM public.fabric_worker_nodes WHERE status = 'ACTIVE'`).catch(() => ({ rows: [{ cnt: 0 }] }));
+    activeWorkers = workersCheck.rows[0]?.cnt || 0;
+  } catch {}
+
+  const mongoPoolStats = MongoDBConnector.getPoolStats();
+  const remotePgStats = PostgresConnector.getPoolStats();
+
+  if (req.query.format === 'json' || req.headers.accept?.includes('application/json')) {
+    return res.json({
+      uptime_seconds: uptime,
+      memory: {
+        heap_used_bytes: mem.heapUsed,
+        heap_total_bytes: mem.heapTotal,
+        rss_bytes: mem.rss,
+        external_bytes: mem.external
+      },
+      postgres_hub: {
+        total: pool.totalCount,
+        idle: pool.idleCount,
+        waiting: pool.waitingCount
+      },
+      remote_postgres: remotePgStats,
+      mongodb: mongoPoolStats,
+      citus: {
+        active: citusActive === 1,
+        active_workers: activeWorkers
+      }
+    });
+  }
+
+  // Prometheus text exposition format (version 0.0.4)
+  const metrics = [
+    '# HELP datafabric_up Whether the Data Fabric server is up and accepting connections',
+    '# TYPE datafabric_up gauge',
+    'datafabric_up 1',
+    '',
+    '# HELP datafabric_uptime_seconds Number of seconds the process has been running',
+    '# TYPE datafabric_uptime_seconds counter',
+    `datafabric_uptime_seconds ${uptime.toFixed(2)}`,
+    '',
+    '# HELP datafabric_process_memory_heap_used_bytes Heap memory in use by V8 engine',
+    '# TYPE datafabric_process_memory_heap_used_bytes gauge',
+    `datafabric_process_memory_heap_used_bytes ${mem.heapUsed}`,
+    '',
+    '# HELP datafabric_process_memory_heap_total_bytes Total allocated heap memory by V8 engine',
+    '# TYPE datafabric_process_memory_heap_total_bytes gauge',
+    `datafabric_process_memory_heap_total_bytes ${mem.heapTotal}`,
+    '',
+    '# HELP datafabric_process_memory_rss_bytes Resident Set Size memory',
+    '# TYPE datafabric_process_memory_rss_bytes gauge',
+    `datafabric_process_memory_rss_bytes ${mem.rss}`,
+    '',
+    '# HELP datafabric_postgres_hub_pool_total Total connections in Hub PostgreSQL pool',
+    '# TYPE datafabric_postgres_hub_pool_total gauge',
+    `datafabric_postgres_hub_pool_total ${pool.totalCount}`,
+    '',
+    '# HELP datafabric_postgres_hub_pool_idle Idle connections in Hub PostgreSQL pool',
+    '# TYPE datafabric_postgres_hub_pool_idle gauge',
+    `datafabric_postgres_hub_pool_idle ${pool.idleCount}`,
+    '',
+    '# HELP datafabric_postgres_hub_pool_waiting Waiting requests in Hub PostgreSQL pool',
+    '# TYPE datafabric_postgres_hub_pool_waiting gauge',
+    `datafabric_postgres_hub_pool_waiting ${pool.waitingCount}`,
+    '',
+    '# HELP datafabric_postgres_remote_pools_count Number of cached remote PostgreSQL pools',
+    '# TYPE datafabric_postgres_remote_pools_count gauge',
+    `datafabric_postgres_remote_pools_count ${remotePgStats.poolCount}`,
+    '',
+    '# HELP datafabric_postgres_remote_pool_total Total connections in remote PostgreSQL pools',
+    '# TYPE datafabric_postgres_remote_pool_total gauge',
+    `datafabric_postgres_remote_pool_total ${remotePgStats.totalCount}`,
+    '',
+    '# HELP datafabric_mongodb_pools_count Number of cached MongoDB connection clients',
+    '# TYPE datafabric_mongodb_pools_count gauge',
+    `datafabric_mongodb_pools_count ${mongoPoolStats.poolCount}`,
+    '',
+    '# HELP datafabric_citus_coordinator_active Whether Citus coordinator extension is active',
+    '# TYPE datafabric_citus_coordinator_active gauge',
+    `datafabric_citus_coordinator_active ${citusActive}`,
+    '',
+    '# HELP datafabric_citus_active_workers Number of active distributed Citus worker nodes registered',
+    '# TYPE datafabric_citus_active_workers gauge',
+    `datafabric_citus_active_workers ${activeWorkers}`,
+    ''
+  ].join('\n');
+
+  res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+  res.send(metrics);
 });
 
 // --- RESOURCE ROUTERS ---

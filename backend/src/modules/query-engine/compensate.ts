@@ -97,12 +97,15 @@ export function windowBaseColumns(select: any[]): string[] {
   let star = false;
   for (const c of select) {
     if (c === '*') { star = true; continue; }
-    if (typeof c === 'string') { cols.add(base(c)); continue; }
+    if (typeof c === 'string') { cols.add(c); continue; }
     if (c && typeof c === 'object' && c.window) {
-      if (c.column) cols.add(base(c.column));
-      for (const p of c.partitionBy || []) cols.add(base(p));
-      for (const o of c.orderBy || []) cols.add(base(o.column));
-    } else if (c && c.column) cols.add(base(c.column));
+      if (c.column) cols.add(c.column);
+      for (const p of c.partitionBy || []) cols.add(p);
+      for (const o of c.orderBy || []) cols.add(o.column);
+    } else if (c && c.expression) {
+      const parts = String(c.expression).match(/[a-zA-Z_][a-zA-Z0-9_.]*/g) || [];
+      for (const p of parts) cols.add(p);
+    } else if (c && c.column) cols.add(c.column);
   }
   return star ? [] : [...cols]; // [] → fetch all columns
 }
@@ -227,13 +230,41 @@ export function hasWindows(select: any[] | undefined): boolean {
  * @param select the query's select list (plain columns and/or window specs); `*` passes rows through unchanged.
  * @returns new row objects containing only the requested columns/aliases.
  */
+function evalSimpleExpr(row: any, expr: string): any {
+  const m = expr.match(/^([a-zA-Z0-9_.]+)\s*([\*+\-\/])\s*([0-9.]+)$/);
+  if (m) {
+    const colName = m[1] || '';
+    const val = Number(readCol(row, colName)) || 0;
+    const op = m[2];
+    const operand = Number(m[3]);
+    if (op === '*') return val * operand;
+    if (op === '+') return val + operand;
+    if (op === '-') return val - operand;
+    if (op === '/' && operand !== 0) return val / operand;
+  }
+  return undefined;
+}
+
 export function projectWithWindows(rows: any[], select: any[]): any[] {
-  const cols: string[] = [];
+  const specs: { col?: string; alias?: string; expr?: string }[] = [];
   for (const c of select) {
     if (c === '*') return rows;
-    if (typeof c === 'string') cols.push(base(c));
-    else if (c && c.window) cols.push(c.alias);
-    else if (c && c.column) cols.push(c.alias || base(c.column));
+    if (typeof c === 'string') specs.push({ col: base(c) });
+    else if (c && c.window) specs.push({ alias: c.alias });
+    else if (c && c.expression && c.alias) specs.push({ alias: c.alias, expr: c.expression });
+    else if (c && c.column) specs.push({ col: c.alias || base(c.column) });
   }
-  return rows.map((r) => { const o: any = {}; for (const c of cols) o[c] = readCol(r, c); return o; });
+  return rows.map((r) => {
+    const o: any = {};
+    for (const s of specs) {
+      if (s.expr && s.alias) {
+        o[s.alias] = evalSimpleExpr(r, s.expr);
+      } else if (s.alias) {
+        o[s.alias] = readCol(r, s.alias);
+      } else if (s.col) {
+        o[s.col] = readCol(r, s.col);
+      }
+    }
+    return o;
+  });
 }

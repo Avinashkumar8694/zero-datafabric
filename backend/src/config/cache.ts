@@ -10,14 +10,44 @@
 import Redis from 'ioredis';
 
 let client: Redis | null = null;
+let pubClient: Redis | null = null;
+let subClient: Redis | null = null;
 let enabled = false;
 
+const clusterListeners = new Map<string, Set<(data: any) => void>>();
+
 /**
- * Initialize the module-level Redis client (lazy-connect, no retry storm).
- * Safe to call once at app startup. If `CACHE_DISABLED=true`, or if the
- * connection attempt fails/errors, caching is simply left/marked disabled —
- * this function never throws, so a missing Redis instance cannot crash startup.
- * @returns Nothing; connection success/failure is reflected asynchronously via (@link cacheEnabled).
+ * Register a listener for cluster-wide broadcast events (e.g. distributed cache invalidation).
+ */
+export function subscribeClusterEvent(channel: string, handler: (data: any) => void): void {
+  if (!clusterListeners.has(channel)) clusterListeners.set(channel, new Set());
+  clusterListeners.get(channel)!.add(handler);
+  if (subClient && enabled) {
+    subClient.subscribe(channel).catch(() => {});
+  }
+}
+
+/**
+ * Broadcast an event across all cluster pods via Redis Pub/Sub (with local fallback).
+ */
+export async function publishClusterEvent(channel: string, data: any): Promise<void> {
+  const listeners = clusterListeners.get(channel);
+  if (listeners) {
+    for (const fn of listeners) {
+      try { fn(data); } catch {}
+    }
+  }
+  if (pubClient && enabled) {
+    try {
+      await pubClient.publish(channel, JSON.stringify(data));
+    } catch {
+      /* ignore pub failures in cluster bus */
+    }
+  }
+}
+
+/**
+ * Initialize the module-level Redis client and cluster Pub/Sub bus.
  */
 export function initCache(): void {
   if (process.env.CACHE_DISABLED === 'true') {
@@ -30,13 +60,39 @@ export function initCache(): void {
       lazyConnect: true,
       maxRetriesPerRequest: 1,
       enableOfflineQueue: false,
-      retryStrategy: () => null, // do not spin retrying if Redis is absent
+      retryStrategy: () => null,
     });
     client.on('error', () => { enabled = false; });
     client
       .connect()
-      .then(() => { enabled = true; console.log(`[Cache] Redis connected at ${url}`); })
-      .catch(() => { enabled = false; console.warn('[Cache] Redis unavailable — caching disabled (DB fallback).'); });
+      .then(() => {
+        enabled = true;
+        console.log(`[Cache] Redis connected at ${url}`);
+        // Initialize Cluster Pub/Sub Bus
+        try {
+          pubClient = client!.duplicate();
+          subClient = client!.duplicate();
+          subClient.on('message', (chan, msg) => {
+            try {
+              const parsed = JSON.parse(msg);
+              const set = clusterListeners.get(chan);
+              if (set) {
+                for (const fn of set) fn(parsed);
+              }
+            } catch {}
+          });
+          for (const chan of clusterListeners.keys()) {
+            subClient.subscribe(chan).catch(() => {});
+          }
+          console.log('[ClusterBus] Multi-pod Redis Pub/Sub bus active.');
+        } catch (busErr: any) {
+          console.warn('[ClusterBus] Pub/Sub initialization skipped:', busErr.message);
+        }
+      })
+      .catch(() => {
+        enabled = false;
+        console.warn('[Cache] Redis unavailable — caching disabled (DB fallback).');
+      });
   } catch {
     enabled = false;
   }

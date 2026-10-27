@@ -137,6 +137,64 @@ Replication is never executed inline in the API request cycle. It is managed by 
 
 ## Concurrent mutations during a copy & CDC CRUD Reconciliation
 
+- **Keyset paging is monotonic** on the primary key, immune to the skip/duplicate hazards of OFFSET paging when live tables mutate mid-scan.
+- **Race-Free Reconciliation**: In `CDC` strategy, the engine installs source capture triggers **before** reading the snapshot. Any mutations occurring *during* the snapshot are captured in `fabric_cdc.<outbox>` with a monotonic sequence `seq > baseline`. The subsequent CDC drain re-applies changes in commit order:
+  - `INSERT` / `UPDATE`: Idempotently upserted via primary key (`ON CONFLICT` / `ON DUPLICATE KEY` / `MERGE` / `_bulk`), overwriting any stale snapshot data.
+  - `DELETE` (Hard Deletes): Intercepted as tombstones (`op: 'D'`) and deleted from the destination via [`DestOps.del()`](file:///Users/avinashkumargupta/Documents/projects/Zero/zero-datafabric/backend/src/modules/replication/dest_ops.ts) (guaranteeing zero orphan records).
+- **Strategy Trade-off**: In contrast, `INCREMENTAL` polls `WHERE updated_at > :wm`. Because physically deleted rows no longer exist on disk to be queried, `INCREMENTAL` cannot observe hard deletes and leaves orphans.
+
+---
+
+## Kafka-Backed High-Throughput CDC Streaming Pipeline
+
+When `FABRIC_CDC_VIA_KAFKA=true`, Kafka decouples the source database change log from downstream consumer sinks (such as Elasticsearch or data hubs), guaranteeing backpressure immunity, horizontal scalability, and zero-loss crash resilience.
+
+```mermaid
+flowchart LR
+    subgraph Source DB ["1. Source Database"]
+        AppWrite[Application DML] -->|Txn Commit| Outbox[(fabric_cdc.<outbox><br/>seq, op, pk, doc)]
+    end
+
+    subgraph Producer ["2. Replication Engine (Producer)"]
+        Outbox -->|Bounded Read: LIMIT 500| Prod[CdcKafka.produce]
+        Prod -->|Advance offset ONLY after ACK| ProdOffset[(fabric_system.cdc_kafka_offset)]
+        ProdOffset -.->|Safe Prune| Outbox
+    end
+
+    subgraph Kafka Cluster ["3. Kafka Log Buffer (On Disk)"]
+        Prod -->|acks=all, Key: table:pk| Topic["Topic: cdc.<tenant>.<source><br/>Partitioned by Key"]
+    end
+
+    subgraph Consumer ["4. Long-Lived Consumer (CdcKafka.startEsConsumer)"]
+        Topic -->|Bounded Batch Fetch| Cons[Consumer Group]
+        Cons -->|Idempotent Upsert / Hard Delete| Sink[(Elasticsearch / Data Hub)]
+        Sink -->|Commit Offset AFTER Apply| Topic
+    end
+```
+
+### 1. Partition Key Ordering (`key: table:pk`)
+Kafka guarantees strict FIFO ordering **within a single partition**. Messages sent by `CdcKafka.produce()` are keyed by `${table}:${pk}`:
+* All DML events (`INSERT`, `UPDATE`, `DELETE`) for a specific row are routed to the **same Kafka partition**.
+* An `UPDATE` or `DELETE` can never be processed ahead of its preceding `INSERT`, eliminating race conditions across partitions.
+
+### 2. Double Durable Checkpoints & Zero Data Loss
+1. **Producer Checkpoint (`fabric_system.cdc_kafka_offset`)**:
+   * The producer publishes to Kafka with `acks: -1` (`acks=all`), ensuring all in-sync broker replicas persist the batch to disk.
+   * `CdcKafka` updates `cdc_kafka_offset` **only after the broker confirms**.
+   * Only after the offset is durably stored does `CdcCapture.prune()` prune published rows from the source outbox table.
+2. **Consumer Checkpoint (`autoCommit: false`)**:
+   * The consumer disables auto-commit.
+   * For each change event, it applies the operation to Elasticsearch (`_bulk` index or `deleteDoc`).
+   * It executes `commitOffsetsIfNecessary()` **only after the sink operation succeeds**.
+   * If the consumer node dies mid-batch, Kafka redelivers from the last committed offset upon restart. Because Elasticsearch operations are idempotent by primary key (`_id`), replay produces the exact same end state without duplicates.
+
+### 3. Memory & Backpressure Protection
+* Every hop (outbox read, Kafka publish, consumer fetch) is strictly **bounded** (`FABRIC_CDC_KAFKA_BATCH`, default 500).
+* Process heap remains $O(\text{batch})$ (~40–100MB), never $O(\text{backlog})$.
+* If Elasticsearch or downstream sinks slow down, the backlog accumulates on **Kafka broker disk**, never starving API or replication-engine memory.
+
+---
+
 ## Progress & analytics
 
 `save()` seeds `total_rows` (a cheap `COUNT(*)`) then, per batch, rolls checkpoints up onto

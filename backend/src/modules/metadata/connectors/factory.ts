@@ -1213,9 +1213,20 @@ export class ElasticsearchConnector implements IConnector {
      * @param config Canonical query config (`select`/`filter`/`orderBy`/`limit`/`offset`/`groupBy`/`aggregates`).
      * @returns For plain searches: hit documents plus `_id`/`_score`. For aggregates: one flattened row per bucket combination, with metric values under their aliases.
      */
+    private async resolveIndex(index: string): Promise<string> {
+        try {
+            await this.req('HEAD', `/${encodeURIComponent(index)}`);
+            return index;
+        } catch {
+            const cat = await this.req('GET', `/_cat/indices?format=json`).catch(() => []);
+            const match = cat.find((i: any) => i.index === index || i.index.endsWith(`_${index}`));
+            return match ? match.index : index;
+        }
+    }
+
     async query(schema: string, table: string, config: any): Promise<any[]> {
         const canonical = toCanonical(config);
-        const index = table;
+        const index = await this.resolveIndex(table);
         const query = ElasticsearchConnector.buildQuery(canonical.filter || {});
 
         // Aggregate / DISTINCT pushdown: (date_histogram | terms) buckets for group cols
@@ -1324,10 +1335,11 @@ export class ElasticsearchConnector implements IConnector {
      * @returns `(insertedCount)`, counting only bulk items that reported a successful (< 300) status.
      */
     async insertDocs(_schema: string, index: string, docs: any[]): Promise<any> {
+        const targetIndex = await this.resolveIndex(index);
         const lines: string[] = [];
         for (const d of docs) {
             const { _id, ...src } = d;
-            lines.push(JSON.stringify(_id != null ? { index: { _index: index, _id: String(_id) } } : { index: { _index: index } }));
+            lines.push(JSON.stringify(_id != null ? { index: { _index: targetIndex, _id: String(_id) } } : { index: { _index: targetIndex } }));
             lines.push(JSON.stringify(src));
         }
         const res = await this.req('POST', `/_bulk?refresh=true`, lines.join('\n') + '\n', 'application/x-ndjson');

@@ -38,6 +38,7 @@ import { pool, queryWithContext } from '../../config/database';
 import { EventService } from '../events/event.service';
 import { ConnectorFactory } from '../metadata/connectors/factory';
 import { QueryTranspiler } from '../metadata/query_transpiler';
+import { physicalSchemaName } from '../metadata/transpiler';
 import { randomUUID } from 'crypto';
 import { ElasticsearchMutationWorker } from '../metadata/es_mutation_worker';
 import { QueryPlanner, LOCAL_SOURCE } from './planner';
@@ -274,15 +275,47 @@ export class QueryEngineService {
     let sourceName = LOCAL_SOURCE;
     let config: any = {};
     if (tableName) {
-      const cat = await pool.query(
+      const catParams: any[] = [tenantId, tableName];
+      let catFilter = `ds.tenant_id = $1 AND ct.name = $2`;
+      if (cfg.source) {
+        catParams.push(cfg.source);
+        catFilter += ` AND ds.name = $${catParams.length}`;
+      }
+      if (cfg.schema) {
+        catParams.push(cfg.schema);
+        catFilter += ` AND cs.name = $${catParams.length}`;
+      }
+      let cat = await pool.query(
         `SELECT ds.type as engine, ds.name as source_name, ds.config as config, cs.physical_name as schema_name, ct.physical_name as table_name, ct.resource_type
          FROM public.catalog_tables ct
          JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
          JOIN public.data_sources ds ON cs.source_id = ds.id
-         WHERE ds.tenant_id = $1 AND ct.name = $2
+         WHERE ${catFilter}
          ORDER BY (ds.type != 'POSTGRES') DESC LIMIT 1`,
-        [tenantId, tableName]
+        catParams
       );
+      if (cat.rows.length === 0 && cfg.schema) {
+        cat = await pool.query(
+          `SELECT ds.type as engine, ds.name as source_name, ds.config as config, cs.physical_name as schema_name, ct.physical_name as table_name, ct.resource_type
+           FROM public.catalog_tables ct
+           JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+           JOIN public.data_sources ds ON cs.source_id = ds.id
+           WHERE ds.tenant_id = $1 AND ct.name = $2 AND cs.physical_name = $3
+           ORDER BY (ds.type != 'POSTGRES') DESC LIMIT 1`,
+          [tenantId, tableName, schemaName]
+        );
+      }
+      if (cat.rows.length === 0) {
+        cat = await pool.query(
+          `SELECT ds.type as engine, ds.name as source_name, ds.config as config, cs.physical_name as schema_name, ct.physical_name as table_name, ct.resource_type
+           FROM public.catalog_tables ct
+           JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+           JOIN public.data_sources ds ON cs.source_id = ds.id
+           WHERE ds.tenant_id = $1 AND ct.name = $2
+           ORDER BY (ds.type != 'POSTGRES') DESC LIMIT 1`,
+          [tenantId, tableName]
+        );
+      }
       if (cat.rows.length > 0) {
         if (cat.rows[0].resource_type === 'MATERIALIZED_VIEW') {
           engine = 'POSTGRES';
@@ -1350,9 +1383,14 @@ export class QueryEngineService {
    * @param params output array that generated placeholders' values are pushed onto (mutated).
    * @returns the ` WHERE ...` clause text (empty string if `where` has no keys).
    */
-  private static buildWhere(where: Record<string, any>, params: any[]): string {
+  private static buildWhere(where: Record<string, any>, params: any[], dialect: 'postgres' | 'mysql' | 'oracle' = 'postgres'): string {
+    const isMysql = dialect === 'mysql';
+    const isOracle = dialect === 'oracle';
+    const qCol = (p: string) => isMysql ? `\`${p.replace(/[^a-zA-Z0-9_]/g, '')}\`` : isOracle ? `"${p.replace(/[^a-zA-Z0-9_]/g, '').toUpperCase()}"` : `"${p.replace(/[^a-zA-Z0-9_]/g, '')}"`;
+    const ph = () => isMysql ? '?' : isOracle ? `:${params.length}` : `$${params.length}`;
+
     const clauses = Object.keys(where || {}).map((key) => {
-      const col = key.split('.').map((p) => `"${p.replace(/[^a-zA-Z0-9_]/g, '')}"`).join('.');
+      const col = key.split('.').map(qCol).join('.');
       const raw = where[key];
       const firstKey = (raw !== null && typeof raw === 'object' && !Array.isArray(raw)) ? Object.keys(raw)[0] : undefined;
       const isOp = !!firstKey && firstKey.startsWith('$');
@@ -1361,11 +1399,14 @@ export class QueryEngineService {
       const sqlOp = this.SQL_OPS[op] || '=';
       if (op === '$in' && Array.isArray(val)) {
         if (!val.length) return '1=0';
-        return `${col} IN (${val.map((v) => { params.push(v); return `$${params.length}`; }).join(', ')})`;
+        return `${col} IN (${val.map((v) => { params.push(v); return ph(); }).join(', ')})`;
       }
-      if (op === '$match') { params.push('%' + String(val) + '%'); return `${col} ILIKE $${params.length}`; }
+      if (op === '$match') {
+        params.push('%' + String(val) + '%');
+        return isMysql ? `${col} LIKE ?` : isOracle ? `UPPER(${col}) LIKE UPPER(:${params.length})` : `${col} ILIKE $${params.length}`;
+      }
       params.push(val);
-      return `${col} ${sqlOp} $${params.length}`;
+      return `${col} ${sqlOp} ${ph()}`;
     });
     return clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
   }
@@ -1511,13 +1552,19 @@ export class QueryEngineService {
     // Resolve the physical schema/db from the catalog (e.g. Mongo db "retail",
     // remote PG schema "public") instead of blindly defaulting.
     let phys = schema;
-    if (!phys) {
-      const cat = await pool.query(
-        `SELECT cs.physical_name FROM public.catalog_tables ct
-         JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
-         JOIN public.data_sources ds ON cs.source_id = ds.id
-         WHERE ds.tenant_id=$1 AND ds.name=$2 AND ct.name=$3 LIMIT 1`, [tenantId, source, resource]);
-      phys = cat.rows[0]?.physical_name || 'public';
+    const cat = await pool.query(
+      `SELECT cs.physical_name FROM public.catalog_tables ct
+       JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+       JOIN public.data_sources ds ON cs.source_id = ds.id
+       WHERE ds.tenant_id=$1 AND ds.name=$2 AND (ct.name=$3 OR cs.name=$4) LIMIT 1`,
+      [tenantId, source, resource, schema || '']
+    );
+    if (cat.rows[0]?.physical_name) {
+      phys = cat.rows[0].physical_name;
+    } else if (schema) {
+      phys = physicalSchemaName(tenantId, schema);
+    } else {
+      phys = 'public';
     }
     // GRANTS: deny the write if the table is governed and the role lacks the privilege.
     const privMap = { create: 'INSERT', update: 'UPDATE', delete: 'DELETE' } as const;
@@ -1526,14 +1573,18 @@ export class QueryEngineService {
     const connector: any = ConnectorFactory.getConnector(engine, config);
     const started = Date.now();
     try {
-      if (engine === 'POSTGRES') {
-        const { sql, params } = this.buildMutationSql(op, phys, resource, data, where);
+      if (engine === 'POSTGRES' || engine === 'MYSQL' || engine === 'ORACLE') {
+        const dialect = engine === 'MYSQL' ? 'mysql' : engine === 'ORACLE' ? 'oracle' : 'postgres';
+        const { sql, params } = this.buildMutationSql(op, phys, resource, data, where, dialect);
         const out = await connector.rawQuery(sql, params);
         const ms = Date.now() - started;
+        const rowsArr = Array.isArray(data) ? data : [data];
+        const returnedRows = (dialect === 'postgres' && Array.isArray(out)) ? out : rowsArr;
+        const affected = (out && typeof out === 'object' && 'affectedRows' in out) ? (out as any).affectedRows : returnedRows.length;
         return {
-          rowCount: out.length, returning: out, status: 'SUCCESS',
+          rowCount: affected, returning: returnedRows, status: 'SUCCESS',
           plan: { strategy: 'SINGLE_CONNECTOR_WRITE', executionMs: ms,
-            legs: [{ source, engine, mode: 'connector', operation: op, target: `${phys}.${resource}`, query: sql.replace(/\s+/g, ' ').trim(), rowsReturned: out.length, ms }] },
+            legs: [{ source, engine, mode: 'connector', operation: op, target: `${phys}.${resource}`, query: sql.replace(/\s+/g, ' ').trim(), rowsReturned: affected, ms }] },
         };
       }
       // Document-store / search engines share the insertDocs/updateDocs/deleteDocs interface.
@@ -1597,22 +1648,31 @@ export class QueryEngineService {
    * @param data for create: a row or array of rows (columns taken from the first row);
    *   for update: a `(col: value)` set map; unused for delete.
    * @param where filter map (see (@link buildWhere)); unused for create.
+   * @param dialect `'postgres' | 'mysql' | 'oracle'` (default `'postgres'`).
    * @returns `(sql, params)` ready to run via the source's connector `rawQuery`.
    */
-  private static buildMutationSql(op: string, schema: string, table: string, data: any, where: any): { sql: string; params: any[] } {
-    const t = `${this.qIdent(schema)}.${this.qIdent(table)}`;
+  private static buildMutationSql(op: string, schema: string, table: string, data: any, where: any, dialect: 'postgres' | 'mysql' | 'oracle' = 'postgres'): { sql: string; params: any[] } {
+    const isMysql = dialect === 'mysql';
+    const isOracle = dialect === 'oracle';
+    const qI = (ident: string) => isMysql ? `\`${ident}\`` : isOracle ? `"${ident.toUpperCase()}"` : this.qIdent(ident);
+    const targetSchema = isOracle ? schema.toUpperCase() : schema;
+    const targetTable = isOracle ? table.toUpperCase() : table;
+    const t = `${qI(targetSchema)}.${qI(targetTable)}`;
     const params: any[] = [];
+    const ph = () => isMysql ? '?' : isOracle ? `:${params.length}` : `$${params.length}`;
+    const ret = (isMysql || isOracle) ? '' : ' RETURNING *';
+
     if (op === 'create') {
       const rowsArr = Array.isArray(data) ? data : [data];
       const cols = Object.keys(rowsArr[0]);
-      const tuples = rowsArr.map((row) => `(${cols.map((c) => { params.push(row[c]); return `$${params.length}`; }).join(', ')})`);
-      return { sql: `INSERT INTO ${t} (${cols.map((c) => this.qIdent(c)).join(', ')}) VALUES ${tuples.join(', ')} RETURNING *`, params };
+      const tuples = rowsArr.map((row) => `(${cols.map((c) => { params.push(row[c]); return ph(); }).join(', ')})`);
+      return { sql: `INSERT INTO ${t} (${cols.map((c) => qI(c)).join(', ')}) VALUES ${tuples.join(', ')}${ret}`, params };
     }
     if (op === 'update') {
-      const sets = Object.keys(data).map((c) => { params.push(data[c]); return `${this.qIdent(c)} = $${params.length}`; }).join(', ');
-      return { sql: `UPDATE ${t} SET ${sets}${this.buildWhere(where, params)} RETURNING *`, params };
+      const sets = Object.keys(data).map((c) => { params.push(data[c]); return `${qI(c)} = ${ph()}`; }).join(', ');
+      return { sql: `UPDATE ${t} SET ${sets}${this.buildWhere(where, params, dialect)}${ret}`, params };
     }
-    return { sql: `DELETE FROM ${t}${this.buildWhere(where, params)} RETURNING *`, params };
+    return { sql: `DELETE FROM ${t}${this.buildWhere(where, params, dialect)}${ret}`, params };
   }
 
   /**

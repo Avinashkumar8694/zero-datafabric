@@ -117,16 +117,21 @@ export class TriggerActionCompiler {
    * @returns A boolean SQL expression string.
    * @throws {Error} If `c.operator`/`c.op` is not a supported comparison operator.
    */
-  static condition(c: any): string {
+  static condition(c: any, isTableFilter = false): string {
     if (!c) return 'TRUE';
-    if (Array.isArray(c.and)) return `(${c.and.map((x: any) => this.condition(x)).join(' AND ')})`;
-    if (Array.isArray(c.or)) return `(${c.or.map((x: any) => this.condition(x)).join(' OR ')})`;
+    if (Array.isArray(c.and)) return `(${c.and.map((x: any) => this.condition(x, isTableFilter)).join(' AND ')})`;
+    if (Array.isArray(c.or)) return `(${c.or.map((x: any) => this.condition(x, isTableFilter)).join(' OR ')})`;
+    const leftRaw = c.left ?? c.column;
+    const rightRaw = c.right ?? c.value;
     const op = String(c.operator || c.op || 'EQ').toUpperCase();
-    if (op === 'IS_NULL') return `${this.expr(c.left)} IS NULL`;
-    if (op === 'IS_NOT_NULL') return `${this.expr(c.left)} IS NOT NULL`;
+    const leftExpr = (isTableFilter && typeof leftRaw === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(leftRaw.trim()) && !KEYWORDS.has(leftRaw.toUpperCase()))
+      ? quoteIdent(leftRaw.trim(), 'column')
+      : this.expr(leftRaw);
+    if (op === 'IS_NULL') return `${leftExpr} IS NULL`;
+    if (op === 'IS_NOT_NULL') return `${leftExpr} IS NOT NULL`;
     const sqlOp = OP_MAP[op];
     if (!sqlOp) throw new Error(`Unsupported condition operator: ${op}`);
-    return `${this.expr(c.left)} ${sqlOp} ${this.expr(c.right)}`;
+    return `${leftExpr} ${sqlOp} ${this.expr(rightRaw)}`;
   }
 
   /**
@@ -176,12 +181,12 @@ export class TriggerActionCompiler {
         if (!cols.length) throw new Error('UPDATE action requires set');
         if (!action.where) throw new Error('UPDATE action requires where (refusing full-table update)');
         const setList = cols.map((c) => `${quoteIdent(c, 'column')} = ${this.expr(set[c])}`).join(', ');
-        return `UPDATE ${target} SET ${setList} WHERE ${this.condition(action.where)};`;
+        return `UPDATE ${target} SET ${setList} WHERE ${this.condition(action.where, true)};`;
       }
       case 'DELETE': {
         const target = this.qualify(action.from || action.table, ctx.schemaName, ctx.tenantId);
         if (!action.where) throw new Error('DELETE action requires where (refusing full-table delete)');
-        return `DELETE FROM ${target} WHERE ${this.condition(action.where)};`;
+        return `DELETE FROM ${target} WHERE ${this.condition(action.where, true)};`;
       }
       case 'RAISE':
       case 'EXCEPTION': {

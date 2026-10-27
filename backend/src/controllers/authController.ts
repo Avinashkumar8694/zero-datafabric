@@ -193,12 +193,12 @@ export const ssoCallback = async (req: Request, res: Response) => {
     const oidc = await getOidcResolved();
     const callbackUrl = process.env.OIDC_CALLBACK_URL || `${API_BASE}/api/auth/sso/callback`;
     // ── Step 1: Exchange authorization code for tokens ──────────────────────
+    // Use client_secret_basic (RFC 6749 Section 2.3.1): credentials must ONLY
+    // be provided in Authorization header, never duplicate in body.
     const params = new URLSearchParams();
     params.append('grant_type', 'authorization_code');
     params.append('code', String(code));
     params.append('redirect_uri', callbackUrl);
-    params.append('client_id', oidc.client_id);
-    params.append('client_secret', oidc.client_secret);
 
     const basicAuth = Buffer.from(`${oidc.client_id}:${oidc.client_secret}`).toString('base64');
     const tokenRes = await axios.post(oidc.token_endpoint, params, {

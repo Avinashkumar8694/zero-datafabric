@@ -1367,9 +1367,10 @@ export class ElasticsearchConnector implements IConnector {
      * @returns `(modifiedCount)`.
      */
     async updateDocs(_schema: string, index: string, filter: Record<string, any>, set: Record<string, any>): Promise<any> {
+        const targetIndex = await this.resolveIndex(index);
         const src = Object.keys(set).map((k) => `ctx._source["${k}"] = params["${k}"]`).join('; ');
         const body = { query: ElasticsearchConnector.buildQuery(filter), script: { source: src, params: set } };
-        const res = await this.req('POST', `/${index}/_update_by_query?refresh=true`, body);
+        const res = await this.req('POST', `/${encodeURIComponent(targetIndex)}/_update_by_query?refresh=true`, body);
         return { modifiedCount: res.updated || 0 };
     }
     /**
@@ -1380,7 +1381,8 @@ export class ElasticsearchConnector implements IConnector {
      * @returns `(deletedCount)`.
      */
     async deleteDocs(_schema: string, index: string, filter: Record<string, any>): Promise<any> {
-        const res = await this.req('POST', `/${index}/_delete_by_query?refresh=true`, { query: ElasticsearchConnector.buildQuery(filter) });
+        const targetIndex = await this.resolveIndex(index);
+        const res = await this.req('POST', `/${encodeURIComponent(targetIndex)}/_delete_by_query?refresh=true`, { query: ElasticsearchConnector.buildQuery(filter) });
         return { deletedCount: res.deleted || 0 };
     }
 

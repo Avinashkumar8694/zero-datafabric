@@ -177,6 +177,30 @@ async function main() {
     return rows;
   });
 
+  // MySQL Data Mutation (Update & Delete)
+  await runStep('Execute UPDATE Mutation on MySQL', 'MySQL', async () => {
+    const res = await axios.post(`${BASE_URL}/data/update`, {
+      source: 'Retail_MySQL',
+      schema: 'retail',
+      resource: 'mysql_inventory',
+      data: { stock_qty: 99 },
+      where: { id: { $eq: 101 } }
+    }, { headers: authHeaders });
+    if (res.data.status !== 'SUCCESS') throw new Error(`MySQL UPDATE failed: ${JSON.stringify(res.data)}`);
+    return res.data;
+  });
+
+  await runStep('Execute DELETE Mutation on MySQL', 'MySQL', async () => {
+    const res = await axios.post(`${BASE_URL}/data/delete`, {
+      source: 'Retail_MySQL',
+      schema: 'retail',
+      resource: 'mysql_inventory',
+      where: { id: { $eq: 104 } }
+    }, { headers: authHeaders });
+    if (res.data.status !== 'SUCCESS') throw new Error(`MySQL DELETE failed: ${JSON.stringify(res.data)}`);
+    return res.data;
+  });
+
   // ──────────────────────────────────────────────────────────────────────────
   // TEST ENGINE 2: Oracle 23c Free Live
   // ──────────────────────────────────────────────────────────────────────────
@@ -255,6 +279,30 @@ async function main() {
     }
     console.log('    Returned Oracle Suppliers:', rows);
     return rows;
+  });
+
+  // Oracle Data Mutation (Update & Delete)
+  await runStep('Execute UPDATE Mutation on Oracle', 'Oracle', async () => {
+    const res = await axios.post(`${BASE_URL}/data/update`, {
+      source: 'Retail_Oracle',
+      schema: 'retail',
+      resource: 'oracle_suppliers',
+      data: { rating: 3 },
+      where: { id: { $eq: 502 } }
+    }, { headers: authHeaders });
+    if (res.data.status !== 'SUCCESS') throw new Error(`Oracle UPDATE failed: ${JSON.stringify(res.data)}`);
+    return res.data;
+  });
+
+  await runStep('Execute DELETE Mutation on Oracle', 'Oracle', async () => {
+    const res = await axios.post(`${BASE_URL}/data/delete`, {
+      source: 'Retail_Oracle',
+      schema: 'retail',
+      resource: 'oracle_suppliers',
+      where: { id: { $eq: 503 } }
+    }, { headers: authHeaders });
+    if (res.data.status !== 'SUCCESS') throw new Error(`Oracle DELETE failed: ${JSON.stringify(res.data)}`);
+    return res.data;
   });
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -336,6 +384,30 @@ async function main() {
     return rows;
   });
 
+  // Elasticsearch Document Mutations (Update & Delete)
+  await runStep('Execute UPDATE Mutation on Elasticsearch', 'Elasticsearch', async () => {
+    const res = await axios.post(`${BASE_URL}/data/update`, {
+      source: 'Elastic_Search',
+      schema: 'default',
+      resource: 'es_audit_stream',
+      data: { status: 'RESOLVED', score: 100 },
+      where: { event_id: { $eq: 'ev_003' } }
+    }, { headers: authHeaders });
+    await axios.post('http://localhost:9200/_refresh');
+    return res.data;
+  });
+
+  await runStep('Execute DELETE Mutation on Elasticsearch', 'Elasticsearch', async () => {
+    const res = await axios.post(`${BASE_URL}/data/delete`, {
+      source: 'Elastic_Search',
+      schema: 'default',
+      resource: 'es_audit_stream',
+      where: { event_id: { $eq: 'ev_003' } }
+    }, { headers: authHeaders });
+    await axios.post('http://localhost:9200/_refresh');
+    return res.data;
+  });
+
   // ──────────────────────────────────────────────────────────────────────────
   // TEST ENGINE 4: Multi-Source Federated Join (PostgreSQL + MySQL)
   // ──────────────────────────────────────────────────────────────────────────
@@ -357,7 +429,8 @@ async function main() {
             { name: 'id', type: 'INTEGER', primaryKey: true },
             { name: 'customer_name', type: 'STRING', length: 100 },
             { name: 'item_sku', type: 'STRING', length: 50 },
-            { name: 'amount', type: 'INTEGER' }
+            { name: 'amount', type: 'INTEGER' },
+            { name: 'supplier_id', type: 'INTEGER' }
           ]
         }]
       }]
@@ -376,8 +449,8 @@ async function main() {
       schema: 'Payment_MS',
       resource: 'fed_orders',
       data: [
-        { id: 1, customer_name: 'Acme Corp', item_sku: 'SKU-LAPTOP-01', amount: 1200 },
-        { id: 2, customer_name: 'Beta LLC', item_sku: 'SKU-PHONE-02', amount: 800 }
+        { id: 1, customer_name: 'Acme Corp', item_sku: 'SKU-LAPTOP-01', amount: 1200, supplier_id: 501 },
+        { id: 2, customer_name: 'Beta LLC', item_sku: 'SKU-PHONE-02', amount: 800, supplier_id: 502 }
       ]
     }, { headers: authHeaders });
 
@@ -407,6 +480,37 @@ async function main() {
     }
 
     console.log('    Federated Join Results (Postgres + MySQL):', rows);
+    console.log('    Execution Plan Strategy:', joinRes.data.plan?.strategy);
+    console.log('    Plan Legs:', joinRes.data.plan?.legs?.map((l: any) => `${l.source} (${l.engine}): ${l.rowsReturned} rows in ${l.ms}ms`));
+    return joinRes.data;
+  });
+
+  await runStep('Execute Federated Join (Postgres Hub + Oracle)', 'Federated_Engine', async () => {
+    const joinRes = await axios.post(`${BASE_URL}/analytics/query`, {
+      queryConfig: {
+        type: 'SELECT',
+        schema: 'Payment_MS',
+        limit: 10,
+        query: {
+          select: ['fed_orders.id', 'fed_orders.customer_name', 'fed_orders.amount', 'oracle_suppliers.NAME', 'oracle_suppliers.COUNTRY'],
+          from: { resource: 'fed_orders', source: 'Fabric_Hub_Postgres' },
+          joins: [{
+            type: 'INNER',
+            resource: 'oracle_suppliers',
+            source: 'Retail_Oracle',
+            schema: 'retail',
+            on: { left: 'fed_orders.supplier_id', operator: 'EQ', right: 'oracle_suppliers.ID' }
+          }]
+        }
+      }
+    }, { headers: authHeaders });
+
+    const rows = joinRes.data.data || joinRes.data.rows || [];
+    if (!Array.isArray(rows) || rows.length !== 2) {
+      throw new Error(`Expected 2 joined rows across Postgres & Oracle, got ${rows.length}`);
+    }
+
+    console.log('    Federated Join Results (Postgres + Oracle):', rows);
     console.log('    Execution Plan Strategy:', joinRes.data.plan?.strategy);
     console.log('    Plan Legs:', joinRes.data.plan?.legs?.map((l: any) => `${l.source} (${l.engine}): ${l.rowsReturned} rows in ${l.ms}ms`));
     return joinRes.data;

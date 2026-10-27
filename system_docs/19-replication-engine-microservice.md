@@ -62,13 +62,80 @@ drives crash detection.
 | Unreachable destination | handshake `SELECT 1` before copy | fails fast, connectors closed |
 | Large table | keyset paging + memory guard | heap bounded (≈40–170MB in tests) |
 
-## Concurrent mutations during a copy & CDC CRUD Reconciliation
+## Triggers in the Replication Architecture
 
-- **Keyset paging is monotonic** on the primary key, immune to the skip/duplicate hazards of OFFSET paging when live tables mutate mid-scan.
-- **Race-Free Reconciliation**: In `CDC` strategy, the engine installs source capture triggers **before** reading the snapshot. Any mutations occurring *during* the snapshot are captured in `fabric_cdc.<outbox>` with a monotonic sequence `seq > baseline`. The subsequent CDC drain re-applies changes in commit order:
-  - `INSERT` / `UPDATE`: Idempotently upserted via primary key (`ON CONFLICT` / `ON DUPLICATE KEY` / `MERGE` / `_bulk`), overwriting any stale snapshot data.
-  - `DELETE` (Hard Deletes): Intercepted as tombstones (`op: 'D'`) and deleted from the destination via [`DestOps.del()`](file:///Users/avinashkumargupta/Documents/projects/Zero/zero-datafabric/backend/src/modules/replication/dest_ops.ts) (guaranteeing zero orphan records).
-- **Strategy Trade-off**: In contrast, `INCREMENTAL` polls `WHERE updated_at > :wm`. Because physically deleted rows no longer exist on disk to be queried, `INCREMENTAL` cannot observe hard deletes and leaves orphans.
+Triggers serve two distinct, mission-critical roles in the replication lifecycle:
+
+```mermaid
+flowchart TD
+    subgraph Execution Triggers ["1. Invocation Triggers (What Triggers a Job)"]
+        Cron[Scheduled Interval Timer<br/>schedule_ms tick] -->|Enqueue| Q[(fabric_system.copy_jobs)]
+        Manual[API / UI On-Demand<br/>POST /api/replication/:id/run] -->|Enqueue| Q
+        Event[Data Mutation / Event Trigger<br/>query.mutation] -->|Enqueue| Q
+    end
+
+    subgraph Job Execution ["2. Job Queue & Worker Pipeline"]
+        Q -->|Claim: FOR UPDATE SKIP LOCKED| Worker[replication-engine Worker]
+        Worker -->|Heartbeat & Checkpoints| CP[(fabric_system.copy_checkpoints)]
+    end
+
+    subgraph Source CDC Triggers ["3. Source-Side DML Triggers (Change Capture)"]
+        DML[Application Write: INSERT/UPDATE/DELETE] -->|Atomic Source Txn| Trg[Source Table Trigger<br/>AFTER I/U/D]
+        Trg -->|Atomically Appends| Outbox[Source Outbox Table<br/>seq, op, pk, doc]
+    end
+
+    Worker -->|Drain: WHERE seq > watermark| Outbox
+    Worker -->|Idempotent Upsert / Hard Delete| Dest[(Target Destination Engine)]
+```
+
+### 1. Source-Side DML Change Capture Triggers (`CdcCapture.ensure()`)
+When a replication job is configured with `strategy: 'CDC'`, the engine automatically provisions native database triggers on the source tables **before** running the snapshot:
+- **PostgreSQL**: Single `AFTER INSERT OR UPDATE OR DELETE` row-level trigger that executes `to_jsonb(NEW/OLD)` into `fabric_cdc.<schema>_<table>_chg` with a monotonic `bigserial seq`.
+- **MySQL**: Three distinct triggers (`_cdc_i`, `_cdc_u`, `_cdc_d`) packaging fields into `JSON_OBJECT(...)` written to `fabric_cdc_<schema>_<table>_chg` with `AUTO_INCREMENT seq`.
+- **Oracle**: Compound trigger (`AFTER INSERT OR UPDATE OR DELETE`) serializing to JSON CLOB into an outbox table with an `IDENTITY` sequence.
+- **MongoDB**: Utilizes native MongoDB Change Streams / Oplog with resume tokens instead of triggers.
+
+**Why Triggers Are Used for CDC**:
+1. **Transactional Atomicity**: The outbox record commits or rolls back in the exact same transaction as the application write — zero ghost writes.
+2. **Hard Delete Tombstones**: Watermark queries (`WHERE updated_at > :wm`) cannot observe hard deletes because deleted rows no longer exist on disk. The trigger intercepts `DELETING` and persists a tombstone (`op = 'D'`).
+3. **Monotonic Sequence**: Guarantees strictly ordered chronological replay without relying on clock synchronization.
+
+### 2. Job Invocation Triggers (What Starts a Replication Job)
+- **Time/Interval Triggers (`schedule_ms`)**: `ReplicationService.startScheduler()` runs every `FABRIC_REPL_TICK_MS` (default 30s). When `now() - last_run_at >= schedule_ms`, it enqueues a job into `fabric_system.copy_jobs` with `dedupe: true`.
+- **On-Demand / Manual API Triggers**: `POST /api/replication/:id/run` or `POST /api/replication/:id/restore` enqueues an execution and immediately returns HTTP `202 QUEUED` with the unique `runId`.
+- **Event-Driven Mutation Triggers**: Virtual mutations emitted by the Data Fabric query orchestrator (`query.mutation`) trigger cache/ES mutation listeners.
+
+---
+
+## The Copy Job Subsystem (`CopyJobEngine`)
+
+Replication is never executed inline in the API request cycle. It is managed by a durable, multi-worker distributed job system:
+
+1. **Durable Queue (`fabric_system.copy_jobs`)**:
+   Holds execution state: `id` (run UUID), `kind` (`REPLICATE`, `SYNC`, `CDC`, `RESTORE`), `status` (`QUEUED`, `RUNNING`, `PAUSED`, `COMPLETED`, `FAILED`), `control` (`RUN`, `PAUSE`), `config` (`pageSize`, `memCeilingMb`, `maxRows`), `heartbeat_at`, and progress rollups.
+
+2. **Distributed Claim via `FOR UPDATE SKIP LOCKED`**:
+   Any number of worker processes can scale horizontally. Each worker claims the next available job atomically:
+   ```sql
+   UPDATE fabric_system.copy_jobs SET status='RUNNING', control='RUN', attempts=attempts+1, claimed_by=$1,
+     started_at=COALESCE(started_at, now()), heartbeat_at=now(), updated_at=now()
+   WHERE id = (SELECT id FROM fabric_system.copy_jobs WHERE status='QUEUED' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1)
+   RETURNING *;
+   ```
+   No two workers can ever claim the same job, and workers never block each other.
+
+3. **Batch Checkpointing (`fabric_system.copy_checkpoints`)**:
+   After each committed batch (default 1,000 rows), the worker persists the table's keyset cursor (`WHERE key > cursor ORDER BY key ASC`) and rolls up `rows_copied / rows_total` and `progress_pct`.
+
+4. **Crash Recovery & Stale Lease Reclaim**:
+   Workers stamp `heartbeat_at` on every batch. If a worker dies or is terminated, `CopyJobEngine.reclaimStale()` identifies jobs where `heartbeat_at < now() - STALE_MS` (default 60s) and resets them to `'QUEUED'`. The next worker resumes execution from the exact checkpoint cursor without data loss or duplication.
+
+5. **Pause & Resume**:
+   Users can pause a live job via `POST /api/replication/runs/:runId/pause`. The worker checks `shouldStop()` between batches, sets status to `PAUSED`, and keeps checkpoints intact. Resuming via `POST /api/replication/runs/:runId/resume` re-queues the job to continue from its cursor.
+
+---
+
+## Concurrent mutations during a copy & CDC CRUD Reconciliation
 
 ## Progress & analytics
 

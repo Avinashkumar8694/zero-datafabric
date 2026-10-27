@@ -300,3 +300,4 @@ html.lp-js .df-landing .lp-reveal.lp-in { opacity: 1; transform: none; }
 @media (max-width: 480px) {
   .df-landing .lp-nav-actions .lp-btn-primary { display: none; }
 }
+.df-landing .lp-plan-price small { font-size: 14px; font-weight: 500; color: var(--text-3); letter-spacing: 0; }

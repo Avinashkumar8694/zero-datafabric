@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { marked } from 'marked';
 import dotenv from 'dotenv';
+import compression from 'compression';
 
 dotenv.config();
 
@@ -96,7 +97,9 @@ const DOC_LIST = INTEGRATION_DOC_GROUPS.flatMap(group => group.docs.map(doc => (
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(compression());
+// 5 minutes of browser caching (still revalidated by ETag afterwards) so page navigation does not refetch every stylesheet/script
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: '5m' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

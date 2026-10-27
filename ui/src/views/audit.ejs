@@ -17,11 +17,12 @@
             </div>
             <div class="card-actions"><button type="button" onclick="loadQueryLogs()" class="btn-outline">Refresh</button></div>
         </div>
+        <div class="table-scroll-hint"><i class="fas fa-arrows-left-right" aria-hidden="true"></i> Swipe horizontally to view full table details</div>
         <div class="table-wrapper">
-            <table>
+            <table class="table-wide">
                 <thead><tr>
-                    <th>Time</th><th>User</th><th>Mode</th><th>Strategy</th><th>Rows</th>
-                    <th>TAT</th><th>Exec</th><th>Mem</th><th>Status</th><th><span class="sr-only">Actions</span></th>
+                    <th class="nowrap">Time</th><th class="nowrap">User</th><th class="nowrap">Mode</th><th class="nowrap">Strategy</th><th class="nowrap">Rows</th>
+                    <th class="nowrap">TAT</th><th class="nowrap">Exec</th><th class="nowrap">Mem</th><th class="nowrap">Status</th><th class="nowrap"><span class="sr-only">Actions</span></th>
                 </tr></thead>
                 <tbody id="qlBody"><tr><td colspan="10" class="state-cell">Loading…</td></tr></tbody>
             </table>
@@ -37,9 +38,10 @@
             </div>
             <div class="card-actions"><button type="button" onclick="loadAudit()" class="btn-outline">Refresh Logs</button></div>
         </div>
+        <div class="table-scroll-hint"><i class="fas fa-arrows-left-right" aria-hidden="true"></i> Swipe horizontally to view full audit logs</div>
         <div class="table-wrapper">
             <table>
-                <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Table</th><th>Payload</th><th><span class="sr-only">Actions</span></th></tr></thead>
+                <thead><tr><th class="nowrap">Time</th><th class="nowrap">User</th><th class="nowrap">Action</th><th class="nowrap">Table</th><th>Payload</th><th class="nowrap"><span class="sr-only">Actions</span></th></tr></thead>
                 <tbody id="auditBody"><tr><td colspan="6" class="state-cell">Streaming logs...</td></tr></tbody>
             </table>
         </div>
@@ -79,16 +81,16 @@
             if (!Array.isArray(QLOGS) || !QLOGS.length) { body.innerHTML = '<tr><td colspan="10" class="state-cell">No query logs yet — run a query in the Workbench or Analytics.</td></tr>'; return; }
             body.innerHTML = QLOGS.map((l,i) => `
                 <tr class="fade-in">
-                    <td><code>${escapeHtml(new Date(l.createdAt).toLocaleTimeString())}</code></td>
-                    <td>${escapeHtml(l.username||'')}${l.role?` <span class="tag">${escapeHtml(l.role)}</span>`:''}</td>
-                    <td><span class="tag">${escapeHtml(l.mode)}</span></td>
-                    <td><code>${escapeHtml(l.strategy||'—')}</code></td>
-                    <td>${escapeHtml(l.rowCount ?? '—')}</td>
-                    <td>${escapeHtml(l.tatMs ?? '—')}ms</td>
-                    <td>${escapeHtml(l.executionMs ?? '—')}ms</td>
-                    <td>${escapeHtml(l.memDeltaKb ?? '—')}KB</td>
-                    <td class="${l.status==='ERROR'?'text-danger':'text-ok'}">${escapeHtml(l.status)}</td>
-                    <td><button class="btn-outline btn-sm" onclick="viewQl('${escapeHtml(l.id)}')">View</button></td>
+                    <td class="nowrap"><code>${escapeHtml(new Date(l.createdAt).toLocaleTimeString())}</code></td>
+                    <td class="nowrap">${escapeHtml(l.username||'')}${l.role?` <span class="tag">${escapeHtml(l.role)}</span>`:''}</td>
+                    <td class="nowrap"><span class="tag">${escapeHtml(l.mode)}</span></td>
+                    <td class="nowrap"><code>${escapeHtml(l.strategy||'—')}</code></td>
+                    <td class="nowrap">${escapeHtml(l.rowCount ?? '—')}</td>
+                    <td class="nowrap">${escapeHtml(l.tatMs ?? '—')}ms</td>
+                    <td class="nowrap">${escapeHtml(l.executionMs ?? '—')}ms</td>
+                    <td class="nowrap">${escapeHtml(l.memDeltaKb ?? '—')}KB</td>
+                    <td class="nowrap ${l.status==='ERROR'?'text-danger':'text-ok'}">${escapeHtml(l.status)}</td>
+                    <td class="nowrap"><button class="btn-outline btn-sm" onclick="viewQl('${escapeHtml(l.id)}')">View</button></td>
                 </tr>`).join('');
         } catch(e) { body.innerHTML = '<tr><td colspan="10" class="state-cell">Failed to load query logs.</td></tr>'; }
     }
@@ -138,12 +140,12 @@
             AUDITLOGS = data.slice(0, 500);
             body.innerHTML = AUDITLOGS.map((log, i) => `
                 <tr class="fade-in">
-                    <td><code>${escapeHtml(new Date(log.changed_at).toLocaleString())}</code></td>
-                    <td><strong>${escapeHtml(log.user_name)}</strong></td>
-                    <td><span class="badge ${log.action === 'DELETE' ? 'badge-danger' : 'badge-info'}">${escapeHtml(log.action)}</span></td>
-                    <td><code>${escapeHtml(log.table_name)}</code></td>
+                    <td class="nowrap"><code>${escapeHtml(new Date(log.changed_at).toLocaleString())}</code></td>
+                    <td class="nowrap"><strong>${escapeHtml(log.user_name)}</strong></td>
+                    <td class="nowrap"><span class="badge ${log.action === 'DELETE' ? 'badge-danger' : 'badge-info'}">${escapeHtml(log.action)}</span></td>
+                    <td class="nowrap"><code>${escapeHtml(log.table_name)}</code></td>
                     <td><div class="cell-clip" title="Open View for the full payload">${escapeHtml(JSON.stringify(log.new_data || log.old_data))}</div></td>
-                    <td><button class="btn-outline btn-sm" onclick="viewAudit(${i})">View</button></td>
+                    <td class="nowrap"><button class="btn-outline btn-sm" onclick="viewAudit(${i})">View</button></td>
                 </tr>`).join('') + (data.length > 500 ? `<tr><td colspan="6" class="state-cell">Showing 500 of ${escapeHtml(data.length)} logs</td></tr>` : '');
         } catch (err) { body.innerHTML = '<tr><td colspan="6" class="state-cell">Failed to fetch governance logs</td></tr>'; }
     }

@@ -179,4 +179,159 @@ export class QueryLogService {
        FROM fabric_system.query_logs WHERE tenant_id=$1 AND id=$2`, [tenantId, id]);
     return rows[0] || null;
   }
+
+  /**
+   * Aggregate professional query usage analytics per user, per role/user-type,
+   * and across time windows for a given tenant workspace.
+   */
+  static async getUsageAnalytics(tenantId: string): Promise<any> {
+    await this.ensureTable();
+    try {
+      // 1. Overall execution statistics
+      const overallRes = await pool.query(`
+        SELECT
+          COUNT(*)::int AS total_queries,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours')::int AS queries_24h,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::int AS queries_7d,
+          COUNT(*) FILTER (WHERE status = 'SUCCESS')::int AS success_queries,
+          COUNT(*) FILTER (WHERE status = 'ERROR')::int AS error_queries,
+          COALESCE(ROUND(AVG(tat_ms)), 0)::int AS avg_tat_ms,
+          COALESCE(SUM(row_count), 0)::bigint AS total_rows_processed,
+          COALESCE(SUM(rows_scanned), 0)::bigint AS total_rows_scanned
+        FROM fabric_system.query_logs
+        WHERE tenant_id = $1`, [tenantId]);
+      const overall = overallRes.rows[0] || {};
+      const totalQ = Number(overall.total_queries || 0);
+      const successQ = Number(overall.success_queries || 0);
+      overall.success_rate_pct = totalQ > 0 ? Math.round((successQ / totalQ) * 1000) / 10 : 100;
+
+      // 2. Breakdown per user from logs
+      const perUserRes = await pool.query(`
+        SELECT
+          COALESCE(username, 'anonymous') AS username,
+          COALESCE(role, 'MEMBER') AS role,
+          COUNT(*)::int AS query_count,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours')::int AS queries_24h,
+          COALESCE(ROUND(AVG(tat_ms)), 0)::int AS avg_tat_ms,
+          COALESCE(SUM(row_count), 0)::bigint AS rows_processed,
+          MAX(created_at) AS last_active_at
+        FROM fabric_system.query_logs
+        WHERE tenant_id = $1
+        GROUP BY username, role
+        ORDER BY query_count DESC`, [tenantId]);
+
+      // 3. Registered workspace users (ensure all users appear even with 0 queries)
+      const registeredUsers = (await pool.query(`
+        SELECT id, username, role, status, created_at
+        FROM public.users
+        WHERE tenant_id = $1
+        ORDER BY created_at ASC`, [tenantId])).rows;
+
+      const userMap = new Map<string, any>();
+      for (const u of registeredUsers) {
+        userMap.set(u.username, {
+          username: u.username,
+          email: u.email || `${u.username}@fabric.local`,
+          role: u.role || 'MEMBER',
+          status: u.status || 'ACTIVE',
+          query_count: 0,
+          queries_24h: 0,
+          avg_tat_ms: 0,
+          rows_processed: 0,
+          last_active_at: null,
+          joined_at: u.created_at,
+        });
+      }
+
+      for (const logUser of perUserRes.rows) {
+        const existing = userMap.get(logUser.username);
+        if (existing) {
+          existing.query_count = Number(logUser.query_count || 0);
+          existing.queries_24h = Number(logUser.queries_24h || 0);
+          existing.avg_tat_ms = Number(logUser.avg_tat_ms || 0);
+          existing.rows_processed = Number(logUser.rows_processed || 0);
+          existing.last_active_at = logUser.last_active_at;
+          if (logUser.role) existing.role = logUser.role;
+        } else {
+          userMap.set(logUser.username, {
+            username: logUser.username,
+            email: `${logUser.username}@fabric.local`,
+            role: logUser.role || 'MEMBER',
+            status: 'ACTIVE',
+            query_count: Number(logUser.query_count || 0),
+            queries_24h: Number(logUser.queries_24h || 0),
+            avg_tat_ms: Number(logUser.avg_tat_ms || 0),
+            rows_processed: Number(logUser.rows_processed || 0),
+            last_active_at: logUser.last_active_at,
+            joined_at: null,
+          });
+        }
+      }
+
+      const usersList = Array.from(userMap.values()).sort((a, b) => b.query_count - a.query_count);
+
+      // 4. Breakdown per user type / role
+      const roleCounts: Record<string, { queries: number; users: Set<string>; avg_tat: number }> = {
+        ADMIN: { queries: 0, users: new Set(), avg_tat: 0 },
+        DEVELOPER: { queries: 0, users: new Set(), avg_tat: 0 },
+        ANALYST: { queries: 0, users: new Set(), avg_tat: 0 },
+        VIEWER: { queries: 0, users: new Set(), avg_tat: 0 },
+      };
+
+      for (const u of usersList) {
+        const rKey = (u.role || 'VIEWER').toUpperCase();
+        if (!roleCounts[rKey]) roleCounts[rKey] = { queries: 0, users: new Set(), avg_tat: 0 };
+        roleCounts[rKey].users.add(u.username);
+        roleCounts[rKey].queries += u.query_count;
+      }
+
+      const perRole = Object.entries(roleCounts).map(([role, val]) => ({
+        role,
+        query_count: val.queries,
+        user_count: val.users.size,
+        query_share_pct: totalQ > 0 ? Math.round((val.queries / totalQ) * 100) : 0,
+      }));
+
+      // 5. Breakdown per query mode (AST, CRUD, FETCH, etc.)
+      const perModeRes = await pool.query(`
+        SELECT
+          mode,
+          COUNT(*)::int AS count,
+          COALESCE(ROUND(AVG(tat_ms)), 0)::int AS avg_tat_ms
+        FROM fabric_system.query_logs
+        WHERE tenant_id = $1
+        GROUP BY mode
+        ORDER BY count DESC
+        LIMIT 10`, [tenantId]);
+
+      // 6. Recent daily timeline (last 7 days)
+      const dailyRes = await pool.query(`
+        SELECT
+          TO_CHAR(created_at, 'YYYY-MM-DD') AS day,
+          COUNT(*)::int AS count,
+          COUNT(*) FILTER (WHERE status = 'SUCCESS')::int AS success,
+          COALESCE(ROUND(AVG(tat_ms)), 0)::int AS avg_tat_ms
+        FROM fabric_system.query_logs
+        WHERE tenant_id = $1 AND created_at >= NOW() - INTERVAL '7 days'
+        GROUP BY TO_CHAR(created_at, 'YYYY-MM-DD')
+        ORDER BY day ASC`, [tenantId]);
+
+      return {
+        overall,
+        usersList,
+        perRole,
+        perMode: perModeRes.rows,
+        dailyTrend: dailyRes.rows,
+      };
+    } catch (e: any) {
+      console.error('[QueryLogService] getUsageAnalytics error:', e.message);
+      return {
+        overall: { total_queries: 0, queries_24h: 0, queries_7d: 0, success_queries: 0, error_queries: 0, avg_tat_ms: 0, total_rows_processed: 0, total_rows_scanned: 0, success_rate_pct: 100 },
+        usersList: [],
+        perRole: [],
+        perMode: [],
+        dailyTrend: [],
+      };
+    }
+  }
 }

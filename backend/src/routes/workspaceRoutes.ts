@@ -29,8 +29,13 @@ router.use(sessionOnly);
 
 const fail = (status: number, code: string, message: string): never => { throw Object.assign(new Error(message), { status, code }); };
 const wrap = (fn: (req: Request, res: Response, tenantId: string) => Promise<any>) => async (req: Request, res: Response) => {
-  try { await fn(req, res, (req as any).user.tenant_id); }
-  catch (e: any) {
+  try {
+    const user = (req as any).user;
+    const requestedTenant = isPlatformAdmin(user)
+      ? ((req.headers['x-tenant-id'] as string) || (req.query.tenantId as string) || user.tenant_id)
+      : user.tenant_id;
+    await fn(req, res, requestedTenant);
+  } catch (e: any) {
     if (e instanceof SettingsError || e instanceof LimitError || (e.status && e.code)) return res.status(e.status || 400).json({ error: e.message, code: e.code });
     console.error('[Workspace]', e.message);
     res.status(500).json({ error: 'Internal error', code: 'INTERNAL' });
@@ -75,6 +80,104 @@ router.get('/limits', wrap(async (_req, res, tenantId) => {
   const eff = await LimitsResolver.forTenant(tenantId);
   res.json({ ...eff, usage: await workspaceUsage(tenantId) });
 })); // GET /api/workspace/limits — effective limits, features, trial and current usage
+
+/**
+ * GET /api/workspace/dashboard
+ * Professional multi-tenant & role-aware usage analytics for the active workspace.
+ * Automatically dynamically respects account switching when requested by platform admin.
+ */
+router.get('/dashboard', wrap(async (req, res, tenantId) => {
+  const user = (req as any).user;
+  const isSysAdmin = isPlatformAdmin(user);
+
+  // 1. Workspace details
+  const t = (await pool.query('SELECT id, name, status, user_id, plan_name, created_at FROM public.tenants WHERE id = $1', [tenantId])).rows[0];
+  if (!t) fail(404, 'WORKSPACE_NOT_FOUND', 'workspace not found');
+
+  // 2. Caller role & permissions in this workspace
+  const workspaceRole = await roleOf(user, tenantId); // platform_admin | owner | member
+  const userRow = (await pool.query('SELECT role, status FROM public.users WHERE username = $1 AND tenant_id = $2', [user.username, tenantId])).rows[0];
+  const assignedRole = (userRow?.role || user.internal_role || (isSysAdmin ? 'ADMIN' : 'VIEWER')).toUpperCase();
+
+  const permissions = {
+    role: assignedRole,
+    isOwner: workspaceRole === 'owner' || isSysAdmin,
+    isPlatformAdmin: isSysAdmin,
+    canExecuteQueries: true,
+    canBuildAnalytics: ['ADMIN', 'DEVELOPER', 'ANALYST'].includes(assignedRole) || isSysAdmin,
+    canManageConnections: ['ADMIN'].includes(assignedRole) || isSysAdmin,
+    canManageUsers: ['ADMIN'].includes(assignedRole) || isSysAdmin,
+    canManagePolicies: ['ADMIN'].includes(assignedRole) || isSysAdmin,
+    canManageTriggers: ['ADMIN', 'DEVELOPER'].includes(assignedRole) || isSysAdmin,
+    canManageReplication: ['ADMIN'].includes(assignedRole) || isSysAdmin,
+    canSwitchPlan: workspaceRole === 'owner' || isSysAdmin,
+    canViewAuditLogs: ['ADMIN'].includes(assignedRole) || isSysAdmin,
+  };
+
+  // 3. Plan & limits
+  const eff = await LimitsResolver.forTenant(tenantId);
+  const usageCounters = await workspaceUsage(tenantId);
+
+  // 4. Usage analytics from query logs
+  const { QueryLogService } = await import('../modules/query-engine/query-log.service');
+  const queryAnalytics = await QueryLogService.getUsageAnalytics(tenantId);
+
+  // 5. Personal usage for the calling user
+  const personalLog = (await pool.query(`
+    SELECT
+      COUNT(*)::int AS my_queries_total,
+      COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours')::int AS my_queries_24h,
+      COALESCE(ROUND(AVG(tat_ms)), 0)::int AS my_avg_tat_ms,
+      MAX(created_at) AS my_last_query_at
+    FROM fabric_system.query_logs
+    WHERE tenant_id = $1 AND username = $2`, [tenantId, user.username])).rows[0] || {};
+
+  // 6. Security audits count in last 24h
+  const auditsCount = (await pool.query(`
+    SELECT COUNT(*)::int AS n FROM public.audit_logs
+    WHERE changed_at >= NOW() - INTERVAL '24 hours' AND (tenant_id = $1 OR tenant_id IS NULL)`, [tenantId])).rows[0]?.n || 0;
+
+  res.json({
+    workspace: {
+      id: t.id,
+      name: t.name,
+      status: t.status,
+      ownerUserId: t.user_id,
+      createdAt: t.created_at,
+      isAccountSwitched: isSysAdmin && (req.headers['x-tenant-id'] !== undefined && req.headers['x-tenant-id'] !== (user.original_tenant_id || user.tenant_id)),
+    },
+    caller: {
+      username: user.username,
+      assignedRole,
+      workspaceRole,
+    },
+    permissions,
+    plan: {
+      name: eff.plan.name,
+      source: eff.plan.source,
+      limits: eff.limits,
+      features: eff.features,
+      trial: eff.trial,
+      licence: eff.licence,
+      planLimitsEnabled: eff.planLimitsEnabled,
+    },
+    usage: {
+      ...usageCounters,
+      audits_24h: auditsCount,
+      queries: queryAnalytics.overall,
+    },
+    userTypeBreakdown: queryAnalytics.perRole,
+    userActivityTable: queryAnalytics.usersList,
+    modeBreakdown: queryAnalytics.perMode,
+    dailyTrend: queryAnalytics.dailyTrend,
+    personalUsage: {
+      queries_today: personalLog.my_queries_24h || 0,
+      queries_total: personalLog.my_queries_total || 0,
+      avg_tat_ms: personalLog.my_avg_tat_ms || 0,
+      last_query_at: personalLog.my_last_query_at || null,
+    },
+  });
+})); // GET /api/workspace/dashboard
 
 router.get('/plans', wrap(async (_req, res) => {
   res.json((await pool.query("SELECT name, description, price_monthly, limits, features, is_default, is_custom, status, contact_config FROM public.plans WHERE COALESCE(status,'active') IN ('active','upcoming') AND name <> 'selfhost' ORDER BY price_monthly ASC, name ASC")).rows);

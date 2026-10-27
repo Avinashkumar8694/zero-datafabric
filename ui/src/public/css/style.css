@@ -465,6 +465,7 @@ body.login-page .content-wrapper {
 
 /* Fully Responsive Tables */
 .table-wrapper {
+    position: relative;
     width: 100%;
     max-width: 100%;
     background: var(--surface);
@@ -473,12 +474,26 @@ body.login-page .content-wrapper {
     -webkit-overflow-scrolling: touch;
     border: 1px solid var(--border);
     margin-top: 0.5rem;
+    scrollbar-width: thin;
+}
+
+.table-wrapper::-webkit-scrollbar {
+    height: 6px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
 }
 
 table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 580px;
+    min-width: 650px;
+}
+
+table.table-wide {
+    min-width: 860px;
 }
 
 th {
@@ -499,6 +514,39 @@ td {
     border-bottom: 1px solid var(--border);
     font-size: 0.875rem;
     color: var(--text);
+    word-break: normal;
+}
+
+/* Guard cells against unnatural character-level vertical wrapping on mobile */
+td.nowrap, th.nowrap, td.cell-nowrap, th.cell-nowrap,
+td code, th code,
+td .tag, td .badge, td .badge-sync,
+td .btn-sm, td .btn-outline {
+    white-space: nowrap !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+}
+
+.cell-clip {
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.table-scroll-hint {
+    display: none;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.4rem;
+}
+
+@media (max-width: 768px) {
+    .table-scroll-hint {
+        display: flex;
+    }
 }
 
 tr:last-child td {
@@ -853,7 +901,11 @@ tr:last-child td {
     }
 
     table {
-        min-width: 520px;
+        min-width: 650px;
+    }
+
+    table.table-wide {
+        min-width: 860px;
     }
 
     th, td {

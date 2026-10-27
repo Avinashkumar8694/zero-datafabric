@@ -31,11 +31,12 @@ async function run() {
   console.log('\x1b[1m\x1b[36m  ZERO DATA FABRIC: KAFKA-BACKED CDC REPLICATION VERIFICATION SUITE   \x1b[0m');
   console.log('\x1b[1m\x1b[36m══════════════════════════════════════════════════════════════════════\x1b[0m\n');
 
+  const runId = Math.floor(Date.now() / 1000);
   const tenantId = 'tenant_A';
-  const sourceName = 'Kafka_Proof_PG';
+  const sourceName = `Kafka_Proof_${runId}`;
   const schema = 'public';
   const table = 'kafka_cdc_orders';
-  const esIndex = `kafka_cdc_orders_idx`;
+  const esIndex = `kafka_cdc_orders_idx_${runId}`;
 
   const esConn: any = ConnectorFactory.getConnector('ELASTICSEARCH', {
     node: process.env.ELASTICSEARCH_URL || 'http://localhost:9200',
@@ -56,9 +57,12 @@ async function run() {
     ts timestamptz DEFAULT now()
   )`);
 
-  // Ensure clean index in ES
+  // Ensure clean index in ES and reset kafka offset for test table
   try { await esConn.dropIndex(esIndex); } catch {}
-  console.log('  Cleaned up existing PostgreSQL source and Elasticsearch index.');
+  await pool.query(`CREATE SCHEMA IF NOT EXISTS fabric_system`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS fabric_system.cdc_kafka_offset (k text PRIMARY KEY, seq bigint NOT NULL DEFAULT 0)`);
+  await pool.query(`DELETE FROM fabric_system.cdc_kafka_offset WHERE k = $1`, [`${tenantId}:${sourceName}:${schema}.${table}`]);
+  console.log('  Cleaned up existing PostgreSQL source, Kafka offset, and Elasticsearch index.');
 
   // 2. Insert test events into Outbox:
   // Event 1: INSERT order 101 ($150, PENDING)

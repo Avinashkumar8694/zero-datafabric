@@ -79,6 +79,7 @@ app.use(async (req, res, next) => {
     try {
       const user = AuthService.verifyToken(bearer) as any;
       if (user) {
+        user.original_tenant_id = user.tenant_id;
         const tenantOverride = req.headers['x-tenant-id'];
         if (user.internal_role === 'ADMIN' && tenantOverride && typeof tenantOverride === 'string') {
           user.tenant_id = tenantOverride;

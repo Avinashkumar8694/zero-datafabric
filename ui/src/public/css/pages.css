@@ -327,3 +327,166 @@ html:has(body.login-page) { background: var(--bg); }
 .logout-mark { width: 48px; height: 48px; border-radius: 12px; font-size: 1rem; margin-bottom: 1.25rem; }
 .logout-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
 .logout-sub { color: var(--text-muted); font-size: 0.9rem; }
+
+/* ---------- Professional Usage Analytics & Dashboard (/dashboard) ---------- */
+.ws-context-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.85rem 1.25rem;
+    margin-bottom: 1.25rem;
+    box-shadow: var(--shadow);
+}
+.ws-context-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+.ws-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+.ws-admin-switched {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.35);
+    color: #f59e0b;
+}
+
+/* Plan & Resource Quota Meters */
+.quota-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 1rem;
+    margin-top: 0.75rem;
+}
+.quota-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+.quota-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-2);
+}
+.quota-val-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+}
+.quota-current {
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+.quota-cap {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+.meter-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--input-bg);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-top: 0.25rem;
+    position: relative;
+}
+.meter-fill {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 0.4s ease;
+}
+.meter-fill.ok { background: #10b981; }
+.meter-fill.warn { background: #f59e0b; }
+.meter-fill.danger { background: #ef4444; }
+
+/* User Type Role Cards */
+.role-analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-top: 0.75rem;
+}
+.role-metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.role-metric-card .role-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.badge-admin { background: rgba(147, 51, 234, 0.15); border: 1px solid rgba(147, 51, 234, 0.4); color: #c084fc; }
+.badge-dev { background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.4); color: #60a5fa; }
+.badge-analyst { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); color: #34d399; }
+.badge-viewer { background: rgba(107, 114, 128, 0.15); border: 1px solid rgba(107, 114, 128, 0.4); color: #9ca3af; }
+
+/* Permissions Matrix */
+.perm-matrix-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+}
+.perm-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.84rem;
+}
+.perm-icon-allowed { color: #10b981; font-size: 1rem; flex-shrink: 0; }
+.perm-icon-denied { color: var(--text-muted); opacity: 0.5; font-size: 1rem; flex-shrink: 0; }
+
+/* User avatar */
+.user-avatar-sm {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-weight: 700;
+    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.cell-user {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+.user-sub {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}

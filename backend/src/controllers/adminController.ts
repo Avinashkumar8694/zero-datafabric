@@ -380,17 +380,41 @@ export const deleteUser = async (req: Request, res: Response) => {
 export const getDashboardStats = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
+    const requestedTenant = (req.headers['x-tenant-id'] as string) || (req.query.tenantId as string);
+
+    // If an admin or user has switched to a specific tenant, scope metrics to that workspace!
+    if (requestedTenant && requestedTenant !== 'all') {
+      const [tenants, connections, audits, users] = await Promise.all([
+        pool.query('SELECT COUNT(*) FROM public.tenants WHERE id = $1', [requestedTenant]),
+        pool.query('SELECT COUNT(*) FROM public.data_sources WHERE tenant_id = $1', [requestedTenant]),
+        pool.query("SELECT COUNT(*) FROM public.audit_logs WHERE (tenant_id = $1 OR tenant_id IS NULL) AND changed_at > NOW() - INTERVAL '24 hours'", [requestedTenant]),
+        pool.query('SELECT COUNT(*) FROM public.users WHERE tenant_id = $1', [requestedTenant]),
+      ]);
+
+      const tenantInfo = (await pool.query('SELECT id, name, plan_name FROM public.tenants WHERE id = $1', [requestedTenant])).rows[0];
+
+      return res.json({
+        tenants: parseInt(tenants.rows[0]?.count || '1'),
+        connections: parseInt(connections.rows[0]?.count || '0'),
+        audits: parseInt(audits.rows[0]?.count || '0'),
+        users: parseInt(users.rows[0]?.count || '0'),
+        activeTenant: tenantInfo ? { id: tenantInfo.id, name: tenantInfo.name, plan: tenantInfo.plan_name } : null,
+      });
+    }
+
     if (user.internal_role === 'ADMIN') {
-      const [tenants, connections, audits] = await Promise.all([
+      const [tenants, connections, audits, users] = await Promise.all([
         pool.query('SELECT COUNT(*) FROM public.tenants'),
         pool.query('SELECT COUNT(*) FROM public.data_sources'),
-        pool.query("SELECT COUNT(*) FROM public.audit_logs WHERE changed_at > NOW() - INTERVAL '24 hours'")
+        pool.query("SELECT COUNT(*) FROM public.audit_logs WHERE changed_at > NOW() - INTERVAL '24 hours'"),
+        pool.query('SELECT COUNT(*) FROM public.users'),
       ]);
       
       res.json({
         tenants: parseInt(tenants.rows[0].count),
         connections: parseInt(connections.rows[0].count),
-        audits: parseInt(audits.rows[0].count)
+        audits: parseInt(audits.rows[0].count),
+        users: parseInt(users.rows[0]?.count || '0'),
       });
     } else {
       const context = { tenantId: user.tenant_id, username: user.username };

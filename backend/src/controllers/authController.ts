@@ -93,20 +93,27 @@ export const refreshToken = async (req: Request, res: Response) => {
 };
 
 async function getOidcSettings() {
+  const envSecret = process.env.OIDC_CLIENT_SECRET;
   const defaults = {
     issuer: process.env.OIDC_ISSUER || process.env.IDS_BASE_URL || 'https://ids.fabrixly.com/oidc',
     client_id: process.env.OIDC_CLIENT_ID || 'zero-datafabric',
-    client_secret: process.env.OIDC_CLIENT_SECRET || 'bc79a2ed33935010666d9e4e1e0f29d7c80f0cd01d4a45267b6bc9b51fb9dd1d'
+    client_secret: envSecret || 'bc79a2ed33935010666d9e4e1e0f29d7c80f0cd01d4a45267b6bc9b51fb9dd1d'
   };
 
   try {
     const { rows } = await pool.query("SELECT value FROM public.settings WHERE key = 'custom_login'");
     if (rows.length > 0) {
       const custom = rows[0].value || {};
+      const customSecret = custom.oidc_client_secret;
+      // Do not let placeholder strings override the real secret
+      const resolvedSecret = (customSecret && customSecret !== 'super-secret-key-fabric')
+        ? customSecret
+        : defaults.client_secret;
+
       return {
         issuer: custom.oidc_issuer || defaults.issuer,
         client_id: custom.oidc_client_id || defaults.client_id,
-        client_secret: custom.oidc_client_secret || defaults.client_secret
+        client_secret: resolvedSecret
       };
     }
     return defaults;
@@ -161,7 +168,8 @@ async function getOidcResolved(): Promise<OidcEndpoints> {
  */
 export const sso = async (req: Request, res: Response) => {
   const oidc = await getOidcResolved();
-  const redirectUri = encodeURIComponent(`${API_BASE}/api/auth/sso/callback`);
+  const callbackUrl = process.env.OIDC_CALLBACK_URL || `${API_BASE}/api/auth/sso/callback`;
+  const redirectUri = encodeURIComponent(callbackUrl);
   const oidcUrl = `${oidc.authorization_endpoint}?client_id=${oidc.client_id}&redirect_uri=${redirectUri}&response_type=code&scope=openid%20email%20profile&state=state_datafabric`;
   res.redirect(oidcUrl);
 };
@@ -183,16 +191,21 @@ export const ssoCallback = async (req: Request, res: Response) => {
 
   try {
     const oidc = await getOidcResolved();
+    const callbackUrl = process.env.OIDC_CALLBACK_URL || `${API_BASE}/api/auth/sso/callback`;
     // ── Step 1: Exchange authorization code for tokens ──────────────────────
     const params = new URLSearchParams();
     params.append('grant_type', 'authorization_code');
     params.append('code', String(code));
-    params.append('redirect_uri', `${API_BASE}/api/auth/sso/callback`);
+    params.append('redirect_uri', callbackUrl);
     params.append('client_id', oidc.client_id);
     params.append('client_secret', oidc.client_secret);
 
+    const basicAuth = Buffer.from(`${oidc.client_id}:${oidc.client_secret}`).toString('base64');
     const tokenRes = await axios.post(oidc.token_endpoint, params, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${basicAuth}`
+      }
     });
 
     const { id_token, access_token } = tokenRes.data;
@@ -342,8 +355,9 @@ export const ssoCallback = async (req: Request, res: Response) => {
 
     res.redirect(`${UI_BASE}/login?token=${token}&auth_method=sso`);
   } catch (err: any) {
-    console.error('[SSO Callback] Error:', err.message);
-    res.status(500).json({ error: 'SSO Login failed', details: err.message });
+    const errorDetail = err.response?.data?.error_description || err.response?.data?.error || err.message;
+    console.error('[SSO Callback] Error:', err.message, err.response?.data ? JSON.stringify(err.response.data) : '');
+    res.status(500).json({ error: 'SSO Login failed', details: errorDetail });
   }
 };
 

@@ -278,20 +278,28 @@ if (process.env.NODE_ENV !== 'test') {
           value JSONB
         )
       `);
+      const initOidcSecret = process.env.OIDC_CLIENT_SECRET || 'bc79a2ed33935010666d9e4e1e0f29d7c80f0cd01d4a45267b6bc9b51fb9dd1d';
+      const initOidcIssuer = process.env.OIDC_ISSUER || 'https://ids.fabrixly.com/oidc';
+      const initOidcClientId = process.env.OIDC_CLIENT_ID || 'zero-datafabric';
       await pool.query(`
         INSERT INTO public.settings (key, value)
-        VALUES ('custom_login', '{
-          "title": "Data Fabric",
-          "logo_url": "",
-          "bg_color": "#04060f",
-          "allow_password_login": true,
-          "sso_enabled": true,
-          "oidc_issuer": "https://ids.fabrixly.com",
-          "oidc_client_id": "zero-datafabric",
-          "oidc_client_secret": "super-secret-key-fabric"
-        }'::jsonb)
-        ON CONFLICT (key) DO NOTHING
-      `);
+        VALUES ('custom_login', jsonb_build_object(
+          'title', 'Data Fabric',
+          'logo_url', '',
+          'bg_color', '#04060f',
+          'allow_password_login', true,
+          'sso_enabled', true,
+          'oidc_issuer', $1::text,
+          'oidc_client_id', $2::text,
+          'oidc_client_secret', $3::text
+        ))
+        ON CONFLICT (key) DO UPDATE SET
+          value = jsonb_set(
+            jsonb_set(public.settings.value, '{oidc_client_secret}', to_jsonb($3::text)),
+            '{oidc_issuer}', to_jsonb($1::text)
+          )
+          WHERE public.settings.value->>'oidc_client_secret' = 'super-secret-key-fabric'
+      `, [initOidcIssuer, initOidcClientId, initOidcSecret]);
       await pool.query(`
         INSERT INTO public.settings (key, value)
         VALUES ('license_key', '{

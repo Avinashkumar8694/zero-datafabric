@@ -60,6 +60,33 @@ curl -s "${H[@]}" http://localhost:4000/api/analytics/query -d '{
 }
 ```
 
+### Vectorized Apache Arrow Binary Streaming
+
+For high-throughput analytical workloads (Pandas, Polars, DuckDB, Tableau), query results can be streamed directly as **binary Apache Arrow IPC RecordBatches**, bypassing JSON stringification and V8 object serialization:
+
+```bash
+curl -s "${H[@]}" http://localhost:4000/api/analytics/query \
+  -H "Accept: application/vnd.apache.arrow.stream" \
+  -d '{
+    "queryConfig": {
+      "type": "SELECT", "schema": "public", "limit": 100000,
+      "query": { "from": { "resource": "orders" } }
+    }
+  }' --output orders.arrow
+```
+
+Or pass `?format=arrow` / `"format": "arrow"` in the request body. The response carries:
+- `Content-Type: application/vnd.apache.arrow.stream`
+- `X-Fabric-Format: apache-arrow`
+
+### Cost-Based Query Optimization (CBO)
+
+The query planner automatically sizes each join leg using persisted catalog table cardinalities (`catalog_tables.row_count`) in **0ms** (or an in-memory TTL probe cache).
+
+For multi-leg inner equijoins:
+- The engine dynamically orders join legs from smallest to largest post-filter cardinality.
+- Pushes down **Semi-Join Reduction** (`$in` in MongoDB, `ANY(?)` in PostgreSQL/MySQL, `terms` in Elasticsearch) so large remote tables only scan and return rows that match driving keys.
+
 **Errors:**
 
 | Status | Body | Cause |

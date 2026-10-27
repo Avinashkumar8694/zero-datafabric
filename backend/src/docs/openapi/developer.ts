@@ -250,14 +250,17 @@ const analyticsOps: OpDef[] = [
     tag: T.analytics,
     summary: 'Run an AST query (primary query interface)',
     description:
-      'Executes an engine-agnostic AST and records it in the query log. A SELECT must carry a `where`, a `limit`, or be a set-operation. Send `"stream": true` (or `?stream=true`) with `Accept: application/x-ndjson` to receive rows as NDJSON followed by a `{"__meta__": ...}` trailer carrying plan/rowCount/warnings.',
+      'Executes an engine-agnostic AST and records it in the query log. A SELECT must carry a `where`, a `limit`, or be a set-operation. Multi-leg joins are automatically reordered and optimized using in-fabric Cost-Based Optimization (CBO) and Semi-Join reduction. Send `"stream": true` (or `?stream=true`) with `Accept: application/x-ndjson` to receive rows as NDJSON followed by a `{"__meta__": ...}` trailer. Send `Accept: application/vnd.apache.arrow.stream` or `?format=arrow` for zero-copy binary Apache Arrow IPC streaming.',
     scopes: ['query:read'],
     actAs: true,
     region: true,
     ndjson: true,
     rejectsSql: true,
     ...lic,
-    params: [q('stream', 'Alternative to `"stream": true` in the body.', { type: 'boolean' }, true)],
+    params: [
+      q('stream', 'Alternative to `"stream": true` in the body for NDJSON streaming.', { type: 'boolean' }, true),
+      q('format', 'Output format ("json" or "arrow"). Requesting "arrow" returns binary Apache Arrow IPC stream.', { type: 'string' }, 'arrow')
+    ],
     body: jsonBody(ref('AnalyticsQueryRequest'), {
       filter: ex('AST filter', { queryConfig: filterQuery }),
       aggregate: ex('AST aggregate', { queryConfig: aggregateQuery }),
@@ -265,9 +268,10 @@ const analyticsOps: OpDef[] = [
       recursive: ex('Recursive', { queryConfig: recursiveQuery }),
       call: ex('Function call', { queryConfig: callQuery }),
       stream: ex('Stream as NDJSON', { queryConfig: { ...filterQuery, stream: true } }),
+      arrow: ex('Stream as Apache Arrow', { queryConfig: { ...filterQuery, format: 'arrow' } }),
     }),
     responses: {
-      '200': { description: 'Buffered JSON envelope, or NDJSON when streaming was requested.', schema: ref('QueryEnvelope'), example: envelope },
+      '200': { description: 'Buffered JSON envelope, NDJSON when streaming was requested, or binary Apache Arrow IPC stream when format=arrow.', schema: ref('QueryEnvelope'), example: envelope },
     },
     errors: {},
   },

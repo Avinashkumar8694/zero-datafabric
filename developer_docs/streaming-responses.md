@@ -185,3 +185,36 @@ The per-request `stream` flag always wins over `FABRIC_STREAM_DEFAULT`.
 aggregate, `DISTINCT`) still can't emit its first row until that operator finishes — streaming
 helps delivery and client memory/cancel, not that barrier. See system_docs/18 for the
 node-to-node streaming roadmap that addresses the compute side.
+
+---
+
+## Vectorized Apache Arrow Streaming (`format=arrow`)
+
+In addition to NDJSON, Data Fabric provides zero-copy **Apache Arrow binary IPC streaming** for high-performance analytics, data science pipelines, and BI engines.
+
+### How to use:
+Set `Accept: application/vnd.apache.arrow.stream` or pass `?format=arrow` in the query URL / body:
+
+```bash
+curl -s http://localhost:4000/api/analytics/query \
+     -H "Authorization: Bearer $T" \
+     -H "x-tenant-id: tenant_A" \
+     -H "Accept: application/vnd.apache.arrow.stream" \
+     -d '{"queryConfig":{"type":"SELECT","schema":"public","limit":50000,"query":{"from":{"resource":"transactions"}}}}' \
+     --output transactions.arrow
+```
+
+### Benefits:
+- **Zero V8 Garbage Collection overhead**: Data is encoded as typed C-contiguous column arrays.
+- **Up to 90% bandwidth reduction**: Columnar packing compresses duplicate strings, integers, and timestamps.
+- **Direct ingestion**: Read directly into Python (Pandas / Polars), DuckDB, or Apache Arrow without parsing JSON:
+  ```python
+  import pyarrow as pa
+  import pyarrow.ipc as ipc
+
+  with open("transactions.arrow", "rb") as f:
+      reader = ipc.open_stream(f)
+      table = reader.read_all()
+      df = table.to_pandas()
+  ```
+

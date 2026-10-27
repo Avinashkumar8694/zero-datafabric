@@ -98,27 +98,80 @@ This is both crash-safe and concurrency-safe (see below). The last key doubles a
 - **Retries** — a failed job is retried up to `max_attempts` (3), then `FAILED` with the
   error recorded. Handshake (`SELECT 1`) on the destination fails fast and cleanly.
 
-## Concurrent updates during a copy
+## Concurrent mutations during replication & Race-Free Reconciliation
 
-What happens if the source changes **while** a copy is running?
+What happens when data in production is actively changing — inserts, updates, and deletes — **while** replication is in progress?
 
-- **Keyset paging is monotonic** — it advances `key > lastKey`, so inserts/deletes of rows
-  *behind* the cursor never cause the skips/duplicates that OFFSET paging suffers when row
-  positions shift mid-scan. A FULL copy is therefore a **forward-moving snapshot**: every
-  row present with `key > cursor` at the moment that page is read is captured exactly once.
-- **Rows already copied that are later updated** are *not* re-read by the current FULL pass
-  (the cursor has moved past them). They are reconciled by:
-  - the next **FULL** run (idempotent DROP+reload / upsert), or
-  - **INCREMENTAL / CDC** strategy — a watermark column (`updated_at`/`id`) captures
-    inserts **and** watermark-advancing updates and upserts them by PK on each refresh.
-- **Hard deletes** are not captured by watermark strategies (a deleted row advances no
-  watermark) — use periodic FULL or a soft-delete flag. This is the standard CDC trade-off,
-  documented rather than hidden.
+### The Core Problem: The Snapshot-Mutation Race
+In high-throughput enterprise databases, tables never freeze. While an initial snapshot of 10,000,000 rows is streaming:
+1. Row 42 was read at 10:00:00. At 10:00:05, an application updates row 42 (`amount = 500`).
+2. Row 85,000 has NOT yet been read. At 10:00:02, an application inserts row 85,000 and deletes row 12.
+If replication simply dumps the table and polls later, it risks **silent data drift, stale overwritten values, or ghost/orphan records**.
 
-Choose per need: `FULL` for a clean point-in-time-ish reload, `INCREMENTAL`/`CDC` to track
-ongoing inserts+updates cheaply.
+### The Zero Data Fabric CDC Solution: Pre-Snapshot Outbox Arming + Monotonic Log Draining
 
-## Destinations & the two intents
+```mermaid
+sequenceDiagram
+    autonumber
+    actor App as Production App
+    participant Src as Source DB (PG/MySQL/Oracle/Mongo)
+    participant Outbox as fabric_cdc Outbox / ChangeStream
+    participant Repl as Replication Worker
+    participant Dest as Destination (PG/MySQL/ES/Mongo)
+
+    Note over Repl,Src: PHASE 1: ARMED CAPTURE (BEFORE SNAPSHOT)
+    Repl->>Src: 1. Install AFTER INSERT/UPDATE/DELETE trigger
+    Repl->>Outbox: 2. Capture baseline position (maxSeq = S0)
+
+    Note over Repl,Dest: PHASE 2: STREAMING SNAPSHOT (KEYSET-PAGED)
+    Repl->>Src: 3. Keyset paged scan: SELECT * WHERE id > :cursor ORDER BY id
+    Repl->>Dest: 4. Idempotent Upsert initial batch (ON CONFLICT / _bulk)
+
+    par Concurrent Production Writes (While Snapshot Runs)
+        App->>Src: 5a. INSERT new row 101
+        Src->>Outbox: Record outbox event: { seq: S1, op: 'I', pk: 101, doc: {...} }
+        App->>Src: 5b. UPDATE row 5 (status='COMPLETED')
+        Src->>Outbox: Record outbox event: { seq: S2, op: 'U', pk: 5, doc: {...} }
+        App->>Src: 5c. DELETE row 12 (Hard Delete)
+        Src->>Outbox: Record tombstone event: { seq: S3, op: 'D', pk: 12 }
+    end
+
+    Repl->>Dest: 6. Complete Snapshot & persist baseline watermark pos = S0
+
+    Note over Repl,Dest: PHASE 3: MONOTONIC DRAIN & RECONCILIATION
+    Repl->>Outbox: 7. Poll changes WHERE seq > S0 ORDER BY seq ASC
+    Outbox-->>Repl: Returns [S1 (I: 101), S2 (U: 5), S3 (D: 12)]
+    Repl->>Dest: 8. DestOps.upsert(101) -> Added to destination
+    Repl->>Dest: 9. DestOps.upsert(5) -> Overwrites stale snapshot value with 'COMPLETED'
+    Repl->>Dest: 10. DestOps.del(12) -> Physically deletes row 12 from destination (ZERO ORPHANS)
+    Repl->>Outbox: 11. Advance watermark to S3 & prune applied events
+```
+
+### Why This Guarantees 100% Convergence (Zero Drift):
+1. **Trigger Arms *Before* Reading Rows**: `CdcCapture.ensure()` executes before the first row is read. Any mutation occurring after $S_0$ is guaranteed to be logged in the outbox.
+2. **Idempotent Destination Primitives (`DestOps`)**:
+   - `INSERT` & `UPDATE` are applied as Upserts (`INSERT ... ON CONFLICT DO UPDATE` in PG, `ON DUPLICATE KEY UPDATE` in MySQL, `MERGE` in Oracle, `_bulk` / `replaceOne` in ES & MongoDB).
+   - If a row was captured in the snapshot and *also* in an outbox update event, the outbox event safely overwrites the snapshot version with the newer state.
+   - If a row was deleted during snapshot, the outbox tombstone (`op = 'D'`) issues `DestOps.del()`. If the row had made it into the snapshot, it is purged. If it wasn't in the snapshot, the delete is an idempotent no-op.
+3. **Monotonic Sequence Ordering (`seq`)**: The outbox uses hardware-backed monotonic sequences (`bigserial`, MySQL `AUTO_INCREMENT`, Oracle `IDENTITY`). Events are replayed in the exact chronological commit order.
+4. **Crash-Resilience & Checkpoint Resumption**: If the worker crashes mid-copy or mid-drain, it resumes from `fabric_system.copy_checkpoints` and the persisted CDC sequence watermark without missing changes or duplicating records.
+
+---
+
+## Strategy Comparison: FULL vs INCREMENTAL vs CDC
+
+| Dimension | `FULL` (Copy All, Reload) | `INCREMENTAL` (Watermark) | `CDC` (Change Data Capture) |
+| :--- | :--- | :--- | :--- |
+| **How it queries** | Keyset scan of entire table (`WHERE id > :cursor`) | Polling current table state (`WHERE updated_at > :wm`) | Event log outbox (`WHERE seq > :lastSeq`) or MongoDB Change Stream |
+| **Captures Inserts?** | ✅ Yes | ✅ Yes (advances watermark) | ✅ Yes |
+| **Captures Updates?** | ✅ Yes | ✅ Yes (updates advance watermark) | ✅ Yes |
+| **Captures Hard Deletes?** | ✅ Yes *(by dropping & reloading)* | ❌ **No (Mathematically Impossible)** | ✅ **Yes (Captures tombstones `op: 'D'`)** |
+| **Why INCREMENTAL misses hard deletes** | N/A | When a row is hard-deleted, it physically vanishes from disk. `SELECT * WHERE updated_at > :wm` queries *existing* rows; it cannot find records that no longer exist. | Captures `OLD.pk` via `AFTER DELETE` trigger into an outbox table at the moment of deletion. |
+| **Source Impact** | High read I/O during copy | Very low (indexed timestamp query) | Minimal (~2-3% DML overhead on source triggers) |
+| **Destination State** | Complete fresh baseline | Cumulative with **orphan deleted rows** (unless soft deletes used) | Exact real-time mirror with zero orphans |
+| **Recommended Use** | Initial migrations, disaster recovery | Append-only event feeds, logs, soft-delete tables | High-volume production transactional databases & ES search indexing |
+
+---
 
 Replication serves **two distinct purposes**, and the destination engine follows the intent:
 

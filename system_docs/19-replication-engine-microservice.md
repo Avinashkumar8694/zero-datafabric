@@ -62,13 +62,13 @@ drives crash detection.
 | Unreachable destination | handshake `SELECT 1` before copy | fails fast, connectors closed |
 | Large table | keyset paging + memory guard | heap bounded (≈40–170MB in tests) |
 
-## Concurrent updates during a copy
+## Concurrent mutations during a copy & CDC CRUD Reconciliation
 
-Keyset paging is **monotonic** on the key, so it is immune to the skip/duplicate hazards
-OFFSET paging has when rows shift under a live source. A FULL pass is a forward-moving
-snapshot (each row with `key > cursor` captured once). Rows updated *behind* the cursor are
-reconciled by the next FULL run or by `INCREMENTAL`/`CDC` (watermark upsert by PK). Hard
-deletes need periodic FULL or a soft-delete flag (standard CDC trade-off).
+- **Keyset paging is monotonic** on the primary key, immune to the skip/duplicate hazards of OFFSET paging when live tables mutate mid-scan.
+- **Race-Free Reconciliation**: In `CDC` strategy, the engine installs source capture triggers **before** reading the snapshot. Any mutations occurring *during* the snapshot are captured in `fabric_cdc.<outbox>` with a monotonic sequence `seq > baseline`. The subsequent CDC drain re-applies changes in commit order:
+  - `INSERT` / `UPDATE`: Idempotently upserted via primary key (`ON CONFLICT` / `ON DUPLICATE KEY` / `MERGE` / `_bulk`), overwriting any stale snapshot data.
+  - `DELETE` (Hard Deletes): Intercepted as tombstones (`op: 'D'`) and deleted from the destination via [`DestOps.del()`](file:///Users/avinashkumargupta/Documents/projects/Zero/zero-datafabric/backend/src/modules/replication/dest_ops.ts) (guaranteeing zero orphan records).
+- **Strategy Trade-off**: In contrast, `INCREMENTAL` polls `WHERE updated_at > :wm`. Because physically deleted rows no longer exist on disk to be queried, `INCREMENTAL` cannot observe hard deletes and leaves orphans.
 
 ## Progress & analytics
 
@@ -77,13 +77,12 @@ the job: `rows_copied/rows_total`, `progress_pct`, `tables_done/tables_total`, p
 `heartbeat_at`. `GET /api/replication/analytics` aggregates success rate, total rows, and
 per-active-job live % + throughput + ETA for the Replication dashboard.
 
-## Data sources
+## Data sources & Destination Engines
 
-All six engines are first-class: **PostgreSQL, MySQL, MongoDB, Elasticsearch, Snowflake, and
-Oracle Database**. Oracle uses the `oracledb` driver, `ALL_*` dictionary views for discovery,
-and Oracle-dialect pushdown (`:n` binds, `OFFSET .. FETCH`, UPPERCASE-folded quoted
-identifiers). SYNC/CDC/replication read any engine; the replication destination is
-PostgreSQL.
+All major engines are supported across the fabric: **PostgreSQL, MySQL, MongoDB, Elasticsearch, Snowflake, and Oracle Database**.
+- **Source Capture**: PostgreSQL (trigger + `to_jsonb`), MySQL (trigger + `JSON_OBJECT`), Oracle (trigger + `JSON_OBJECT`), MongoDB (native change streams / oplog).
+- **Destination Engines**: PostgreSQL (multi-schema DDL + upsert), MySQL (DDL + `INSERT ... ON DUPLICATE KEY UPDATE`), MongoDB (`bulkWrite` replaceOne / deleteOne), Oracle (DDL + `MERGE`), Elasticsearch (`_bulk` index by `_id` / `deleteDoc`).
+- **DR Restore**: Targets any writable database engine to replay replicas cleanly back into the source.
 
 ## Key env
 

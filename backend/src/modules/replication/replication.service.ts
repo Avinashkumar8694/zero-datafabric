@@ -63,6 +63,7 @@ export class ReplicationService {
       copy_config jsonb DEFAULT '{}'::jsonb,
       initial_load text DEFAULT 'FULL',
       created_at timestamptz DEFAULT now())`);
+    await pool.query(`ALTER TABLE fabric_system.replication_jobs ALTER COLUMN id SET DEFAULT gen_random_uuid()`);
     await pool.query(`ALTER TABLE fabric_system.replication_jobs ADD COLUMN IF NOT EXISTS copy_config jsonb DEFAULT '{}'::jsonb`);
     await pool.query(`ALTER TABLE fabric_system.replication_jobs ADD COLUMN IF NOT EXISTS initial_load text DEFAULT 'FULL'`);
     await pool.query(`CREATE TABLE IF NOT EXISTS fabric_system.replication_watermark (
@@ -617,8 +618,9 @@ export class ReplicationService {
     return r.rows[0]?.watermark_value ?? null;
   }
   private static async setWatermark(jobId: string, table: string, value: any): Promise<void> {
+    const val = value instanceof Date ? value.toISOString() : (value == null ? null : String(value));
     await pool.query(`INSERT INTO fabric_system.replication_watermark (job_id, table_name, watermark_value) VALUES ($1,$2,$3)
-      ON CONFLICT (job_id, table_name) DO UPDATE SET watermark_value=EXCLUDED.watermark_value`, [jobId, table, value == null ? null : String(value)]);
+      ON CONFLICT (job_id, table_name) DO UPDATE SET watermark_value=EXCLUDED.watermark_value`, [jobId, table, val]);
   }
 
   /** Disaster recovery: replay the replica back into a chosen source (reverse copy). */

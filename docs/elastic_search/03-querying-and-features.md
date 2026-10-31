@@ -10,15 +10,12 @@ every call: `Authorization: Bearer <jwt>`, `x-tenant-id: <tenant>`.
 
 ---
 
-## Two ways to query Elasticsearch: AST mode and SQL mode
+## Querying Elasticsearch: AST only
 
-Elasticsearch is queryable through **both** fabric interfaces.
-
-### AST mode — `POST /api/analytics/query` (recommended, cross-engine)
-
-The engine-agnostic AST. The connector compiles it to an ES `_search` request. This
-is the **only** mode that can federate ES with other engines (joins, set-ops,
-multi-source aggregates), and it exposes every ES feature below.
+Elasticsearch is queried through the engine-agnostic AST, on `POST /api/analytics/query`
+(or `POST /api/queries/engine`). The connector compiles it to an ES `_search` request.
+This mode can also federate ES with other engines (joins, set-ops, multi-source
+aggregates), and it exposes every ES feature below.
 
 ```jsonc
 { "queryConfig": { "type": "SELECT", "schema": "default", "limit": 5, "query": {
@@ -29,50 +26,16 @@ multi-source aggregates), and it exposes every ES feature below.
   "orderBy":[ { "column": "_score", "direction": "DESC" } ] } } }
 ```
 
-### SQL mode — `POST /api/queries/exec` (native ES SQL, single-source)
+Aggregates use the same AST (`groupBy` + `aggregate` select items); see the
+aggregation sections below.
 
-Send native **Elasticsearch SQL** — it is routed to the ES `_sql` endpoint and run
-at the source. Set `source` to the ES datasource; the index name is the table.
-
-```jsonc
-POST /api/queries/exec
-{ "source": "Support_ES",
-  "sql": "SELECT account_id, priority, SCORE() AS sc FROM support_tickets WHERE MATCH(body, 'canceling competitor') AND priority = 'Urgent' ORDER BY SCORE() DESC LIMIT 3" }
-```
-```jsonc
-// → same result, via ES SQL
-[ { "account_id": 9, "priority": "Urgent", "sc": 9.75 },
-  { "account_id": 8, "priority": "Urgent", "sc": 7.86 } ]
-```
-
-Aggregates work too:
-```jsonc
-{ "source": "Support_ES",
-  "sql": "SELECT priority, COUNT(*) AS cnt, AVG(csat) AS avg_csat FROM support_tickets GROUP BY priority" }
-```
-
-**ES-SQL syntax notes / constraints:**
-
-| Feature | ES SQL syntax |
-|---|---|
-| Full-text | `WHERE MATCH(field, 'terms')` or `WHERE QUERY('lucene syntax')` |
-| Relevance score | `SELECT SCORE() ... ORDER BY SCORE() DESC` |
-| Aggregates | `COUNT/SUM/AVG/MIN/MAX`, `GROUP BY`, `HAVING` |
-| Time buckets | `HISTOGRAM(created_at, INTERVAL 1 DAY)` |
-| Percentiles | `PERCENTILE(csat, 95)` |
-
-- **Read-only** (SELECT). Writes use `/api/data` or AST.
-- **No JOINs** — ES SQL is single-index. For cross-engine joins use **AST mode**.
-- Table name = index name; results are capped by the ES fetch window.
-
-### Which to use?
-
-| Need | Use |
-|------|-----|
-| Join/union ES with Postgres/Mongo | **AST mode** |
-| A quick native ES SQL query (analysts) | **SQL mode** |
-| CRUD writes to ES | `/api/data` (see §7) |
-| Full ES feature set inside a portable query | **AST mode** |
+- Raw / native Elasticsearch SQL execution (the former `POST /api/queries/exec`) has
+  been removed. Request bodies containing `sql` / `rawSql` are rejected with
+  `400 { code: "SQL_NOT_SUPPORTED" }`.
+- Writes use `/api/data` CRUD (see section 7).
+- Use `POST /api/queries/transpile` to preview generated SQL for SQL engines (preview
+  only); for Elasticsearch the real ES DSL is shown in `plan.legs[].query` on every
+  response.
 
 ---
 

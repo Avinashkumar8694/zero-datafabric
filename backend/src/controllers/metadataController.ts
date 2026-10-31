@@ -22,6 +22,15 @@ import { renderFabricDdl, renderFabricAst } from '../modules/metadata/ddl_render
 import { PhysicalSync } from '../modules/sync/physical_sync.service';
 import { CopyJobEngine } from '../modules/jobs/copy_job_engine';
 import { LicensingService } from '../services/licensing.service';
+import { catalogSchemaScope, isUuid, NotFoundError, httpStatusOf, assertTenantIdSafe, requestTenant } from '../utils/tenantScope';
+import { escapeLike, belongsToTenant } from '../utils/identifiers';
+import { isPlatformAdmin } from '../middleware/tenantAccess.middleware';
+
+/** Maps typed errors (404 foreign id, 400 invalid identifier, 403, ...) to their status, everything else to 500. */
+const fail = (res: Response, err: any, fallback = 500) => {
+    const st = httpStatusOf(err) || fallback;
+    return res.status(st).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
+};
 
 const orchestrator = new MetadataOrchestrator();
 // Catalog reads change ONLY on sync (crawl/apply/register/remove), and every such
@@ -63,14 +72,18 @@ function normalizeAstColumn(c: any) {
  */
 async function resolveColumns(tableId: string, tenantId: string, username: string):
     Promise<{ source: string; columns: any[]; constraints: any[] } | null> {
+    // Tenant-scoped lookup: a tableId of another workspace is simply "not found".
+    if (!isUuid(tableId)) return null;
+    const scopeParams: any[] = [tableId];
+    const scope = catalogSchemaScope('cs', scopeParams, tenantId);
     const { rows } = await queryWithContext(`
         SELECT ct.physical_name AS t, cs.physical_name AS s, ct.definition_ast AS ast,
                ds.type AS engine, ds.config AS cfg, ds.name AS src
         FROM public.catalog_tables ct
         JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
         LEFT JOIN public.data_sources ds ON cs.source_id = ds.id
-        WHERE ct.id = $1
-    `, [tableId], { tenantId, username });
+        WHERE ct.id = $1 AND ${scope}
+    `, scopeParams, { tenantId, username });
     if (rows.length === 0) return null;
     const row = rows[0];
 
@@ -141,14 +154,17 @@ export const exportMetadata = async (req: Request, res: Response) => {
  */
 async function resolveDefinition(tableId: string, tenantId: string, username: string):
     Promise<{ definitionSql?: string; definitionAst?: any }> {
+    if (!isUuid(tableId)) return {};
+    const scopeParams: any[] = [tableId];
+    const scope = catalogSchemaScope('cs', scopeParams, tenantId);
     const { rows } = await queryWithContext(`
         SELECT ct.physical_name AS t, cs.physical_name AS s, ct.resource_type AS rtype,
                ds.type AS engine, ds.config AS cfg, ds.name AS src
         FROM public.catalog_tables ct
         JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
         LEFT JOIN public.data_sources ds ON cs.source_id = ds.id
-        WHERE ct.id = $1
-    `, [tableId], { tenantId, username });
+        WHERE ct.id = $1 AND ${scope}
+    `, scopeParams, { tenantId, username });
     if (!rows.length) return {};
     const row = rows[0];
     const rtype = String(row.rtype || '').toUpperCase();
@@ -255,7 +271,7 @@ export const getColumns = async (req: Request, res: Response) => {
         if (payload === null) return res.status(404).json({ error: 'Resource not found' });
         res.json(payload);
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        fail(res, err);
     }
 };
 
@@ -307,11 +323,14 @@ export const getTableDetails = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
         const tableName = req.params.name;
-        const { rows } = await pool.query(`
+        // Exact tenant schema match (tenant_<id> / tenant_<id>_<logical>): escaped LIKE + belongsToTenant re-check.
+        const tid = assertTenantIdSafe(user.tenant_id);
+        const { rows: all } = await pool.query(`
             SELECT schema_name, column_name, data_type, description 
             FROM fabric_catalog.metadata 
-            WHERE schema_name LIKE $1 AND table_name = $2
-        `, [`tenant_${user.tenant_id}%`, tableName]);
+            WHERE (schema_name = $1 OR schema_name LIKE $2 ESCAPE '\\') AND table_name = $3
+        `, [`tenant_${tid}`, `${escapeLike(`tenant_${tid}_`)}%`, tableName]);
+        const rows = all.filter((r: any) => belongsToTenant(String(r.schema_name), tid));
         res.json({ table: tableName, columns: rows });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -334,13 +353,14 @@ export const getTableDetails = async (req: Request, res: Response) => {
 export const crawlTenant = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
-        const tenantId = user?.internal_role === 'ADMIN' ? req.body.tenantId : user?.tenant_id;
+        // A body tenantId is honoured for platform admins only (requestTenant); everyone else crawls their own workspace.
+        const tenantId = requestTenant(req as any);
         if (!tenantId) return res.status(400).json({ error: 'tenantId is required' });
         const result = await MetadataService.crawlTenant(tenantId);
         await invalidateTenant(tenantId); // fresh catalog → bust cached reads
         res.json(result);
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        fail(res, err);
     }
 };
 
@@ -356,9 +376,11 @@ export const crawlTenant = async (req: Request, res: Response) => {
 export const getSources = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
-        const cacheKey = user.internal_role === 'ADMIN' ? 'meta:admin:sources' : `meta:${user.tenant_id}:sources`;
+        // Always the active workspace (platform admins pick another one with x-tenant-id): explicit tenant filter,
+        // never RLS alone (the ADMIN claim bypasses RLS).
+        const cacheKey = `meta:${user.tenant_id}:sources`;
         const rows = await cached(cacheKey, META_TTL, async () =>
-            (await queryWithContext('SELECT id, name, type, status FROM public.data_sources', [], { tenantId: user.tenant_id, username: user.username, role: user.internal_role })).rows);
+            (await queryWithContext('SELECT id, name, type, status FROM public.data_sources WHERE tenant_id = $1', [user.tenant_id], { tenantId: user.tenant_id, username: user.username })).rows);
         res.json(rows);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -381,12 +403,16 @@ export const getSchemas = async (req: Request, res: Response) => {
         const sourceId = req.query.sourceId as string;
         if (!sourceId) return res.status(400).json({ error: 'sourceId is required' });
         const user = (req as any).user;
-        const cacheKey = user.internal_role === 'ADMIN' ? `meta:admin:schemas:${sourceId}` : `meta:${user.tenant_id}:schemas:${sourceId}`;
+        // A source of another workspace is "not found" (404), exactly like an unknown id.
+        if (!isUuid(sourceId)) throw new NotFoundError('Source not found');
+        const owned = await pool.query('SELECT 1 FROM public.data_sources WHERE id = $1 AND tenant_id = $2', [sourceId, user.tenant_id]);
+        if (!owned.rows.length) throw new NotFoundError('Source not found');
+        const cacheKey = `meta:${user.tenant_id}:schemas:${sourceId}`;
         const rows = await cached(cacheKey, META_TTL, async () =>
-            (await queryWithContext('SELECT id as "schemaId", name, physical_name as "physicalName" FROM public.catalog_schemas WHERE source_id = $1', [sourceId], { tenantId: user.tenant_id, username: user.username, role: user.internal_role })).rows);
+            (await queryWithContext('SELECT id as "schemaId", name, physical_name as "physicalName" FROM public.catalog_schemas WHERE source_id = $1', [sourceId], { tenantId: user.tenant_id, username: user.username })).rows);
         res.json(rows);
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        fail(res, err);
     }
 };
 
@@ -407,12 +433,17 @@ export const getTables = async (req: Request, res: Response) => {
         const schemaId = req.query.schemaId as string;
         if (!schemaId) return res.status(400).json({ error: 'schemaId is required' });
         const user = (req as any).user;
-        const cacheKey = user.internal_role === 'ADMIN' ? `meta:admin:tables:${schemaId}` : `meta:${user.tenant_id}:tables:${schemaId}`;
+        if (!isUuid(schemaId)) throw new NotFoundError('Schema not found');
+        const scopeParams: any[] = [schemaId];
+        const scope = catalogSchemaScope('cs', scopeParams, user.tenant_id);
+        const owned = await pool.query(`SELECT 1 FROM public.catalog_schemas cs WHERE cs.id = $1 AND ${scope}`, scopeParams);
+        if (!owned.rows.length) throw new NotFoundError('Schema not found');
+        const cacheKey = `meta:${user.tenant_id}:tables:${schemaId}`;
         const rows = await cached(cacheKey, META_TTL, async () =>
-            (await queryWithContext('SELECT id as "tableId", name, physical_name as "physicalName", row_count as "rowCount", resource_type as "resourceType" FROM public.catalog_tables WHERE schema_id = $1', [schemaId], { tenantId: user.tenant_id, username: user.username, role: user.internal_role })).rows);
+            (await queryWithContext('SELECT id as "tableId", name, physical_name as "physicalName", row_count as "rowCount", resource_type as "resourceType" FROM public.catalog_tables WHERE schema_id = $1', [schemaId], { tenantId: user.tenant_id, username: user.username })).rows);
         res.json(rows);
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        fail(res, err);
     }
 };
 
@@ -435,10 +466,13 @@ export const getPreviewData = async (req: Request, res: Response) => {
         const { tableId, limit = 50 } = req.query;
         if (!tableId) return res.status(400).json({ error: 'tableId is required' });
 
+        if (!isUuid(tableId)) throw new NotFoundError('Resource not found');
+        const rowLimit = Math.min(Math.max(parseInt(String(limit), 10) || 50, 1), 1000);
+        // executeQuery resolves the tableId against the caller's tenant only (foreign id -> NotFoundError -> 404).
         const result = await QueryEngineService.executeQuery(user.tenant_id, {
             type: 'SELECT',
             tableId: tableId as string,
-            limit: parseInt(limit as string),
+            limit: rowLimit,
             select: ['*']
         });
 
@@ -448,7 +482,7 @@ export const getPreviewData = async (req: Request, res: Response) => {
         if (Array.isArray((result as any)?.results)) return res.json((result as any).results);
         res.json(result || []);
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        fail(res, err);
     }
 };
 
@@ -524,11 +558,11 @@ export const diffMetadata = async (req: Request, res: Response) => {
             content = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
         }
         const manifest = ManifestParser.parse(content);
-        const plan = await orchestrator.plan(user.tenant_id, manifest);
+        const plan = await orchestrator.plan(user.tenant_id, manifest, { isPlatformAdmin: isPlatformAdmin(user) });
         res.json(plan);
     } catch (err: any) {
         console.error(`[MetadataController] Diff Error: ${err.message}`);
-        res.status(500).json({ error: err.message });
+        fail(res, err); // typed errors (manifest validation 400, 413, ...) keep their own status
     }
 };
 
@@ -566,7 +600,7 @@ export const applyMetadata = async (req: Request, res: Response) => {
                 { tenantId: user.tenant_id, username: user.username }
             );
             const currentCount = parseInt(currentTablesRes.rows[0].count);
-            const allowed = await LicensingService.checkLimit(user.id, 'max_tables', currentCount);
+            const allowed = await LicensingService.checkLimit(user.tenant_id, 'max_tables', currentCount);
             if (!allowed) {
                 return res.status(400).json({ error: 'Table limit exceeded. Your plan restricts you to a maximum of 5 tables.' });
             }
@@ -582,11 +616,12 @@ export const applyMetadata = async (req: Request, res: Response) => {
         const manifest = ManifestParser.parse(content);
         const force = req.query.force === 'true';
         
-        const result = await orchestrator.apply(user.tenant_id, manifest, { force });
+        const result = await orchestrator.apply(user.tenant_id, manifest, { force, isPlatformAdmin: isPlatformAdmin(user) });
         await invalidateTenant(user.tenant_id);
         res.json(result);
     } catch (err: any) {
         console.error(`[MetadataController] Apply Error: ${err.message}`);
+        if (httpStatusOf(err)) return fail(res, err);
         
         // Industrial Guardrail Violation (Section 3.2)
         if (err.message.includes('CRITICAL') || err.message.includes('Validation') || err.message.includes('High-Risk') || err.message.includes('Integrity')) {
@@ -633,10 +668,14 @@ export const rollbackMetadata = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
         const versionId = req.params.id as string;
-        const result = await orchestrator.rollback(user.tenant_id, versionId);
+        // History rows are per tenant; another workspace's (or a malformed) version id is simply not found (404).
+        if (!isUuid(versionId)) throw new NotFoundError('Version not found');
+        const owned = await pool.query('SELECT 1 FROM fabric_system.metadata_history WHERE id = $1 AND tenant_id = $2', [versionId, user.tenant_id]);
+        if (!owned.rows.length) throw new NotFoundError('Version not found');
+        const result = await orchestrator.rollback(user.tenant_id, versionId, { isPlatformAdmin: isPlatformAdmin(user) });
         res.json(result);
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        fail(res, err);
     }
 };
 
@@ -666,7 +705,7 @@ export const migrateMetadata = async (req: Request, res: Response) => {
                 { tenantId: user.tenant_id, username: user.username }
             );
             const currentCount = parseInt(currentTablesRes.rows[0].count);
-            const allowed = await LicensingService.checkLimit(user.id, 'max_tables', currentCount);
+            const allowed = await LicensingService.checkLimit(user.tenant_id, 'max_tables', currentCount);
             if (!allowed) {
                 return res.status(400).json({ error: 'Table limit exceeded. Your plan restricts you to a maximum of 5 tables.' });
             }
@@ -676,7 +715,7 @@ export const migrateMetadata = async (req: Request, res: Response) => {
         const results = await MetadataService.migrateMetadata(user.tenant_id, migrationPlan);
         res.json({ results });
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        fail(res, err);
     }
 };
 
@@ -787,7 +826,7 @@ export const toggleDownstream = async (req: Request, res: Response) => {
                 const manifest = rows[0].ast_content; manifest.downstream = manifest.downstream || [];
                 const t = manifest.downstream.find((d: any) => String(d.type).toUpperCase() === String(targetType).toUpperCase());
                 if (t) t.enabled = enabled; else manifest.downstream.push({ type: String(targetType).toUpperCase(), enabled });
-                await orchestrator.apply(user.tenant_id, manifest, { force: true });
+                await orchestrator.apply(user.tenant_id, manifest, { force: true, isPlatformAdmin: isPlatformAdmin(user) });
             }
         } catch (e: any) { console.warn(`[Downstream] manifest re-apply skipped: ${e.message}`); }
         res.json({ status: 'SUCCESS', targetType: String(targetType).toUpperCase(), enabled });
@@ -820,7 +859,7 @@ export const toggleDownstream = async (req: Request, res: Response) => {
 export const syncSource = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user;
-        const tenantId = user?.internal_role === 'ADMIN' && req.body.tenantId ? req.body.tenantId : user.tenant_id;
+        const tenantId = requestTenant(req as any) as string;
         const source = req.body.source as string;
         if (!source) return res.status(400).json({ error: 'source is required' });
         const config = {
@@ -840,6 +879,9 @@ export const getResourceDetails = async (req: Request, res: Response) => {
     try {
         const resourceId = req.params.id;
         const user = (req as any).user;
+        if (!isUuid(resourceId)) return res.status(404).json({ error: 'Resource not found' });
+        const scopeParams: any[] = [resourceId];
+        const scope = catalogSchemaScope('cs', scopeParams, user.tenant_id);
         
         const { rows } = await queryWithContext(`
             SELECT
@@ -856,8 +898,8 @@ export const getResourceDetails = async (req: Request, res: Response) => {
             FROM public.catalog_tables ct
             JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
             LEFT JOIN public.data_sources ds ON cs.source_id = ds.id
-            WHERE ct.id = $1
-        `, [resourceId], { tenantId: user.tenant_id, username: user.username });
+            WHERE ct.id = $1 AND ${scope}
+        `, scopeParams, { tenantId: user.tenant_id, username: user.username });
 
         if (rows.length === 0) {
             return res.status(404).json({ error: 'Resource not found' });

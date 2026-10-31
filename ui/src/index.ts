@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { marked } from 'marked';
 import dotenv from 'dotenv';
+import compression from 'compression';
 
 dotenv.config();
 
@@ -96,13 +97,30 @@ const DOC_LIST = INTEGRATION_DOC_GROUPS.flatMap(group => group.docs.map(doc => (
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(compression());
+// 5 minutes of browser caching (still revalidated by ETag afterwards) so page navigation does not refetch every stylesheet/script
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: '5m' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // UI Routes
+// Public landing page. API_BASE is where the backend (and its Swagger specs) is reachable from the browser.
+const API_BASE_ENV = (process.env.API_BASE || '').replace(/\/+$/, '');
+/**
+ * Public URL of the API for links in the landing page. An explicit API_BASE wins. Otherwise it follows the request,
+ * the same way the console's own `API_BASE` does: on a fabrixly.com host the API is reachable on the same origin
+ * (reverse proxy routes /api and /api-docs), anywhere else it is the same host on port 4000.
+ */
+function apiBaseFor(req: express.Request): string {
+  if (API_BASE_ENV) return API_BASE_ENV;
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || 'localhost').split(',')[0]!.trim();
+  const hostname = host.replace(/:\d+$/, '');
+  if (hostname.includes('fabrixly.com')) return `https://${hostname}`;
+  return `http://${hostname}:${process.env.API_PORT || 4000}`;
+}
+
 app.get('/', (req, res) => {
-  res.render('index', { title: 'Zero Data Fabric - Home' });
+  res.render('landing', { title: 'Zero Data Fabric - Federated data layer', API_BASE: apiBaseFor(req) });
 });
 
 app.get('/login', (req, res) => {
@@ -123,6 +141,11 @@ app.get('/tenants', (req, res) => {
 
 app.get('/settings', (req, res) => {
   res.render('settings', { title: 'Zero Data Fabric - Settings' });
+});
+
+// Platform administration (system settings, plans, workspaces, licence, workers). The page shows a 403 state to non-admins; the API enforces it.
+app.get('/system', (req, res) => {
+  res.render('system', { title: 'Zero Data Fabric - System' });
 });
 
 app.get('/connections', (req, res) => {

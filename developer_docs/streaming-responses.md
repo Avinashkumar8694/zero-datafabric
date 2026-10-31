@@ -4,7 +4,7 @@ Query endpoints can return results **buffered** (one JSON envelope — the defau
 **streamed** as NDJSON (one row per line, delivered as they're written, plus a final
 `{__meta__}` trailer). Opt in per request with `stream: true`.
 
-Supported on: **`POST /api/analytics/query`** (AST) and **`POST /api/queries/exec`** (SQL).
+Supported on: **`POST /api/analytics/query`** (AST). Streaming is AST-only; the former raw-SQL streaming (`rawSql` / `/api/queries/exec`) was removed.
 
 Runnable demo: `NODE_PATH=backend/node_modules node examples/analytics/streaming.js`
 
@@ -17,7 +17,6 @@ Runnable demo: `NODE_PATH=backend/node_modules node examples/analytics/streaming
 ```jsonc
 // top-level in the body
 { "stream": true, "queryConfig": { … } }        // /api/analytics/query
-{ "stream": true, "sql": "SELECT …" }            // /api/queries/exec
 // inside queryConfig
 { "queryConfig": { "stream": true, "type": "SELECT", … } }
 // or as a query-string flag
@@ -143,14 +142,14 @@ There are **two kinds** of streaming, and `stream: true` engages both when it ca
 | Applies to | every `stream: true` request | **pass-through scans only** (single source; filter/projection/sort/limit; no join/aggregate/set-op/window/DISTINCT/CALL) |
 | Sources | any | **all engines**: hub/remote Postgres (`pg-query-stream`), MongoDB (native cursor), Elasticsearch (scroll cursor), MySQL (`.stream()`), Snowflake (`streamResult`) |
 | Header | `X-Fabric-Stream: ndjson` | `X-Fabric-Stream: ndjson-internal` |
-| Strategy in trailer/audit | `…` | `RAW_SQL+STREAM` / `SINGLE_CONNECTOR+STREAM` |
+| Strategy in trailer/audit | `…` | `SINGLE_CONNECTOR+STREAM` |
 
 A **pass-through** query streams from the source cursor; a **blocking** query (needs the whole
 input — a final `ORDER BY` that isn't pushed, an aggregate, a join, a set-op, `DISTINCT`, a
 window) falls back to **compute-then-stream** (computed, then delivered as NDJSON). The
 `X-Fabric-Stream` header tells you which path ran.
 
-**Measured (50,000-row hub query, `/api/queries/exec`):** the audit `memDeltaKb` was
+**Measured (50,000-row hub query):** the audit `memDeltaKb` was
 **~6,400 KB buffered vs ~1,430 KB streamed** — and because internal streaming is O(batch),
 the gap widens as the result grows. `LIMIT` early-terminates the source cursor; a client
 disconnect cancels it mid-flight (freeing the connection) — neither is possible with buffering.
@@ -186,3 +185,36 @@ The per-request `stream` flag always wins over `FABRIC_STREAM_DEFAULT`.
 aggregate, `DISTINCT`) still can't emit its first row until that operator finishes — streaming
 helps delivery and client memory/cancel, not that barrier. See system_docs/18 for the
 node-to-node streaming roadmap that addresses the compute side.
+
+---
+
+## Vectorized Apache Arrow Streaming (`format=arrow`)
+
+In addition to NDJSON, Data Fabric provides zero-copy **Apache Arrow binary IPC streaming** for high-performance analytics, data science pipelines, and BI engines.
+
+### How to use:
+Set `Accept: application/vnd.apache.arrow.stream` or pass `?format=arrow` in the query URL / body:
+
+```bash
+curl -s http://localhost:4000/api/analytics/query \
+     -H "Authorization: Bearer $T" \
+     -H "x-tenant-id: tenant_A" \
+     -H "Accept: application/vnd.apache.arrow.stream" \
+     -d '{"queryConfig":{"type":"SELECT","schema":"public","limit":50000,"query":{"from":{"resource":"transactions"}}}}' \
+     --output transactions.arrow
+```
+
+### Benefits:
+- **Zero V8 Garbage Collection overhead**: Data is encoded as typed C-contiguous column arrays.
+- **Up to 90% bandwidth reduction**: Columnar packing compresses duplicate strings, integers, and timestamps.
+- **Direct ingestion**: Read directly into Python (Pandas / Polars), DuckDB, or Apache Arrow without parsing JSON:
+  ```python
+  import pyarrow as pa
+  import pyarrow.ipc as ipc
+
+  with open("transactions.arrow", "rb") as f:
+      reader = ipc.open_stream(f)
+      table = reader.read_all()
+      df = table.to_pandas()
+  ```
+

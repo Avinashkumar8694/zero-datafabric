@@ -36,7 +36,11 @@ export const AppDataSource = new DataSource({
   // Migration files — loaded by ts-node at runtime (no build step needed in dev)
   migrations: [path.join(__dirname, '../migrations/*.ts')],
 
-  // TypeORM stores its own migration history here — separate from app tables
+  // TypeORM stores its own migration history here — separate from app tables.
+  // Pinned to the public schema: an unqualified name resolved through the connecting role's search_path
+  // ("$user" first), so a run as fabric_admin used fabric_admin.fabric_migrations while runs as another role
+  // used public.fabric_migrations, giving two diverging histories.
+  schema: 'public',
   migrationsTableName: 'fabric_migrations',
 
   // Run each migration in its own transaction (rollback on failure)

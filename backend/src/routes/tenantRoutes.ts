@@ -97,6 +97,10 @@ router.put('/:id', async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
+    // Owners may rename; changing the status (suspend/activate) is a platform-admin decision.
+    if (status !== undefined && user.internal_role !== 'ADMIN' && String(status).toUpperCase() !== String(tenant.status).toUpperCase()) {
+      return res.status(403).json({ error: 'Only a platform admin can change a workspace status', code: 'FORBIDDEN' });
+    }
     const result = await TenantService.updateTenant(id, name || tenant.name, status || tenant.status);
     res.json(result);
   } catch (err: any) {

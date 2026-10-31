@@ -1,4 +1,6 @@
 import { pool } from '../config/database';
+import { belongsToTenant, escapeLike, quoteAnyIdent } from '../utils/identifiers';
+import { assertTenantIdSafe } from '../utils/tenantScope';
 
 export class CleanupService {
   /**
@@ -87,39 +89,67 @@ export class CleanupService {
       for (const t of tenants) {
         const tenantId = t.id;
         console.log(`   [Cleanup] Purging tenant namespace: ${tenantId}...`);
-        
-        // Remove metadata, catalog schemas, and data sources
-        await pool.query('DELETE FROM fabric_catalog.metadata WHERE source_id IN (SELECT id FROM public.data_sources WHERE tenant_id = $1)', [tenantId]);
-        await pool.query('DELETE FROM public.catalog_schemas WHERE source_id IN (SELECT id FROM public.data_sources WHERE tenant_id = $1)', [tenantId]);
-        await pool.query('DELETE FROM public.data_sources WHERE tenant_id = $1', [tenantId]);
-        
-        // Delete replication jobs
-        await pool.query('DELETE FROM fabric_system.replication_jobs WHERE tenant_id = $1', [tenantId]);
-        
-        // Delete query logs, audit logs, saved analytics
-        await pool.query('DELETE FROM public.query_logs WHERE tenant_id = $1', [tenantId]);
-        await pool.query('DELETE FROM public.audit_logs WHERE tenant_id = $1', [tenantId]);
-        await pool.query('DELETE FROM public.saved_analytics WHERE tenant_id = $1', [tenantId]);
-        
-        // Drop dynamic tenant schemas matching tenant_${tenantId}%
-        const { rows: schemas } = await pool.query(`
-          SELECT schema_name FROM information_schema.schemata 
-          WHERE schema_name LIKE $1
-        `, [`tenant_${tenantId}%`]);
-        
-        for (const s of schemas) {
-          await pool.query(`DROP SCHEMA IF EXISTS "${s.schema_name}" CASCADE`);
-        }
-        
-        // Re-create primary tenant schema space so resources remain clean but functional
-        await pool.query('SELECT fabric_admin.create_tenant_namespace($1)', [tenantId]);
-        await pool.query(`GRANT CREATE ON SCHEMA "tenant_${tenantId}" TO fabric_user`);
+        await this.purgeTenant(String(tenantId));
       }
       
       console.log(`[Cleanup] Successfully purged data for user ${userId}.`);
     } catch (err: any) {
       console.error(`[Cleanup] Error purging data for user ${userId}:`, err.message);
     }
+  }
+
+  /**
+   * Purges one tenant's data. Every step is independent and tolerant: a missing table/schema or a failing statement is
+   * logged and the remaining steps still run (the old version aborted at the first non-existent table and never reached
+   * the schema drop). Registry tables that may not exist yet on a given install are simply skipped.
+   * @returns the list of steps that failed (empty when everything succeeded).
+   */
+  static async purgeTenant(tenantId: string): Promise<{ step: string; error: string }[]> {
+    const failures: { step: string; error: string }[] = [];
+    const step = async (name: string, fn: () => Promise<any>) => {
+      try { await fn(); } catch (err: any) {
+        failures.push({ step: name, error: err.message });
+        console.warn(`   [Cleanup] step "${name}" skipped/failed for ${tenantId}: ${err.message}`);
+      }
+    };
+
+    // Remove metadata, catalog schemas, and data sources
+    await step('catalog metadata', () => pool.query('DELETE FROM fabric_catalog.metadata WHERE source_id IN (SELECT id FROM public.data_sources WHERE tenant_id = $1)', [tenantId]));
+    await step('catalog schemas', () => pool.query('DELETE FROM public.catalog_schemas WHERE source_id IN (SELECT id FROM public.data_sources WHERE tenant_id = $1)', [tenantId]));
+    await step('relationships', () => pool.query('DELETE FROM fabric_catalog.relationships WHERE tenant_id = $1', [tenantId]));
+    await step('data sources', () => pool.query('DELETE FROM public.data_sources WHERE tenant_id = $1', [tenantId]));
+
+    // Jobs, query logs, audit logs, saved analytics (real table names; each one optional)
+    await step('replication jobs', () => pool.query('DELETE FROM fabric_system.replication_jobs WHERE tenant_id = $1', [tenantId]));
+    await step('copy jobs', () => pool.query('DELETE FROM fabric_system.copy_jobs WHERE tenant_id = $1', [tenantId]));
+    await step('query logs', () => pool.query('DELETE FROM fabric_system.query_logs WHERE tenant_id = $1', [tenantId]));
+    await step('saved analytics', () => pool.query('DELETE FROM fabric_system.saved_analytics WHERE tenant_id = $1', [tenantId]));
+    await step('audit logs', () => pool.query('DELETE FROM public.audit_logs WHERE tenant_id = $1', [tenantId]));
+
+    // Drop this tenant's dynamic schemas: EXACTLY tenant_<id> and tenant_<id>_<logical> (escaped LIKE + belongsToTenant),
+    // never `LIKE 'tenant_<id>%'` (which also matches tenants whose id merely starts with this one, and `_` wildcards).
+    let tid: string | null = null;
+    try { tid = assertTenantIdSafe(tenantId); } catch (err: any) { failures.push({ step: 'tenant id', error: err.message }); }
+    if (tid) {
+      let schemaNames: string[] = [];
+      await step('list schemas', async () => {
+        const { rows } = await pool.query(
+          `SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1 OR schema_name LIKE $2 ESCAPE '\\'`,
+          [`tenant_${tid}`, `${escapeLike(`tenant_${tid}_`)}%`]
+        );
+        schemaNames = rows.map((r: any) => String(r.schema_name)).filter((n: string) => belongsToTenant(n, tid!));
+      });
+      for (const name of schemaNames) {
+        await step(`drop schema ${name}`, () => pool.query(`DROP SCHEMA IF EXISTS ${quoteAnyIdent(name)} CASCADE`));
+      }
+
+      // Re-create primary tenant schema space so resources remain clean but functional
+      await step('recreate namespace', async () => {
+        await pool.query('SELECT fabric_admin.create_tenant_namespace($1)', [tid]);
+        await pool.query(`GRANT CREATE ON SCHEMA ${quoteAnyIdent(`tenant_${tid}`)} TO fabric_user`);
+      });
+    }
+    return failures;
   }
 
   private static getLocalDateString(date: Date, timezone: string): string {

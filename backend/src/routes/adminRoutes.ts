@@ -8,6 +8,7 @@
 
 import { Router } from 'express';
 import * as adminController from '../controllers/adminController';
+import { requireWorkspaceAdmin } from '../middleware/tenantAccess.middleware';
 
 const router = Router();
 
@@ -26,11 +27,11 @@ router.put('/tenants/:id', requireAdmin, adminController.updateTenant); // PUT /
 router.patch('/tenants/:id', requireAdmin, adminController.updateTenant); // PATCH /api/admin/tenants/:id — same as PUT, partial update
 router.delete('/tenants/:id', requireAdmin, adminController.deleteTenant); // DELETE /api/admin/tenants/:id — permanently remove a tenant
 
-// Connection Management (Tenant-scoped, open to trial/users)
+// Connection Management (tenant-scoped). Reads are open to members (secrets redacted); mutations need workspace owner / platform admin.
 router.get('/connections', adminController.getConnections); // GET /api/admin/connections — list data sources with live status probe
-router.post('/connections', adminController.createConnection); // POST /api/admin/connections — register/re-integrate a remote source
-router.patch('/connections', adminController.updateConnectionStatus); // PATCH /api/admin/connections — update a source's connection status
-router.delete('/connections/:id', adminController.removeConnection); // DELETE /api/admin/connections/:id — remove a data source
+router.post('/connections', requireWorkspaceAdmin, adminController.createConnection); // POST /api/admin/connections — register/re-integrate a remote source
+router.patch('/connections', requireWorkspaceAdmin, adminController.updateConnectionStatus); // PATCH /api/admin/connections — update a source's connection status
+router.delete('/connections/:id', requireWorkspaceAdmin, adminController.removeConnection); // DELETE /api/admin/connections/:id — remove a data source
 
 // User Management (Admin-only)
 router.get('/users', requireAdmin, adminController.getUsers); // GET /api/admin/users — list all platform users
@@ -43,8 +44,8 @@ router.get('/stats', adminController.getDashboardStats); // GET /api/admin/stats
 router.get('/audit-logs', requireAdmin, adminController.getAuditLogs); // GET /api/admin/audit-logs — recent platform-wide audit log entries
 router.get('/catalog', adminController.getCatalogSummary); // GET /api/admin/catalog — catalog summary for the caller's tenant
 router.get('/notification-channels', adminController.listNotificationChannels); // GET /api/admin/notification-channels — list configured notification channels
-router.post('/notification-channels', adminController.upsertNotificationChannel); // POST /api/admin/notification-channels — create/update a notification channel
-router.delete('/notification-channels/:id', adminController.deleteNotificationChannel); // DELETE /api/admin/notification-channels/:id — delete a notification channel
-router.post('/notification-channels/test', adminController.testNotificationChannel); // POST /api/admin/notification-channels/test — send a synthetic test event through a channel
+router.post('/notification-channels', requireWorkspaceAdmin, adminController.upsertNotificationChannel); // POST /api/admin/notification-channels — create/update a notification channel
+router.delete('/notification-channels/:id', requireWorkspaceAdmin, adminController.deleteNotificationChannel); // DELETE /api/admin/notification-channels/:id — delete a notification channel
+router.post('/notification-channels/test', requireWorkspaceAdmin, adminController.testNotificationChannel); // POST /api/admin/notification-channels/test — send a synthetic test event through a channel
 
 export default router;

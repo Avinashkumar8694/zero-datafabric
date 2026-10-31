@@ -28,13 +28,12 @@ async function diagnose() {
         console.log(`✅ Users Registered: ${userRes.data.length}`);
 
         // 4. Query Engine Check
-        console.log('[4/5] Testing Query Engine (RLS Verification)...');
-        const queryRes = await axios.post(`${BASE_URL}/queries/exec`, {
-            sql: "SELECT current_setting('app.tenant_id') as current_tenant, current_user"
+        console.log('[4/5] Testing Query Engine (AST -> SQL preview)...');
+        const queryRes = await axios.post(`${BASE_URL}/queries/transpile`, {
+            type: 'SELECT', table: 'tenants', select: ['id'], limit: 1
         }, { headers });
         console.log(`✅ Query Engine Operational`);
-        console.log(`   - PG Session Tenant: ${queryRes.data.results[0].current_tenant}`);
-        console.log(`   - PG Session Role: ${queryRes.data.results[0].current_user}`);
+        console.log(`   - Transpiled SQL: ${queryRes.data.sql}`);
 
         // 5. Metadata Catalog Check
         console.log('[5/5] Testing Metadata Catalog...');

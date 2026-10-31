@@ -47,19 +47,6 @@ async function ast(token, query, limit = 50) {
   return { rows: r.json.data || [], plan: r.json.plan || {}, raw: r.json };
 }
 
-/**
- * Run native SQL at a source (`/api/queries/exec`) — for ES this hits the `_sql` endpoint.
- * @param {string} token JWT
- * @param {string} source datasource name
- * @param {string} sql native SQL
- * @returns {Promise<{rows:any[], plan:object}>}
- */
-async function sqlOn(token, source, sql) {
-  const r = await req('POST', '/queries/exec', token, { source, schema: 'default', sql });
-  if (r.status !== 200) throw new Error(r.json?.error || `HTTP ${r.status}`);
-  return { rows: r.json.data || r.json.results || [], plan: r.json.plan || {} };
-}
-
 /** CRUD helper (`/api/data/{op}`). @returns {Promise<{status:number,json:any}>} */
 const data = (token, op, body) => req('POST', `/data/${op}`, token, body);
 
@@ -72,4 +59,4 @@ function banner(title, plan) {
 }
 const show = (rows, n = 3) => rows.slice(0, n).forEach(r => console.log('   ', JSON.stringify(r)));
 
-module.exports = { req, login, ast, sqlOn, data, banner, show };
+module.exports = { req, login, ast, data, banner, show };

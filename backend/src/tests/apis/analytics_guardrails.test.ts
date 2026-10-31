@@ -1,11 +1,10 @@
 import request from 'supertest';
 import { app } from '../../index';
-import { getAdminToken, cleanupTenant } from './test_helper';
+import { getAdminToken, cleanupTenant, uniqueTenantId } from './test_helper';
 
 describe('Analytics: Industrial Safety Shield (Guardrails)', () => {
     let adminToken: string;
-    const ts = Date.now();
-    const testTenantId = `guardrail_test_${ts}`;
+    const testTenantId = uniqueTenantId('grd');
 
     beforeAll(async () => {
         adminToken = await getAdminToken();
@@ -36,7 +35,7 @@ describe('Analytics: Industrial Safety Shield (Guardrails)', () => {
         });
 
         // The QueryEngineService should block this if it doesn't have a limit or filter
-        expect(res.status).toBe(500);
+        expect(res.status).toBe(400); // a refused (client-side) request, not a server fault
         expect(res.body.error).toContain('INDUSTRIAL SAFETY');
     });
 
@@ -59,7 +58,7 @@ describe('Analytics: Industrial Safety Shield (Guardrails)', () => {
             queryConfig: { type: 'DELETE', table: 'users' }
         });
 
-        expect(res.status).toBe(500);
+        expect(res.status).toBe(400); // a refused (client-side) request, not a server fault
         expect(res.body.error).toContain('INDUSTRIAL SAFETY');
     });
 
@@ -71,7 +70,7 @@ describe('Analytics: Industrial Safety Shield (Guardrails)', () => {
             queryConfig: { type: 'UPDATE', table: 'users', data: { email: 'hacked@evil.com' } }
         });
 
-        expect(res.status).toBe(500);
+        expect(res.status).toBe(400); // a refused (client-side) request, not a server fault
         expect(res.body.error).toContain('INDUSTRIAL SAFETY');
     });
 

@@ -91,9 +91,18 @@ router.post('/me', async (req, res) => {
         const user = (req as any).user;
         if (!user) return res.status(401).json({ error: 'Authentication required' });
 
-        const { plan_id, status, end_date, snapshot } = req.body;
-
-        if (!plan_id) return res.status(400).json({ error: 'plan_id is required' });
+        // Self-service plan selection only: the caller picks WHICH active, non-custom plan; status, end date and
+        // limit snapshots are never taken from the request (platform admins assign custom terms via /api/system).
+        const { plan_id } = req.body || {};
+        const unknown = Object.keys(req.body || {}).filter(k => k !== 'plan_id');
+        if (unknown.length) return res.status(400).json({ error: `Unknown field(s): ${unknown.join(', ')}`, code: 'INVALID_SUBSCRIPTION' });
+        if (typeof plan_id !== 'string' || !/^[0-9a-f-]{36}$/i.test(plan_id)) return res.status(400).json({ error: 'plan_id is required', code: 'INVALID_SUBSCRIPTION' });
+        const planRow = await pool.query("SELECT id, name, is_custom, COALESCE(status,'active') AS status FROM public.plans WHERE id = $1", [plan_id]);
+        if (!planRow.rows[0]) return res.status(404).json({ error: 'Plan not found', code: 'PLAN_NOT_FOUND' });
+        if (user.internal_role !== 'ADMIN' && (planRow.rows[0].status !== 'active' || planRow.rows[0].is_custom || planRow.rows[0].name === 'selfhost')) {
+            return res.status(403).json({ error: 'This plan cannot be selected; contact the administrator', code: 'PLAN_NOT_SELECTABLE' });
+        }
+        const status = 'active'; const end_date = null; const snapshot = null;
 
         // Check if subscription already exists
         const existing = await pool.query(
@@ -106,7 +115,7 @@ router.post('/me', async (req, res) => {
             // Update existing
             result = await pool.query(
                 `UPDATE public.subscriptions
-                 SET plan_id = $1, status = COALESCE($2, status), end_date = COALESCE($3, end_date), snapshot = COALESCE($4, snapshot)
+                 SET plan_id = $1, status = COALESCE($2, status), end_date = COALESCE($3, end_date), snapshot = $4
                  WHERE user_id = $5
                  RETURNING *`,
                 [plan_id, status, end_date, snapshot, user.id]

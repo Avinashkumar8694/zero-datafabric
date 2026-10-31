@@ -14,13 +14,12 @@
  *                  trigger-engine microservice compiles it to a native trigger
  *                  whose body enqueues a durable job on each row change, and a
  *                  worker drains trigger_jobs. See 02-action-triggers.js.
- *   3. SQL       — raw `CREATE TRIGGER` via /queries/exec is intentionally
- *                  denied for tenant users (sandboxed, cannot DDL managed
- *                  schemas). Use the manifest or the API instead — documented
- *                  in README.md.
+ *   (Raw SQL — `CREATE TRIGGER` or otherwise — is not supported; use the
+ *   manifest or the API. See README.md.)
  *
- * These helpers wrap the registry API + a few direct SQL reads (via
- * /queries/exec) used only to *verify* what the engine did.
+ * These helpers wrap the registry API + a few read-only AST/REST lookups
+ * (/analytics/query, /triggers/jobs/list, /admin/audit-logs) used only to
+ * *verify* what the engine did.
  */
 const axios = require('axios');
 const { BASE_URL, authHeaders, call } = require('../_client');
@@ -81,46 +80,70 @@ async function insertRow(token, schema, table, data, opts = {}) {
   }, opts);
 }
 
-/** Run a read-only SQL statement and return rows (used only for verification).
- *  /queries/exec wraps rows as { results: { results: [...] } }. */
-async function selectSql(token, sql) {
-  const res = await axios.post(`${BASE_URL}/queries/exec`, { sql }, { headers: authHeaders(token) });
+/** Count rows of a logical-schema resource via the AST engine (optional AST `where` predicates). */
+async function countRows(token, schema, resource, where) {
+  const res = await axios.post(`${BASE_URL}/analytics/query`, {
+    queryConfig: {
+      type: 'SELECT', schema, limit: 1,
+      query: {
+        from: { resource },
+        select: [{ aggregate: 'COUNT', column: '*', alias: 'n' }],
+        ...(where ? { where } : {})
+      }
+    }
+  }, { headers: authHeaders(token) });
   const d = res.data || {};
-  return d.results?.results || d.results?.rows || d.rows || d.data || (Array.isArray(d) ? d : []);
+  const row = (d.data || d.results || [])[0] || {};
+  return Number(row.n || 0);
 }
 
-/** Latest trigger_jobs row for a given trigger name (via payload->>'triggerName'). */
+/** Does a registry trigger with this name exist? (autoDrop removes the registry row when it cleans up.) */
+async function triggerRegistered(token, triggerName) {
+  const list = await axios.get(`${BASE_URL}/triggers`, { headers: authHeaders(token) });
+  return (list.data || []).some((t) => t.triggerName === triggerName);
+}
+
+/** Resolve a registry trigger's id by name (null when absent). */
+async function triggerIdByName(token, triggerName) {
+  const list = await axios.get(`${BASE_URL}/triggers`, { headers: authHeaders(token) });
+  const t = (list.data || []).find((x) => x.triggerName === triggerName);
+  return t ? t.id : null;
+}
+
+/** Latest queue job (GET /triggers/jobs/list, newest first) for a trigger id, optionally of one job type. */
+async function latestJobForTriggerId(token, triggerId, jobType) {
+  if (!triggerId) return null;
+  const jobs = await axios.get(`${BASE_URL}/triggers/jobs/list`, { headers: authHeaders(token) });
+  const j = (jobs.data || []).find((x) => x.triggerId === triggerId && (!jobType || x.jobType === jobType));
+  return j ? { id: j.id, job_type: j.jobType, status: j.status, run_at: j.runAt, created_at: j.createdAt } : null;
+}
+
+/** Latest trigger_jobs row for a given trigger name (resolved via the registry). */
 async function latestJobForTrigger(token, triggerName) {
-  const rows = await selectSql(token,
-    `SELECT id, job_type, status, run_at, created_at, payload->>'triggerName' AS trigger_name
-     FROM public.trigger_jobs
-     WHERE payload->>'triggerName' = '${triggerName}'
-     ORDER BY created_at DESC LIMIT 1`);
-  return rows[0] || null;
+  return latestJobForTriggerId(token, await triggerIdByName(token, triggerName));
 }
 
 /**
- * Minutes between the latest job's run_at and an anchor SQL expression, computed
- * ENTIRELY in Postgres. run_at is a `timestamp without time zone` in the DB's
- * UTC session, so comparing it in JS would misparse it under the client's local
- * timezone; doing the arithmetic in SQL keeps everything in one UTC frame — the
- * same frame the worker uses for `run_at <= NOW()`.
+ * Minutes between the latest job's run_at and an anchor. `anchor` is a Date, or
+ * the string 'created_at' to anchor on the job's own created_at. Both run_at and
+ * created_at come back through the same serializer, so the created_at delta is
+ * timezone-safe; for a fixed Date anchor, run the example on a host whose
+ * timezone matches the API server's.
  */
-async function jobRunAtDeltaMinutes(token, triggerName, anchorSqlExpr) {
-  const rows = await selectSql(token,
-    `SELECT ROUND(EXTRACT(EPOCH FROM (run_at - (${anchorSqlExpr}))) / 60)::int AS delta,
-            run_at, created_at
-     FROM public.trigger_jobs
-     WHERE payload->>'triggerName' = '${triggerName}'
-     ORDER BY created_at DESC LIMIT 1`);
-  return rows[0] || null;
+async function jobRunAtDeltaMinutes(token, triggerName, anchor) {
+  const job = await latestJobForTrigger(token, triggerName);
+  if (!job) return null;
+  const base = anchor === 'created_at' ? new Date(job.created_at) : anchor;
+  return { ...job, delta: Math.round((new Date(job.run_at) - base) / 60000) };
 }
 
-/** Count audit_logs rows for a table (proves a DB trigger → audit_log_fn fired). */
+/**
+ * Count recent audit_logs rows for a table (proves a DB trigger -> audit_log_fn
+ * fired). Reads GET /admin/audit-logs (latest 50 platform-wide rows).
+ */
 async function auditCountForTable(token, tableName) {
-  const rows = await selectSql(token,
-    `SELECT count(*)::int AS n FROM fabric_admin.audit_logs WHERE table_name = '${tableName}'`);
-  return Number(rows[0]?.n || 0);
+  const res = await axios.get(`${BASE_URL}/admin/audit-logs`, { headers: authHeaders(token) });
+  return (res.data || []).filter((r) => r.table_name === tableName).length;
 }
 
 module.exports = {
@@ -130,7 +153,10 @@ module.exports = {
   deploy,
   waitForDrain,
   insertRow,
-  selectSql,
+  countRows,
+  triggerRegistered,
+  triggerIdByName,
+  latestJobForTriggerId,
   latestJobForTrigger,
   jobRunAtDeltaMinutes,
   auditCountForTable

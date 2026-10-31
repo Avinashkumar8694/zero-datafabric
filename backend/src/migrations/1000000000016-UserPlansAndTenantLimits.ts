@@ -36,8 +36,11 @@ export class UserPlansAndTenantLimits1000000000016 implements MigrationInterface
         DROP COLUMN IF EXISTS tenant_id;
 
       -- Add new unique constraint on user_id
-      ALTER TABLE public.subscriptions
-        ADD CONSTRAINT unique_user_subscription UNIQUE (user_id);
+      DO $mig$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_user_subscription' AND conrelid = 'public.subscriptions'::regclass) THEN
+          ALTER TABLE public.subscriptions ADD CONSTRAINT unique_user_subscription UNIQUE (user_id);
+        END IF;
+      END $mig$;
 
       -- Create index on user_id
       CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON public.subscriptions(user_id);

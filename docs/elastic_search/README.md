@@ -25,10 +25,9 @@ Elasticsearch is the fabric's **search + text + speed layer**. It plays **two ro
 2. **Downstream search mirror (sink)** — hub table mutations are streamed into ES
    so relational data becomes instantly searchable.
 
-**Two query modes:** ES is queryable through **AST mode** (`/api/analytics/query`
-— cross-engine, full feature set) *and* **SQL mode** (`/api/queries/exec` — native
-Elasticsearch SQL via the `_sql` endpoint, single-source). See
-[03 — Querying](03-querying-and-features.md#two-ways-to-query-elasticsearch-ast-mode-and-sql-mode).
+**Query mode:** ES is queried through the **AST** (`/api/analytics/query`, cross-engine,
+full feature set). Raw / native Elasticsearch SQL execution is not supported. See
+[03 — Querying](03-querying-and-features.md#querying-elasticsearch-ast-only).
 
 Everything below is implemented and live-tested against the `support_tickets`
 index used in the [churn-predictor example](../../examples/churn-predictor/).

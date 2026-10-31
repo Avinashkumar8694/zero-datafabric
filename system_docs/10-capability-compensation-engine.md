@@ -96,10 +96,10 @@ Row-level policies for engines without native RLS are compensated by **injecting
 the policy predicate into the pushed-down query** (so the engine still filters),
 rather than filtering after the fact.
 
-## Applies to both AST and SQL modes
+## Applies to every AST query
 
-- **AST mode**: window/HAVING/DISTINCT specs are read from the AST and compensated in the query path.
-- **SQL mode**: the SQL→AST translator produces the same specs (`HAVING → having[]`, `DISTINCT → groupBy`, window → rejected-or-AST), so SQL over Mongo gets the identical compensations.
+Window/HAVING/DISTINCT specs are read from the AST and compensated in the query path
+(querying is AST-only; there is no SQL-string mode).
 
 ## What is deliberately NOT compensated
 
@@ -110,5 +110,4 @@ it. Re-implementing arbitrary PL/pgSQL in the fabric would be a correctness and
 security hazard; the honest boundary is "native or explicit error."
 
 Code: `compensate.ts`, `sequence.service.ts`, `query-engine.service.ts`
-(`applyHaving`, window branch), `sql_translator.ts`. Tests: `compensate.test.ts`,
-`sql_translator.test.ts`.
+(`applyHaving`, window branch). Tests: `compensate.test.ts`.

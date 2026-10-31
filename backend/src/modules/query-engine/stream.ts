@@ -14,6 +14,7 @@
  * client as a stream. True node-to-node (intra-query) streaming is a separate
  * roadmap item (see system_docs/18). The trailer preserves the audit contract.
  */
+import { requestPolicy } from '../tenancy/request-context';
 import { Response } from 'express';
 import { streamConfig } from '../../config/stream-config';
 import { QueryLogService } from './query-log.service';
@@ -21,6 +22,7 @@ import { RowStream } from './stream_source';
 
 /** Was streaming requested? Honors `body.stream`, `queryConfig.stream`, `?stream=true`, or the config default. */
 export function wantsStream(req: any): boolean {
+  if (requestPolicy.getStore()?.allowStreaming === false) return false; // workspace setting query.allowStreaming=false
   const b = req.body || {};
   const flag = b.stream ?? b.queryConfig?.stream ?? b.config?.stream ?? req.query?.stream;
   if (flag === true || flag === 'true' || flag === 1 || flag === '1') return true;

@@ -1,5 +1,6 @@
 import { pool } from '../../config/database';
 import { ConnectorFactory } from '../metadata/connectors/factory';
+import { assertTenantId, quoteAnyIdent, quoteIdent } from '../../utils/identifiers';
 
 /**
  * SyncService (integration module) — physical ("SYNC"/CDC-style) data
@@ -57,9 +58,9 @@ export class SyncService {
      * @returns Resolves once the batch has been inserted (or immediately if the source table is empty).
      */
     private static async syncTable(tenantId: string, sourceName: string, schema: string, table: string, connector: any) {
-        const cleanTenant = tenantId.replace(/[^a-zA-Z0-9_]/g, '');
-        const targetSchema = `tenant_${cleanTenant}`;
-        const targetTable = `${sourceName}_${table}`.replace(/[^a-zA-Z0-9_]/g, '');
+        const targetSchema = `tenant_${assertTenantId(tenantId)}`;
+        const targetTable = `${sourceName}_${table}`.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 63);
+        if (!targetTable) throw new Error('Cannot derive a target table name');
 
         console.log(`[SyncService] Syncing ${schema}.${table} to ${targetSchema}.${targetTable}`);
 
@@ -70,10 +71,12 @@ export class SyncService {
 
         // 2. Create target table in Hub if not exists
         const columns = Object.keys(data[0]);
-        const colDefs = columns.map(col => `"${col}" TEXT`).join(', '); 
+        // Column names come from the remote source: quote them (embedded quotes doubled) instead of trusting them.
+        const colDefs = columns.map(col => `${quoteAnyIdent(col)} TEXT`).join(', '); 
+        const T = `${quoteIdent(targetSchema, 'schema')}.${quoteAnyIdent(targetTable)}`;
         
-        await pool.query(`CREATE SCHEMA IF NOT EXISTS "${targetSchema}"`);
-        await pool.query(`CREATE TABLE IF NOT EXISTS "${targetSchema}"."${targetTable}" (${colDefs})`);
+        await pool.query(`CREATE SCHEMA IF NOT EXISTS ${quoteIdent(targetSchema, 'schema')}`);
+        await pool.query(`CREATE TABLE IF NOT EXISTS ${T} (${colDefs})`);
 
         // 3. Batch Insert into Hub
         const placeholders = data.map((_: any, i: number) => 
@@ -83,7 +86,7 @@ export class SyncService {
         const values = data.flatMap((row: any) => columns.map(col => row[col]));
         
         await pool.query(
-            `INSERT INTO "${targetSchema}"."${targetTable}" (${columns.map(c => `"${c}"`).join(', ')}) VALUES ${placeholders}
+            `INSERT INTO ${T} (${columns.map(c => quoteAnyIdent(c)).join(', ')}) VALUES ${placeholders}
              ON CONFLICT DO NOTHING`,
             values
         );

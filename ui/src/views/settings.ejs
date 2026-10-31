@@ -1,235 +1,50 @@
 <%- include('partials/header') %>
 
-<style>
-    .settings-container {
-        max-width: 900px;
-        margin: 0 auto;
-        padding: 2rem;
-    }
-    .settings-grid-2 {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1.5rem;
-    }
-    .settings-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 2rem;
-        gap: 1rem;
-        flex-wrap: wrap;
-    }
-    .auth-modes-row {
-        display: flex;
-        gap: 2rem;
-        margin-bottom: 1.5rem;
-        border-bottom: 1px solid rgba(255,255,255,0.05);
-        padding-bottom: 1rem;
-        flex-wrap: wrap;
-    }
-    @media (max-width: 768px) {
-        .settings-container {
-            padding: 1rem 0;
-        }
-        .settings-grid-2 {
-            grid-template-columns: 1fr;
-            gap: 1rem;
-        }
-        .auth-modes-row {
-            flex-direction: column;
-            gap: 0.85rem;
-        }
-    }
-</style>
+<link rel="stylesheet" href="/css/settings-extra.css">
+<link rel="stylesheet" href="/css/console-settings.css">
 
-<div class="card settings-container">
-    <div class="settings-header">
+<div class="ws-page">
+    <div class="ws-head">
         <div>
-            <h1 style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: clamp(1.6rem, 4vw, 2.2rem); background: linear-gradient(135deg, #fff 0%, var(--text-muted) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-                System Settings
-            </h1>
-            <p style="color: var(--text-muted); font-size: 0.95rem; margin-top: 0.25rem;">
-                Configure dynamic authentication, customized login branding, and OIDC parameters.
-            </p>
+            <h1 class="ws-title">Workspace settings</h1>
+            <p class="ws-sub" id="wsSubtitle">Settings, security, API access and plan for the active workspace.</p>
         </div>
-        <span class="badge" id="planBadge" style="font-size: 0.85rem; padding: 0.4rem 1rem;">Loading Plan...</span>
+        <div class="ws-head-badges" id="wsHeadBadges"></div>
     </div>
 
-    <!-- Self-Host Requirement Alert Banner -->
-    <div id="selfhostAlertBanner" class="alert-bar" style="display: none; background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); padding: 1.2rem; border-radius: 12px; margin-bottom: 2rem; align-items: center; gap: 1rem;">
-        <div style="font-size: 1.6rem;"><i class="fas fa-lock"></i></div>
-        <div style="flex-grow: 1;">
-            <strong style="display: block; font-size: 0.95rem; margin-bottom: 0.15rem;">Customization Locked</strong>
-            <span style="font-size: 0.85rem;">Login page customization and OIDC provider routing are exclusive features of the <strong>Self-Host</strong> plan. Upgrade your plan to edit these configurations.</span>
-        </div>
+    <div id="wsNotice"></div>
+
+    <div class="st-tabs" role="tablist" aria-label="Workspace settings sections">
+        <button class="st-tab" role="tab" data-tab="overview" aria-selected="true"><i class="fas fa-gauge" aria-hidden="true"></i> Overview</button>
+        <button class="st-tab" role="tab" data-tab="general" aria-selected="false"><i class="fas fa-sliders" aria-hidden="true"></i> General</button>
+        <button class="st-tab" role="tab" data-tab="query" aria-selected="false"><i class="fas fa-database" aria-hidden="true"></i> Query</button>
+        <button class="st-tab" role="tab" data-tab="security" aria-selected="false"><i class="fas fa-shield-halved" aria-hidden="true"></i> Security</button>
+        <button class="st-tab" role="tab" data-tab="api" aria-selected="false"><i class="fas fa-key" aria-hidden="true"></i> API</button>
+        <button class="st-tab" role="tab" data-tab="plan" aria-selected="false"><i class="fas fa-layer-group" aria-hidden="true"></i> Plan &amp; usage</button>
     </div>
 
-    <form id="settingsForm" style="display: flex; flex-direction: column; gap: 2rem;">
-        <!-- Card Section 1: Custom Branding -->
-        <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px;">
-            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.2rem; margin-bottom: 1rem; color: #fff;">
-                <i class="fas fa-palette" style="color: #6366f1; margin-right: 0.5rem;"></i> Custom Branding & Layout
-            </h3>
-            
-            <div class="settings-grid-2">
-                <div class="form-group">
-                    <label>Login Portal Title</label>
-                    <input type="text" id="loginTitle" placeholder="e.g. Acme Enterprise Portal" required />
-                </div>
-                <div class="form-group">
-                    <label>Background Color (HEX)</label>
-                    <input type="text" id="loginBgColor" placeholder="#04060f" pattern="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$" required />
-                </div>
-            </div>
-            
-            <div class="form-group" style="margin-top: 1rem;">
-                <label>Logo URL (optional)</label>
-                <input type="url" id="loginLogoUrl" placeholder="https://example.com/logo.png" />
-            </div>
+    <section id="tab-overview" class="st-panel" role="tabpanel"><div id="wsOverview"></div></section>
+    <section id="tab-general" class="st-panel" role="tabpanel" hidden></section>
+    <section id="tab-query" class="st-panel" role="tabpanel" hidden></section>
+    <section id="tab-security" class="st-panel" role="tabpanel" hidden></section>
+    <section id="tab-api" class="st-panel" role="tabpanel" hidden>
+        <div id="apiPolicyNote"></div>
+        <div id="apiPolicy"></div>
+        <div class="ws-card">
+            <div class="ws-card-head"><h3><i class="fas fa-key" aria-hidden="true"></i> Developer tokens</h3></div>
+            <%- include('partials/settings_tokens') %>
         </div>
-
-        <!-- Card Section 2: Authentication Mode -->
-        <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px;">
-            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.2rem; margin-bottom: 1rem; color: #fff;">
-                <i class="fas fa-shield-alt" style="color: #10b981; margin-right: 0.5rem;"></i> Identity Provider Configuration
-            </h3>
-
-            <div class="auth-modes-row">
-                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; color: #fff; font-size: 0.95rem;">
-                    <input type="checkbox" id="allowPasswordLogin" style="width: 18px; height: 18px; accent-color: var(--primary);" />
-                    Enable Username / Password Login
-                </label>
-                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; color: #fff; font-size: 0.95rem;">
-                    <input type="checkbox" id="ssoEnabled" style="width: 18px; height: 18px; accent-color: var(--primary);" />
-                    Enable SSO (OIDC OAuth 2.0)
-                </label>
-            </div>
-
-            <div id="oidcFieldsContainer" style="display: flex; flex-direction: column; gap: 1.2rem;">
-                <div class="form-group">
-                    <label>OIDC Issuer URL (OAuth 2.0 Provider base)</label>
-                    <input type="url" id="oidcIssuer" placeholder="https://ids.fabrixly.com" />
-                </div>
-                
-                <div class="settings-grid-2">
-                    <div class="form-group">
-                        <label>OIDC Client ID</label>
-                        <input type="text" id="oidcClientId" placeholder="zero-datafabric" />
-                    </div>
-                    <div class="form-group">
-                        <label>OIDC Client Secret</label>
-                        <input type="password" id="oidcClientSecret" placeholder="••••••••••••••••" />
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div style="display: flex; justify-content: flex-end; gap: 1rem; flex-wrap: wrap;">
-            <button type="button" class="btn-outline" onclick="window.location.reload();">Reset</button>
-            <button type="submit" id="saveBtn" class="btn">Save Configuration</button>
-        </div>
-    </form>
+    </section>
+    <section id="tab-plan" class="st-panel" role="tabpanel" hidden></section>
 </div>
 
-<script>
-    let isSelfHost = false;
-
-    async function loadSettings() {
-        try {
-            // 1. Verify self-host subscription plan status
-            const subRes = await fetch(`${API_BASE}/subscriptions/me`, { headers: getAuthHeaders() });
-            const sub = await subRes.json();
-            const badge = document.getElementById('planBadge');
-            
-            if (sub && sub.plan_name === 'selfhost') {
-                isSelfHost = true;
-                badge.innerText = 'Self-Host Plan';
-                badge.style.background = 'rgba(16, 185, 129, 0.1)';
-                badge.style.color = '#10b981';
-                badge.style.border = '1px solid rgba(16, 185, 129, 0.3)';
-                document.getElementById('selfhostAlertBanner').style.display = 'none';
-            } else {
-                isSelfHost = false;
-                badge.innerText = 'Trial Plan';
-                badge.style.background = 'rgba(239, 68, 68, 0.1)';
-                badge.style.color = '#ef4444';
-                badge.style.border = '1px solid rgba(239, 68, 68, 0.3)';
-                document.getElementById('selfhostAlertBanner').style.display = 'flex';
-                
-                // Disable inputs if not self-host
-                const formInputs = document.querySelectorAll('#settingsForm input, #settingsForm button[type="submit"]');
-                formInputs.forEach(input => {
-                    input.disabled = true;
-                    input.style.opacity = '0.5';
-                    input.style.cursor = 'not-allowed';
-                });
-            }
-
-            // 2. Fetch custom settings values
-            const endpoint = isSelfHost ? `${API_BASE}/settings/login/raw` : `${API_BASE}/settings/login`;
-            const settingsRes = await fetch(endpoint, { headers: getAuthHeaders() });
-            const data = await settingsRes.json();
-
-            if (data) {
-                document.getElementById('loginTitle').value = data.title || '';
-                document.getElementById('loginBgColor').value = data.bg_color || '#04060f';
-                document.getElementById('loginLogoUrl').value = data.logo_url || '';
-                document.getElementById('allowPasswordLogin').checked = data.allow_password_login !== false;
-                document.getElementById('ssoEnabled').checked = data.sso_enabled !== false;
-                document.getElementById('oidcIssuer').value = data.oidc_issuer || '';
-                document.getElementById('oidcClientId').value = data.oidc_client_id || '';
-                if (data.oidc_client_secret) {
-                    document.getElementById('oidcClientSecret').value = data.oidc_client_secret;
-                }
-            }
-        } catch (err) {
-            console.error('[Settings] Load failed:', err);
-            alert('Could not load portal settings configuration.');
-        }
-    }
-
-    document.getElementById('settingsForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        if (!isSelfHost) return;
-
-        const payload = {
-            title: document.getElementById('loginTitle').value,
-            bg_color: document.getElementById('loginBgColor').value,
-            logo_url: document.getElementById('loginLogoUrl').value,
-            allow_password_login: document.getElementById('allowPasswordLogin').checked,
-            sso_enabled: document.getElementById('ssoEnabled').checked,
-            oidc_issuer: document.getElementById('oidcIssuer').value,
-            oidc_client_id: document.getElementById('oidcClientId').value,
-            oidc_client_secret: document.getElementById('oidcClientSecret').value
-        };
-
-        try {
-            const saveBtn = document.getElementById('saveBtn');
-            saveBtn.disabled = true;
-            saveBtn.innerText = 'Saving...';
-
-            const res = await fetch(`${API_BASE}/settings/login`, {
-                method: 'POST',
-                headers: getAuthHeaders(),
-                body: JSON.stringify(payload)
-            });
-
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || 'Failed to save settings');
-            }
-
-            alert('System settings updated successfully!');
-        } catch (err) {
-            alert('Error updating settings: ' + err.message);
-        } finally {
-            const saveBtn = document.getElementById('saveBtn');
-            saveBtn.disabled = false;
-            saveBtn.innerText = 'Save Configuration';
-        }
-    });
-
-    window.addEventListener('load', loadSettings);
-</script>
+<script src="/js/console-common.js"></script>
+<script src="/js/settings-tokens.js"></script>
+<script src="/js/workspace-main.js"></script>
+<script src="/js/workspace-forms.js"></script>
+<script src="/js/workspace-security.js"></script>
+<script src="/js/workspace-api.js"></script>
+<script src="/js/workspace-plan.js"></script>
+<script>WS.start();</script>
 
 <%- include('partials/footer') %>

@@ -1,5 +1,10 @@
 import { queryWithContext } from '../../config/database';
 import { TriggerActionCompiler } from './action_compiler';
+import { SYSTEM_PLACEHOLDER, TriggerValidationOptions, validateManifestTrigger, validateTriggerPayload } from './trigger_validator';
+import { assertIdent, assertTenantId, belongsToTenant } from '../../utils/identifiers';
+
+/** Optional per-call authorisation context: `allowFreeSql` = platform admin or explicitly allowed workspace owner. */
+export type TriggerCallOptions = Pick<TriggerValidationOptions, 'allowFreeSql'>;
 
 /**
  * Trigger control-plane service: native manifest-trigger transpile + registry
@@ -16,11 +21,20 @@ export class TriggerService {
    * public.trigger_registry (source=MANIFEST) so it appears in the control plane
    * alongside API/UI triggers.
    */
-  static transpileTriggerSql(trigger: any, schemaName: string, tableName: string, tenantId?: string): string[] {
+  static transpileTriggerSql(trigger: any, schemaName: string, tableName: string, tenantId?: string, options: TriggerCallOptions = {}): string[] {
     const name = TriggerActionCompiler.ident(trigger?.name);
     if (!name) return ['-- trigger skipped: no name'];
+    // Identifiers are validated (never silently stripped) and the schema must be inside the tenant namespace.
+    assertIdent(schemaName, 'schema');
+    assertIdent(tableName, 'table');
+    if (tenantId) {
+      assertTenantId(tenantId);
+      if (!belongsToTenant(schemaName, tenantId)) throw Object.assign(new Error(`Trigger target schema "${schemaName}" is outside the workspace`), { status: 400, code: 'CROSS_TENANT' });
+    }
+    const vopts: TriggerValidationOptions = { allowFreeSql: !!options.allowFreeSql, ...(tenantId ? { tenantId } : {}) };
+    validateManifestTrigger(trigger, vopts);
 
-    const compiled = TriggerActionCompiler.toSql(trigger, { schemaName, tableName, triggerName: name });
+    const compiled = TriggerActionCompiler.toSql(trigger, { schemaName, tableName, triggerName: name, allowFreeSql: !!options.allowFreeSql, ...(tenantId ? { tenantId } : {}) });
     const statements = [...compiled.statements];
     if (tenantId) statements.push(this.registryUpsertSql(trigger, schemaName, tableName, tenantId));
     return statements;
@@ -89,11 +103,9 @@ export class TriggerService {
    * @returns The persisted trigger_registry row.
    * @throws {Error} If the payload fails (@link TriggerService.validate).
    */
-  static async createTrigger(tenantId: string, username: string, payload: any) {
-    this.validate(payload);
-    const { triggerName, definition } = payload;
-    const schemaName = payload.schemaName || '__SYSTEM__';
-    const tableName = payload.tableName || '__SYSTEM__';
+  static async createTrigger(tenantId: string, username: string, payload: any, options: TriggerCallOptions = {}) {
+    const { schemaName, tableName, triggerName } = this.validate(tenantId, payload, options);
+    const { definition } = payload;
     const { rows } = await queryWithContext(
       `INSERT INTO public.trigger_registry (tenant_id, schema_name, table_name, trigger_name, definition, created_by)
        VALUES ($1, $2, $3, $4, $5::jsonb, $6)
@@ -119,17 +131,15 @@ export class TriggerService {
    * @returns The updated trigger_registry row.
    * @throws {Error} If the payload fails validation, or if `id` does not exist ('Trigger not found').
    */
-  static async updateTrigger(tenantId: string, username: string, id: string, payload: any) {
-    this.validate(payload);
-    const { definition, triggerName } = payload;
-    const schemaName = payload.schemaName || '__SYSTEM__';
-    const tableName = payload.tableName || '__SYSTEM__';
+  static async updateTrigger(tenantId: string, username: string, id: string, payload: any, options: TriggerCallOptions = {}) {
+    const { schemaName, tableName, triggerName } = this.validate(tenantId, payload, options);
+    const { definition } = payload;
     const { rows } = await queryWithContext(
       `UPDATE public.trigger_registry
        SET schema_name = $2, table_name = $3, trigger_name = $4, definition = $5::jsonb, updated_at = NOW()
-       WHERE id = $1
+       WHERE id = $1 AND tenant_id = $6
        RETURNING id, schema_name as "schemaName", table_name as "tableName", trigger_name as "triggerName", definition, status`,
-      [id, schemaName, tableName, triggerName, JSON.stringify(definition)],
+      [id, schemaName, tableName, triggerName, JSON.stringify(definition), tenantId],
       { tenantId, username }
     );
     if (!rows.length) throw new Error('Trigger not found');
@@ -302,26 +312,16 @@ export class TriggerService {
   }
 
   /**
-   * Validate a create/update trigger payload before it is persisted.
+   * Validate a create/update trigger payload before it is persisted: identifiers, tenant confinement of the
+   * target schema/table, the definition (webhook URLs, sizes, expressions) and the free-SQL gate.
+   * @param tenantId - The caller's tenant; the target schema must be `tenant_<id>` or `tenant_<id>_<logical>`.
    * @param payload - The candidate trigger payload (`triggerName`, `definition`, `schemaName`, `tableName`).
-   * @returns Nothing on success.
-   * @throws {Error} If `triggerName`/`definition` are missing, `definition.execute.type`
-   *   is absent, or (for non-scheduler triggers) `definition.event`/`schemaName`/`tableName` are missing.
+   * @param options - `allowFreeSql` for platform admins / explicitly allowed owners.
+   * @returns The validated `schemaName`, `tableName` and `triggerName`.
+   * @throws {TriggerValidationError} (status 400) when anything is invalid or outside the caller's workspace.
    */
-  private static validate(payload: any) {
-    if (!payload?.triggerName || !payload?.definition) {
-      throw new Error('triggerName and definition are required');
-    }
-    if (!payload.definition?.execute?.type) {
-      throw new Error('definition.execute.type is required');
-    }
-    const hasScheduler = !!payload.definition?.schedule?.type;
-    if (!hasScheduler && !payload.definition?.event) {
-      throw new Error('definition.event is required for row-based triggers');
-    }
-    if (!hasScheduler && (!payload?.schemaName || !payload?.tableName)) {
-      throw new Error('schemaName and tableName are required for row-based triggers');
-    }
+  private static validate(tenantId: string, payload: any, options: TriggerCallOptions = {}) {
+    return validateTriggerPayload(payload, tenantId, { allowFreeSql: !!options.allowFreeSql });
   }
 
   /**
@@ -378,14 +378,16 @@ export class TriggerService {
     jobType: string,
     payload: any
   ) {
-    const runAtExpr = payload?.schedule?.type === 'FIXED'
-      ? `NOW() + INTERVAL '${Math.max(1, Number(payload.schedule.every || 1))} ${String(payload.schedule.unit || 'MINUTE').toLowerCase()}'`
-      : 'NOW()';
+    // The delay is computed in code from validated numbers and bound as a parameter (never spliced into SQL).
+    const UNIT_SECONDS: Record<string, number> = { SECOND: 1, MINUTE: 60, HOUR: 3600, DAY: 86400, MONTH: 2592000 };
+    const delaySeconds = payload?.schedule?.type === 'FIXED'
+      ? Math.min(31536000, Math.max(1, Math.floor(Number(payload.schedule.every) || 1)) * (UNIT_SECONDS[String(payload.schedule.unit || 'MINUTE').toUpperCase()] || 60))
+      : 0;
     const { rows } = await queryWithContext(
       `INSERT INTO public.trigger_jobs (tenant_id, trigger_id, job_type, payload, status, run_at, max_attempts, created_by)
-       VALUES ($1, $2, $3, $4::jsonb, 'PENDING', ${runAtExpr}, 5, $5)
+       VALUES ($1, $2, $3, $4::jsonb, 'PENDING', NOW() + make_interval(secs => $6::double precision), 5, $5)
        RETURNING id`,
-      [tenantId, triggerId, jobType, JSON.stringify(payload || {}), username],
+      [tenantId, triggerId, jobType, JSON.stringify(payload || {}), username, delaySeconds],
       { tenantId, username }
     );
     return rows[0].id;

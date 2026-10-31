@@ -1,21 +1,22 @@
 import request from 'supertest';
 import { app } from '../index';
 import { pool } from '../config/database';
+import { cleanupTenant, uniqueTenantId, describeIfRemotePg, remotePgConfig } from './apis/test_helper';
 
 describe('🏛️ Industrial Data Fabric: The Ultimate Orchestration Test Suite', () => {
     let adminToken: string;
     let tenantToken: string;
-    const testTenantId = 'ultimate_test_tenant_v5';
+    const testTenantId = uniqueTenantId('ult');
+    let scopedToken: string;
 
     beforeAll(async () => {
         await pool.query('SELECT 1');
     });
 
     afterAll(async () => {
-        await pool.query('DELETE FROM public.users WHERE tenant_id = $1 OR username = $2', [testTenantId, 'temp_user']);
-        await pool.query('DELETE FROM public.tenants WHERE id = $1', [testTenantId]);
-        await pool.query(`DROP SCHEMA IF EXISTS tenant_${testTenantId} CASCADE`);
-        await pool.end();
+        await pool.query('DELETE FROM public.users WHERE username = $1', ['temp_user']);
+        await cleanupTenant(testTenantId);
+        await cleanupTenant(`${testTenantId}t`);
     });
 
     describe('🔐 [Auth Scenarios]', () => {
@@ -39,6 +40,8 @@ describe('🏛️ Industrial Data Fabric: The Ultimate Orchestration Test Suite'
     describe('🏢 [Tenant Scenarios]', () => {
         it('should provision new tenant', async () => {
             await request(app).post('/api/admin/tenants').set('Authorization', `Bearer ${adminToken}`).send({ id: testTenantId, name: 'Ultimate V5' }).expect(201);
+            const tok = await request(app).post('/api/auth/token').set('Authorization', `Bearer ${adminToken}`).send({ tenantId: testTenantId });
+            scopedToken = tok.body.token;
         });
 
         it('should list active tenants', async () => {
@@ -47,33 +50,32 @@ describe('🏛️ Industrial Data Fabric: The Ultimate Orchestration Test Suite'
         });
 
         it('should delete a temporary tenant', async () => {
-            const tempId = 'temp_tenant_delete';
-            await request(app).post('/api/admin/tenants').set('Authorization', `Bearer ${adminToken}`).send({ id: tempId, name: 'Temp' });
+            const tempId = `${testTenantId}t`;
+            await request(app).post('/api/admin/tenants').set('Authorization', `Bearer ${adminToken}`).send({ id: tempId, name: 'Temp' }).expect(201);
             await request(app).delete(`/api/admin/tenants/${tempId}`).set('Authorization', `Bearer ${adminToken}`).expect(200);
         });
     });
 
     describe('📚 [Metadata Scenarios]', () => {
         it('should detect schema drift', async () => {
-            const res = await request(app).post('/api/metadata/diff').set('Authorization', `Bearer ${adminToken}`).send({
-                schemas: [{ name: 'enterprise_core', tables: [{ name: 'drift_check_v5', columns: [{ name: 'id', type: 'SERIAL' }] }] }]
+            const res = await request(app).post('/api/metadata/diff').set('Authorization', `Bearer ${scopedToken}`).send({
+                version: '1.0',
+                schemas: [{ name: 'enterprise_core', resources: [{ type: 'TABLE', name: 'drift_check_v5', columns: [{ name: 'id', type: 'SERIAL' }] }] }]
             });
             expect(res.status).toBe(200);
         });
 
         it('should orchestrate full schema lifecycle', async () => {
             const plan = [{ action: 'CREATE_TABLE', table: 'data_store_v5', details: { columns: [{ name: 'id', type: 'SERIAL', primaryKey: true }, { name: 'val', type: 'INTEGER' }] } }];
-            await request(app).post('/api/metadata/migrate').set('Authorization', `Bearer ${adminToken}`).send({ migrationPlan: plan }).expect(200);
+            await request(app).post('/api/metadata/migrate').set('Authorization', `Bearer ${scopedToken}`).send({ migrationPlan: plan }).expect(200);
         });
     });
 
     describe('📈 [Analytics Scenarios]', () => {
         it('should execute AST query with filters', async () => {
-            await request(app).post('/api/queries/exec').set('Authorization', `Bearer ${adminToken}`).send({ 
-                sql: 'INSERT INTO "tenant_tenant_A"."data_store_v5" (val) VALUES (777)' 
-            });
+            await request(app).post('/api/data/create').set('Authorization', `Bearer ${scopedToken}`).send({ resource: 'data_store_v5', data: { val: 777 } });
             
-            const res = await request(app).post('/api/analytics/query').set('Authorization', `Bearer ${adminToken}`).send({
+            const res = await request(app).post('/api/analytics/query').set('Authorization', `Bearer ${scopedToken}`).send({
                 queryConfig: { type: 'SELECT', table: 'data_store_v5', filter: { val: { $eq: 777 } }, limit: 1 }
             });
             expect(res.status).toBe(200);
@@ -81,31 +83,25 @@ describe('🏛️ Industrial Data Fabric: The Ultimate Orchestration Test Suite'
         });
 
         it('should handle async query jobs', async () => {
-            const start = await request(app).post('/api/analytics/query-async').set('Authorization', `Bearer ${adminToken}`).send({ queryConfig: { type: 'SELECT', table: 'data_store_v5', limit: 1 } });
+            const start = await request(app).post('/api/analytics/query-async').set('Authorization', `Bearer ${scopedToken}`).send({ queryConfig: { type: 'SELECT', table: 'data_store_v5', limit: 1 } });
             const jobId = start.body.jobId;
-            const status = await request(app).get(`/api/analytics/jobs/${jobId}`).set('Authorization', `Bearer ${adminToken}`);
+            const status = await request(app).get(`/api/analytics/jobs/${jobId}`).set('Authorization', `Bearer ${scopedToken}`);
             expect(status.status).toBe(200);
         });
     });
 
     describe('🔗 [Integration Scenarios]', () => {
-        it('should register and remove connections', async () => {
-            // Use real remote DB details from docker-compose
-            const reg = await request(app).post('/api/admin/connections').set('Authorization', `Bearer ${adminToken}`).send({
-                name: 'conn_v5', 
-                config: { 
-                    type: 'postgres', 
-                    host: 'localhost', 
-                    port: 5436, 
-                    dbName: 'remote_warehouse', 
-                    user: 'remote_admin', 
-                    pass: 'remote_password', 
-                    syncType: 'VIRTUAL' 
-                }
+        // Needs the remote warehouse Postgres (docker-compose :5436, or REMOTE_PG_HOST / REMOTE_PG_PORT); skipped when it is not reachable.
+        (describeIfRemotePg())('remote warehouse', () => {
+            it('should register and remove connections', async () => {
+                const reg = await request(app).post('/api/admin/connections').set('Authorization', `Bearer ${scopedToken}`).send({
+                    name: 'conn_v5',
+                    config: remotePgConfig(),
+                });
+                expect([200, 201]).toContain(reg.status);
+                const sourceId = reg.body.sourceId;
+                await request(app).delete(`/api/admin/connections/${sourceId}`).set('Authorization', `Bearer ${scopedToken}`).expect(200);
             });
-            expect([200, 201]).toContain(reg.status);
-            const sourceId = reg.body.sourceId;
-            await request(app).delete(`/api/admin/connections/${sourceId}`).set('Authorization', `Bearer ${adminToken}`).expect(200);
         });
     });
 

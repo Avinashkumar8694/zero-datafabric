@@ -13,7 +13,7 @@ cd backend && npm run test:unit
 ```
 
 Runs every `src/modules/**/*.test.ts` (pushdown, aggregate, federation,
-sql_translator, compensate, policy, constraint, grant, analytics, …). **All pass
+compensate, policy, constraint, grant, analytics, …). **All pass
 with no database** — this is the command to use for a quick, reliable check.
 
 ## Integration tests (need the full stack)

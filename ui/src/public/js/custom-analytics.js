@@ -68,11 +68,11 @@
 
   // ---------- column chips ----------
   function renderColChips() {
-    $('bCols').innerHTML = COLS.map((c) => `<span class="ca-chip" data-c="${escapeHtml(c)}" style="${state.cols.has(c) ? 'background:var(--primary);color:#fff;' : ''}" onclick="toggleCol('${escapeHtml(c)}')">${escapeHtml(c)}</span>`).join('') || '<span class="text-muted" style="font-size:.75rem;">no columns discovered — will use *</span>';
+    $('bCols').innerHTML = COLS.map((c) => `<span class="ca-chip${state.cols.has(c) ? ' on' : ''}" role="button" tabindex="0" data-c="${escapeHtml(c)}" onclick="toggleCol('${escapeHtml(c)}')">${escapeHtml(c)}</span>`).join('') || '<span class="text-muted small">no columns discovered — will use *</span>';
   }
   window.toggleCol = function (c) { if (state.cols.has(c)) state.cols.delete(c); else state.cols.add(c); renderColChips(); renderPreview(); };
   function renderGroupByChips() {
-    $('bGroupBy').innerHTML = COLS.map((c) => `<span class="ca-chip" style="${state.groupBy.has(c) ? 'background:var(--primary);color:#fff;' : ''}" onclick="toggleGroup('${escapeHtml(c)}')">${escapeHtml(c)}</span>`).join('') || '<span class="text-muted" style="font-size:.75rem;">no columns discovered</span>';
+    $('bGroupBy').innerHTML = COLS.map((c) => `<span class="ca-chip${state.groupBy.has(c) ? ' on' : ''}" role="button" tabindex="0" onclick="toggleGroup('${escapeHtml(c)}')">${escapeHtml(c)}</span>`).join('') || '<span class="text-muted small">no columns discovered</span>';
   }
   window.toggleGroup = function (c) { if (state.groupBy.has(c)) state.groupBy.delete(c); else state.groupBy.add(c); renderGroupByChips(); renderPreview(); };
 
@@ -84,7 +84,7 @@
       `<select class="ca-select w-col">${colOptions(COLS, w.column)}</select>` +
       `<select class="ca-select w-op">${OPS.map((o) => `<option ${o === w.operator ? 'selected' : ''}>${o}</option>`).join('')}</select>` +
       `<input class="ca-input w-val" placeholder="value" value="${escapeHtml(w.value ?? '')}">` +
-      `<label style="font-size:.7rem; white-space:nowrap;"><input type="checkbox" class="w-bind" ${w.bind ? 'checked' : ''}> bind</label>` +
+      `<label class="ca-mini-label"><input type="checkbox" class="w-bind" ${w.bind ? 'checked' : ''}> bind</label>` +
       `<button class="btn-outline mini-btn" onclick="this.closest('.ca-row').remove(); renderPreview();">✕</button>`;
     $('bWhere').appendChild(div); div.querySelectorAll('input,select').forEach((e) => e.addEventListener('input', renderPreview)); renderPreview();
   };
@@ -107,7 +107,7 @@
   };
   window.addArg = function () {
     const div = document.createElement('div'); div.className = 'ca-row'; div.style.gridTemplateColumns = '1fr auto auto';
-    div.innerHTML = `<input class="ca-input arg-val" placeholder="value or {{var}}"><label style="font-size:.7rem;"><input type="checkbox" class="arg-bind"> bind</label><button class="btn-outline mini-btn" onclick="this.closest('.ca-row').remove(); renderPreview();">✕</button>`;
+    div.innerHTML = `<input class="ca-input arg-val" placeholder="value or {{var}}"><label class="ca-mini-label"><input type="checkbox" class="arg-bind"> bind</label><button class="btn-outline mini-btn" onclick="this.closest('.ca-row').remove(); renderPreview();">✕</button>`;
     $('bArgs').appendChild(div); div.querySelectorAll('input').forEach((e) => e.addEventListener('input', renderPreview)); renderPreview();
   };
   // ---------- sub-analytics as CTEs ----------
@@ -128,8 +128,8 @@
   };
   function renderCtes() {
     $('bCtes').innerHTML = state.ctes.map((c, i) =>
-      `<span class="ca-chip" title="CTE from a saved analytic">${escapeHtml(c.name)} <span onclick="removeCte(${i})" style="cursor:pointer; font-weight:700;">✕</span></span>`).join('')
-      || '<span class="text-muted" style="font-size:.72rem;">none — pick a saved analytic above</span>';
+      `<span class="ca-chip" title="CTE from a saved analytic">${escapeHtml(c.name)} <span class="ca-x" role="button" tabindex="0" aria-label="Remove CTE" onclick="removeCte(${i})">✕</span></span>`).join('')
+      || '<span class="text-muted small">none — pick a saved analytic above</span>';
   }
   window.removeCte = function (i) { state.ctes.splice(i, 1); renderCtes(); onBSource(); renderPreview(); };
 
@@ -140,7 +140,7 @@
   window.addJoin = function (j) {
     j = j || {}; const div = document.createElement('div'); div.className = 'ca-row'; div.style.gridTemplateColumns = 'auto .8fr 1fr 1fr auto 1fr auto'; div.style.alignItems = 'center';
     div.innerHTML =
-      `<span class="j-alias" style="font-weight:700; opacity:.6;"></span>` +
+      `<span class="j-alias ca-alias"></span>` +
       `<select class="ca-select j-type"><option ${j.type === 'LEFT' ? 'selected' : ''}>INNER</option><option ${j.type === 'LEFT' ? 'selected' : ''}>LEFT</option></select>` +
       `<select class="ca-select j-src">${sourceOptions(j.source)}</select>` +
       `<input class="ca-input j-res" placeholder="resource" value="${escapeHtml(j.resource || '')}">` +
@@ -181,7 +181,7 @@
       `<select class="ca-select win-col"><option value="">(col)</option>${colOptions(COLS, w.column)}</select>` +
       `<select class="ca-select win-part" multiple size="1" title="PARTITION BY">${colOptions(COLS)}</select>` +
       `<select class="ca-select win-ord">${colOptions(COLS, ob.column)}</select>` +
-      `<div style="display:flex; gap:.2rem;"><select class="ca-select win-dir"><option ${ob.direction === 'DESC' ? 'selected' : ''}>DESC</option><option ${ob.direction !== 'DESC' ? 'selected' : ''}>ASC</option></select><input class="ca-input win-alias" placeholder="alias" value="${escapeHtml(w.alias || 'rnk')}" style="width:70px;"></div>` +
+      `<div class="row-actions"><select class="ca-select win-dir"><option ${ob.direction === 'DESC' ? 'selected' : ''}>DESC</option><option ${ob.direction !== 'DESC' ? 'selected' : ''}>ASC</option></select><input class="ca-input win-alias" placeholder="alias" value="${escapeHtml(w.alias || 'rnk')}"></div>` +
       `<button class="btn-outline mini-btn" onclick="this.closest('.ca-row').remove(); renderPreview();">✕</button>`;
     $('bWindows').appendChild(div); div.querySelectorAll('input,select').forEach((e) => e.addEventListener('input', renderPreview)); renderPreview();
   };
@@ -191,7 +191,7 @@
       `<input class="ca-input v-name" placeholder="name" value="${escapeHtml(v.name ?? '')}">` +
       `<select class="ca-select v-type">${['string', 'number', 'boolean'].map((t) => `<option ${t === v.type ? 'selected' : ''}>${t}</option>`).join('')}</select>` +
       `<input class="ca-input v-def" placeholder="default" value="${escapeHtml(v.default ?? '')}">` +
-      `<label style="font-size:.7rem;"><input type="checkbox" class="v-req" ${v.required ? 'checked' : ''}> req</label>` +
+      `<label class="ca-mini-label"><input type="checkbox" class="v-req" ${v.required ? 'checked' : ''}> req</label>` +
       `<button class="btn-outline mini-btn" onclick="this.closest('.ca-row').remove(); renderPreview();">✕</button>`;
     $('bVars').appendChild(div); div.querySelectorAll('input,select').forEach((e) => e.addEventListener('input', renderPreview)); renderPreview();
   };
@@ -375,11 +375,11 @@
     try {
       const resolved = resolveDefaults(config, vars);
       const { ok, data } = await post('/analytics/query', { queryConfig: resolved });
-      if (!ok) { box.innerHTML = `<span style="color:var(--danger,#dc2626);">✗ ${escapeHtml(data.error || 'failed')}</span>`; return; }
+      if (!ok) { box.innerHTML = `<span class="text-danger">✗ ${escapeHtml(data.error || 'failed')}</span>`; return; }
       const rows = data.data || []; const p = data.plan || {};
-      box.innerHTML = `<div style="color:var(--primary);">✓ ${rows.length} row(s) · ${escapeHtml(p.strategy || '')} · ${escapeHtml(p.executionMs ?? '—')}ms</div>` +
-        (rows[0] ? `<pre class="ca-code" style="max-height:120px; margin-top:.4rem;">${escapeHtml(JSON.stringify(rows[0], null, 2))}</pre>` : '');
-    } catch (e) { box.innerHTML = `<span style="color:var(--danger,#dc2626);">✗ ${escapeHtml(e.message)}</span>`; }
+      box.innerHTML = `<div class="text-ok">✓ ${rows.length} row(s) · ${escapeHtml(p.strategy || '')} · ${escapeHtml(p.executionMs ?? '—')}ms</div>` +
+        (rows[0] ? `<pre class="ca-code sm">${escapeHtml(JSON.stringify(rows[0], null, 2))}</pre>` : '');
+    } catch (e) { box.innerHTML = `<span class="text-danger">✗ ${escapeHtml(e.message)}</span>`; }
   };
   window.saveBuild = async function () {
     const name = val('bName').trim(); if (!name) return showModal('Name required', 'Give the analytic a name.');
@@ -502,12 +502,12 @@
     $('caList').innerHTML = ANALYTICS.map((a, i) => `
       <div class="ca-item">
         <h4>${escapeHtml(a.name)} <span class="ca-badge">${escapeHtml(a.mode)}</span></h4>
-        <div class="text-muted" style="font-size:.8rem; min-height:2.4em;">${escapeHtml(a.description || '')}</div>
-        <div class="text-muted" style="font-size:.72rem; margin:.3rem 0;">${(a.variables || []).length} variable(s): ${escapeHtml((a.variables || []).map((v) => v.name).join(', ') || 'none')}</div>
-        <div style="display:flex; gap:.4rem; margin-top:.6rem;">
-          <button class="btn-primary" style="font-size:.8rem;" onclick="play(${i})"><i class="fas fa-play"></i> Play</button>
-          <button class="btn-outline" style="font-size:.8rem;" onclick="openEdit(${i})"><i class="fas fa-pen"></i> Edit</button>
-          <button class="btn-outline" style="font-size:.8rem;" onclick="delA('${escapeHtml(a.id)}')">Delete</button>
+        <div class="text-muted small ca-desc">${escapeHtml(a.description || '')}</div>
+        <div class="text-muted small">${(a.variables || []).length} variable(s): ${escapeHtml((a.variables || []).map((v) => v.name).join(', ') || 'none')}</div>
+        <div class="row-actions mt-1">
+          <button class="btn-primary btn-sm" onclick="play(${i})"><i class="fas fa-play" aria-hidden="true"></i> Play</button>
+          <button class="btn-outline btn-sm" onclick="openEdit(${i})"><i class="fas fa-pen" aria-hidden="true"></i> Edit</button>
+          <button class="btn-outline btn-sm btn-danger" onclick="delA('${escapeHtml(a.id)}')">Delete</button>
         </div>
       </div>`).join('');
   }
@@ -516,7 +516,7 @@
     if (!vars.length) return runA(a, {});
     $('playTitle').textContent = `Inputs for "${a.name}"`;
     $('playInputs').innerHTML = vars.map((v) => `
-      <div class="ca-field"><label>${escapeHtml(v.label || v.name)} <span style="opacity:.7;">(${escapeHtml(v.type)})${v.required ? ' *' : ''}</span></label>
+      <div class="ca-field"><label>${escapeHtml(v.label || v.name)} <span class="text-muted">(${escapeHtml(v.type)})${v.required ? ' *' : ''}</span></label>
         <input class="ca-input pv" data-name="${escapeHtml(v.name)}" data-type="${escapeHtml(v.type)}" value="${escapeHtml(v.default ?? '')}"></div>`).join('');
     $('playRunBtn').onclick = () => {
       const values = {};
@@ -538,11 +538,11 @@
     $('resultBound').textContent = Object.keys(bound).length ? 'Bound: ' + Object.entries(bound).map(([k, v]) => `${k}=${v}`).join(', ') : 'No variables.';
     const p = r.plan || {};
     $('resultKpis').innerHTML = [['Rows', r.rowCount ?? (r.data || []).length], ['Strategy', p.strategy || '—'], ['Exec', (p.executionMs ?? '—') + ' ms'], ['Scanned', p.rowsScannedAcrossSources ?? '—']]
-      .map(([k, v]) => `<div style="background:var(--bg);border-radius:8px;padding:.6rem;text-align:center;"><div style="font-weight:700;font-size:1.2rem;">${escapeHtml(v)}</div><div class="text-muted" style="font-size:.7rem;">${escapeHtml(k)}</div></div>`).join('');
+      .map(([k, v]) => `<div class="stat-card center"><span class="stat-value sm">${escapeHtml(v)}</span><span class="stat-label">${escapeHtml(k)}</span></div>`).join('');
     const rows = r.data || []; const cols = rows.length ? Object.keys(rows[0]) : [];
     $('resultHead').innerHTML = '<tr>' + cols.map((c) => `<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
     $('resultBody').innerHTML = rows.slice(0, 300).map((row) => '<tr>' + cols.map((c) => `<td>${escapeHtml(row[c])}</td>`).join('') + '</tr>').join('') || `<tr><td class="text-muted">0 rows</td></tr>`;
-    $('resultPlan').innerHTML = (p.legs || []).map((l) => `<div style="background:var(--bg);border-radius:6px;padding:.4rem .6rem;margin:.3rem 0;font-size:.78rem;"><strong>${escapeHtml(l.source)}</strong> <span class="ca-badge">${escapeHtml(l.engine)}/${escapeHtml(l.mode)}</span> ${escapeHtml(l.operation)} → ${escapeHtml(l.rowsReturned)} rows · ${escapeHtml(l.ms)}ms</div>`).join('');
+    $('resultPlan').innerHTML = (p.legs || []).map((l) => `<div class="mini-box"><strong>${escapeHtml(l.source)}</strong> <span class="ca-badge">${escapeHtml(l.engine)}/${escapeHtml(l.mode)}</span> ${escapeHtml(l.operation)} → ${escapeHtml(l.rowsReturned)} rows · ${escapeHtml(l.ms)}ms</div>`).join('');
     $('resultModal').style.display = 'flex';
   }
   window.closeResult = function () { $('resultModal').style.display = 'none'; };

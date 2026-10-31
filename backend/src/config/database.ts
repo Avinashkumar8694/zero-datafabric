@@ -1,5 +1,7 @@
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
+import { requestPolicy } from '../modules/tenancy/request-context';
+import { escapeLike, belongsToTenant } from '../utils/identifiers';
 
 /**
  * Primary Postgres connection pool + the session-context query helper that
@@ -32,8 +34,33 @@ const connectionString = process.env.DATABASE_URL || buildConnectionString();
 
 const pool = new Pool({
   connectionString,
+  max: Number(process.env.DB_POOL_MAX || 50),
+  min: Number(process.env.DB_POOL_MIN || 5),
+  idleTimeoutMillis: Number(process.env.DB_POOL_IDLE_TIMEOUT || 30000),
+  connectionTimeoutMillis: Number(process.env.DB_POOL_CONNECT_TIMEOUT || 10000),
   statement_timeout: 10000, // 10 seconds industrial timeout
 });
+
+/**
+ * Builds the `search_path` value for a tenant: its primary schema `tenant_<id>` first, then its logical sub-schemas
+ * `tenant_<id>_<logical>`, then `public`. Matching is exact: LIKE wildcards in the tenant id are escaped and every
+ * candidate is re-checked with `belongsToTenant`, so `t_ac` never picks up `tenant_t_ac_foo` of tenant `t_ac_foo`
+ * (creation additionally enforces the no-prefix-overlap rule on tenant ids).
+ */
+async function tenantSearchPath(client: { query: (t: string, v?: any[]) => Promise<{ rows: any[] }> }, tenantId: string): Promise<string> {
+  const cleanTenant = String(tenantId).replace(/[^a-zA-Z0-9_]/g, '');
+  const baseSchema = `tenant_${cleanTenant}`;
+  const { rows } = await client.query(
+    `SELECT schema_name
+     FROM information_schema.schemata
+     WHERE schema_name = $1 OR schema_name LIKE $2 ESCAPE '\\'
+     ORDER BY (schema_name = $1) DESC, schema_name ASC`,
+    [baseSchema, `${escapeLike(baseSchema + '_')}%`]
+  );
+  const names: string[] = rows.map((r: any) => String(r.schema_name)).filter((n: string) => belongsToTenant(n, cleanTenant));
+  const quoted = (names.length ? names : [baseSchema]).map((n) => `"${n.replace(/"/g, '""')}"`);
+  return `${quoted.join(', ')}, public`;
+}
 
 /**
  * Execute a single SQL statement inside a transaction that has been scoped to
@@ -56,6 +83,8 @@ async function queryWithContext(sql: string, params: any[], context: { tenantId:
     
     // 1. Switch to the application role first to ensure settings are correctly scoped
     await client.query(`SET LOCAL ROLE fabric_user`);
+    const policyTimeout = requestPolicy.getStore()?.timeoutMs;
+    if (policyTimeout && Number.isInteger(policyTimeout)) await client.query(`SET LOCAL statement_timeout = ${policyTimeout}`);
 
     // 2. Inject identity into the Postgres session (Industrial Grade App Context)
     await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [context.tenantId]);
@@ -71,18 +100,7 @@ async function queryWithContext(sql: string, params: any[], context: { tenantId:
     await client.query(`SELECT set_config('request.jwt.claims', $1, true)`, [JSON.stringify(claims)]);
     
     // 3. Set Search Path to Tenant Primary + tenant sub-schemas (e.g., tenant_<id>_Global_Supply_Chain)
-    const baseSchema = `tenant_${context.tenantId.replace(/[^a-zA-Z0-9_]/g, '')}`;
-    const { rows: schemaRows } = await client.query(
-      `SELECT schema_name
-       FROM information_schema.schemata
-       WHERE schema_name = $1 OR schema_name LIKE $2
-       ORDER BY (schema_name = $1) DESC, schema_name ASC`,
-      [baseSchema, `${baseSchema}_%`]
-    );
-    const searchPath = schemaRows.length
-      ? schemaRows.map(r => `"${r.schema_name}"`).join(', ')
-      : `"${baseSchema}"`;
-    await client.query(`SET LOCAL search_path TO ${searchPath}, public`);
+    await client.query(`SET LOCAL search_path TO ${await tenantSearchPath(client, context.tenantId)}`);
     
     const result = await client.query(sql, params);
     
@@ -102,4 +120,4 @@ pool.on('connect', () => {
   console.log('PostgreSQL Pool Connected');
 });
 
-export { pool, queryWithContext };
+export { pool, queryWithContext, tenantSearchPath };

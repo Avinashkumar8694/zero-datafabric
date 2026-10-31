@@ -75,7 +75,6 @@ Used in `/api/analytics/query` and `CREATE_VIEW`.
 | `groupBy` | Array | List of columns to group by: `["groups.name"]`. |
 | `orderBy` | Array | List of order objects: `[{ "field": "name", "dir": "ASC" }]`. |
 | `limit` | Number | Max results to return. |
-| `withRecursive` | Object | Recursive CTE configuration. |
 
 *Note: Aggregate queries (count, sum, etc.) bypass the Industrial Safety Shield to allow for global metric gathering.*
 
@@ -96,12 +95,7 @@ Used in `/api/analytics/query` and `CREATE_VIEW`.
   },
   "groupBy": ["groups.name"],
   "orderBy": [{ "field": "groups.name", "dir": "ASC" }],
-  "limit": 100,
-  "withRecursive": {
-    "name": "org_tree",
-    "baseQuery": "SELECT id, name, parent_id FROM org WHERE parent_id IS NULL",
-    "recursiveQuery": "SELECT o.id, o.name, o.parent_id FROM org o JOIN org_tree ot ON o.parent_id = ot.id"
-  }
+  "limit": 100
 }
 ```
 

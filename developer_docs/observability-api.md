@@ -6,6 +6,7 @@ telemetry back.
 
 | Method | Path | Returns |
 |--------|------|---------|
+| GET | `/api/metrics` | Prometheus (v0.0.4) & JSON telemetry (pools, memory, Citus status) |
 | GET | `/api/query-logs` | list of recent query runs (summary) |
 | GET | `/api/query-logs/:id` | one run in full (legs, TAT, mem, strategy, warnings) |
 | GET | `/api/events` | last 10 audit-log events for the tenant |
@@ -32,7 +33,7 @@ rows scanned across sources, pushdown notes, warnings, timing and memory.
 ## GET `/api/query-logs` — list runs
 
 **Query params:** `limit` (1–1000, default 200), `status` (`SUCCESS`|`ERROR`),
-`mode` (e.g. `SELECT_AST`, `CRUD_CREATE`, `SAVED_ANALYTIC`, `SQL_ON_SOURCE`, …).
+`mode` (e.g. `SELECT_AST`, `CRUD_CREATE`, `SAVED_ANALYTIC`, …).
 
 ```bash
 curl -s "${H[@]}" "http://localhost:4000/api/query-logs?limit=50&status=SUCCESS&mode=SELECT_AST"
@@ -95,7 +96,7 @@ Field guide:
 
 | Field | Meaning |
 |-------|---------|
-| `strategy` | planner choice: `SINGLE_LOCAL`/`SINGLE_CONNECTOR`/`CROSS_ENGINE`/`SINGLE_CONNECTOR_RAW`/… |
+| `strategy` | planner choice: `SINGLE_LOCAL`/`SINGLE_CONNECTOR`/`CROSS_ENGINE`/`SINGLE_CONNECTOR_WRITE`/… |
 | `legs[]` | per-engine trace: `source`, `engine`, `operation`, `target`, exact `query` + `params`, `rowsReturned`, `ms` |
 | `executionMs` | fabric-measured query time (from the plan) |
 | `tatMs` | end-to-end turnaround time (wall clock) |
@@ -137,3 +138,73 @@ curl -s "${H[@]}" http://localhost:4000/api/events
 
 For the broader admin audit log (`GET /api/admin/audit-logs`) and platform
 counts (`GET /api/admin/stats`), see [admin-api.md](admin-api.md).
+
+---
+
+## GET `/api/metrics` — Prometheus & JSON Telemetry
+
+**Purpose:** exposes platform-level runtime telemetry for Prometheus scrapers, Datadog agents, or JSON-based monitoring dashboards.
+
+### Prometheus Text Format (Default)
+By default, returns standard Prometheus exposition format (`version 0.0.4`):
+
+```bash
+curl -s http://localhost:4000/api/metrics
+```
+
+**Output:**
+```prometheus
+# HELP datafabric_up Whether the Data Fabric server is up and accepting connections
+# TYPE datafabric_up gauge
+datafabric_up 1
+
+# HELP datafabric_uptime_seconds Number of seconds the process has been running
+# TYPE datafabric_uptime_seconds counter
+datafabric_uptime_seconds 184.22
+
+# HELP datafabric_process_memory_heap_used_bytes Heap memory in use by V8 engine
+# TYPE datafabric_process_memory_heap_used_bytes gauge
+datafabric_process_memory_heap_used_bytes 284192080
+
+# HELP datafabric_postgres_hub_pool_total Total connections in Hub PostgreSQL pool
+# TYPE datafabric_postgres_hub_pool_total gauge
+datafabric_postgres_hub_pool_total 48
+
+# HELP datafabric_postgres_hub_pool_idle Idle connections in Hub PostgreSQL pool
+# TYPE datafabric_postgres_hub_pool_idle gauge
+datafabric_postgres_hub_pool_idle 48
+
+# HELP datafabric_mongodb_pools_count Number of cached MongoDB connection clients
+# TYPE datafabric_mongodb_pools_count gauge
+datafabric_mongodb_pools_count 1
+
+# HELP datafabric_citus_coordinator_active Whether Citus coordinator extension is active
+# TYPE datafabric_citus_coordinator_active gauge
+datafabric_citus_coordinator_active 1
+
+# HELP datafabric_citus_active_workers Number of active distributed Citus worker nodes registered
+# TYPE datafabric_citus_active_workers gauge
+datafabric_citus_active_workers 0
+```
+
+### JSON Format (`?format=json` or `Accept: application/json`)
+```bash
+curl -s "http://localhost:4000/api/metrics?format=json"
+```
+
+**Success (`200`):**
+```jsonc
+{
+  "uptime_seconds": 184.22,
+  "memory": {
+    "heap_used_bytes": 284192080,
+    "heap_total_bytes": 336674816,
+    "rss_bytes": 371654656
+  },
+  "postgres_hub": { "total": 48, "idle": 48, "waiting": 0 },
+  "remote_postgres": { "poolCount": 0, "totalCount": 0, "idleCount": 0, "waitingCount": 0 },
+  "mongodb": { "poolCount": 1 },
+  "citus": { "active": true, "active_workers": 0 }
+}
+```
+

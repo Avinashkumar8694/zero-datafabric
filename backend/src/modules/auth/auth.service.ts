@@ -16,7 +16,17 @@ import { pool } from '../../config/database';
  */
 
 /** Resolve the HMAC secret used to sign/verify JWTs, falling back to a dev default if unset. */
-const getJwtSecret = () => process.env.JWT_SECRET || 'reallyreallyreallyreallyverysecret';
+const DEV_JWT_SECRET = 'reallyreallyreallyreallyverysecret';
+/** Fail closed: in production a missing JWT_SECRET must stop the process instead of silently signing with a public default. */
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+  throw new Error('FATAL: JWT_SECRET must be set when NODE_ENV=production (refusing to start with the development default secret)');
+}
+const getJwtSecret = () => {
+  const secret = process.env.JWT_SECRET;
+  if (secret) return secret;
+  if (process.env.NODE_ENV === 'production') throw new Error('JWT_SECRET is not configured');
+  return DEV_JWT_SECRET;
+};
 
 export class AuthService {
   /**
@@ -54,7 +64,7 @@ export class AuthService {
       return null;
     }
 
-    const token = this.generateToken(user.tenant_id, user.role, user.username, user.id);
+    const token = this.generateToken(user.tenant_id, user.role, user.username, user.id, 'local');
     console.log(`[Auth] Login successful for: ${username}, Tenant: ${user.tenant_id}, Role: ${user.role}`);
     return { token, user: { id: user.id, username: user.username, tenant_id: user.tenant_id } };
   }
@@ -68,9 +78,10 @@ export class AuthService {
    * @param internalRole - The user's application role (e.g. ADMIN/USER); defaults to `'USER'`.
    * @param username - The authenticated username; defaults to `'unknown'`.
    * @param userId - The authenticated user's ID.
+   * @param authMethod - Method used to authenticate: 'local' (password) or 'sso'.
    * @returns A signed JWT string.
    */
-  static generateToken(tenantId: string | null, internalRole: string = 'USER', username: string = 'unknown', userId?: string) {
+  static generateToken(tenantId: string | null, internalRole: string = 'USER', username: string = 'unknown', userId?: string, authMethod: string = 'local') {
     // Map internal roles to DB roles for PostgREST
     const dbRole = 'fabric_user';
 
@@ -80,6 +91,7 @@ export class AuthService {
       internal_role: internalRole, // Store actual role for app logic
       tenant_id: tenantId,
       username: username,
+      auth_method: authMethod,
       iat: Math.floor(Date.now() / 1000),
       iss: 'zero-data-fabric'
     };
@@ -110,6 +122,11 @@ export class AuthService {
    * @throws Propagates any database error, e.g. a unique-constraint violation on username.
    */
   static async createUser(username: string, password_raw: string, tenantId: string | null, role: string) {
+    if (tenantId) {
+      const { LimitsResolver } = await import('../tenancy/limits.resolver');
+      const n = parseInt((await pool.query('SELECT COUNT(*) AS n FROM public.users WHERE tenant_id = $1', [tenantId])).rows[0].n, 10);
+      await LimitsResolver.assertWithin(tenantId, 'max_users_per_workspace', n, 'Users per workspace');
+    }
     const hash = await bcrypt.hash(password_raw, 10);
     const { rows } = await pool.query(
       'INSERT INTO public.users (username, password_hash, tenant_id, role) VALUES ($1, $2, $3, $4) RETURNING id, username, tenant_id, role, status',

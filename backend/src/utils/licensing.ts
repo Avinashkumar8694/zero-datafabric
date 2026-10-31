@@ -50,6 +50,18 @@ export interface DataFabricLicenseLimits {
   rate_limit_per_day: number;
   /** API rate limit — requests per month */
   rate_limit_per_month: number;
+  /** v2: Max Citus worker nodes registrable (0 disables, -1 unlimited) */
+  max_workers?: number;
+  /** v2: Max active developer API tokens per user */
+  max_api_tokens_per_user?: number;
+  /** v2: Max users (accounts) homed in one workspace */
+  max_users_per_workspace?: number;
+  /** v2: Max saved analytics per workspace */
+  max_saved_analytics?: number;
+  /** v2: Hard ceiling on rows returned by one AST query */
+  max_query_rows?: number;
+  /** v2: Hard ceiling on a manifest upload, in MB */
+  max_manifest_size_mb?: number;
   /** Data retention / cleanup frequency: 'none' | 'daily' | 'weekly' | 'monthly' */
   data_cleanup_frequency?: string;
   /** Hour of day (0-23, UTC) at which the cleanup job fires */
@@ -71,6 +83,14 @@ export interface DataFabricLicenseFeatures {
   cdc_kafka_enabled: boolean;
   /** Allow query engine federation across multiple sources */
   federated_query_enabled: boolean;
+  /** v2: Distributed execution (Citus worker nodes, distributed tables, rebalance) */
+  distributed_execution_enabled?: boolean;
+  /** v2: Developer API tokens (x-api-key / Bearer dft_...) */
+  developer_tokens_enabled?: boolean;
+  /** v2: Manifest download / import / apply from file */
+  manifest_import_export_enabled?: boolean;
+  /** v2: Per-workspace settings pages (query/security/api) editable by workspace owners */
+  workspace_settings_enabled?: boolean;
   /** Remove "Powered by Zero Data Fabric" branding */
   remove_branding: boolean;
   /**
@@ -107,6 +127,10 @@ export interface LicensePayload {
   limits: DataFabricLicenseLimits;
   /** Feature flags unlocked by this license */
   features: DataFabricLicenseFeatures;
+  /** v2: payload schema version (1 = original object, 2 = adds the v2 fields). Absent means 1. */
+  schema_version?: number;
+  /** v2: when set, the key only activates on the instance with this id (see Settings > Licence) */
+  bound_instance_id?: string;
   /** Max installations this key may be activated on (enforced by portal when callback_validation_enabled=true) */
   max_installations?: number;
   /**
@@ -131,12 +155,17 @@ export interface LicensePayload {
  *
  * Returns the decoded LicensePayload if valid, otherwise null.
  */
+/** The production public key; tests may substitute their own signing key (never honoured outside NODE_ENV=test). */
+export function getLicensePublicKey(): string {
+  return process.env.NODE_ENV === 'test' && process.env.LICENSE_PUBLIC_KEY_PEM ? process.env.LICENSE_PUBLIC_KEY_PEM : ZERO_PUBLIC_KEY;
+}
+
 export function verifyLicense(licenseKey: string): LicensePayload | null {
   if (!licenseKey || licenseKey.trim() === '') {
     return null;
   }
   try {
-    const decoded = jwt.verify(licenseKey.trim(), ZERO_PUBLIC_KEY, {
+    const decoded = jwt.verify(licenseKey.trim(), getLicensePublicKey(), {
       algorithms: ['RS256'],
     }) as LicensePayload;
 

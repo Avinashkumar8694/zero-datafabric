@@ -3,7 +3,7 @@
 Postgres enforces constraints, grants, and functions natively. These examples
 show the fabric providing the **same guarantees on MongoDB** via its
 compensation engines — the constructs from `test_manifest.json`, made to work
-on an engine that doesn't have them, reachable from AST and SQL.
+on an engine that doesn't have them, reachable from the AST query engine and `/api/data/call`.
 
 ## Prerequisites
 
@@ -28,8 +28,8 @@ NODE_PATH=backend/node_modules node examples/governance/run-all.js
   Grant engine allow the granted read, deny an ungranted read/write (403), and
   let ADMIN bypass. Uses `x-act-as-role` (ADMIN "view as" a role) to test roles.
 - **03 — function call.** Provisions a scalar function on the hub and calls it
-  from **AST** (`POST /api/data/call`) and **SQL** (`SELECT fn(...)`), confirming
-  the same result — the fabric's function-as-a-service, available in both modes.
+  via `POST /api/data/call` and as an AST `CALL` query, confirming the same
+  result — the fabric's function-as-a-service.
 
 ## Control-plane APIs used
 
@@ -47,4 +47,4 @@ All three are also declarable in a manifest (`constraints[]` + column flags,
 
 - Violating writes are rejected **at the fabric** (400) — Mongo never sees them.
 - A role without a privilege is denied (403); ADMIN and un-governed tables pass.
-- A function returns the identical value whether invoked via AST or SQL.
+- A function returns the identical value via `/api/data/call` and a `CALL` query.

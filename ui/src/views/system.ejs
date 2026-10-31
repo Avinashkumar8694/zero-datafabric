@@ -1,0 +1,56 @@
+<%- include('partials/header') %>
+
+<link rel="stylesheet" href="/css/settings-extra.css">
+<link rel="stylesheet" href="/css/console-settings.css">
+
+<div class="ws-page">
+    <div id="sysGate" class="ws-card ws-gate" role="alert" hidden>
+        <i class="fas fa-lock" aria-hidden="true"></i>
+        <h2>403 · Platform admins only</h2>
+        <p class="ws-muted" id="sysGateMsg">The System page manages the whole deployment: plans, workspaces, licence and worker nodes. Your account does not have platform admin access.</p>
+        <div class="ws-actions" style="justify-content:center"><a class="btn-primary" href="/settings"><i class="fas fa-cog" aria-hidden="true"></i> Go to workspace settings</a></div>
+    </div>
+
+    <div id="sysApp">
+        <div class="ws-head">
+            <div>
+                <h1 class="ws-title">System</h1>
+                <p class="ws-sub">Platform administration: deployment settings, plans, workspaces, licence, worker nodes and login. These apply to every workspace.</p>
+            </div>
+            <div class="ws-head-badges"><span class="badge ws-badge-info"><i class="fas fa-user-shield" aria-hidden="true"></i> Platform admin</span></div>
+        </div>
+
+        <div class="st-tabs" role="tablist" aria-label="System sections">
+            <button class="st-tab" role="tab" data-tab="overview" aria-selected="true"><i class="fas fa-gauge" aria-hidden="true"></i> Overview</button>
+            <button class="st-tab" role="tab" data-tab="settings" aria-selected="false"><i class="fas fa-gears" aria-hidden="true"></i> Settings</button>
+            <button class="st-tab" role="tab" data-tab="plans" aria-selected="false"><i class="fas fa-tags" aria-hidden="true"></i> Plans</button>
+            <button class="st-tab" role="tab" data-tab="workspaces" aria-selected="false"><i class="fas fa-building" aria-hidden="true"></i> Workspaces</button>
+            <button class="st-tab" role="tab" data-tab="licence" aria-selected="false"><i class="fas fa-key" aria-hidden="true"></i> Licence</button>
+            <button class="st-tab" role="tab" data-tab="workers" aria-selected="false"><i class="fas fa-server" aria-hidden="true"></i> Worker nodes</button>
+            <button class="st-tab" role="tab" data-tab="login" aria-selected="false"><i class="fas fa-palette" aria-hidden="true"></i> Login &amp; SSO</button>
+            <button class="st-tab" role="tab" data-tab="events" aria-selected="false"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i> Events</button>
+        </div>
+
+        <section id="tab-overview" class="st-panel" role="tabpanel"><div id="sysOverview"></div></section>
+        <section id="tab-settings" class="st-panel" role="tabpanel" hidden><div id="sysSettings"></div></section>
+        <section id="tab-plans" class="st-panel" role="tabpanel" hidden></section>
+        <section id="tab-workspaces" class="st-panel" role="tabpanel" hidden></section>
+        <section id="tab-licence" class="st-panel" role="tabpanel" hidden><div id="sysLicence"></div></section>
+        <%- include('partials/settings_workers') %>
+        <%- include('partials/system_login') %>
+        <section id="tab-events" class="st-panel" role="tabpanel" hidden></section>
+    </div>
+</div>
+
+<script src="/js/console-common.js"></script>
+<script src="/js/system-shared.js"></script>
+<script src="/js/settings-workers.js"></script>
+<script src="/js/system-main.js"></script>
+<script src="/js/system-plans.js"></script>
+<script src="/js/system-workspaces.js"></script>
+<script src="/js/system-licence.js"></script>
+<script src="/js/system-login.js"></script>
+<script src="/js/system-events.js"></script>
+<script>SYS.start();</script>
+
+<%- include('partials/footer') %>

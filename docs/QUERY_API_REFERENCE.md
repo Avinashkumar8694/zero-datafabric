@@ -1,13 +1,12 @@
 # Zero Data Fabric — Query & Data API Reference
 
 Complete syntax for querying and mutating data across federated sources. There
-are three layers, from highest-level to lowest:
+are two layers (AST-only: raw SQL execution has been removed):
 
 | Layer | Endpoint(s) | Use it for |
 |-------|-------------|-----------|
 | **CRUD façade** | `POST /api/data/{fetch,create,update,delete}` | Simple single-resource reads/writes. Ergonomic JSON, no query shape to learn. |
 | **AST query** | `POST /api/analytics/query` (also `/api/queries/engine`) | Structured, engine-agnostic queries: joins, set-ops, aggregates, cross-source federation. **The primary interface.** |
-| **Native SQL** | `POST /api/queries/exec`, `POST /api/queries/native` | Raw SQL for complex single-source analytics (window functions, recursive CTEs, matviews) executed *at* the owning engine. |
 
 **Auth (all endpoints):** header `Authorization: Bearer <token>` and `x-tenant-id: <tenant>`.
 
@@ -23,7 +22,7 @@ Every read returns the same shape:
   "rowCount": 12,
   "warnings": [ "..." ],        // e.g. row-cap hit
   "plan": {
-    "strategy": "CROSS_ENGINE", // SINGLE_LOCAL | SINGLE_CONNECTOR | CROSS_ENGINE | SINGLE_CONNECTOR_RAW | SINGLE_CONNECTOR_WRITE
+    "strategy": "CROSS_ENGINE", // SINGLE_LOCAL | SINGLE_CONNECTOR | CROSS_ENGINE | SINGLE_CONNECTOR_WRITE
     "executionMs": 24,
     "rowsScannedAcrossSources": 4,   // total rows pulled from all sources (proof of pushdown)
     "pushed": [ "human-readable notes" ],
@@ -46,7 +45,7 @@ whole tables and filter in memory).
 - **SINGLE_LOCAL** — everything resolves inside the tenant Postgres hub → one SQL statement.
 - **SINGLE_CONNECTOR** — one external source → one pushed-down query (filter/projection/sort/limit/aggregate).
 - **CROSS_ENGINE** — legs span ≥2 distinct sources → each leg pushed down independently, results merged in-fabric (bind-join for joins, partial-aggregate merge for aggregates, set-op merge).
-- **SINGLE_CONNECTOR_RAW / _WRITE** — native SQL / CRUD write executed at one external source.
+- **SINGLE_CONNECTOR_WRITE** — CRUD write executed at one external source.
 
 ---
 
@@ -193,33 +192,21 @@ Writes execute at the owning source: **remote Postgres** via parameterized SQL,
 
 ---
 
-## 4. Native SQL — `POST /api/queries/exec`
+## 4. No raw SQL (AST-only)
 
-Run arbitrary SQL. Add `source` to execute it **at that external engine** (for
-window functions, recursive CTEs, materialized-view reads that the AST layer
-doesn't model):
-```jsonc
-POST /api/queries/exec
-{
-  "source": "Retail_Core",      // omit → runs on the hub
-  "schema": "public",           // sets search_path at the source
-  "sql": "WITH d AS (SELECT date_trunc('day',order_date)::date dt, sum(total_amount) rev FROM orders GROUP BY 1) SELECT dt, rev, sum(rev) OVER (ORDER BY dt) running FROM d ORDER BY dt"
-}
-```
-Returns the standard envelope with a one-leg trace. **Every source is reachable by
-SQL**, but in two ways:
+Raw SQL execution has been removed: `POST /api/queries/exec` and
+`POST /api/queries/native` return `404`, and bodies carrying `sql` / `rawSql` /
+`nativeSql` / `rawQuery` (or a string `query`) on `/api/queries`, `/api/analytics`,
+`/api/data` and `/api/saved-analytics` are rejected with
+`400 { "error": "...", "code": "SQL_NOT_SUPPORTED" }`.
 
-- **SQL-native engines** (Postgres/MySQL/Snowflake) run the SQL **directly**
-  (`plan.strategy = SINGLE_CONNECTOR_RAW`) — full power incl. window functions,
-  recursive CTEs.
-- **Elasticsearch** runs it via its native `_sql` endpoint (subset: `SELECT`/
-  `WHERE`/`GROUP BY`/aggregates, `MATCH()`/`SCORE()`; no JOINs).
-- **MongoDB** has no SQL engine, so the fabric **translates the SQL into the AST**
-  and runs it as a native Mongo `find`/`$group` (`plan.translatedFrom = "SQL"`).
-  Single-collection SELECT/WHERE/GROUP BY/ORDER BY/LIMIT; JOINs/subqueries/UNION
-  need AST mode.
-
-`POST /api/queries/native` behaves the same for a single `{ sql, source?, schema? }`.
+- **Reads** (incl. window functions, recursive queries, view reads): AST on
+  `POST /api/analytics/query` / `POST /api/queries/engine`. See
+  [recursive-and-window-queries](../developer_docs/recursive-and-window-queries.md).
+- **Schema / DDL**: manifests via `POST /api/metadata/apply` (and `/api/metadata/migrate`).
+- **Writes**: `/api/data` CRUD (create / fetch / update / delete / call / sequence).
+- **SQL preview**: `POST /api/queries/transpile` takes `{ config }` or `{ query }` and
+  returns `{ sql }`, the SQL the fabric would generate. Preview only; it never executes.
 
 ---
 

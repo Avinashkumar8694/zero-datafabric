@@ -1,0 +1,33 @@
+<section id="tab-login" class="st-panel" role="tabpanel" hidden>
+    <div id="selfhostAlertBanner" class="wk-banner warn" role="status" style="display: none;">
+        <i class="fas fa-lock" aria-hidden="true"></i>
+        <div><strong>Customization locked.</strong> Login page customization and OIDC provider routing are exclusive features of the <strong>Self-Host</strong> plan. Upgrade your plan to edit these configurations.</div>
+    </div>
+
+    <form id="settingsForm" novalidate>
+        <div class="ws-card">
+            <div class="ws-card-head"><h3><i class="fas fa-palette" aria-hidden="true"></i> Custom branding &amp; layout</h3><span class="badge" id="planBadge">Loading plan…</span></div>
+            <div class="ws-form-grid">
+                <div class="ws-field"><label for="loginTitle">Login portal title</label><input type="text" id="loginTitle" placeholder="e.g. Acme Enterprise Portal" required /></div>
+                <div class="ws-field"><label for="loginBgColor">Background color (HEX)</label><input type="text" id="loginBgColor" placeholder="#04060f" pattern="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$" required /></div>
+                <div class="ws-field full"><label for="loginLogoUrl">Logo URL (optional)</label><input type="url" id="loginLogoUrl" placeholder="https://example.com/logo.png" /></div>
+            </div>
+        </div>
+
+        <div class="ws-card">
+            <div class="ws-card-head"><h3><i class="fas fa-shield-alt" aria-hidden="true"></i> Identity provider configuration</h3></div>
+            <div class="ws-form-grid">
+                <div class="ws-field"><label class="ws-check"><input type="checkbox" id="allowPasswordLogin" /><span>Enable username / password login</span></label></div>
+                <div class="ws-field"><label class="ws-check"><input type="checkbox" id="ssoEnabled" /><span>Enable SSO (OIDC OAuth 2.0)</span></label></div>
+                <div class="ws-field full"><label for="oidcIssuer">OIDC issuer URL (OAuth 2.0 provider base)</label><input type="url" id="oidcIssuer" placeholder="https://ids.fabrixly.com" /></div>
+                <div class="ws-field"><label for="oidcClientId">OIDC client ID</label><input type="text" id="oidcClientId" placeholder="zero-datafabric" /></div>
+                <div class="ws-field"><label for="oidcClientSecret">OIDC client secret</label><input type="password" id="oidcClientSecret" placeholder="••••••••••••••••" autocomplete="new-password" /></div>
+            </div>
+        </div>
+
+        <div class="ws-actions">
+            <button type="button" class="btn-outline" id="loginReset">Reset</button>
+            <button type="submit" id="saveBtn" class="btn-primary">Save configuration</button>
+        </div>
+    </form>
+</section>

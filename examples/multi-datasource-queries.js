@@ -7,18 +7,6 @@ async function main() {
   const token = await login();
   const headers = authHeaders(token);
 
-  await call('SQL federated UNION (local + mongo-style resource)', () =>
-    axios.post(`${BASE_URL}/queries/exec`, {
-      sql: `
-      SELECT sku, stock AS qty, 'local_inventory' AS src
-      FROM "tenant_tenant_A_Global_Supply_Chain"."local_inventory"
-      UNION ALL
-      SELECT item_id AS sku, qty, 'remote_depot_mongo' AS src
-      FROM "tenant_tenant_A_Global_Supply_Chain"."remote_depot_mongo"
-      LIMIT 100
-      `
-    }, { headers }), { allowFail: true });
-
   await call('AST set operation UNION', () =>
     axios.post(`${BASE_URL}/analytics/query`, {
       queryConfig: {

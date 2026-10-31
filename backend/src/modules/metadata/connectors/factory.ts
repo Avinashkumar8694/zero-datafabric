@@ -19,6 +19,7 @@
  * the right connector instance for a data source's engine `type`.
  */
 import { Pool } from 'pg';
+import { assertSourceTargetsAllowed } from '../../integration/net_guard';
 import * as mysql from 'mysql2/promise';
 import { MongoClient, ObjectId } from 'mongodb';
 import { PushdownCompiler, CanonicalQuery } from '../../query-engine/pushdown';
@@ -71,8 +72,31 @@ export interface IConnector {
  */
 export class PostgresConnector implements IConnector {
     private pool: Pool;
+    private static pools = new Map<string, Pool>();
+
+    private static getOrCreatePool(key: string, poolConfig: any): Pool {
+        if (!PostgresConnector.pools.has(key)) {
+            const max = Number(process.env.REMOTE_PG_POOL_MAX || 50);
+            const pool = poolConfig.connectionString
+                ? new Pool({
+                    connectionString: String(poolConfig.connectionString),
+                    max,
+                    idleTimeoutMillis: 30000,
+                    connectionTimeoutMillis: 10000
+                })
+                : new Pool({
+                    ...poolConfig,
+                    max,
+                    idleTimeoutMillis: 30000,
+                    connectionTimeoutMillis: 10000
+                });
+            PostgresConnector.pools.set(key, pool);
+        }
+        return PostgresConnector.pools.get(key)!;
+    }
+
     /**
-     * Creates a connection pool for the given source configuration.
+     * Creates or reuses a pooled connection pool for the given source configuration.
      * @param config Connection config: either `connectionString`, or `host`/`port`/`user`/`password|pass`/`database|dbName|db`.
      */
     constructor(config: any) {
@@ -87,17 +111,16 @@ export class PostgresConnector implements IConnector {
             user: String(config.user || 'postgres')
         };
 
-        // Industrial Safety: Only attach password if it's a valid string
         const pass = config.pass || config.password;
         if (typeof pass === 'string' && pass.length > 0) {
             poolConfig.password = pass;
         }
 
-        if (config.connectionString) {
-            this.pool = new Pool({ connectionString: String(config.connectionString) });
-        } else {
-            this.pool = new Pool(poolConfig);
-        }
+        const poolKey = config.connectionString
+            ? String(config.connectionString)
+            : `${poolConfig.user}@${poolConfig.host}:${poolConfig.port}/${poolConfig.database}`;
+
+        this.pool = PostgresConnector.getOrCreatePool(poolKey, config.connectionString ? { connectionString: config.connectionString } : poolConfig);
     }
 
     /**
@@ -291,9 +314,35 @@ export class PostgresConnector implements IConnector {
         if (safe) await this.pool.query(`SET search_path TO "${safe}", public`);
     }
 
-    /** Closes the underlying connection pool. */
+    /** Releases resources; keeps the underlying connection pool alive across queries. */
     async close() {
-        await this.pool.end();
+        // Pooled singleton connection pool: stays warm across queries to prevent connection exhaustion.
+    }
+
+    /** Closes all pooled Postgres connection pools (used for graceful shutdown/testing). */
+    static async closeAllPools() {
+        for (const [_, p] of PostgresConnector.pools.entries()) {
+            await p.end().catch(() => {});
+        }
+        PostgresConnector.pools.clear();
+    }
+
+    /** Returns current remote Postgres connection pool statistics for observability metrics. */
+    static getPoolStats() {
+        let totalCount = 0;
+        let idleCount = 0;
+        let waitingCount = 0;
+        for (const [_, p] of PostgresConnector.pools.entries()) {
+            totalCount += p.totalCount;
+            idleCount += p.idleCount;
+            waitingCount += p.waitingCount;
+        }
+        return {
+            poolCount: PostgresConnector.pools.size,
+            totalCount,
+            idleCount,
+            waitingCount
+        };
     }
 }
 
@@ -468,12 +517,35 @@ export class MySQLConnector implements IConnector {
 export class MongoDBConnector implements IConnector {
     private client: MongoClient;
     private config: any;
+    private static clientPool = new Map<string, MongoClient>();
+
+    private static getOrCreateClient(url: string, advancedOptions?: any): MongoClient {
+        if (!MongoDBConnector.clientPool.has(url)) {
+            const maxPoolSize = Number(process.env.MONGODB_MAX_POOL_SIZE || 100);
+            const minPoolSize = Number(process.env.MONGODB_MIN_POOL_SIZE || 5);
+            const client = new MongoClient(url, {
+                maxPoolSize,
+                minPoolSize,
+                maxIdleTimeMS: 30000,
+                waitQueueTimeoutMS: 15000,
+                connectTimeoutMS: 10000,
+                socketTimeoutMS: 45000,
+                ...(advancedOptions || {})
+            });
+            client.connect().catch((err) => {
+                console.warn(`[MongoDBConnector] Background connect error for ${url}:`, err.message);
+            });
+            MongoDBConnector.clientPool.set(url, client);
+        }
+        return MongoDBConnector.clientPool.get(url)!;
+    }
 
     /**
-     * Creates a (not-yet-connected) MongoDB client from the given config.
+     * Creates or reuses a pooled MongoDB client from the given config.
      * @param config Connection config: `uri`/`connectionString`/`url`, or `user`/`pass`/`host`/`port` to build a `mongodb://` URL.
      */
     constructor(config: any) {
+        this.config = config;
         if (config.advanced?.dynamicOptions) {
             console.log(`[Connector] Applying dynamic options to Mongo:`, JSON.stringify(config.advanced.dynamicOptions));
         }
@@ -481,7 +553,22 @@ export class MongoDBConnector implements IConnector {
         // examples use host/port, others use connectionString/url).
         const url = config.uri || config.connectionString || config.url
             || `mongodb://${config.user}:${config.pass}@${config.host}:${config.port}`;
-        this.client = new MongoClient(url);
+        this.client = MongoDBConnector.getOrCreateClient(url, config.advanced?.dynamicOptions);
+    }
+
+    private getDb(schema?: string) {
+        let dbName = this.config?.database || this.config?.dbName;
+        if (!dbName && (this.config?.uri || this.config?.connectionString || this.config?.url)) {
+            try {
+                const u = new URL(this.config.uri || this.config.connectionString || this.config.url);
+                const p = u.pathname.replace(/^\//, '');
+                if (p) dbName = p;
+            } catch {}
+        }
+        if (!dbName || dbName === 'default' || dbName === 'public') {
+            dbName = schema;
+        }
+        return this.client.db(dbName || 'admin');
     }
 
     /**
@@ -504,7 +591,7 @@ export class MongoDBConnector implements IConnector {
      * @returns Rows of `(name, physicalName, rowCount: 0, resourceType)`, where `resourceType` is `'VIEW'` for Mongo views and `'TABLE'` for ordinary collections.
      */
     async discoverTables(schema: string): Promise<any[]> {
-        const db = this.client.db(schema);
+        const db = this.getDb(schema);
         const collections = await db.listCollections().toArray();
         // Mongo listCollections reports type 'collection' vs 'view'.
         return collections.map(c => ({
@@ -526,7 +613,7 @@ export class MongoDBConnector implements IConnector {
     async discoverColumns(schema: string, table: string): Promise<any[]> {
         // Mongo is schemaless — infer fields by sampling a few documents.
         await this.client.connect();
-        const docs = await this.client.db(schema).collection(table).find({}).limit(20).toArray();
+        const docs = await this.getDb(schema).collection(table).find({}).limit(20).toArray();
         const fields = new Map<string, string>();
         for (const doc of docs) {
             for (const k of Object.keys(doc)) {
@@ -576,7 +663,7 @@ export class MongoDBConnector implements IConnector {
 
     async query(schema: string, table: string, config: any): Promise<any[]> {
         await this.client.connect();
-        const db = this.client.db(schema);
+        const db = this.getDb(schema);
         const collection = db.collection(table);
 
         if (config && Array.isArray(config.pipeline)) {
@@ -623,7 +710,7 @@ export class MongoDBConnector implements IConnector {
     async *queryStream(schema: string, table: string, config: any, batchSize = 500): AsyncGenerator<any> {
         await this.client.connect();
         const canonical = toCanonical(config);
-        const collection = this.client.db(schema).collection(table);
+        const collection = this.getDb(schema).collection(table);
 
         if ((canonical.aggregates && canonical.aggregates.length > 0) || (canonical.groupBy && canonical.groupBy.length > 0)) {
             const pipeline = PushdownCompiler.toMongoAggregate(canonical);
@@ -661,7 +748,7 @@ export class MongoDBConnector implements IConnector {
      */
     async drainChanges(schema: string, table: string, resumeToken: any, limit = 500): Promise<{ changes: { op: 'I' | 'U' | 'D'; pk: string; doc: any }[]; token: any }> {
         await this.client.connect();
-        const coll = this.client.db(schema).collection(table);
+        const coll = this.getDb(schema).collection(table);
         const opts: any = { fullDocument: 'updateLookup' };
         if (resumeToken) opts.resumeAfter = resumeToken;
         const stream = coll.watch([], opts);
@@ -685,7 +772,7 @@ export class MongoDBConnector implements IConnector {
     /** Get the current change-stream position ("now") to baseline after an initial snapshot. */
     async currentChangeToken(schema: string, table: string): Promise<any> {
         await this.client.connect();
-        const stream = this.client.db(schema).collection(table).watch([]);
+        const stream = this.getDb(schema).collection(table).watch([]);
         try { await stream.tryNext(); return stream.resumeToken; }
         finally { await stream.close().catch(() => {}); }
     }
@@ -700,7 +787,7 @@ export class MongoDBConnector implements IConnector {
      */
     async insertDocs(schema: string, table: string, docs: any[]): Promise<any> {
         await this.client.connect();
-        const r = await this.client.db(schema).collection(table).insertMany(docs);
+        const r = await this.getDb(schema).collection(table).insertMany(docs);
         return { insertedCount: r.insertedCount };
     }
     /**
@@ -712,18 +799,18 @@ export class MongoDBConnector implements IConnector {
         await this.client.connect();
         const ops = docs.map((d) => ({ replaceOne: { filter: { _id: d._id }, replacement: d, upsert: true } }));
         if (!ops.length) return { upserted: 0 };
-        const r = await this.client.db(schema).collection(table).bulkWrite(ops, { ordered: false });
+        const r = await this.getDb(schema).collection(table).bulkWrite(ops, { ordered: false });
         return { upserted: (r.upsertedCount || 0) + (r.modifiedCount || 0) + (r.insertedCount || 0) };
     }
     /** Delete one document by `_id` (apply a CDC delete to a Mongo destination). */
     async deleteById(schema: string, table: string, id: any): Promise<void> {
         await this.client.connect();
-        await this.client.db(schema).collection(table).deleteOne({ _id: id });
+        await this.getDb(schema).collection(table).deleteOne({ _id: id });
     }
     /** Empty a collection (clean slate for a FULL destination reload). */
     async clearCollection(schema: string, table: string): Promise<void> {
         await this.client.connect();
-        await this.client.db(schema).collection(table).deleteMany({});
+        await this.getDb(schema).collection(table).deleteMany({});
     }
     /**
      * Applies a `$set` update to every document matching a canonical filter.
@@ -736,7 +823,7 @@ export class MongoDBConnector implements IConnector {
     async updateDocs(schema: string, table: string, filter: Record<string, any>, set: Record<string, any>): Promise<any> {
         await this.client.connect();
         const match = PushdownCompiler.toMongo({ filter }).filter;
-        const r = await this.client.db(schema).collection(table).updateMany(match, { $set: set });
+        const r = await this.getDb(schema).collection(table).updateMany(match, { $set: set });
         return { matchedCount: r.matchedCount, modifiedCount: r.modifiedCount };
     }
     /**
@@ -749,13 +836,26 @@ export class MongoDBConnector implements IConnector {
     async deleteDocs(schema: string, table: string, filter: Record<string, any>): Promise<any> {
         await this.client.connect();
         const match = PushdownCompiler.toMongo({ filter }).filter;
-        const r = await this.client.db(schema).collection(table).deleteMany(match);
+        const r = await this.getDb(schema).collection(table).deleteMany(match);
         return { deletedCount: r.deletedCount };
     }
 
-    /** Closes the underlying MongoDB client. */
+    /** Releases resources; keeps the underlying pooled MongoDB client alive across queries. */
     async close() {
-        await this.client.close();
+        // Pooled singleton client: connection pool remains active across queries to avoid TCP socket churn.
+    }
+
+    /** Shuts down all pooled MongoDB client instances (for graceful process termination/tests). */
+    static async closeAllPools() {
+        for (const [_, client] of MongoDBConnector.clientPool.entries()) {
+            await client.close().catch(() => {});
+        }
+        MongoDBConnector.clientPool.clear();
+    }
+
+    /** Returns current connection pool statistics for observability metrics. */
+    static getPoolStats() {
+        return { poolCount: MongoDBConnector.clientPool.size };
     }
 }
 
@@ -1113,9 +1213,20 @@ export class ElasticsearchConnector implements IConnector {
      * @param config Canonical query config (`select`/`filter`/`orderBy`/`limit`/`offset`/`groupBy`/`aggregates`).
      * @returns For plain searches: hit documents plus `_id`/`_score`. For aggregates: one flattened row per bucket combination, with metric values under their aliases.
      */
+    private async resolveIndex(index: string): Promise<string> {
+        try {
+            await this.req('HEAD', `/${encodeURIComponent(index)}`);
+            return index;
+        } catch {
+            const cat = await this.req('GET', `/_cat/indices?format=json`).catch(() => []);
+            const match = cat.find((i: any) => i.index === index || i.index.endsWith(`_${index}`));
+            return match ? match.index : index;
+        }
+    }
+
     async query(schema: string, table: string, config: any): Promise<any[]> {
         const canonical = toCanonical(config);
-        const index = table;
+        const index = await this.resolveIndex(table);
         const query = ElasticsearchConnector.buildQuery(canonical.filter || {});
 
         // Aggregate / DISTINCT pushdown: (date_histogram | terms) buckets for group cols
@@ -1224,10 +1335,11 @@ export class ElasticsearchConnector implements IConnector {
      * @returns `(insertedCount)`, counting only bulk items that reported a successful (< 300) status.
      */
     async insertDocs(_schema: string, index: string, docs: any[]): Promise<any> {
+        const targetIndex = await this.resolveIndex(index);
         const lines: string[] = [];
         for (const d of docs) {
             const { _id, ...src } = d;
-            lines.push(JSON.stringify(_id != null ? { index: { _index: index, _id: String(_id) } } : { index: { _index: index } }));
+            lines.push(JSON.stringify(_id != null ? { index: { _index: targetIndex, _id: String(_id) } } : { index: { _index: targetIndex } }));
             lines.push(JSON.stringify(src));
         }
         const res = await this.req('POST', `/_bulk?refresh=true`, lines.join('\n') + '\n', 'application/x-ndjson');
@@ -1255,9 +1367,10 @@ export class ElasticsearchConnector implements IConnector {
      * @returns `(modifiedCount)`.
      */
     async updateDocs(_schema: string, index: string, filter: Record<string, any>, set: Record<string, any>): Promise<any> {
+        const targetIndex = await this.resolveIndex(index);
         const src = Object.keys(set).map((k) => `ctx._source["${k}"] = params["${k}"]`).join('; ');
         const body = { query: ElasticsearchConnector.buildQuery(filter), script: { source: src, params: set } };
-        const res = await this.req('POST', `/${index}/_update_by_query?refresh=true`, body);
+        const res = await this.req('POST', `/${encodeURIComponent(targetIndex)}/_update_by_query?refresh=true`, body);
         return { modifiedCount: res.updated || 0 };
     }
     /**
@@ -1268,7 +1381,8 @@ export class ElasticsearchConnector implements IConnector {
      * @returns `(deletedCount)`.
      */
     async deleteDocs(_schema: string, index: string, filter: Record<string, any>): Promise<any> {
-        const res = await this.req('POST', `/${index}/_delete_by_query?refresh=true`, { query: ElasticsearchConnector.buildQuery(filter) });
+        const targetIndex = await this.resolveIndex(index);
+        const res = await this.req('POST', `/${encodeURIComponent(targetIndex)}/_delete_by_query?refresh=true`, { query: ElasticsearchConnector.buildQuery(filter) });
         return { deletedCount: res.deleted || 0 };
     }
 
@@ -1458,6 +1572,11 @@ export class ConnectorFactory {
      * @throws {Error} If `type` doesn't match any supported engine.
      */
     static getConnector(type: string, config: any): IConnector {
+        // Single choke point for outbound source connections: never link-local/metadata; never the platform hub unless the
+        // operator opted in (ALLOW_HUB_SOURCE=true); loopback/private unless ALLOW_PRIVATE_SOURCES=false.
+        if (config && typeof config === 'object' && !config.local) {
+            assertSourceTargetsAllowed(config, { isPlatformAdmin: process.env.ALLOW_HUB_SOURCE === 'true' });
+        }
         switch (type.toUpperCase()) {
             case 'POSTGRES':
             case 'POSTGRESQL':

@@ -35,12 +35,12 @@ npm run examples:all        # ordered end-to-end suite (prepare → queries → 
 |---|---|---|
 | `prepare-demo-env.js` | `examples:prepare` | Registers 3 sources + provisions demo schemas/tables/rows (run first) |
 | `register-3-datasources.js` | `examples:sources` | Registering Postgres/Mongo/ES sources |
-| `inserts-all-datasources.js` | `examples:inserts` | AST + SQL INSERT across sources |
-| `all-query-types.js` | `examples:queries` | SQL & AST: SELECT, WHERE, ORDER BY, JOIN, UNION, recursive CTE, sync/async |
+| `inserts-all-datasources.js` | `examples:inserts` | AST INSERT across sources |
+| `all-query-types.js` | `examples:queries` | AST: SELECT, WHERE, ORDER BY, JOIN, UNION, recursive, transpile preview, sync/async |
 | `multi-datasource-queries.js` | `examples:multisource` | Cross-source UNION / INTERSECT / EXCEPT (planner → federation) |
 | **`federated-aggregate.js`** | **`examples:fed-aggregate`** | **Multi-source COUNT/SUM/AVG/GROUP BY via partial-aggregate pushdown** |
 | **`federated-join-pushdown.js`** | **`examples:fed-join`** | **Cross-source JOIN with predicate + bind-join pushdown; post-join aggregate** |
-| `aggregation-and-complex.js` | `examples:complex` | Single-source aggregates, window functions, CTE + multi-join |
+| `aggregation-and-complex.js` | `examples:complex` | Single-source aggregates, joins, transpile preview, async |
 | `update-delete-advanced.js` | `examples:mutations` | AST UPDATE/DELETE (Mongo-style filters), soft-delete |
 | `views-mviews-sequences-procs-triggers.js` | `examples:views` | Views, materialized views, sequences, procedures |
 | `trigger-engine-examples.js` | `examples:triggers` | Trigger control plane (ROW / CRON / webhook / email) |

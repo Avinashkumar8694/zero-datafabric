@@ -150,7 +150,20 @@ export class DestOps {
     } else if (kind === 'MONGO') {
       await w.upsertDocs(schema, table, rows.map((r) => ({ _id: r[pk], ...r })));
     } else if (kind === 'ES') {
-      await w.insertDocs(schema, table, rows.map((r) => ({ _id: String(r[pk]), ...r })));   // `table` = index
+      const normalize = (doc: any) => {
+        if (!doc || typeof doc !== 'object') return doc;
+        const out: any = {};
+        for (const [k, v] of Object.entries(doc)) {
+          if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(v)) {
+            try { out[k] = new Date(v.replace(' ', 'T') + (v.endsWith('Z') ? '' : 'Z')).toISOString(); }
+            catch { out[k] = v; }
+          } else {
+            out[k] = v;
+          }
+        }
+        return out;
+      };
+      await w.insertDocs(schema, table, rows.map((r) => ({ _id: String(r[pk]), ...normalize(r) })));   // `table` = index
     }
   }
 

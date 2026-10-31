@@ -192,6 +192,8 @@ describe('Module 2: Query Engine', () => {
     // Currently there's no route for distributeTable in analyticsRoutes, 
     // but we can test the service logic.
     const { QueryEngineService } = require('./query-engine.service');
+    const { pool: p } = require('../../config/database');
+    if (!(await p.query("SELECT 1 FROM pg_extension WHERE extname = 'citus'")).rows.length) { console.warn('SKIP: citus extension not installed in this database'); return; }
     const result = await QueryEngineService.distributeTable(`tenant_${tenantId}.test_table`, 'id');
     
     // If it's the first time, it should be DISTRIBUTED. 

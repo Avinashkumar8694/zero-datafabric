@@ -11,6 +11,7 @@ import { Request, Response } from 'express';
 import { QueryEngineService } from '../modules/query-engine/query-engine.service';
 import { FabricSequenceService } from '../modules/query-engine/sequence.service';
 import { QueryLogService } from '../modules/query-engine/query-log.service';
+import { httpStatusOf, pgClientError } from '../utils/tenantScope';
 
 /**
  * Build an Express handler for a fabric data operation: resolves the caller's
@@ -57,6 +58,12 @@ const handle = (mode: string, fn: (tenantId: string, body: any, session: any) =>
     } catch (err: any) {
       const msg = err.message || 'error';
       if (msg.toLowerCase().includes('suspended')) return res.status(403).json({ error: msg });
+      // Typed errors (NOT_FOUND 404 for foreign ids, ACCESS DENIED 403, INVALID_* 400, ...) carry their own status.
+      const typed = httpStatusOf(err);
+      if (typed) return res.status(typed).json({ error: msg, code: err.code });
+      // Postgres: undefined table -> 404, bad column/value -> 400, unique/FK -> 409 (client input, not a server fault)
+      const pg = pgClientError(err);
+      if (pg) return res.status(pg.status).json({ error: msg, code: pg.code, ...(err.detail ? { detail: err.detail } : {}), ...(err.constraint ? { constraint: err.constraint } : {}) });
       // Access control → 403.
       if (err.accessDenied || msg.startsWith('ACCESS DENIED')) return res.status(403).json({ error: msg });
       // Client input errors → 400 (validation / safety), not 500.

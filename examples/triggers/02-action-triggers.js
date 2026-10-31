@@ -24,7 +24,7 @@
 const { login, banner, authHeaders, BASE_URL } = require('../_client');
 const axios = require('axios');
 const {
-  applyManifest, upsertTrigger, deploy, waitForDrain, insertRow, auditCountForTable, selectSql, sleep
+  applyManifest, upsertTrigger, deploy, waitForDrain, insertRow, auditCountForTable, countRows, sleep
 } = require('./_lib');
 
 const LOGICAL = 'Trg_Action_Lab';
@@ -145,13 +145,11 @@ async function run() {
   console.log(`AUDIT: audit_logs for '${TABLE}' ${auditBefore} -> ${auditAfter} (${auditAfter > auditBefore ? 'PASS' : 'FAIL'})`);
 
   // FUNCTION: fn_order_touch inserted a marker row synchronously (PERFORM in the trigger).
-  const marker = await selectSql(token, `SELECT count(*)::int AS n FROM "${PHYSICAL}".marker`);
-  const markerN = Number(marker[0] && marker[0].n || 0);
+  const markerN = await countRows(token, LOGICAL, 'marker');
   console.log(`FUNCTION: marker rows = ${markerN} (${markerN > 0 ? 'PASS' : 'FAIL'})`);
 
   // EXCEPTION: the over-limit order must NOT exist (the guard blocked it).
-  const huge = await selectSql(token, `SELECT count(*)::int AS n FROM "${PHYSICAL}"."${TABLE}" WHERE amount > 100000`);
-  const hugeN = Number(huge[0] && huge[0].n || 0);
+  const hugeN = await countRows(token, LOGICAL, TABLE, [{ column: 'amount', operator: 'GT', value: 100000 }]);
   console.log(`EXCEPTION: over-limit orders present = ${hugeN} (${hugeN === 0 ? 'PASS (blocked)' : 'FAIL'})`);
 
   const logs = (await axios.get(`${BASE_URL}/triggers/logs/list?limit=25`, { headers: authHeaders(token) })).data || [];

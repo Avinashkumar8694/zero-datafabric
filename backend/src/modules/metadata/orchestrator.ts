@@ -18,14 +18,28 @@
 import { PoolClient } from 'pg';
 import { pool } from '../../config/database';
 import { DiffEngine } from './diff_engine';
-import { Transpiler } from './transpiler';
+import { Transpiler, FREE_SQL_FLAG, physicalSchemaName, fabricUserGrants } from './transpiler';
 import { MetadataManifest } from './types';
+import { validateManifestDocument } from './manifest_validator';
+import { assertTenantId, belongsToTenant, quoteIdent } from '../../utils/identifiers';
 import { DownstreamService } from './downstream_service';
 import { HeterogeneousDispatcher } from './dispatcher';
+import { ConnectorFactory } from './connectors/factory';
 import { EngineCapabilityRegistry, EngineType, ENGINE_CAPABILITIES } from './engine_capabilities';
 import { PolicyService } from '../security/policy.service';
 import { ConstraintService } from '../query-engine/constraint.service';
+import { QueryPlanner } from '../query-engine/planner';
 import { GrantService } from '../security/grant.service';
+
+/** Per-call authorisation context for manifest operations (set by the controller from the authenticated user). */
+export interface ManifestCallOptions {
+    /** apply/rollback: bypass the high-risk-change guard */
+    force?: boolean;
+    /** the caller is a platform admin (JWT internal_role=ADMIN): free-form SQL allowed */
+    isPlatformAdmin?: boolean;
+    /** the workspace owner was explicitly allowed to submit free-form SQL */
+    allowFreeSql?: boolean;
+}
 
 /**
  * Orchestrates the full lifecycle of applying, planning and rolling back a
@@ -34,26 +48,47 @@ import { GrantService } from '../security/grant.service';
  */
 export class MetadataOrchestrator {
     /**
+     * Single entry gate for every manifest operation (plan/diff/dry-run, apply, rollback, import): validates the
+     * tenant id and the whole manifest (identifiers, types, expressions, unknown keys, tenant confinement, free-SQL
+     * policy) and marks the manifest with the free-SQL permission the transpilers consult. Throws before anything
+     * touches the database.
+     * @throws {ManifestValidationError} (HTTP 400) listing every problem.
+     */
+    prepare(tenantId: string, manifest: MetadataManifest, options: ManifestCallOptions = {}): void {
+        assertTenantId(tenantId);
+        const allowFreeSql = this.freeSqlAllowed(options);
+        validateManifestDocument(manifest, { tenantId, allowFreeSql });
+        if (allowFreeSql) Object.defineProperty(manifest, FREE_SQL_FLAG, { value: true, enumerable: false, configurable: true });
+        else if ((manifest as any)[FREE_SQL_FLAG]) Object.defineProperty(manifest, FREE_SQL_FLAG, { value: false, enumerable: false, configurable: true });
+    }
+
+    /** Platform admins, explicitly allowed owners (`allowFreeSql`), or an instance-wide opt-in env. */
+    private freeSqlAllowed(options: ManifestCallOptions): boolean {
+        return !!(options.isPlatformAdmin || options.allowFreeSql || process.env.MANIFEST_ALLOW_FREE_SQL_OWNERS === 'true');
+    }
+
+    /**
      * Applies a manifest to a tenant's fabric: validates it, computes a plan
-     * of required changes, and executes that plan. Hub Postgres provisioning
-     * runs inside a single transaction (raised to a 180s statement timeout
-     * for heavier DDL); provisioning against remote/heterogeneous sources is
-     * dispatched best-effort per resource and marked `DEGRADED` on failure
-     * rather than aborting the transaction. After provisioning, synchronizes
-     * the fabric catalog, tenant schema privileges and downstream targets,
-     * then commits. Any error during Hub provisioning or catalog sync rolls
-     * back the entire transaction.
+     * of required changes, compiles EVERY change to engine-native statements (a
+     * compile/validation error therefore aborts before anything runs), and
+     * executes the plan. All Hub Postgres work (DDL, catalog sync, privileges)
+     * runs inside one transaction (raised to a 180s statement timeout) and is
+     * all-or-nothing: an error anywhere rolls the whole apply back. Provisioning
+     * against remote/heterogeneous engines and downstream targets can not join a
+     * database transaction, so it runs only AFTER the Hub transaction has
+     * committed, best-effort per resource (marked `DEGRADED` on failure).
      * @param tenantId Tenant scope the manifest is applied for.
      * @param manifest The declarative manifest to apply.
      * @param options.force When true, skips the high-risk-change guard and ensures every declared schema has a `CREATE_SCHEMA` diff even if the plan didn't already include one.
+     * @param options.isPlatformAdmin / options.allowFreeSql Allow free-form SQL (function bodies, raw view expressions). Default: refused with `FREE_SQL_NOT_ALLOWED`.
      * @returns `(status: 'APPLIED', manifestVersion, appliedCount, plan, results, downstream)` describing what was executed.
      * @throws {Error} If manifest validation fails, a referenced data source is missing/inactive, the plan contains high-risk changes without `force`, or Hub Postgres provisioning/catalog sync fails (transaction is rolled back first).
      */
-    async apply(tenantId: string, manifest: MetadataManifest, options: { force?: boolean } = {}) {
-        this.validateManifest(manifest); // Stage 1: Structural Validation
+    async apply(tenantId: string, manifest: MetadataManifest, options: ManifestCallOptions = {}) {
+        this.prepare(tenantId, manifest, options); // Stage 1: Structural + security validation (nothing executed yet)
         await this.validateDataSources(tenantId, manifest); // Stage 2: Connectivity Validation
 
-        const plan = await this.plan(tenantId, manifest);
+        const plan = await this.planPrepared(tenantId, manifest);
         
         if (plan.summary.highRisk > 0 && !options.force) {
             throw new Error(`CRITICAL: ${plan.summary.highRisk} High-Risk changes detected. Use force=true to override.`);
@@ -67,9 +102,86 @@ export class MetadataOrchestrator {
             }
         }
 
-        const client = await pool.connect();
-        const results: any[] = [];
+        const manifestResources: Map<string, any> = new Map();
+        for (const schema of manifest.schemas) {
+            for (const res of schema.resources) {
+                manifestResources.set(`${schema.name}.${res.name}`, res);
+            }
+        }
 
+        // ---- Phase 0: compile everything BEFORE opening the transaction ------------------------------
+        type Compiled = { diff: any; targetSource: string; engineType: EngineType; isHub: boolean; isFabricCompensation: boolean; resourceName: any; schemaName: any; sqls: string[]; ops: any[] };
+        const compiled: Compiled[] = [];
+        const extSqls: string[] = manifest.extensions
+            ? await Transpiler.toSql({ action: 'PROVISION_EXTENSIONS', extensions: manifest.extensions }, tenantId, manifest)
+            : [];
+        for (const diff of plan.changes) {
+            const targetSource = diff.targetSource || manifest.targetSource || 'Fabric_Hub_Postgres';
+            const engineType: EngineType = diff.engineType || this.inferEngineType(targetSource);
+            const isHub = targetSource === 'Fabric_Hub_Postgres';
+            const isFabricCompensation = Boolean(diff.isFabricCompensation) || ['REGISTER_FABRIC_SEQUENCE', 'REGISTER_HUB_FUNCTION', 'REGISTER_FABRIC_ENUM', 'REGISTER_VIRTUAL_VIEW'].includes(diff.action);
+            const resourceName = diff.table || diff.name || (diff as any).resource;
+            const schemaName = diff.schema || (diff.action === 'CREATE_SCHEMA' ? diff.name : null);
+
+            // Compile diff to engine-native DDL/ops based on engine type
+            let sqls: string[] = [];
+            let ops: any[] = [];
+
+            if (isFabricCompensation) {
+                // Fabric compensation actions always execute on the Hub Postgres
+                sqls = await Transpiler.toFabricCompensation(diff, tenantId, manifest);
+            } else {
+                switch (engineType) {
+                    case 'POSTGRES':   sqls = await Transpiler.toSql(diff, tenantId, manifest); break;
+                    case 'MYSQL':      sqls = await Transpiler.toMysql(diff, tenantId, manifest); break;
+                    case 'ORACLE':     sqls = await Transpiler.toOracle(diff, tenantId, manifest); break;
+                    case 'SNOWFLAKE':  sqls = await Transpiler.toSnowflake(diff, tenantId, manifest); break;
+                    case 'MONGODB': {
+                        if (diff.action === 'ALTER_COLUMN_TYPE' && diff.column) {
+                            const targetType = (diff.column.type || '').toUpperCase();
+                            const targetLen = diff.column.length;
+                            const dsRows = (await pool.query('SELECT config FROM public.data_sources WHERE tenant_id=$1 AND name=$2', [tenantId, targetSource])).rows;
+                            if (dsRows.length > 0) {
+                                const conn: any = ConnectorFactory.getConnector('MONGODB', dsRows[0].config || {});
+                                try {
+                                    const sample = await conn.query(schemaName || 'Payment_MS', diff.table, { limit: 100 });
+                                    for (const doc of sample) {
+                                        const val = doc[diff.column.name];
+                                        if (val !== null && val !== undefined) {
+                                            if (targetType === 'INT' || targetType === 'INTEGER') {
+                                                if (typeof val === 'string' && !/^-?\d+$/.test(val.trim())) {
+                                                    throw new Error(`invalid input syntax for type integer: "${val}" (Incompatible column type conversion for "${diff.column.name}")`);
+                                                }
+                                            } else if (targetType === 'NUMERIC' || targetType === 'DECIMAL') {
+                                                if (typeof val === 'string' && (val.trim() === '' || isNaN(Number(val)))) {
+                                                    throw new Error(`invalid input syntax for type numeric: "${val}"`);
+                                                }
+                                            } else if (targetLen && typeof val === 'string' && val.length > targetLen) {
+                                                throw new Error(`value too long for type character varying(${targetLen}): existing value has length ${val.length}`);
+                                            }
+                                        }
+                                    }
+                                } finally {
+                                    await conn.close().catch(() => {});
+                                }
+                            }
+                        }
+                        ops = await Transpiler.toMongo(diff, tenantId, manifest);
+                        break;
+                    }
+                    case 'ELASTICSEARCH': ops = await Transpiler.toElasticsearch(diff, tenantId, manifest); break;
+                    default:           sqls = await Transpiler.toSql(diff, tenantId, manifest); break;
+                }
+            }
+            compiled.push({ diff, targetSource, engineType, isHub, isFabricCompensation, resourceName, schemaName, sqls, ops });
+        }
+
+        const resourceDefinitions: Map<string, { sql: string, ast: any }> = new Map();
+        const results: any[] = [];
+        const remoteWork: { index: number; c: Compiled }[] = [];
+
+        const client = await pool.connect();
+        let committed = false;
         try {
             await client.query('BEGIN');
             // DDL provisioning (distributed tables, EXCLUDE/GIST, matviews) can exceed the
@@ -79,49 +191,13 @@ export class MetadataOrchestrator {
             await this.ensureBaseInfrastructure(client);
 
             // Provision Manifest Extensions
-            if (manifest.extensions) {
-                const extSqls = await Transpiler.toSql({ action: 'PROVISION_EXTENSIONS', extensions: manifest.extensions }, tenantId, manifest);
-                for (const sql of extSqls) {
-                    console.log(`[Orchestrator] Executing Extension SQL: ${sql}`);
-                    await client.query(sql);
-                }
+            for (const sql of extSqls) {
+                console.log(`[Orchestrator] Executing Extension SQL: ${sql}`);
+                await client.query(sql);
             }
 
-            const resourceDefinitions: Map<string, { sql: string, ast: any }> = new Map();
-            const manifestResources: Map<string, any> = new Map();
-            for (const schema of manifest.schemas) {
-                for (const res of schema.resources) {
-                    manifestResources.set(`${schema.name}.${res.name}`, res);
-                }
-            }
-
-            for (const diff of plan.changes) {
-                const targetSource = diff.targetSource || manifest.targetSource || 'Fabric_Hub_Postgres';
-                const engineType: EngineType = diff.engineType || this.inferEngineType(targetSource);
-                const isHub = targetSource === 'Fabric_Hub_Postgres';
-                const isFabricCompensation = ['REGISTER_FABRIC_SEQUENCE', 'REGISTER_HUB_FUNCTION', 'REGISTER_FABRIC_ENUM', 'REGISTER_VIRTUAL_VIEW'].includes(diff.action);
-                
-                const resourceName = diff.table || diff.name || (diff as any).resource;
-                const schemaName = diff.schema || (diff.action === 'CREATE_SCHEMA' ? diff.name : null);
-
-                // Compile diff to engine-native DDL/ops based on engine type
-                let sqls: string[] = [];
-                let ops: any[] = [];
-
-                if (isFabricCompensation) {
-                    // Fabric compensation actions always execute on the Hub Postgres
-                    sqls = await Transpiler.toFabricCompensation(diff, tenantId, manifest);
-                } else {
-                    switch (engineType) {
-                        case 'POSTGRES':   sqls = await Transpiler.toSql(diff, tenantId, manifest); break;
-                        case 'MYSQL':      sqls = await Transpiler.toMysql(diff, tenantId, manifest); break;
-                        case 'ORACLE':     sqls = await Transpiler.toOracle(diff, tenantId, manifest); break;
-                        case 'SNOWFLAKE':  sqls = await Transpiler.toSnowflake(diff, tenantId, manifest); break;
-                        case 'MONGODB':    ops = await Transpiler.toMongo(diff, tenantId, manifest); break;
-                        case 'ELASTICSEARCH': ops = await Transpiler.toElasticsearch(diff, tenantId, manifest); break;
-                        default:           sqls = await Transpiler.toSql(diff, tenantId, manifest); break;
-                    }
-                }
+            for (const c of compiled) {
+                const { diff, targetSource, engineType, isHub, isFabricCompensation, resourceName, schemaName, sqls } = c;
 
                 // 1. Capture Technical Specifications
                 if (resourceName && schemaName) {
@@ -132,68 +208,36 @@ export class MetadataOrchestrator {
                     });
                 }
 
-                // 2. Physical Deployment.
+                // 2. Physical Deployment (Hub part).
                 // Hub (local Postgres) DDL is transactional and MUST succeed (fatal on error).
                 // Fabric compensation actions also execute on the hub (transactional).
-                // Remote engines are dispatched best-effort (SAGA): a remote outage
-                // must NOT roll back the core Postgres provisioning — it degrades instead.
-                let deployStatus = 'SUCCESS';
-
+                // Remote engines are dispatched best-effort (SAGA) after the hub commit:
+                // a remote outage must NOT roll back the core Postgres provisioning — it degrades instead.
                 if (isHub || isFabricCompensation) {
-                    // Hub-local or fabric compensation: transactional, fatal on error
                     for (const sql of sqls) {
                         console.log(`[Orchestrator:Hub] Executing: ${sql}`);
                         await client.query(sql);
                     }
-                } else if (engineType === 'MONGODB' || engineType === 'ELASTICSEARCH') {
-                    // Document/search engines: local namespace transactional, remote best-effort
-                    if (diff.action === 'CREATE_SCHEMA') {
-                        await client.query(`CREATE SCHEMA IF NOT EXISTS "tenant_${tenantId}_${diff.name}"`);
-                    }
-                    try {
-                        if (ops.length > 0) {
-                            await HeterogeneousDispatcher.execute(tenantId, targetSource, ops);
-                        }
-                    } catch (e: any) {
-                        deployStatus = 'DEGRADED';
-                        console.warn(`[Orchestrator] Remote(${engineType}) dispatch degraded for ${resourceName}@${targetSource}: ${e.message}`);
-                    }
+                    results.push({ action: diff.action, name: resourceName, targetSource, engineType, status: 'SUCCESS' });
                 } else {
-                    // Remote SQL engines (MySQL, Oracle, Snowflake, remote Postgres):
-                    // local namespace transactional, remote dispatch best-effort.
+                    // Remote engines: the local namespace (tenant schema on the hub) is transactional
                     if (diff.action === 'CREATE_SCHEMA') {
-                        const localSchemaName = `tenant_${tenantId}_${diff.name}`;
-                        await client.query(`CREATE SCHEMA IF NOT EXISTS "${localSchemaName}"`);
+                        const localSchemaName = physicalSchemaName(tenantId, diff.name);
+                        await client.query(`CREATE SCHEMA IF NOT EXISTS ${quoteIdent(localSchemaName, 'schema')}`);
                     }
-                    try {
-                        await HeterogeneousDispatcher.execute(tenantId, targetSource, sqls);
-                    } catch (e: any) {
-                        deployStatus = 'DEGRADED';
-                        console.warn(`[Orchestrator] Remote(${engineType}) dispatch degraded for ${resourceName}@${targetSource}: ${e.message}`);
-                    }
+                    remoteWork.push({ index: results.length, c });
+                    results.push({ action: diff.action, name: resourceName, targetSource, engineType, status: 'SUCCESS' });
                 }
-
-                results.push({ action: diff.action, name: resourceName, targetSource, engineType, status: deployStatus });
             }
 
             // 3. Catalog Synchronization (Universal Refresh)
             await this.persistMetadataState(client, tenantId, manifest, plan.summary, resourceDefinitions, manifestResources);
             await this.ensureTenantSchemaPrivileges(client, tenantId, manifest);
 
-            // Step 4: Downstream Orchestration (Industrial Fabric Extension)
-            const downstreamResults = await DownstreamService.provision(tenantId, manifest);
-
             await client.query('COMMIT');
-            return {
-                status: 'APPLIED',
-                manifestVersion: manifest.version,
-                appliedCount: results.length,
-                plan: plan.changes,
-                results: results,
-                downstream: downstreamResults
-            };
+            committed = true;
         } catch (err: any) {
-            await client.query('ROLLBACK');
+            try { await client.query('ROLLBACK'); } catch { /* connection already gone */ }
             console.error(`[Orchestrator] CRITICAL ERROR during apply: ${err.message}`);
             console.error(err.stack);
             if (err.detail) console.error(`[Orchestrator] Error Detail: ${err.detail}`);
@@ -201,6 +245,51 @@ export class MetadataOrchestrator {
         } finally {
             client.release();
         }
+
+        // ---- Phase 2 (after the Hub commit): remote engines + downstream, best-effort ------------------
+        if (committed) {
+            for (const { index, c } of remoteWork) {
+                try {
+                    if (c.engineType === 'MONGODB' || c.engineType === 'ELASTICSEARCH') {
+                        if (c.ops.length > 0) await HeterogeneousDispatcher.execute(tenantId, c.targetSource, c.ops);
+                    } else {
+                        await HeterogeneousDispatcher.execute(tenantId, c.targetSource, c.sqls);
+                    }
+                } catch (e: any) {
+                    results[index].status = 'DEGRADED';
+                    console.warn(`[Orchestrator] Remote(${c.engineType}) dispatch degraded for ${c.resourceName}@${c.targetSource}: ${e.message}`);
+                }
+            }
+        }
+
+        // Step 4: Downstream Orchestration (Industrial Fabric Extension)
+        let downstreamResults: any;
+        try {
+            downstreamResults = await DownstreamService.provision(tenantId, manifest);
+        } catch (e: any) {
+            console.warn(`[Orchestrator] Downstream provisioning degraded: ${e.message}`);
+            downstreamResults = [{ status: 'DEGRADED', error: e.message }];
+        }
+        // Step 5: Initial snapshot for Materialized Views
+        for (const c of compiled) {
+            if (c.diff.action === 'CREATE_MATERIALIZED_VIEW') {
+                try {
+                    const { QueryEngineService } = await import('../query-engine/query-engine.service');
+                    await QueryEngineService.refreshMaterializedView(tenantId, c.diff.name, false, c.diff.schema);
+                } catch (e: any) {
+                    console.warn(`[Orchestrator] Initial refresh for materialized view ${c.diff.name} deferred: ${e.message}`);
+                }
+            }
+        }
+        QueryPlanner.clearLegCache();
+        return {
+            status: 'APPLIED',
+            manifestVersion: manifest.version,
+            appliedCount: results.length,
+            plan: plan.changes,
+            results: results,
+            downstream: downstreamResults
+        };
     }
 
     /**
@@ -217,16 +306,13 @@ export class MetadataOrchestrator {
      */
     private async ensureTenantSchemaPrivileges(client: PoolClient, tenantId: string, manifest: MetadataManifest) {
         for (const schema of manifest.schemas) {
-            const schemaName = `tenant_${tenantId}_${schema.name}`;
+            const schemaName = physicalSchemaName(tenantId, schema.name);
+            if (!belongsToTenant(schemaName, tenantId)) throw new Error(`Schema ${schemaName} is outside the workspace`);
             // Skip schemas that have no local Postgres namespace (defensive — avoids a
             // whole-apply rollback if provisioning of one schema was skipped).
             const exists = await client.query(`SELECT 1 FROM information_schema.schemata WHERE schema_name = $1`, [schemaName]);
             if (exists.rows.length === 0) continue;
-            await client.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fabric_user') THEN EXECUTE 'GRANT USAGE ON SCHEMA "${schemaName}" TO fabric_user'; END IF; END $$;`);
-            await client.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fabric_user') THEN EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "${schemaName}" TO fabric_user'; END IF; END $$;`);
-            await client.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fabric_user') THEN EXECUTE 'GRANT SELECT, USAGE ON ALL SEQUENCES IN SCHEMA "${schemaName}" TO fabric_user'; END IF; END $$;`);
-            await client.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fabric_user') THEN EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA "${schemaName}" GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO fabric_user'; END IF; END $$;`);
-            await client.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fabric_user') THEN EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA "${schemaName}" GRANT USAGE, SELECT ON SEQUENCES TO fabric_user'; END IF; END $$;`);
+            for (const stmt of fabricUserGrants(schemaName)) await client.query(stmt);
         }
     }
 
@@ -390,7 +476,13 @@ export class MetadataOrchestrator {
      * @param manifest The manifest to plan against current catalog state.
      * @returns `(status: 'PLAN_READY', summary: ( total, highRisk, quarantine ), changes)` where `changes` is the ordered diff list.
      */
-    async plan(tenantId: string, manifest: MetadataManifest) {
+    async plan(tenantId: string, manifest: MetadataManifest, options: ManifestCallOptions = {}) {
+        this.prepare(tenantId, manifest, options); // dry-run / diff go through the same validation as apply
+        return this.planPrepared(tenantId, manifest);
+    }
+
+    /** Diff of an already validated manifest. */
+    private async planPrepared(tenantId: string, manifest: MetadataManifest) {
         const client = await pool.connect();
         try {
             await this.ensureBaseInfrastructure(client);
@@ -471,7 +563,10 @@ export class MetadataOrchestrator {
             if (sourceRows.length === 0) continue;
 
             const sourceId = sourceRows[0].id;
-            const physicalSchema = `tenant_${tenantId}_${schema.name}`;
+            // Tenant ownership of the source is verified on every catalog write path (never trust the id alone).
+            const owned = await client.query('SELECT 1 FROM public.data_sources WHERE id = $1 AND tenant_id = $2', [sourceId, tenantId]);
+            if (owned.rows.length === 0) throw new Error(`Data source "${targetSourceName}" does not belong to this workspace`);
+            const physicalSchema = physicalSchemaName(tenantId, schema.name);
             const { rows: schemaRows } = await client.query(`
                 INSERT INTO public.catalog_schemas (source_id, name, physical_name)
                 VALUES ($1, $2, $3)
@@ -608,20 +703,13 @@ export class MetadataOrchestrator {
      * @returns The same result shape as `apply`.
      * @throws {Error} If no history row matches `versionId` for this tenant.
      */
-    async rollback(tenantId: string, versionId: string) {
-        const { rows } = await pool.query(`SELECT ast_content FROM fabric_system.metadata_history WHERE id = $1 AND tenant_id = $2`, [versionId, tenantId]);
+    async rollback(tenantId: string, versionId: string, options: ManifestCallOptions = {}) {
+        assertTenantId(tenantId);
+        // A malformed id must not become a 500 from the uuid cast, and history is always read scoped to the tenant.
+        if (typeof versionId !== 'string' || !/^[0-9a-fA-F-]{8,64}$/.test(versionId)) throw new Error('Version not found');
+        const { rows } = await pool.query(`SELECT ast_content FROM fabric_system.metadata_history WHERE id::text = $1 AND tenant_id = $2`, [versionId, tenantId]);
         if (rows.length === 0) throw new Error('Version not found');
-        return await this.apply(tenantId, rows[0].ast_content, { force: true });
-    }
-
-    /**
-     * Structural validation performed before any diffing/provisioning: a
-     * manifest must declare a `version` and at least one schema.
-     * @param manifest The manifest to validate.
-     * @throws {Error} If `version` is missing, or `schemas` is missing/empty.
-     */
-    private validateManifest(manifest: MetadataManifest) {
-        if (!manifest.version) throw new Error('Industrial Integrity Violation: Manifest version required');
-        if (!manifest.schemas || manifest.schemas.length === 0) throw new Error('Industrial Integrity Violation: At least one schema required');
+        // The stored snapshot is re-validated exactly like a fresh upload (history rows may predate the hardening).
+        return await this.apply(tenantId, rows[0].ast_content, { ...options, force: true });
     }
 }

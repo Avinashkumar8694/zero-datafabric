@@ -1,56 +1,43 @@
 <%- include('partials/header') %>
 
-<style>
-  .fade-in { max-width: 100%; overflow-x: hidden; box-sizing: border-box; }
-  .fade-in .glass-card { max-width: 100%; box-sizing: border-box; }
-  .an-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem; }
-  .an-item { background: var(--bg); border-radius: 8px; padding: 1rem; border: 1px solid var(--surface-hover); }
-  .an-item h4 { margin: 0 0 0.3rem; }
-  .an-badge { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 4px; background: var(--surface-hover); }
-  .an-vin { width: 100%; box-sizing: border-box; margin-top: 0.2rem; }
-  .table-wrapper { max-width: 100%; overflow: auto; max-height: 360px; }
-
-  @media (max-width: 640px) {
-    .an-list { grid-template-columns: 1fr !important; }
-    #varModal .glass-card { width: 95% !important; padding: 1.25rem 1rem !important; }
-  }
-</style>
-
-<div class="fade-in">
-  <div class="glass-card">
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap;">
-      <h3 style="margin:0;">Saved Analytics</h3>
-      <a href="/analytics" class="btn-outline" style="font-size:0.8rem;">← Build / create</a>
+<div class="page fade-in">
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">Saved analytics</h1>
+      <p class="page-sub">Reusable, parameterized analytics. Play one here (you will be prompted for any variables), or trigger it via <code>POST /api/saved-analytics/:id/run</code>.</p>
     </div>
-    <p class="text-muted" style="font-size:0.85rem; margin-top:0.5rem;">
-      Reusable, parameterized analytics. Play one here (you'll be prompted for any variables), or trigger it via
-      <code>POST /api/saved-analytics/:id/run</code>.
-    </p>
-    <div id="anList" class="an-list"></div>
-    <div id="anEmpty" class="text-muted" style="display:none; margin-top:1rem;">No saved analytics yet — create one from the Analytics page.</div>
+    <div class="page-actions"><a href="/analytics" class="btn-outline"><i class="fas fa-arrow-left" aria-hidden="true"></i> Build / create</a></div>
   </div>
+
+  <section class="glass-card">
+    <div id="anList" class="cols-auto"></div>
+    <div id="anEmpty" class="empty-state" style="display:none;">No saved analytics yet. Create one from the Analytics page.</div>
+  </section>
 
   <!-- Run result -->
-  <div class="glass-card" id="runCard" style="margin-top:1rem; display:none;">
+  <section class="glass-card" id="runCard" style="display:none;">
     <h4 id="runTitle">Result</h4>
-    <div id="runBound" class="text-muted" style="font-size:0.8rem; margin:0.3rem 0;"></div>
+    <div id="runBound" class="text-muted small mb-1"></div>
     <div class="table-wrapper"><table id="runTable"><thead id="runHead"></thead><tbody id="runBody"></tbody></table></div>
-  </div>
+  </section>
 
-  <div class="glass-card" id="runPlan" style="margin-top:1rem; display:none; border-left:3px solid var(--primary);">
-    <h4>Execution plan <span id="planStrategy" class="an-badge" style="background:var(--primary);"></span></h4>
-    <div id="planLegs" style="margin-top:0.5rem;"></div>
-  </div>
+  <section class="glass-card plan-trace" id="runPlan" style="display:none;">
+    <h4>Execution plan <span id="planStrategy" class="badge badge-info"></span></h4>
+    <div id="planLegs" class="mt-1"></div>
+  </section>
 </div>
 
 <!-- Variable-input modal -->
-<div id="varModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
-  <div class="glass-card" style="max-width:460px; width:90%;">
-    <h4 id="varModalTitle" style="margin-top:0;">Provide inputs</h4>
-    <div id="varInputs"></div>
-    <div style="margin-top:1rem; display:flex; gap:0.5rem; justify-content:flex-end;">
-      <button onclick="closeVarModal()" class="btn-outline">Cancel</button>
-      <button id="varPlayBtn" class="btn-primary">Play</button>
+<div id="varModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="varModalTitle">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="varModalTitle">Provide inputs</h3>
+      <button type="button" onclick="closeVarModal()" class="modal-close" aria-label="Close dialog">&times;</button>
+    </div>
+    <div id="varInputs" class="modal-body"></div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeVarModal()" class="btn-outline">Cancel</button>
+      <button type="button" id="varPlayBtn" class="btn-primary">Play</button>
     </div>
   </div>
 </div>
@@ -64,13 +51,13 @@
     const el = document.getElementById('anList');
     document.getElementById('anEmpty').style.display = ANALYTICS.length ? 'none' : 'block';
     el.innerHTML = ANALYTICS.map((a,i) => `
-      <div class="an-item">
-        <h4>${escapeHtml(a.name)} <span class="an-badge">${escapeHtml(a.mode)}</span></h4>
-        <div class="text-muted" style="font-size:0.8rem; min-height:2.2em;">${escapeHtml(a.description||'')}</div>
-        <div class="text-muted" style="font-size:0.72rem; margin:0.3rem 0;">${(a.variables||[]).length} variable(s): ${escapeHtml((a.variables||[]).map(v=>v.name).join(', ')||'none')}</div>
-        <div style="display:flex; gap:0.4rem; margin-top:0.5rem;">
-          <button class="btn-primary" style="font-size:0.8rem;" onclick="play(${i})"><i class="fas fa-play"></i> Play</button>
-          <button class="btn-outline" style="font-size:0.8rem;" onclick="del('${escapeHtml(a.id)}')">Delete</button>
+      <div class="mini-box item-card">
+        <h4>${escapeHtml(a.name)} <span class="tag">${escapeHtml(a.mode)}</span></h4>
+        <div class="text-muted small">${escapeHtml(a.description||'')}</div>
+        <div class="text-muted small">${(a.variables||[]).length} variable(s): ${escapeHtml((a.variables||[]).map(v=>v.name).join(', ')||'none')}</div>
+        <div class="row-actions mt-1">
+          <button class="btn-primary btn-sm" onclick="play(${i})"><i class="fas fa-play" aria-hidden="true"></i> Play</button>
+          <button class="btn-outline btn-sm btn-danger" onclick="del('${escapeHtml(a.id)}')">Delete</button>
         </div>
       </div>`).join('');
   }
@@ -82,9 +69,9 @@
     // Prompt for variable values.
     document.getElementById('varModalTitle').innerText = `Inputs for "${a.name}"`;
     document.getElementById('varInputs').innerHTML = vars.map(v => `
-      <div style="margin-bottom:0.6rem;">
-        <label class="text-muted" style="font-size:0.78rem;">${escapeHtml(v.label||v.name)} <span style="opacity:0.7;">(${escapeHtml(v.type)})${v.required?' *':''}</span></label>
-        <input class="wb-input an-vin" data-name="${escapeHtml(v.name)}" data-type="${escapeHtml(v.type)}" value="${escapeHtml(v.default ?? '')}" placeholder="${escapeHtml(v.name)}">
+      <div class="field">
+        <label>${escapeHtml(v.label||v.name)} <span class="text-muted">(${escapeHtml(v.type)})${v.required?' *':''}</span></label>
+        <input class="input an-vin" data-name="${escapeHtml(v.name)}" data-type="${escapeHtml(v.type)}" value="${escapeHtml(v.default ?? '')}" placeholder="${escapeHtml(v.name)}">
       </div>`).join('');
     document.getElementById('varPlayBtn').onclick = () => {
       const values = {};
@@ -98,9 +85,9 @@
       closeVarModal();
       runAnalytic(a, values);
     };
-    document.getElementById('varModal').style.display = 'flex';
+    document.getElementById('varModal').classList.add('active');
   }
-  function closeVarModal(){ document.getElementById('varModal').style.display = 'none'; }
+  function closeVarModal(){ document.getElementById('varModal').classList.remove('active'); }
 
   async function runAnalytic(a, values){
     try {
@@ -123,14 +110,14 @@
     document.getElementById('runHead').innerHTML = '<tr>' + cols.map(c=>`<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
     document.getElementById('runBody').innerHTML = rows.slice(0,200).map(row =>
       '<tr>' + cols.map(c=>`<td>${escapeHtml(row[c])}</td>`).join('') + '</tr>').join('') ||
-      `<tr><td class="text-muted">${r.rowCount ?? 0} rows</td></tr>`;
+      `<tr><td class="state-cell">${r.rowCount ?? 0} rows</td></tr>`;
     // plan
     const p = r.plan || {};
     document.getElementById('runPlan').style.display = 'block';
     document.getElementById('planStrategy').innerText = p.strategy || '';
     document.getElementById('planLegs').innerHTML = (p.legs||[]).map(l => `
-      <div style="background:var(--bg); border-radius:6px; padding:0.5rem 0.7rem; margin:0.3rem 0; font-size:0.8rem;">
-        <strong>${escapeHtml(l.source)}</strong> <span class="an-badge">${escapeHtml(l.engine)}/${escapeHtml(l.mode)}</span>
+      <div class="mini-box">
+        <strong>${escapeHtml(l.source)}</strong> <span class="tag">${escapeHtml(l.engine)}/${escapeHtml(l.mode)}</span>
         ${escapeHtml(l.operation)} → <strong>${escapeHtml(l.rowsReturned)}</strong> rows in ${escapeHtml(l.ms)}ms</div>`).join('')
       || `<div class="text-muted">Total ${escapeHtml(p.executionMs ?? '—')} ms.</div>`;
   }

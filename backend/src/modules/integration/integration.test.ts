@@ -20,51 +20,46 @@ describe('Module 1/3: Data Integration & Virtualization', () => {
     await pool.query("DELETE FROM public.tenants WHERE id = 'tenant_C'");
   });
 
-  it('should successfully register a virtualized PostgreSQL source', async () => {
+  it('refuses to register the platform hub itself as a source (no server-side credentials are ever injected)', async () => {
     const res = await request(app)
       .post('/api/admin/connections')
       .set('Authorization', `Bearer ${token}`)
       .send({
         name: 'Remote_Store',
         config: {
-          host: '127.0.0.1', 
-          port: 5434, // Master DB mapped port
+          host: '127.0.0.1',
+          port: Number(process.env.DB_PORT || 5434), // the hub's own mapped port
           dbName: 'datafabric',
           user: 'fabric_admin',
-          pass: 'fabric_password',
           type: 'postgres',
           syncType: 'VIRTUAL'
         }
       });
 
-    expect(res.status).toBe(201);
-    expect(res.body.status).toBe('INTEGRATED');
-    
-    // Verify in DB
-    const { rows } = await pool.query("SELECT * FROM public.data_sources WHERE name = 'Remote_Store'");
-    expect(rows.length).toBe(1);
-    expect(rows[0].status).toBe('CONNECTED');
+    expect(res.status).toBe(403);
+    const { rows } = await pool.query("SELECT 1 FROM public.data_sources WHERE name = 'Remote_Store' AND tenant_id = 'tenant_C'");
+    expect(rows.length).toBe(0);
   });
 
-  it('should be idempotent and allow re-registration of the same source', async () => {
-    const res = await request(app)
-      .post('/api/admin/connections')
-      .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: 'Remote_Store', // Same name
-        config: {
-          host: '127.0.0.1',
-          port: 5434,
-          dbName: 'datafabric',
-          user: 'fabric_admin',
-          pass: 'fabric_password',
-          type: 'postgres',
-          syncType: 'VIRTUAL'
-        }
-      });
+  it('registers a source and is idempotent on re-registration', async () => {
+    const body = { name: 'Remote_Store', config: { host: 'dummy', port: 5432, dbName: 'datafabric', user: 'u', pass: 'p', type: 'postgres', syncType: 'VIRTUAL' } };
+    const first = await request(app).post('/api/admin/connections').set('Authorization', `Bearer ${token}`).send(body);
+    expect(first.status).toBe(201);
+    expect(first.body.status).toBe('INTEGRATED');
+    const { rows } = await pool.query("SELECT * FROM public.data_sources WHERE name = 'Remote_Store' AND tenant_id = 'tenant_C'");
+    expect(rows.length).toBe(1);
+    expect(rows[0].status).toBe('CONNECTED');
 
-    expect(res.status).toBe(200); // Should return 200 for existing
-    expect(res.body.status).toBe('RE-INTEGRATED');
+    const again = await request(app).post('/api/admin/connections').set('Authorization', `Bearer ${token}`).send(body);
+    expect(again.status).toBe(200); // Should return 200 for existing
+    expect(again.body.status).toBe('RE-INTEGRATED');
+  });
+
+  it('rejects unsafe source names and metadata-service targets', async () => {
+    const bad = await request(app).post('/api/admin/connections').set('Authorization', `Bearer ${token}`).send({ name: 'x"; DROP SERVER y;--', config: { host: 'dummy', type: 'postgres', syncType: 'VIRTUAL' } });
+    expect(bad.status).toBeGreaterThanOrEqual(400);
+    const ssrf = await request(app).post('/api/admin/connections').set('Authorization', `Bearer ${token}`).send({ name: 'Meta', config: { host: '169.254.169.254', port: 5432, dbName: 'x', type: 'postgres', syncType: 'VIRTUAL' } });
+    expect(ssrf.status).toBeGreaterThanOrEqual(400);
   });
 
   it('should return 500 when registering with an invalid configuration', async () => {
@@ -87,7 +82,7 @@ describe('Module 1/3: Data Integration & Virtualization', () => {
     expect(res.body.error).toBeDefined();
   });
 
-  it('should successfully remove a virtualized source and cleanup FDW servers', async () => {
+  it('should successfully remove a registered source and cleanup FDW servers', async () => {
     // First get the ID
     const { rows } = await pool.query("SELECT id FROM public.data_sources WHERE name = 'Remote_Store'");
     const sourceId = rows[0].id;
@@ -102,7 +97,7 @@ describe('Module 1/3: Data Integration & Virtualization', () => {
     // Verify FDW cleanup
     const { rows: servers } = await pool.query("SELECT srvname FROM pg_foreign_server");
     console.log('--- SERVERS REMAINING ---', servers);
-    const hasStore = servers.some((s: any) => s.srvname.includes('Remote_Store'));
+    const hasStore = servers.some((s: any) => s.srvname.includes('tenant_C') && s.srvname.includes('Remote_Store'));
     expect(hasStore).toBe(false);
   });
 

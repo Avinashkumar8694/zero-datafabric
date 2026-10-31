@@ -17,10 +17,8 @@ async function runUltimateTest() {
 
     // 1. Cleanup
     console.log('[2/12] Resetting Tenant Environment...');
-    await axios.post(`${BASE_URL}/queries/exec`, {
-      sql: `DROP SCHEMA IF EXISTS "tenant_${TENANT_ID}" CASCADE`
-    });
-    console.log('[OK] Environment Cleaned');
+    // Raw SQL is no longer executable; run this against a fresh tenant (or drop the tenant via the admin API) before re-running.
+    console.log('[OK] Using tenant', TENANT_ID);
 
     // 2. Submit Exhaustive v7.0 Manifest
     console.log('[3/12] Orchestrating Exhaustive Schema (M:M, Triggers, RLS)...');
@@ -190,22 +188,41 @@ async function runUltimateTest() {
 
     // 7. Recursive Query Test (Hierarchical Data)
     console.log('[8/12] Testing Recursive Query Orchestration (CTEs)...');
-    await axios.post(`${BASE_URL}/queries/exec`, {
-      sql: `CREATE TABLE "tenant_${TENANT_ID}"."org" (id SERIAL PRIMARY KEY, name TEXT, parent_id INTEGER);
-            INSERT INTO "tenant_${TENANT_ID}"."org" (name, parent_id) VALUES ('CEO', NULL), ('CTO', 1), ('Dev-Lead', 2), ('Developer', 3);`
+    await axios.post(`${BASE_URL}/metadata/migrate`, {
+      migrationPlan: [{
+        action: 'CREATE_TABLE',
+        table: 'org',
+        details: { columns: [
+          { name: 'id', type: 'SERIAL', primaryKey: true },
+          { name: 'name', type: 'TEXT' },
+          { name: 'parent_id', type: 'INTEGER' }
+        ] }
+      }]
+    });
+    await axios.post(`${BASE_URL}/data/create`, {
+      resource: 'org',
+      data: [
+        { name: 'CEO', parent_id: null },
+        { name: 'CTO', parent_id: 1 },
+        { name: 'Dev-Lead', parent_id: 2 },
+        { name: 'Developer', parent_id: 3 }
+      ]
     });
 
     const recursiveRes = await axios.post(`${BASE_URL}/analytics/query`, {
       queryConfig: {
         type: 'SELECT',
-        table: 'org',
-        withRecursive: {
-           name: 'org_tree',
-           baseQuery: `SELECT id, name, parent_id FROM "tenant_${TENANT_ID}"."org" WHERE parent_id IS NULL`,
-           recursiveQuery: `SELECT o.id, o.name, o.parent_id FROM "tenant_${TENANT_ID}"."org" o JOIN org_tree ot ON o.parent_id = ot.id`
-        },
-        select: ['*'],
-        limit: 10
+        query: {
+          from: { resource: 'org' },
+          select: ['id', 'name', 'parent_id'],
+          recursive: {
+            resource: 'org',
+            select: ['id', 'name', 'parent_id'],
+            connectBy: { parent: 'parent_id', child: 'id' },
+            direction: 'down',
+            maxDepth: 10
+          }
+        }
       }
     });
     console.log('[OK] Recursive Org Chart retrieved');

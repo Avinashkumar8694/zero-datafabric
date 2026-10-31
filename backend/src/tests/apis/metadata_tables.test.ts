@@ -1,12 +1,11 @@
 import request from 'supertest';
 import { app } from '../../index';
-import { getAdminToken, cleanupTenant } from './test_helper';
+import { getAdminToken, cleanupTenant, uniqueTenantId } from './test_helper';
 
 describe('Metadata: Industrial Table Discovery & Multi-Schema Isolation', () => {
     let adminToken: string;
-    const ts = Date.now();
-    const tenantA = `tbl_test_a_${ts}`;
-    const tenantB = `tbl_test_b_${ts}`;
+    const tenantA = uniqueTenantId('tbla');
+    const tenantB = uniqueTenantId('tblb');
     let tokenA: string;
     let tokenB: string;
 
@@ -23,35 +22,15 @@ describe('Metadata: Industrial Table Discovery & Multi-Schema Isolation', () => 
         const resB = await request(app).post('/api/auth/token').set('Authorization', `Bearer ${adminToken}`).send({ tenantId: tenantB });
         tokenB = resB.body.token;
 
-        // Apply multi-schema manifest for Tenant A
-        const manifestA = {
-            version: "1.0",
-            schemas: [
-                {
-                    name: "core",
-                    tables: [{
-                        name: "private_data",
-                        columns: [{ name: "id", type: "SERIAL", primaryKey: true }, { name: "secret_a", type: "TEXT" }]
-                    }]
-                }
-            ]
-        };
-        await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tokenA}`).send(manifestA);
-
-        // Apply manifest for Tenant B with same table name
-        const manifestB = {
-            version: "1.0",
-            schemas: [
-                {
-                    name: "core",
-                    tables: [{
-                        name: "private_data",
-                        columns: [{ name: "id", type: "SERIAL", primaryKey: true }, { name: "secret_b", type: "TEXT" }]
-                    }]
-                }
-            ]
-        };
-        await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tokenB}`).send(manifestB);
+        // The legacy by-name lookup (`GET /api/metadata/tables/:name`) reads fabric_catalog.metadata, which is filled by the
+        // legacy migrate path (the manifest orchestrator registers catalog_tables instead). Both tenants get the same table name.
+        const plan = (secret: string) => [{
+            action: 'CREATE_TABLE', schema: 'core', table: 'private_data',
+            details: { columns: [{ name: 'id', type: 'SERIAL', primaryKey: true }, { name: secret, type: 'TEXT' }] },
+        }];
+        const a = await request(app).post('/api/metadata/migrate').set('Authorization', `Bearer ${tokenA}`).send({ migrationPlan: plan('secret_a') });
+        const b = await request(app).post('/api/metadata/migrate').set('Authorization', `Bearer ${tokenB}`).send({ migrationPlan: plan('secret_b') });
+        expect([a.status, b.status]).toEqual([200, 200]);
     });
 
     afterAll(async () => {

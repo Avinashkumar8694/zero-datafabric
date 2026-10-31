@@ -152,8 +152,11 @@ export class ConstraintService {
     const checks: CheckRule[] = [];
     for (const con of resource.constraints || []) {
       if (con.type === 'CHECK' && con.expression) {
-        const parsed = this.parseCheckExpression(con.name, con.expression);
-        if (parsed) checks.push(parsed);
+        const parts = con.expression.split(/\s+AND\s+/i);
+        for (const part of parts) {
+          const parsed = this.parseCheckExpression(con.name, part.trim());
+          if (parsed) checks.push(parsed);
+        }
       }
       // EXCLUDE / GIST etc. are Postgres-only → reject-if-impossible (not modelled in-fabric).
     }

@@ -7,7 +7,7 @@
  *   POST /api/data/update     — update by filter
  *   POST /api/data/delete     — delete by filter
  *   POST /api/data/call       — invoke a provisioned function
- * plus a fabric CREATE FUNCTION and its call. Each step prints PASS/FAIL.
+ * plus a manifest-provisioned FUNCTION and its call. Each step prints PASS/FAIL.
  *
  * Run: cd backend && NODE_PATH=./node_modules node ../bulk-test/suite_crud_functions.js
  */
@@ -81,12 +81,17 @@ const rowsOf = (r) => Array.isArray(r?.data) ? r.data : Array.isArray(r?.returni
   const dSafety = await post('/api/data/delete', { resource: 'crud_demo', where: {} }); // empty where → blocked
   check('delete with empty WHERE is blocked (safety)', !!dSafety.error, JSON.stringify(dSafety).slice(0, 120));
 
-  console.log('\n=== 6) CUSTOM FUNCTION — create a hub SQL function, then call it via /api/data/call ===');
-  // Provision a simple SQL function in the tenant schema (via native SQL on the hub).
-  const tenantSchema = 'tenant_tenant_advanced_test';
-  const mk = await post('/api/queries/native', { sql: `CREATE OR REPLACE FUNCTION "${tenantSchema}".add_tax(n integer) RETURNS integer LANGUAGE sql AS $$ SELECT (n * 108 / 100)::int $$;` });
-  console.log('   create function:', JSON.stringify(mk).slice(0, 120));
-  const callRes = await post('/api/data/call', { schema: tenantSchema, function: 'add_tax', args: [100] });
+  console.log('\n=== 6) CUSTOM FUNCTION — provision via a manifest (POST /api/metadata/apply), then call it via /api/data/call ===');
+  const mk = await post('/api/metadata/apply?force=true', {
+    version: `crud-fn-${Date.now()}`,
+    schemas: [{ name: 'Crud_Fn_Lab', resources: [{
+      type: 'FUNCTION', name: 'add_tax',
+      arguments: [{ name: 'n', type: 'INT' }], returnType: 'INT',
+      body: 'BEGIN RETURN (n * 108 / 100)::int; END;'
+    }] }]
+  });
+  console.log('   apply manifest:', JSON.stringify(mk).slice(0, 120));
+  const callRes = await post('/api/data/call', { schema: 'Crud_Fn_Lab', function: 'add_tax', args: [100] });
   const cval = rowsOf(callRes)[0];
   console.log('   call result:', JSON.stringify(callRes).slice(0, 160));
   check('call add_tax(100) → 108', cval && Number(Object.values(cval)[0]) === 108, JSON.stringify(callRes).slice(0, 160));

@@ -79,8 +79,8 @@ async function run() {
   await insertRow(token, LOGICAL, TABLE, { id: `sla-${Date.now()}`, severity: 'P1', event_time: EVENT_TIME });
   await sleep(1200); // both triggers enqueue their action jobs
 
-  // ---- (A) column-anchored assertion (delta computed in-DB, UTC frame) ----
-  const jobA = await jobRunAtDeltaMinutes(token, 'trg_sla_escalate_from_event', `TIMESTAMP '${EVENT_TIME}'`);
+  // ---- (A) column-anchored assertion (delta computed from the job list) ----
+  const jobA = await jobRunAtDeltaMinutes(token, 'trg_sla_escalate_from_event', new Date(EVENT_TIME.replace(' ', 'T')));
   console.log('\n[A] column-anchored (event_time + 30m)');
   console.log('    row.event_time :', EVENT_TIME);
   console.log('    job.run_at     :', jobA && jobA.run_at);

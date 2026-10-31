@@ -6,12 +6,45 @@ services:
     image: citusdata/citus:13.0   # pinned: 18+ changed the data dir layout (latest broke the /var/lib/postgresql/data mount)
     container_name: datafabric-hub-prod
     restart: unless-stopped
+    command: postgres -c wal_level=logical   # online shard moves for rebalance/drain
     environment:
       POSTGRES_USER: ${DB_USERNAME:-fabric_admin}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-fabric_password}
       POSTGRES_DB: ${DB_NAME:-datafabric}
     volumes:
       - datafabric_pgdata:/var/lib/postgresql/data
+    networks:
+      - datafabric_network
+
+  # Citus worker 1 (opt-in: docker compose --profile workers up -d).
+  worker1:
+    image: citusdata/citus:13.0
+    profiles: ["workers"]
+    container_name: datafabric-worker-1-prod
+    restart: unless-stopped
+    command: postgres -c wal_level=logical
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-fabric_admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-fabric_password}
+      POSTGRES_DB: ${DB_NAME:-datafabric}
+    volumes:
+      - datafabric_worker1_pgdata:/var/lib/postgresql/data
+    networks:
+      - datafabric_network
+
+  # Citus worker 2 (opt-in: docker compose --profile workers up -d).
+  worker2:
+    image: citusdata/citus:13.0
+    profiles: ["workers"]
+    container_name: datafabric-worker-2-prod
+    restart: unless-stopped
+    command: postgres -c wal_level=logical
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-fabric_admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-fabric_password}
+      POSTGRES_DB: ${DB_NAME:-datafabric}
+    volumes:
+      - datafabric_worker2_pgdata:/var/lib/postgresql/data
     networks:
       - datafabric_network
 
@@ -209,6 +242,8 @@ services:
 
 volumes:
   datafabric_pgdata:
+  datafabric_worker1_pgdata:
+  datafabric_worker2_pgdata:
   datafabric_redis:
   datafabric_zk_data:
   datafabric_zk_log:

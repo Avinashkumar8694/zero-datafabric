@@ -2,7 +2,7 @@
 
 Each datasource is backed by a connector that implements discovery
 (`discoverSchemas/Tables/Columns`), read (`query`, with pushdown), and — where
-applicable — native SQL (`rawQuery`) and document writes. Register sources with
+applicable — writes. (Connectors expose an internal `rawQuery` used by the planner for pushed-down SQL; it is not reachable as an API: querying is AST-only, there is no raw SQL execution.) Register sources with
 `POST /api/admin/connections` (or seed rows for tests); the `config` object shape
 per engine is below.
 
@@ -28,7 +28,6 @@ POST /api/admin/connections
 | filter / projection / sort / limit / offset | ✓ parameterized SQL |
 | `GROUP BY` + `COUNT/SUM/AVG/MIN/MAX/COUNT_DISTINCT` | ✓ |
 | bind-join (`col IN (…)`) | ✓ |
-| native SQL — window, recursive CTE, matview | ✓ via `/api/queries/exec` with `source` |
 | writes (create/update/delete) | ✓ parameterized `… RETURNING *` |
 | discovery | tables, views, matviews, foreign tables, sequences, functions, procedures, enums |
 
@@ -44,7 +43,6 @@ and every object type are catalogued.
 | filter / projection / sort / limit | ✓ (`?` placeholders, backtick idents) |
 | `GROUP BY` aggregates | ✓ |
 | bind-join | ✓ |
-| native SQL | ✓ (`rawQuery`) |
 | discovery | tables, views, columns |
 
 ## MongoDB
@@ -60,7 +58,6 @@ Schema = database name, resource = collection.
 | aggregates + groupBy | ✓ `$group` pipeline (`COUNT_DISTINCT` via `$addToSet`+`$size`) |
 | bind-join | ✓ (`{ key: { $in: [...] } }`) |
 | writes | ✓ `insertMany` / `updateMany($set)` / `deleteMany` |
-| SQL via `/queries/exec` | ✓ **fabric-translated** — SQL → AST → native `find`/`$group` (`plan.translatedFrom:"SQL"`); single-collection, no JOINs |
 
 ## Snowflake
 
@@ -72,7 +69,7 @@ Driver `snowflake-sdk` is lazy-loaded (install only if you use Snowflake).
 | filter / projection / sort / limit | ✓ |
 | `GROUP BY` aggregates | ✓ |
 | bind-join | ✓ |
-| native SQL / writes | ✓ (`rawQuery`) |
+| writes | ✓ |
 
 ## Oracle Database
 
@@ -86,7 +83,6 @@ schemas excluded).
 | filter / projection / sort / limit | ✓ (`OFFSET .. FETCH FIRST n ROWS ONLY`) |
 | `GROUP BY` aggregates | ✓ |
 | bind-join | ✓ (`:n` binds) |
-| native SQL | ✓ (`rawQuery`) |
 | cursor streaming | ✓ (`resultSet.getRows`) |
 
 Oracle folds unquoted identifiers to UPPERCASE; the compiler uppercases + double-quotes
@@ -104,7 +100,6 @@ Index = resource.
 | full-text (`MATCH`) + fuzzy (`FUZZY`) + relevance `_score` | ✓ |
 | aggregations (terms, metrics, `PERCENTILE`, `date_histogram`) | ✓ |
 | bind-join | ✓ (terms filter) |
-| native SQL (`/api/queries/exec`) | ✓ via ES `_sql` (read-only subset, no JOINs) |
 | writes (create/update/delete via `/api/data`) | ✓ `_bulk` / `_update_by_query` / `_delete_by_query` |
 | downstream sink (mirror hub mutations) | ✓ mutation-sync worker |
 

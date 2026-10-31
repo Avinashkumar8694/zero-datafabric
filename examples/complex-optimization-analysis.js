@@ -104,24 +104,28 @@ async function main() {
     printAnalysis('AST FORMAT', astRes);
   }
 
-  banner('2. Executing Complex Federated Query in SQL Format');
-  // Equivalent SQL querying the unified logical tenancy schema views / FDW tables
-  const sqlQuery = `
-    SELECT inv.sku, inv.stock, SUM(depot.qty) AS total_depot_qty
-    FROM "tenant_tenant_A_Global_Supply_Chain"."local_inventory" inv
-    JOIN "tenant_tenant_A_Global_Supply_Chain"."remote_depot_mongo" depot
-    ON inv.sku = depot.item_id
-    WHERE inv.sku = 'SKU-100'
-    GROUP BY inv.sku, inv.stock
-  `;
-
-  const sqlRes = await call('SQL Federated Aggregation Join', () =>
-    axios.post(`${BASE_URL}/queries/exec`, {
-      sql: sqlQuery
+  banner('2. AST -> SQL Preview (transpile only, nothing executed)');
+  const sqlRes = await call('AST transpile preview', () =>
+    axios.post(`${BASE_URL}/queries/transpile`, {
+      type: 'SELECT',
+      schema: 'Global_Supply_Chain',
+      limit: 10,
+      query: {
+        from: { resource: 'local_inventory', alias: 'inv' },
+        joins: [{
+          type: 'INNER',
+          resource: 'remote_depot_mongo',
+          alias: 'depot',
+          on: { left: 'inv.sku', operator: 'EQ', right: 'depot.item_id' }
+        }],
+        where: [{ column: 'inv.sku', operator: 'EQ', value: 'SKU-100' }],
+        select: ['inv.sku', 'inv.stock', { aggregate: 'SUM', column: 'depot.qty', alias: 'total_depot_qty' }],
+        groupBy: ['inv.sku', 'inv.stock']
+      }
     }, { headers }), { allowFail: true });
 
   if (sqlRes) {
-    printAnalysis('SQL FORMAT', sqlRes);
+    console.log(sqlRes.data?.sql);
   }
 
   banner('3. Optimization Strategy & Execution Leg Analysis');
@@ -141,8 +145,7 @@ async function main() {
    - Result: Minimal network bandwidth usage and sub-millisecond execution times.
 
 3. Engine-Level Dialect Translation
-   - Under SQL mode, the FDW mapping resolves the query logic transparently inside the Hub Postgres.
-   - Under AST mode, the Zero Query Planner parses the tree structure, checks credentials and RLS policies, 
+   - The Zero Query Planner parses the tree structure, checks credentials and RLS policies, 
      plans execution legs, and triggers parallel data fetches.
 `);
 }

@@ -14,7 +14,8 @@
  * (native cursor). Other engines return `null` (fallback).
  */
 import QueryStream from 'pg-query-stream';
-import { pool } from '../../config/database';
+import { pool, tenantSearchPath } from '../../config/database';
+import { validateAst } from '../../utils/sqlGuard';
 import { streamConfig } from '../../config/stream-config';
 import { QueryPlanner } from './planner';
 import { PushdownCompiler } from './pushdown';
@@ -91,12 +92,7 @@ export async function* hubRowStream(sql: string, params: any[], ctx: Ctx, batch:
     await client.query(`SELECT set_config('app.user_name', $1, true)`, [ctx.username || 'system']);
     await client.query(`SELECT set_config('app.current_region', $1, true)`, [process.env.DEFAULT_REGION || 'AP']);
     await client.query('SET LOCAL statement_timeout = 0'); // a cursor may outlive the 10s default
-    const base = `tenant_${String(ctx.tenantId).replace(/[^a-zA-Z0-9_]/g, '')}`;
-    const { rows: sch } = await client.query(
-      `SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1 OR schema_name LIKE $2 ORDER BY (schema_name = $1) DESC, schema_name ASC`,
-      [base, `${base}_%`]);
-    const searchPath = sch.length ? sch.map((r: any) => `"${r.schema_name}"`).join(', ') : `"${base}"`;
-    await client.query(`SET LOCAL search_path TO ${searchPath}, public`);
+    await client.query(`SET LOCAL search_path TO ${await tenantSearchPath(client, ctx.tenantId)}`);
 
     const stream = client.query(new QueryStream(sql, params, { batchSize: Math.max(1, batch) }));
     try {
@@ -118,7 +114,7 @@ export async function* hubRowStream(sql: string, params: any[], ctx: Ctx, batch:
  * caller then falls back to compute-then-stream).
  *
  * @param tenantId tenant id.
- * @param config the query config: `{ rawSql, params }` (raw SQL) or an AST `{ type, schema, limit, query }`.
+ * @param config the query config: an AST `{ type, schema, limit, query }`.
  * @param session per-request session (for username in the hub context).
  */
 export async function tryStream(tenantId: string, config: any, session?: any): Promise<RowStream | null> {
@@ -126,17 +122,10 @@ export async function tryStream(tenantId: string, config: any, session?: any): P
   if (!cfg.internal) return null;
   const ctx: Ctx = { tenantId, username: session?.username };
 
-  // A) Raw SQL on the hub — stream read-only statements via a hub cursor.
-  if (config && typeof config.rawSql === 'string') {
-    const sql = String(config.rawSql);
-    if (!/^\s*(select|with|values|table|show)\b/i.test(sql)) return null; // never stream DML/DDL
-    return { strategy: 'RAW_SQL+STREAM', queryText: sql, engine: 'POSTGRES', source: 'Fabric_Hub_Postgres',
-      iterate: () => hubRowStream(sql, config.params || [], ctx, cfg.batch) };
-  }
-
   // B) AST pass-through scan.
   const q = config?.query;
   if (config?.type === 'CALL' || !q || !isPassThrough(q)) return null;
+  validateAst(q, tenantId); // same structural guard as executeQuery: names/operators/expressions are checked before anything is compiled
   const source = q.from?.source;
   const resource = q.from?.resource;
   if (!resource) return null;

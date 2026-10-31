@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 /**
- * Saved Analytics — create parameterized analytics (AST + SQL, with {{variable}}
+ * Saved Analytics — create parameterized analytics (AST, with {{variable}}
  * bindings), list them, and TRIGGER them via API with different inputs.
  *
  * This is the fabric's "saved query / scheduled report" primitive: define once,
@@ -9,7 +9,7 @@
  *
  * Seeds a small Mongo org tree, registers it, then:
  *   1. AST analytic with a typed {{mgr}} variable — trigger with mgr=1 and mgr=2.
- *   2. SQL analytic with a {{region}} variable (hub) — trigger with a value.
+ *   2. List the saved analytics.
  *
  * Run:  NODE_PATH=backend/node_modules node examples/analytics/run.js
  */
@@ -67,16 +67,7 @@ async function seedAndRegister() {
   const dflt = (await axios.post(`${BASE}/saved-analytics/${ast.id}/run`, {}, { headers: H(t) })).data;
   console.log(`  run default → reports ${JSON.stringify((dflt.data || []).map((x) => x.id))} (mgr defaulted to ${dflt.boundVariables.mgr})`);
 
-  // 2) SQL analytic with a {{region}} variable (runs on the hub).
-  const sql = (await axios.post(`${BASE}/saved-analytics`, {
-    name: 'label_probe', description: 'Format a region label via SQL', mode: 'SQL',
-    variables: [{ name: 'region', type: 'string', required: true }],
-    sql: "SELECT {{region}} AS region, upper({{region}}) AS code",
-  }, { headers: H(t) })).data;
-  const sqlRun = (await axios.post(`${BASE}/saved-analytics/${sql.id}/run`, { variables: { region: 'eu' } }, { headers: H(t) })).data;
-  console.log(`\ncreated SQL analytic "${sql.name}"; run region=eu → ${JSON.stringify(sqlRun.data)}`);
-
-  // 3) List.
+  // 2) List.
   const list = (await axios.get(`${BASE}/saved-analytics`, { headers: H(t) })).data;
   console.log(`\nsaved analytics: ${list.map((a) => `${a.name}[${a.mode}]`).join(', ')}`);
 

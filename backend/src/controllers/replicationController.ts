@@ -5,6 +5,7 @@
  * a chosen source for disaster recovery. Backed by `ReplicationService`.
  */
 import { Request, Response } from 'express';
+import { LimitsResolver, LimitError } from '../modules/tenancy/limits.resolver';
 import { ReplicationService } from '../modules/replication/replication.service';
 import { CopyJobEngine } from '../modules/jobs/copy_job_engine';
 import { pool } from '../config/database';
@@ -130,6 +131,10 @@ export const createJob = async (req: Request, res: Response) => {
       }
     }
 
+    if (b.strategy === 'CDC' && (req as any).user?.internal_role !== 'ADMIN') {
+      try { await LimitsResolver.assertFeature(tenant, 'cdc_kafka_enabled'); }
+      catch (e: any) { if (e instanceof LimitError) return res.status(e.status).json({ error: e.message, code: e.code }); throw e; }
+    }
     const job = await ReplicationService.create({
       tenantId: tenant, name: b.name, sourceName: b.sourceName, destName: b.destName,
       mode: b.mode === 'TWO_WAY' ? 'TWO_WAY' : 'ONE_WAY',

@@ -28,7 +28,7 @@ export interface WindowSpec {
   offset?: number; // for LAG / LEAD (default 1)
 }
 
-const RANKING = new Set(['RANK', 'DENSE_RANK', 'ROW_NUMBER']);
+const RANKING = new Set(['RANK', 'DENSE_RANK', 'ROW_NUMBER', 'PERCENT_RANK', 'CUME_DIST']);
 const NAV = new Set(['LAG', 'LEAD']);
 const RUNNING = new Set(['SUM', 'AVG', 'COUNT', 'MIN', 'MAX']);
 
@@ -97,12 +97,15 @@ export function windowBaseColumns(select: any[]): string[] {
   let star = false;
   for (const c of select) {
     if (c === '*') { star = true; continue; }
-    if (typeof c === 'string') { cols.add(base(c)); continue; }
+    if (typeof c === 'string') { cols.add(c); continue; }
     if (c && typeof c === 'object' && c.window) {
-      if (c.column) cols.add(base(c.column));
-      for (const p of c.partitionBy || []) cols.add(base(p));
-      for (const o of c.orderBy || []) cols.add(base(o.column));
-    } else if (c && c.column) cols.add(base(c.column));
+      if (c.column) cols.add(c.column);
+      for (const p of c.partitionBy || []) cols.add(p);
+      for (const o of c.orderBy || []) cols.add(o.column);
+    } else if (c && c.expression) {
+      const parts = String(c.expression).match(/[a-zA-Z_][a-zA-Z0-9_.]*/g) || [];
+      for (const p of parts) cols.add(p);
+    } else if (c && c.column) cols.add(c.column);
   }
   return star ? [] : [...cols]; // [] → fetch all columns
 }
@@ -122,9 +125,11 @@ function partitionKey(row: any, cols: string[]): string {
  * @returns a comparator suitable for `Array.prototype.sort`.
  */
 function comparator(orderBy: { column: string; direction: 'ASC' | 'DESC' }[]) {
+  // NUMERIC / BIGINT arrive as strings ("5.00" vs "10.00"): compare numerically when both sides are numeric strings.
+  const asNum = (v: any) => (typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v.trim()) ? Number(v) : v);
   return (a: any, b: any) => {
     for (const o of orderBy) {
-      const av = readCol(a, o.column), bv = readCol(b, o.column);
+      const av = asNum(readCol(a, o.column)), bv = asNum(readCol(b, o.column));
       if (av < bv) return o.direction === 'DESC' ? 1 : -1;
       if (av > bv) return o.direction === 'DESC' ? -1 : 1;
     }
@@ -160,10 +165,26 @@ export function applyWindows(rows: any[], specs: WindowSpec[]): any[] {
 
       if (RANKING.has(spec.fn)) {
         let rank = 0, dense = 0, prevKey: string | null = null;
+        const n = part.length;
+        const ranks: number[] = [];
+        const denses: number[] = [];
         part.forEach((r, i) => {
-          const key = JSON.stringify(spec.orderBy.map((o) => readCol(r, o.column) ?? null));
+          const key = JSON.stringify(spec.orderBy.map((o) => { const v = readCol(r, o.column) ?? null; return typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v.trim()) ? Number(v) : v; }));
           if (key !== prevKey) { dense++; rank = i + 1; prevKey = key; }
-          r[spec.alias] = spec.fn === 'ROW_NUMBER' ? i + 1 : spec.fn === 'DENSE_RANK' ? dense : rank;
+          ranks.push(rank);
+          denses.push(dense);
+        });
+        part.forEach((r, i) => {
+          if (spec.fn === 'ROW_NUMBER') r[spec.alias] = i + 1;
+          else if (spec.fn === 'DENSE_RANK') r[spec.alias] = denses[i];
+          else if (spec.fn === 'RANK') r[spec.alias] = ranks[i];
+          else if (spec.fn === 'PERCENT_RANK') {
+            r[spec.alias] = n <= 1 ? 0 : (ranks[i]! - 1) / (n - 1);
+          } else if (spec.fn === 'CUME_DIST') {
+            let last = i;
+            while (last + 1 < n && ranks[last + 1] === ranks[i]) last++;
+            r[spec.alias] = (last + 1) / n;
+          }
         });
       } else if (NAV.has(spec.fn)) {
         const off = spec.offset ?? 1;
@@ -209,13 +230,41 @@ export function hasWindows(select: any[] | undefined): boolean {
  * @param select the query's select list (plain columns and/or window specs); `*` passes rows through unchanged.
  * @returns new row objects containing only the requested columns/aliases.
  */
+function evalSimpleExpr(row: any, expr: string): any {
+  const m = expr.match(/^([a-zA-Z0-9_.]+)\s*([\*+\-\/])\s*([0-9.]+)$/);
+  if (m) {
+    const colName = m[1] || '';
+    const val = Number(readCol(row, colName)) || 0;
+    const op = m[2];
+    const operand = Number(m[3]);
+    if (op === '*') return val * operand;
+    if (op === '+') return val + operand;
+    if (op === '-') return val - operand;
+    if (op === '/' && operand !== 0) return val / operand;
+  }
+  return undefined;
+}
+
 export function projectWithWindows(rows: any[], select: any[]): any[] {
-  const cols: string[] = [];
+  const specs: { col?: string; alias?: string; expr?: string }[] = [];
   for (const c of select) {
     if (c === '*') return rows;
-    if (typeof c === 'string') cols.push(base(c));
-    else if (c && c.window) cols.push(c.alias);
-    else if (c && c.column) cols.push(c.alias || base(c.column));
+    if (typeof c === 'string') specs.push({ col: base(c) });
+    else if (c && c.window) specs.push({ alias: c.alias });
+    else if (c && c.expression && c.alias) specs.push({ alias: c.alias, expr: c.expression });
+    else if (c && c.column) specs.push({ col: c.alias || base(c.column) });
   }
-  return rows.map((r) => { const o: any = {}; for (const c of cols) o[c] = readCol(r, c); return o; });
+  return rows.map((r) => {
+    const o: any = {};
+    for (const s of specs) {
+      if (s.expr && s.alias) {
+        o[s.alias] = evalSimpleExpr(r, s.expr);
+      } else if (s.alias) {
+        o[s.alias] = readCol(r, s.alias);
+      } else if (s.col) {
+        o[s.col] = readCol(r, s.col);
+      }
+    }
+    return o;
+  });
 }

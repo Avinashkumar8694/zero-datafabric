@@ -15,6 +15,11 @@
  */
 import { pool } from '../../config/database';
 import { ConnectorFactory } from './connectors/factory';
+import { assertIdent, quoteAnyIdent, belongsToTenant, escapeLike } from '../../utils/identifiers';
+import { assertSafeExpression, assertSafeSelectQuery, SqlGuardError } from '../../utils/sqlGuard';
+import { assertTenantIdSafe } from '../../utils/tenantScope';
+import { assertColumnType } from './sql_safety';
+import { randomBytes } from 'crypto';
 
 /**
  * Catalog crawling, legacy manifest diff/migrate, and manifest export
@@ -31,16 +36,26 @@ export class MetadataService {
    * inside a transaction so a partial crawl doesn't leave the catalog
    * half-updated.
    * @param sourceId `public.data_sources` row id to crawl.
+   * @param tenantId when given, the source must belong to this tenant (otherwise NOT_FOUND).
    * @returns `(sourceId, status: 'CRAWLED', schemaCount, tableCount)`.
    * @throws {Error} If the source doesn't exist, or if schema/table discovery or catalog upserts fail (transaction is rolled back first).
    */
-  static async crawlSource(sourceId: string) {
+  static async crawlSource(sourceId: string, tenantId?: string) {
     const client = await pool.connect();
     try {
       // 1. Fetch source configuration
-      const { rows: sources } = await client.query('SELECT * FROM public.data_sources WHERE id = $1', [sourceId]);
-      if (sources.length === 0) throw new Error('Source not found');
+      // When a tenant is given the source must belong to it (foreign id == unknown id). Callers acting for a tenant always pass it.
+      const { rows: sources } = tenantId === undefined
+        ? await client.query('SELECT * FROM public.data_sources WHERE id = $1', [sourceId])
+        : await client.query('SELECT * FROM public.data_sources WHERE id = $1 AND tenant_id = $2', [sourceId, tenantId]);
+      if (sources.length === 0) { const e: any = new Error('Source not found'); e.status = 404; e.code = 'NOT_FOUND'; throw e; }
       const source = sources[0];
+
+      // The tenant's built-in hub pseudo-source (`config.local`, created by the manifest orchestrator) has no connection details:
+      // its schemas live in the hub and are crawled by crawlTenant's local phase, so there is nothing to connect to here.
+      if (source.config && source.config.local === true) {
+          return { sourceId, status: 'LOCAL', schemaCount: 0, tableCount: 0 };
+      }
 
       // Industrial Defense: Skip crawl for dummy test hosts
       const host = source.config.host || source.config.connectionString;
@@ -171,7 +186,7 @@ export class MetadataService {
         // crawl of every other source.
         for (const source of sources) {
             try {
-                results.push(await this.crawlSource(source.id));
+                results.push(await this.crawlSource(source.id, tenantId));
             } catch (e: any) {
                 console.warn(`[Crawl] source ${source.name} (${source.id}) failed: ${e.message}`);
                 results.push({ sourceId: source.id, source: source.name, status: 'FAILED', error: e.message });
@@ -179,18 +194,30 @@ export class MetadataService {
         }
 
         // 2. Crawl Local Tenant Schemas (tenant_{id}_*)
-        const cleanTenant = tenantId.replace(/[^a-zA-Z0-9_]/g, '');
-        const { rows: localSchemas } = await client.query(`
+        // Exact match (tenant_<id> or tenant_<id>_<logical>): LIKE wildcards in the id are escaped and every candidate is
+        // re-checked with belongsToTenant, so another tenant's schema is never crawled into this tenant's catalog.
+        const cleanTenant = assertTenantIdSafe(tenantId);
+        const { rows: localSchemaRows } = await client.query(`
             SELECT schema_name 
             FROM information_schema.schemata 
-            WHERE schema_name LIKE $1
-        `, [`tenant_${cleanTenant}%`]);
+            WHERE schema_name = $1 OR schema_name LIKE $2 ESCAPE '\\'
+        `, [`tenant_${cleanTenant}`, `${escapeLike(`tenant_${cleanTenant}_`)}%`]);
+        const localSchemas = localSchemaRows.filter((r: any) => belongsToTenant(String(r.schema_name), cleanTenant));
 
         let localTableCount = 0;
         for (const schema of localSchemas) {
             // Register/Update Local Schema in Catalog
             let schemaUuid;
-            const existingSchema = await client.query('SELECT id FROM public.catalog_schemas WHERE source_id IS NULL AND physical_name = $1', [schema.schema_name]);
+            // Reuse the catalog schema the manifest orchestrator registered under the tenant's own hub pseudo-source (so counts land on the
+            // rows the catalog shows), else the source-less one.
+            const existingSchema = await client.query(
+                `SELECT cs.id FROM public.catalog_schemas cs
+                  LEFT JOIN public.data_sources ds ON ds.id = cs.source_id
+                 WHERE cs.physical_name = $1
+                   AND (cs.source_id IS NULL OR (ds.tenant_id = $2 AND ds.config->>'local' = 'true'))
+                 ORDER BY (cs.source_id IS NULL) ASC LIMIT 1`,
+                [schema.schema_name, cleanTenant]
+            );
             if (existingSchema.rows.length > 0) {
                 schemaUuid = existingSchema.rows[0].id;
             } else {
@@ -229,7 +256,7 @@ export class MetadataService {
                 let rowCount = 0;
                 if (['TABLE', 'VIEW', 'MATERIALIZED_VIEW', 'FOREIGN_TABLE'].includes(obj.resource_type)) {
                     try {
-                        const countRes = await client.query(`SELECT count(*) FROM "${schema.schema_name}"."${obj.name}"`);
+                        const countRes = await client.query(`SELECT count(*) FROM ${quoteAnyIdent(schema.schema_name)}.${quoteAnyIdent(obj.name)}`);
                         rowCount = parseInt(countRes.rows[0].count);
                     } catch { rowCount = 0; }
                 }
@@ -365,48 +392,57 @@ export class MetadataService {
    */
   static async migrateMetadata(tenantId: string, diffs: any[]) {
     const results = [];
+    if (!Array.isArray(diffs)) throw new SqlGuardError('Invalid migrationPlan: must be an array of diffs');
+    const cleanTenant = assertTenantIdSafe(tenantId);
+    // This runs as the database owner, so every identifier is validated and quoted and every free-form fragment
+    // (column types, view queries, trigger function/event) goes through the sqlGuard grammar.
+    const guard = { tenantId: cleanTenant };
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
         for (const diff of diffs) {
-            const schemaName = diff.schema ? `tenant_${tenantId}_${diff.schema}` : `tenant_${tenantId}`;
-            const tableName = diff.table;
+            if (!diff || typeof diff !== 'object') throw new SqlGuardError('Invalid migration diff');
+            const schemaName = diff.schema ? `tenant_${cleanTenant}_${assertIdent(diff.schema, 'schema')}` : `tenant_${cleanTenant}`;
+            const qSchema = quoteAnyIdent(schemaName);
+            const tableName = diff.table !== undefined ? assertIdent(diff.table, 'table') : undefined;
+            const qTable = tableName ? `${qSchema}.${quoteAnyIdent(tableName)}` : '';
             const details = diff.details || {};
 
             // 1. Ensure tenant root schema exists
-            await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
-            await client.query(`GRANT ALL ON SCHEMA "${schemaName}" TO public`);
-            await client.query(`GRANT ALL ON ALL SEQUENCES IN SCHEMA "${schemaName}" TO public`);
+            await client.query(`CREATE SCHEMA IF NOT EXISTS ${qSchema}`);
+            await client.query(`GRANT USAGE, CREATE ON SCHEMA ${qSchema} TO fabric_user`);
+            await client.query(`GRANT USAGE ON ALL SEQUENCES IN SCHEMA ${qSchema} TO fabric_user`);
 
             if (diff.action === 'CREATE_SCHEMA') {
-                const ddl = `CREATE SCHEMA IF NOT EXISTS "${schemaName}"`;
+                const ddl = `CREATE SCHEMA IF NOT EXISTS ${qSchema}`;
                 console.log(`[Metadata] Executing DDL: ${ddl}`);
                 await client.query(ddl);
                 results.push({ action: 'CREATE_SCHEMA', status: 'SUCCESS' });
             }
             else if (diff.action === 'CREATE_TABLE') {
+                if (!tableName) throw new SqlGuardError('Invalid migration diff: table is required');
                 const columns = details.columns || diff.columns || [];
                 const columnsSql = columns.map((c: any) => {
-                    let colDef = `"${c.name}" ${c.type}`;
+                    let colDef = `${quoteAnyIdent(assertIdent(c.name, 'column'))} ${assertSafeExpression(c.type, 'column type', guard)}`;
                     if (c.primaryKey) colDef += ' PRIMARY KEY';
                     return colDef;
                 }).join(', ');
 
-                const ddl = `CREATE TABLE IF NOT EXISTS "${schemaName}"."${tableName}" (${columnsSql})`;
+                const ddl = `CREATE TABLE IF NOT EXISTS ${qTable} (${columnsSql})`;
                 console.log(`[Metadata] Executing DDL: ${ddl}`);
                 await client.query(ddl);
-                await client.query(`GRANT ALL ON TABLE "${schemaName}"."${tableName}" TO public`);
+                await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ${qTable} TO fabric_user`);
 
-                // Industrial Isolation: Apply hard-coded schema RLS policy
-                await client.query(`ALTER TABLE "${schemaName}"."${tableName}" ENABLE ROW LEVEL SECURITY`);
-                await client.query(`DROP POLICY IF EXISTS tenant_isolation_policy ON "${schemaName}"."${tableName}"`);
+                // Industrial Isolation: tenant RLS policy, exact match on this tenant's id (no LIKE prefix/wildcard).
+                await client.query(`ALTER TABLE ${qTable} ENABLE ROW LEVEL SECURITY`);
+                await client.query(`DROP POLICY IF EXISTS tenant_isolation_policy ON ${qTable}`);
                 await client.query(`
-                    CREATE POLICY tenant_isolation_policy ON "${schemaName}"."${tableName}"
-                    USING ('${schemaName}' LIKE 'tenant_' || current_setting('app.tenant_id') || '%')
+                    CREATE POLICY tenant_isolation_policy ON ${qTable}
+                    USING (current_setting('app.tenant_id', true) = '${cleanTenant}')
                 `);
                 
                 // Ensure sequences are accessible
-                await client.query(`GRANT ALL ON ALL SEQUENCES IN SCHEMA "${schemaName}" TO public`);
+                await client.query(`GRANT USAGE ON ALL SEQUENCES IN SCHEMA ${qSchema} TO fabric_user`);
 
                 // Sync to Catalog
                 for (const col of columns) {
@@ -421,17 +457,22 @@ export class MetadataService {
                 // Triggers
                 if (details.triggers) {
                     for (const trg of details.triggers) {
-                        await client.query(`DROP TRIGGER IF EXISTS "${trg.name}" ON "${schemaName}"."${tableName}"`);
-                        const fnCall = trg.function.endsWith('()') ? trg.function : `${trg.function}()`;
-                        await client.query(`CREATE TRIGGER "${trg.name}" ${trg.event} ON "${schemaName}"."${tableName}" FOR EACH ROW EXECUTE FUNCTION ${fnCall}`);
+                        const trgName = quoteAnyIdent(assertIdent(trg.name, 'trigger name'));
+                        const event = assertSafeExpression(trg.event, 'trigger event', guard);
+                        if (!/^(BEFORE|AFTER|INSTEAD OF)\s+(INSERT|UPDATE|DELETE)(\s+OR\s+(INSERT|UPDATE|DELETE))*$/i.test(event)) throw new SqlGuardError('Invalid trigger event');
+                        const fnRaw = String(trg.function || '');
+                        const fnName = assertIdent(fnRaw.endsWith('()') ? fnRaw.slice(0, -2) : fnRaw, 'trigger function');
+                        await client.query(`DROP TRIGGER IF EXISTS ${trgName} ON ${qTable}`);
+                        await client.query(`CREATE TRIGGER ${trgName} ${event} ON ${qTable} FOR EACH ROW EXECUTE FUNCTION ${qSchema}.${quoteAnyIdent(fnName)}()`);
                     }
                 }
 
                 results.push({ action: 'CREATE_TABLE', status: 'SUCCESS', table: tableName });
             }
             else if (diff.action === 'ADD_COLUMN') {
+                if (!tableName) throw new SqlGuardError('Invalid migration diff: table is required');
                 const col = diff.column;
-                await client.query(`ALTER TABLE "${schemaName}"."${tableName}" ADD COLUMN IF NOT EXISTS "${col.name}" ${col.type}`);
+                await client.query(`ALTER TABLE ${qTable} ADD COLUMN IF NOT EXISTS ${quoteAnyIdent(assertIdent(col?.name, 'column'))} ${assertSafeExpression(col?.type, 'column type', guard)}`);
                 
                 // Sync to Catalog
                 await client.query(`
@@ -444,28 +485,35 @@ export class MetadataService {
                 results.push({ action: 'ADD_COLUMN', status: 'SUCCESS', table: tableName, column: col.name });
             }
             else if (diff.action === 'CREATE_FUNCTION') {
-                const returnType = diff.returnType || 'TRIGGER';
-                const body = diff.body.trim().toUpperCase().startsWith('BEGIN') ? diff.body : `BEGIN\n  ${diff.body};\nEND;`;
-                const params = diff.params ? diff.params.map((p: any) => `${p.name} ${p.type}`).join(', ') : '';
-                
-                const ddl = `CREATE OR REPLACE FUNCTION "${schemaName}"."${diff.name}"(${params}) RETURNS ${returnType} AS $$ ${body} $$ LANGUAGE plpgsql`;
+                const fnName = quoteAnyIdent(assertIdent(diff.name, 'function name'));
+                // Allow-listed type (TRIGGER/VOID/RECORD included): the free-text expression guard rejects the keyword TRIGGER, i.e. its own default.
+                const returnType = assertColumnType(diff.returnType || 'TRIGGER', 'returnType');
+                const rawBody = String(diff.body ?? '');
+                const body = rawBody.trim().toUpperCase().startsWith('BEGIN') ? rawBody : `BEGIN\n  ${rawBody};\nEND;`;
+                const params = diff.params ? diff.params.map((p: any) => `${quoteAnyIdent(assertIdent(p.name, 'param name'))} ${assertSafeExpression(p.type, 'param type', guard)}`).join(', ') : '';
+                // The body is PL/pgSQL by design; wrap it in a random dollar-quote tag so it can never terminate its own quoting.
+                const tag = `fn_${randomBytes(8).toString('hex')}`;
+                if (body.includes(`$${tag}$`)) throw new SqlGuardError('Invalid function body');
+                const ddl = `CREATE OR REPLACE FUNCTION ${qSchema}.${fnName}(${params}) RETURNS ${returnType} AS $${tag}$ ${body} $${tag}$ LANGUAGE plpgsql`;
                 console.log(`[Metadata] Executing DDL: ${ddl}`);
                 await client.query(ddl);
                 results.push({ action: 'CREATE_FUNCTION', status: 'SUCCESS', name: diff.name });
             }
             else if (diff.action === 'CREATE_VIEW') {
                 const materializedSql = diff.materialized ? 'MATERIALIZED' : '';
-                const ddl = `CREATE ${materializedSql} VIEW "${schemaName}"."${diff.name}" AS ${diff.query}`;
+                const viewName = `${qSchema}.${quoteAnyIdent(assertIdent(diff.name, 'view name'))}`;
+                const ddl = `CREATE ${materializedSql} VIEW ${viewName} AS ${assertSafeSelectQuery(diff.query, cleanTenant, 'view query')}`;
                 console.log(`[Metadata] Executing DDL: ${ddl}`);
-                await client.query(`DROP ${materializedSql} VIEW IF EXISTS "${schemaName}"."${diff.name}" CASCADE`);
+                await client.query(`DROP ${materializedSql} VIEW IF EXISTS ${viewName} CASCADE`);
                 await client.query(ddl);
-                await client.query(`ALTER ${materializedSql} VIEW "${schemaName}"."${diff.name}" OWNER TO fabric_user`);
-                await client.query(`GRANT SELECT ON "${schemaName}"."${diff.name}" TO public`);
+                await client.query(`ALTER ${materializedSql} VIEW ${viewName} OWNER TO fabric_user`);
+                await client.query(`GRANT SELECT ON ${viewName} TO fabric_user`);
                 results.push({ action: 'CREATE_VIEW', status: 'SUCCESS', name: diff.name });
             }
             else if (diff.action === 'SOFT_DELETE_TABLE') {
+                if (!tableName) throw new SqlGuardError('Invalid migration diff: table is required');
                 const deletedName = `${tableName}_deleted_${Date.now()}`;
-                await client.query(`ALTER TABLE "${schemaName}"."${tableName}" RENAME TO "${deletedName}"`);
+                await client.query(`ALTER TABLE ${qTable} RENAME TO ${quoteAnyIdent(deletedName)}`);
                 
                 // Sync to Catalog (mark as deleted)
                 await client.query(`UPDATE fabric_catalog.metadata SET is_deleted = TRUE, deleted_at = CURRENT_TIMESTAMP WHERE schema_name = $1 AND table_name = $2`, [schemaName, tableName]);

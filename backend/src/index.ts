@@ -2,13 +2,19 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import http from 'http';
-import swaggerUi from 'swagger-ui-express';
+import { mountApiDocs } from './docs/mountDocs';
 import { pool } from './config/database';
 import { AuthService } from './modules/auth/auth.service';
-import { swaggerSpec } from './config/swagger';
 
 // Route Imports
 import adminRoutes from './routes/adminRoutes';
+import { astOnly } from './middleware/astOnly.middleware';
+import workerRoutes from './routes/workerRoutes';
+import systemRoutes from './routes/systemRoutes';
+import workspaceRoutes from './routes/workspaceRoutes';
+import { workspaceGuard } from './modules/tenancy/workspace.guard';
+import developerTokenRoutes from './routes/developerTokenRoutes';
+import { ApiTokenService, TokenError, requiredScope } from './modules/auth/api-token.service';
 import authRoutes from './routes/authRoutes';
 import queryRoutes from './routes/queryRoutes';
 import metadataRoutes from './routes/metadataRoutes';
@@ -31,40 +37,58 @@ import { ElasticsearchMutationWorker } from './modules/metadata/es_mutation_work
 import { initCache } from './config/cache';
 import { licensingMiddleware } from './middleware/licensing.middleware';
 import { LicenseValidationService } from './utils/licensing';
-
+import { MongoDBConnector, PostgresConnector } from './modules/metadata/connectors/factory';
 import morgan from 'morgan';
 
 const app = express();
 const server = http.createServer(app);
-const PORT = 4000;
+const PORT = Number(process.env.PORT) || 4000;
 
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant-id']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-tenant-id', 'x-act-as-role', 'x-region', 'Accept']
 }));
 app.use(express.json());
 app.use(morgan('dev'));
 
 // --- INDUSTRIAL SECURITY MIDDLEWARE ---
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   const authHeader = req.headers.authorization;
-  if (authHeader && typeof authHeader === 'string') {
-    const token = authHeader.split(' ')[1];
-    if (token) {
-      try {
-        const user = AuthService.verifyToken(token) as any;
-        if (user) {
-          const tenantOverride = req.headers['x-tenant-id'];
-          if (user.internal_role === 'ADMIN' && tenantOverride && typeof tenantOverride === 'string') {
-            user.tenant_id = tenantOverride;
-          }
-          (req as any).user = user;
-          console.log(`[Security] Authenticated user: ${user.username}, Tenant: ${user.tenant_id}`);
+  const apiKeyHeader = req.headers['x-api-key'];
+  const bearer = typeof authHeader === 'string' ? authHeader.split(' ')[1] : undefined;
+  const presentedApiToken = typeof apiKeyHeader === 'string' ? apiKeyHeader : (bearer && bearer.startsWith('dft_') ? bearer : undefined);
+
+  // Developer API token (x-api-key or Bearer dft_...). Scoped, never ADMIN, never honours x-tenant-id / x-act-as-role.
+  if (presentedApiToken) {
+    try {
+      const user = await ApiTokenService.authenticate(presentedApiToken);
+      const scope = requiredScope(req.method, req.path, req.body);
+      if (!scope) return res.status(403).json({ error: 'API tokens cannot access this endpoint', code: 'TOKEN_NOT_ALLOWED' });
+      if (!user.scopes.includes(scope)) return res.status(403).json({ error: `API token is missing the required scope: ${scope}`, code: 'SCOPE_REQUIRED' });
+      delete req.headers['x-act-as-role'];
+      (req as any).user = user;
+      return next();
+    } catch (e: any) {
+      if (e instanceof TokenError) return res.status(e.status).json({ error: e.message, code: e.code });
+      return res.status(500).json({ error: 'Internal error', code: 'INTERNAL' });
+    }
+  }
+
+  if (bearer) {
+    try {
+      const user = AuthService.verifyToken(bearer) as any;
+      if (user) {
+        user.original_tenant_id = user.tenant_id;
+        const tenantOverride = req.headers['x-tenant-id'];
+        if (user.internal_role === 'ADMIN' && tenantOverride && typeof tenantOverride === 'string') {
+          user.tenant_id = tenantOverride;
         }
-      } catch (e: any) {
-        console.error(`[Security] JWT Error: ${e.message}`);
+        (req as any).user = user;
+        console.log(`[Security] Authenticated user: ${user.username}, Tenant: ${user.tenant_id}`);
       }
+    } catch (e: any) {
+      console.error(`[Security] JWT Error: ${e.message}`);
     }
   }
   next();
@@ -83,12 +107,8 @@ const requireAdmin = (req: express.Request, res: express.Response, next: express
 };
 
 // --- BASE ROUTES ---
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customSiteTitle: 'Zero Data Fabric API',
-  swaggerOptions: { docExpansion: 'none', filter: true, tryItOutEnabled: true },
-}));
-// Raw OpenAPI spec for tooling / client generation.
-app.get('/api-docs.json', (_req, res) => { res.json(swaggerSpec); });
+// OpenAPI docs: /api-docs (landing), /api-docs/developer(.json), /api-docs/system(.json)
+mountApiDocs(app);
 
 app.get('/api/health', async (req, res) => {
   const uptime = process.uptime();
@@ -113,18 +133,122 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+app.get('/api/metrics', async (req, res) => {
+  const uptime = process.uptime();
+  const mem = process.memoryUsage();
+  
+  let citusActive = 0;
+  let activeWorkers = 0;
+  try {
+    const citusCheck = await pool.query(`SELECT 1 FROM pg_extension WHERE extname = 'citus'`);
+    if (citusCheck.rows.length > 0) citusActive = 1;
+    const workersCheck = await pool.query(`SELECT count(*)::int as cnt FROM public.fabric_worker_nodes WHERE status = 'ACTIVE'`).catch(() => ({ rows: [{ cnt: 0 }] }));
+    activeWorkers = workersCheck.rows[0]?.cnt || 0;
+  } catch {}
+
+  const mongoPoolStats = MongoDBConnector.getPoolStats();
+  const remotePgStats = PostgresConnector.getPoolStats();
+
+  if (req.query.format === 'json' || req.headers.accept?.includes('application/json')) {
+    return res.json({
+      uptime_seconds: uptime,
+      memory: {
+        heap_used_bytes: mem.heapUsed,
+        heap_total_bytes: mem.heapTotal,
+        rss_bytes: mem.rss,
+        external_bytes: mem.external
+      },
+      postgres_hub: {
+        total: pool.totalCount,
+        idle: pool.idleCount,
+        waiting: pool.waitingCount
+      },
+      remote_postgres: remotePgStats,
+      mongodb: mongoPoolStats,
+      citus: {
+        active: citusActive === 1,
+        active_workers: activeWorkers
+      }
+    });
+  }
+
+  // Prometheus text exposition format (version 0.0.4)
+  const metrics = [
+    '# HELP datafabric_up Whether the Data Fabric server is up and accepting connections',
+    '# TYPE datafabric_up gauge',
+    'datafabric_up 1',
+    '',
+    '# HELP datafabric_uptime_seconds Number of seconds the process has been running',
+    '# TYPE datafabric_uptime_seconds counter',
+    `datafabric_uptime_seconds ${uptime.toFixed(2)}`,
+    '',
+    '# HELP datafabric_process_memory_heap_used_bytes Heap memory in use by V8 engine',
+    '# TYPE datafabric_process_memory_heap_used_bytes gauge',
+    `datafabric_process_memory_heap_used_bytes ${mem.heapUsed}`,
+    '',
+    '# HELP datafabric_process_memory_heap_total_bytes Total allocated heap memory by V8 engine',
+    '# TYPE datafabric_process_memory_heap_total_bytes gauge',
+    `datafabric_process_memory_heap_total_bytes ${mem.heapTotal}`,
+    '',
+    '# HELP datafabric_process_memory_rss_bytes Resident Set Size memory',
+    '# TYPE datafabric_process_memory_rss_bytes gauge',
+    `datafabric_process_memory_rss_bytes ${mem.rss}`,
+    '',
+    '# HELP datafabric_postgres_hub_pool_total Total connections in Hub PostgreSQL pool',
+    '# TYPE datafabric_postgres_hub_pool_total gauge',
+    `datafabric_postgres_hub_pool_total ${pool.totalCount}`,
+    '',
+    '# HELP datafabric_postgres_hub_pool_idle Idle connections in Hub PostgreSQL pool',
+    '# TYPE datafabric_postgres_hub_pool_idle gauge',
+    `datafabric_postgres_hub_pool_idle ${pool.idleCount}`,
+    '',
+    '# HELP datafabric_postgres_hub_pool_waiting Waiting requests in Hub PostgreSQL pool',
+    '# TYPE datafabric_postgres_hub_pool_waiting gauge',
+    `datafabric_postgres_hub_pool_waiting ${pool.waitingCount}`,
+    '',
+    '# HELP datafabric_postgres_remote_pools_count Number of cached remote PostgreSQL pools',
+    '# TYPE datafabric_postgres_remote_pools_count gauge',
+    `datafabric_postgres_remote_pools_count ${remotePgStats.poolCount}`,
+    '',
+    '# HELP datafabric_postgres_remote_pool_total Total connections in remote PostgreSQL pools',
+    '# TYPE datafabric_postgres_remote_pool_total gauge',
+    `datafabric_postgres_remote_pool_total ${remotePgStats.totalCount}`,
+    '',
+    '# HELP datafabric_mongodb_pools_count Number of cached MongoDB connection clients',
+    '# TYPE datafabric_mongodb_pools_count gauge',
+    `datafabric_mongodb_pools_count ${mongoPoolStats.poolCount}`,
+    '',
+    '# HELP datafabric_citus_coordinator_active Whether Citus coordinator extension is active',
+    '# TYPE datafabric_citus_coordinator_active gauge',
+    `datafabric_citus_coordinator_active ${citusActive}`,
+    '',
+    '# HELP datafabric_citus_active_workers Number of active distributed Citus worker nodes registered',
+    '# TYPE datafabric_citus_active_workers gauge',
+    `datafabric_citus_active_workers ${activeWorkers}`,
+    ''
+  ].join('\n');
+
+  res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+  res.send(metrics);
+});
+
 // --- RESOURCE ROUTERS ---
+app.use('/api', workspaceGuard);
 app.use('/api/auth', authRoutes);
+app.use('/api/system', requireAuth, systemRoutes);
+app.use('/api/workspace', requireAuth, workspaceRoutes);
+app.use('/api/admin/workers', requireAuth, workerRoutes);
 app.use('/api/admin', requireAuth, adminRoutes);
-app.use('/api/queries', requireAuth, licensingMiddleware, queryRoutes);
+app.use('/api/developer/tokens', requireAuth, developerTokenRoutes);
+app.use('/api/queries', requireAuth, astOnly, licensingMiddleware, queryRoutes);
 app.use('/api/metadata', requireAuth, licensingMiddleware, metadataRoutes);
-app.use('/api/analytics', requireAuth, licensingMiddleware, analyticsRoutes);
-app.use('/api/data', requireAuth, licensingMiddleware, dataRoutes);
+app.use('/api/analytics', requireAuth, astOnly, licensingMiddleware, analyticsRoutes);
+app.use('/api/data', requireAuth, astOnly, licensingMiddleware, dataRoutes);
 app.use('/api/triggers', requireAuth, licensingMiddleware, triggerRoutes);
 app.use('/api/policies', requireAuth, policyRoutes);
 app.use('/api/constraints', requireAuth, constraintRoutes);
 app.use('/api/grants', requireAuth, grantRoutes);
-app.use('/api/saved-analytics', requireAuth, licensingMiddleware, savedAnalyticsRoutes);
+app.use('/api/saved-analytics', requireAuth, astOnly, licensingMiddleware, savedAnalyticsRoutes);
 app.use('/api/query-logs', requireAuth, queryLogRoutes);
 app.use('/api/replication', requireAuth, licensingMiddleware, replicationRoutes);
 app.use('/api/developer-docs', developerDocsRoutes);
@@ -154,20 +278,28 @@ if (process.env.NODE_ENV !== 'test') {
           value JSONB
         )
       `);
+      const initOidcSecret = process.env.OIDC_CLIENT_SECRET || 'bc79a2ed33935010666d9e4e1e0f29d7c80f0cd01d4a45267b6bc9b51fb9dd1d';
+      const initOidcIssuer = process.env.OIDC_ISSUER || 'https://ids.fabrixly.com/oidc';
+      const initOidcClientId = process.env.OIDC_CLIENT_ID || 'zero-datafabric';
       await pool.query(`
         INSERT INTO public.settings (key, value)
-        VALUES ('custom_login', '{
-          "title": "Data Fabric",
-          "logo_url": "",
-          "bg_color": "#04060f",
-          "allow_password_login": true,
-          "sso_enabled": true,
-          "oidc_issuer": "https://ids.fabrixly.com",
-          "oidc_client_id": "zero-datafabric",
-          "oidc_client_secret": "super-secret-key-fabric"
-        }'::jsonb)
-        ON CONFLICT (key) DO NOTHING
-      `);
+        VALUES ('custom_login', jsonb_build_object(
+          'title', 'Data Fabric',
+          'logo_url', '',
+          'bg_color', '#04060f',
+          'allow_password_login', true,
+          'sso_enabled', true,
+          'oidc_issuer', $1::text,
+          'oidc_client_id', $2::text,
+          'oidc_client_secret', $3::text
+        ))
+        ON CONFLICT (key) DO UPDATE SET
+          value = jsonb_set(
+            jsonb_set(public.settings.value, '{oidc_client_secret}', to_jsonb($3::text)),
+            '{oidc_issuer}', to_jsonb($1::text)
+          )
+          WHERE public.settings.value->>'oidc_client_secret' = 'super-secret-key-fabric'
+      `, [initOidcIssuer, initOidcClientId, initOidcSecret]);
       await pool.query(`
         INSERT INTO public.settings (key, value)
         VALUES ('license_key', '{

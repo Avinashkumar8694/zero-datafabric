@@ -73,15 +73,13 @@ purposes (`reachableInPg = true`), kept current by a change stream.
 
 ## Query model
 
-**AST mode.** A structured query object (`{ select, from, where, joins, groupBy,
-with, recursive, … }`). The canonical form.
-
-**SQL mode.** A SQL string. On a SQL-native engine it runs natively; on a non-SQL
-engine (`sqlToAst`) it is translated to the **same AST** and planned identically.
-See [12](12-capability-model-and-matrix.md).
+**AST.** A structured query object (`{ select, from, where, joins, groupBy,
+with, recursive, … }`). The only query form: raw SQL execution (`/api/queries/exec`,
+`rawSql`) was removed. `POST /api/queries/transpile` previews the SQL an AST compiles
+to (preview only). See [12](12-capability-model-and-matrix.md).
 
 **Canonical query.** The single normalized shape (`{ select, filter, orderBy,
-limit, offset, groupBy, aggregates }`) both modes converge on before the
+limit, offset, groupBy, aggregates }`) every query converges on before the
 `PushdownCompiler` turns it into an engine-native request. See [05](05-pushdown-compiler.md).
 
 **Pushdown compiler.** The single source of truth compiling the canonical query
@@ -190,7 +188,7 @@ mode, strategy, TAT, memory delta, row counts, legs, warnings, and outcome. See
 **TAT (turnaround time).** End-to-end wall-clock for a request including fabric
 overhead; `tat_ms − execution_ms` isolates planning/merge/compensation cost.
 
-**Saved analytic.** A reusable, `{{variable}}`-parameterized query (AST or SQL)
+**Saved analytic.** A reusable, `{{variable}}`-parameterized query (AST)
 defined once and run/triggered with inputs — the fabric's saved-query / scheduled-
 report primitive. See [13](13-api-catalog.md#saved-analytics--apisaved-analytics-requireauth).
 

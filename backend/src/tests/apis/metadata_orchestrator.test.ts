@@ -49,7 +49,10 @@ describe('Metadata Orchestrator: Industrial End-to-End', () => {
         const diffRes = await request(app).post('/api/metadata/diff').set('Authorization', `Bearer ${tenantToken}`).send(manifestV11);
         expect(diffRes.body.changes).toContainEqual(expect.objectContaining({ action: 'QUARANTINE_TABLE', table: 'users' }));
 
-        const applyRes = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(manifestV11);
+        // Quarantining a table is a HIGH-risk change: the guardrail refuses it unless the caller explicitly forces it.
+        const refused = await request(app).post('/api/metadata/apply').set('Authorization', `Bearer ${tenantToken}`).send(manifestV11);
+        expect(refused.status).toBe(400);
+        const applyRes = await request(app).post('/api/metadata/apply?force=true').set('Authorization', `Bearer ${tenantToken}`).send(manifestV11);
         expect(applyRes.status).toBe(200);
         expect(applyRes.body.status).toBe('APPLIED');
     });

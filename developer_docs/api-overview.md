@@ -59,7 +59,7 @@ H=(-H "Authorization: Bearer $TOKEN" -H "x-tenant-id: tenant_A" -H "Content-Type
 ## The standard query response envelope
 
 Every read/write that runs through the query engine (`/api/analytics/query`,
-`/api/data/*`, saved-analytic runs, `/api/queries/exec` against a source) returns
+`/api/data/*`, saved-analytic runs, `/api/queries/engine`) returns
 the same shape:
 
 ```jsonc
@@ -69,7 +69,7 @@ the same shape:
   "warnings": [],                       // e.g. per-leg row-cap hits, degraded joins
   "plan": {
     "strategy": "CROSS_ENGINE",         // SINGLE_LOCAL | SINGLE_CONNECTOR | CROSS_ENGINE
-                                        //  | SINGLE_CONNECTOR_RAW | SINGLE_CONNECTOR_WRITE | RAW_SQL
+                                        //  | SINGLE_CONNECTOR_WRITE
     "executionMs": 24,
     "rowsScannedAcrossSources": 4,      // total rows pulled from all sources
     "pushed": [ "human-readable pushdown notes" ],
@@ -89,9 +89,12 @@ request the fabric sent to that engine. See
 [concepts.md](concepts.md#the-execution-trace) for the full model.
 
 > Mutations return `{ status, rowCount, returning, plan }`; async submissions
-> return `202 { jobId, status }`; some low-level endpoints (`/api/queries/native`,
-> the sync form of `/api/queries/exec`) return `{ results, rowCount }` without a
-> full `plan`.
+> return `202 { jobId, status }`.
+
+> **AST-only.** Raw SQL execution is not supported: `/api/queries/exec` and
+> `/api/queries/native` are gone (`404`), and bodies with `sql` / `rawSql` /
+> `nativeSql` / `rawQuery` (or a string `query`) on `/api/queries`, `/api/analytics`,
+> `/api/data` and `/api/saved-analytics` get `400 { error, code: "SQL_NOT_SUPPORTED" }`.
 
 ## Error format & status codes
 
@@ -105,7 +108,7 @@ Errors are always a JSON object with an `error` string:
 |--------|---------|------------------|
 | `200` | success | reads, sync writes, transpile |
 | `201` | created | new policy / constraint / grant / trigger / saved analytic |
-| `202` | accepted (async) | `query-async`, async `exec`, `refresh-view`, trigger deploy/retry |
+| `202` | accepted (async) | `query-async`, `refresh-view`, trigger deploy/retry |
 | `400` | bad request | missing required field, `SAFETY:` violation, `CONSTRAINT VIOLATION`, missing saved-analytic variable |
 | `401` | unauthenticated | missing/invalid bearer token |
 | `403` | forbidden | suspended tenant, `ACCESS DENIED` (grant enforcement), non-admin hitting `/api/admin` |
@@ -137,10 +140,7 @@ All paths are prefixed with the base URL. Every endpoint below requires
 | GET | `/api/analytics/query/status/:jobId` | Alias of the job-status poll. |
 | POST | `/api/analytics/refresh-view` | Refresh a materialized view in the background. |
 | POST | `/api/queries/engine` | Run an AST query via the low-level engine endpoint. |
-| POST | `/api/queries/exec` | Execute native SQL at a `source` (or the hub); `async:true` → job. |
-| POST | `/api/queries/native` | Run SQL directly against the hub Postgres. |
-| POST | `/api/queries/transpile` | Preview the SQL the fabric would generate from an AST. |
-| GET | `/api/queries/jobs/:id` · `/api/queries/status/:id` | Poll an async raw-SQL job. |
+| POST | `/api/queries/transpile` | Preview the SQL the fabric would generate from an AST (preview only, never executes). |
 
 ### Saved analytics — [guide](saved-analytics-api.md)
 
@@ -148,7 +148,7 @@ All paths are prefixed with the base URL. Every endpoint below requires
 |--------|------|-------------|
 | GET | `/api/saved-analytics` | List saved analytics for the tenant. |
 | GET | `/api/saved-analytics/top` | Most-run analytics (`?limit=`). |
-| POST | `/api/saved-analytics` | Create/replace a saved analytic (AST or SQL + variables). |
+| POST | `/api/saved-analytics` | Create/replace a saved analytic (AST config + variables). |
 | GET | `/api/saved-analytics/:id` | Fetch one definition. |
 | DELETE | `/api/saved-analytics/:id` | Delete one. |
 | POST | `/api/saved-analytics/:id/run` | Run with `{{variable}}` values → query envelope. |

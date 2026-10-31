@@ -19,6 +19,7 @@
  */
 import { pool } from '../../config/database';
 import { MetadataManifest, SchemaDefinition, ResourceDefinition, EnumDefinition, SequenceDefinition, TableDefinition, ViewDefinition, FunctionDefinition } from './types';
+import { physicalSchemaName } from './transpiler';
 import { EngineCapabilityRegistry, EngineCapability, EngineType, ENGINE_CAPABILITIES } from './engine_capabilities';
 
 /**
@@ -50,7 +51,7 @@ export class DiffEngine {
         try {
             for (const schema of manifest.schemas) {
                 const targetSource = schema.targetSource || manifest.targetSource || 'Fabric_Hub_Postgres';
-                const schemaName = `tenant_${tenantId}_${schema.name}`;
+                const schemaName = physicalSchemaName(tenantId, schema.name);
 
                 // Resolve engine type and capabilities dynamically
                 let engineType: EngineType;
@@ -81,7 +82,7 @@ export class DiffEngine {
                 const sortedResources = this.sortResources(schema.resources || []);
 
                 for (const resource of sortedResources) {
-                    await this.processResourceDiff(client, schemaName, schema.name, resource, diffs, targetSource, engineType, caps);
+                    await this.processResourceDiff(client, schemaName, schema.name, resource, diffs, targetSource, engineType, caps, tenantId);
                 }
 
                 // 4. Logical Deletion / Quarantine
@@ -92,8 +93,8 @@ export class DiffEngine {
             if (manifest.relationships) {
                 for (const rel of manifest.relationships) {
                     // Find which schema to use (default to first if not specified)
-                    const schema = manifest.schemas?.[0]?.name || 'public';
-                    diffs.push({ action: 'PROVISION_RELATIONSHIP', schema, ...rel });
+                    const schema = manifest.schemas?.[0]?.name || 'default';
+                    diffs.push({ ...rel, action: 'PROVISION_RELATIONSHIP', schema });
                 }
             }
 
@@ -112,7 +113,7 @@ export class DiffEngine {
                 for (const target of manifest.downstream) {
                     const exists = await client.query('SELECT 1 FROM fabric_system.downstream_registry WHERE tenant_id = $1 AND target_type = $2', [tenantId, target.type]);
                     if (exists.rows.length === 0 || target.enabled) { // Always include if enabled to ensure sync state
-                        diffs.push({ action: 'PROVISION_DOWNSTREAM', ...target, risk: 'LOW' });
+                        diffs.push({ ...target, action: 'PROVISION_DOWNSTREAM', risk: 'LOW' });
                     }
                 }
             }
@@ -165,7 +166,7 @@ export class DiffEngine {
      * @param engineType Resolved engine type for the target source.
      * @param caps Engine capability descriptor.
      */
-    private static async processResourceDiff(client: any, schemaName: string, shortSchemaName: string, resource: ResourceDefinition, diffs: any[], targetSource: string, engineType: EngineType, caps: EngineCapability) {
+    private static async processResourceDiff(client: any, schemaName: string, shortSchemaName: string, resource: ResourceDefinition, diffs: any[], targetSource: string, engineType: EngineType, caps: EngineCapability, tenantId?: string) {
         switch (resource.type) {
             case 'ENUM':
                 await this.diffEnum(client, schemaName, shortSchemaName, resource, diffs, targetSource, engineType, caps);
@@ -174,7 +175,7 @@ export class DiffEngine {
                 await this.diffSequence(client, schemaName, shortSchemaName, resource, diffs, targetSource, engineType, caps);
                 break;
             case 'TABLE':
-                await this.diffTable(client, schemaName, shortSchemaName, resource, diffs, targetSource, engineType, caps);
+                await this.diffTable(client, schemaName, shortSchemaName, resource, diffs, targetSource, engineType, caps, tenantId);
                 break;
             case 'VIEW':
             case 'MATERIALIZED_VIEW':
@@ -196,13 +197,23 @@ export class DiffEngine {
     private static async diffEnum(client: any, schemaName: string, shortSchemaName: string, res: EnumDefinition, diffs: any[], targetSource: string, engineType: EngineType, caps: EngineCapability) {
         if (caps.supportsEnums) {
             // Native enum support (Postgres) — check catalog before creating
-            const exists = await client.query(`SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = $1 AND t.typname = $2`, [schemaName, res.name]);
+            const exists = await client.query(`SELECT t.oid FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = $1 AND t.typname = $2`, [schemaName, res.name]);
             if (exists.rows.length === 0) {
-                diffs.push({ action: 'CREATE_ENUM', schema: shortSchemaName, targetSource, engineType, ...res, risk: 'LOW' });
+                diffs.push({ ...res, action: 'CREATE_ENUM', schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
+            } else {
+                // Check if any declared enum values are missing from live pg_enum
+                const typeOid = exists.rows[0].oid;
+                const { rows: liveEnums } = await client.query(`SELECT enumlabel FROM pg_enum WHERE enumtypid = $1`, [typeOid]);
+                const existingLabels = new Set(liveEnums.map((r: any) => r.enumlabel));
+                for (const val of res.values || []) {
+                    if (!existingLabels.has(val)) {
+                        diffs.push({ action: 'ALTER_ENUM_ADD_VALUE', name: res.name, value: val, schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
+                    }
+                }
             }
         } else {
             // No native enum: register in fabric catalog for application-level validation
-            diffs.push({ action: 'REGISTER_FABRIC_ENUM', schema: shortSchemaName, targetSource, engineType, ...res, risk: 'LOW' });
+            diffs.push({ ...res, action: 'REGISTER_FABRIC_ENUM', schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
         }
     }
 
@@ -218,16 +229,55 @@ export class DiffEngine {
             if (caps.catalogIntrospection) {
                 const exists = await client.query(`SELECT 1 FROM information_schema.sequences WHERE sequence_schema = $1 AND sequence_name = $2`, [schemaName, res.name]);
                 if (exists.rows.length === 0) {
-                    diffs.push({ action: 'CREATE_SEQUENCE', schema: shortSchemaName, targetSource, engineType, ...res, risk: 'LOW' });
+                    diffs.push({ ...res, action: 'CREATE_SEQUENCE', schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
                 }
             } else {
                 // Engine supports sequences but no introspection — emit CREATE (idempotent)
-                diffs.push({ action: 'CREATE_SEQUENCE', schema: shortSchemaName, targetSource, engineType, ...res, risk: 'LOW' });
+                diffs.push({ ...res, action: 'CREATE_SEQUENCE', schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
             }
         } else {
             // No native sequences: register in FabricSequenceService for write-time compensation
-            diffs.push({ action: 'REGISTER_FABRIC_SEQUENCE', schema: shortSchemaName, targetSource, engineType, ...res, risk: 'LOW' });
+            diffs.push({ ...res, action: 'CREATE_SEQUENCE', isFabricCompensation: true, schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
         }
+    }
+
+    public static normalizeCatalogType(dataType: string, udtName: string, charLen?: number): { family: string; length?: number | undefined } {
+        const dt = (dataType || '').toLowerCase();
+        const udt = (udtName || '').toLowerCase();
+        if (dt === 'character varying' || udt === 'varchar') return { family: 'VARCHAR', length: charLen || undefined };
+        if (dt === 'text' || udt === 'text') return { family: 'TEXT' };
+        if (dt === 'integer' || udt === 'int4' || dt === 'smallint' || udt === 'int2') return { family: 'INT' };
+        if (dt === 'bigint' || udt === 'int8') return { family: 'BIGINT' };
+        if (dt === 'numeric' || dt === 'decimal') return { family: 'NUMERIC' };
+        if (dt === 'boolean' || udt === 'bool') return { family: 'BOOL' };
+        if (dt.includes('timestamp')) return { family: 'TIMESTAMP' };
+        if (dt === 'date') return { family: 'DATE' };
+        if (dt === 'uuid') return { family: 'UUID' };
+        if (dt === 'jsonb' || dt === 'json') return { family: 'JSONB' };
+        if (dt === 'user-defined') return { family: 'ENUM' };
+        return { family: dt.toUpperCase() };
+    }
+
+    public static normalizeDeclaredType(declType: string, length?: number): { family: string; length?: number | undefined } {
+        const t = (declType || '').toUpperCase();
+        if (t === 'STRING') {
+            if (length) return { family: 'VARCHAR', length };
+            return { family: 'TEXT' };
+        }
+        if (t === 'VARCHAR') {
+            return { family: 'VARCHAR', length: length || undefined };
+        }
+        if (t === 'TEXT') return { family: 'TEXT' };
+        if (t === 'INT' || t === 'INTEGER') return { family: 'INT' };
+        if (t === 'BIGINT') return { family: 'BIGINT' };
+        if (t === 'NUMERIC' || t === 'DECIMAL' || t === 'FLOAT') return { family: 'NUMERIC' };
+        if (t === 'BOOL' || t === 'BOOLEAN') return { family: 'BOOL' };
+        if (t === 'TIMESTAMP') return { family: 'TIMESTAMP' };
+        if (t === 'DATE') return { family: 'DATE' };
+        if (t === 'UUID') return { family: 'UUID' };
+        if (t === 'JSONB') return { family: 'JSONB' };
+        if (t === 'ENUM') return { family: 'ENUM' };
+        return { family: t };
     }
 
     /**
@@ -237,22 +287,75 @@ export class DiffEngine {
      * - Engines without introspection (Mongo, ES): always emits `CREATE_TABLE`
      *   (transpiler converts to createCollection / index template as appropriate).
      */
-    private static async diffTable(client: any, schemaName: string, shortSchemaName: string, res: TableDefinition, diffs: any[], targetSource: string, engineType: EngineType, caps: EngineCapability) {
+    private static async diffTable(client: any, schemaName: string, shortSchemaName: string, res: TableDefinition, diffs: any[], targetSource: string, engineType: EngineType, caps: EngineCapability, tenantId?: string) {
         if (caps.catalogIntrospection) {
             const exists = await client.query(`SELECT 1 FROM information_schema.tables WHERE table_schema = $1 AND table_name = $2 AND table_type = 'BASE TABLE'`, [schemaName, res.name]);
             if (exists.rows.length === 0) {
-                diffs.push({ action: 'CREATE_TABLE', schema: shortSchemaName, targetSource, engineType, table: res.name, ...res, risk: 'LOW' });
+                diffs.push({ ...res, action: 'CREATE_TABLE', schema: shortSchemaName, targetSource, engineType, table: res.name, risk: 'LOW' });
             } else {
                 for (const col of res.columns) {
-                    const colExists = await client.query(`SELECT data_type FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 AND column_name = $3`, [schemaName, res.name, col.name]);
-                    if (colExists.rows.length === 0) {
+                    const colInfo = await client.query(`
+                        SELECT data_type, udt_name, character_maximum_length, is_nullable
+                        FROM information_schema.columns 
+                        WHERE table_schema = $1 AND table_name = $2 AND column_name = $3
+                    `, [schemaName, res.name, col.name]);
+                    if (colInfo.rows.length === 0) {
                         diffs.push({ action: 'ADD_COLUMN', schema: shortSchemaName, targetSource, engineType, table: res.name, column: col, risk: 'LOW' });
+                    } else {
+                        // Check if type or length changed
+                        const existing = colInfo.rows[0];
+                        const cat = DiffEngine.normalizeCatalogType(existing.data_type, existing.udt_name, existing.character_maximum_length);
+                        const dec = DiffEngine.normalizeDeclaredType(col.type, col.length);
+                        let typeChanged = false;
+                        if (cat.family !== dec.family) {
+                            typeChanged = true;
+                        } else if (dec.family === 'VARCHAR') {
+                            if (cat.length && dec.length && cat.length !== dec.length) {
+                                typeChanged = true;
+                            } else if (!cat.length && dec.length) {
+                                typeChanged = true;
+                            }
+                        }
+                        if (typeChanged) {
+                            diffs.push({ action: 'ALTER_COLUMN_TYPE', schema: shortSchemaName, targetSource, engineType, table: res.name, column: col, risk: 'LOW' });
+                        }
                     }
                 }
             }
         } else {
-            // No catalog introspection (Mongo, ES): assume creation needed
-            diffs.push({ action: 'CREATE_TABLE', schema: shortSchemaName, targetSource, engineType, table: res.name, ...res, risk: 'LOW' });
+            // No native catalog introspection (Mongo, ES): compare against Data Fabric's catalog
+            const prev = tenantId ? await client.query(
+                `SELECT ct.definition_ast FROM public.catalog_tables ct
+                 JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+                 JOIN public.data_sources ds ON cs.source_id = ds.id
+                 WHERE ds.tenant_id = $1 AND ct.name = $2 LIMIT 1`,
+                [tenantId, res.name]
+            ) : { rows: [] };
+
+            if (prev.rows.length === 0 || !prev.rows[0].definition_ast) {
+                diffs.push({ ...res, action: 'CREATE_TABLE', schema: shortSchemaName, targetSource, engineType, table: res.name, risk: 'LOW' });
+            } else {
+                const prevCols = prev.rows[0].definition_ast.columns || [];
+                const prevColMap = new Map<string, any>(prevCols.map((c: any) => [c.name, c]));
+                for (const col of res.columns) {
+                    const prevCol = prevColMap.get(col.name);
+                    if (!prevCol) {
+                        diffs.push({ action: 'ADD_COLUMN', schema: shortSchemaName, targetSource, engineType, table: res.name, column: col, risk: 'LOW' });
+                    } else {
+                        const prevDec = DiffEngine.normalizeDeclaredType(prevCol.type, prevCol.length);
+                        const curDec = DiffEngine.normalizeDeclaredType(col.type, col.length);
+                        let typeChanged = false;
+                        if (prevDec.family !== curDec.family) {
+                            typeChanged = true;
+                        } else if (curDec.family === 'VARCHAR' && prevDec.length !== curDec.length) {
+                            typeChanged = true;
+                        }
+                        if (typeChanged) {
+                            diffs.push({ action: 'ALTER_COLUMN_TYPE', schema: shortSchemaName, targetSource, engineType, table: res.name, column: col, risk: 'LOW' });
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -265,14 +368,12 @@ export class DiffEngine {
         const isMaterialized = res.type === 'MATERIALIZED_VIEW' || res.materialized;
 
         if (isMaterialized && !caps.supportsMaterializedViews) {
-            // Downgrade: engine doesn't support mviews — register as virtual in fabric
-            diffs.push({ action: 'REGISTER_VIRTUAL_VIEW', schema: shortSchemaName, targetSource, engineType, ...res, risk: 'LOW' });
+            diffs.push({ ...res, action: 'CREATE_MATERIALIZED_VIEW', isFabricCompensation: true, schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
             return;
         }
 
         if (!caps.supportsViews) {
-            // Engine doesn't support views at all — register as virtual in fabric engine
-            diffs.push({ action: 'REGISTER_VIRTUAL_VIEW', schema: shortSchemaName, targetSource, engineType, ...res, risk: 'LOW' });
+            diffs.push({ ...res, action: isMaterialized ? 'CREATE_MATERIALIZED_VIEW' : 'CREATE_VIEW', isFabricCompensation: true, schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
             return;
         }
 
@@ -281,12 +382,12 @@ export class DiffEngine {
             const exists = await client.query(`SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = $1 AND c.relname = $2 AND c.relkind IN ('v', 'm')`, [schemaName, res.name]);
             if (exists.rows.length === 0) {
                 const action = isMaterialized ? 'CREATE_MATERIALIZED_VIEW' : 'CREATE_VIEW';
-                diffs.push({ action, schema: shortSchemaName, targetSource, engineType, ...res, risk: 'LOW' });
+                diffs.push({ ...res, action, schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
             }
         } else {
             // Supports views but no introspection — emit CREATE (idempotent via OR REPLACE)
             const action = isMaterialized ? 'CREATE_MATERIALIZED_VIEW' : 'CREATE_VIEW';
-            diffs.push({ action, schema: shortSchemaName, targetSource, engineType, ...res, risk: 'LOW' });
+            diffs.push({ ...res, action, schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
         }
     }
 
@@ -303,16 +404,17 @@ export class DiffEngine {
                 const exists = await client.query(`SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = $1 AND p.proname = $2`, [schemaName, res.name]);
                 if (exists.rows.length === 0) {
                     const action = res.type === 'PROCEDURE' ? 'CREATE_PROCEDURE' : 'CREATE_FUNCTION';
-                    diffs.push({ action, schema: shortSchemaName, targetSource, engineType, ...res, risk: 'LOW' });
+                    diffs.push({ ...res, action, schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
                 }
             } else {
                 // Supports functions but no pg_proc introspection — emit CREATE (idempotent via OR REPLACE)
                 const action = res.type === 'PROCEDURE' ? 'CREATE_PROCEDURE' : 'CREATE_FUNCTION';
-                diffs.push({ action, schema: shortSchemaName, targetSource, engineType, ...res, risk: 'LOW' });
+                diffs.push({ ...res, action, schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
             }
         } else {
             // No native function support: provision on the HUB and register as a value-service
-            diffs.push({ action: 'REGISTER_HUB_FUNCTION', schema: shortSchemaName, targetSource, engineType, ...res, risk: 'LOW' });
+            const action = res.type === 'PROCEDURE' ? 'CREATE_PROCEDURE' : 'CREATE_FUNCTION';
+            diffs.push({ ...res, action, isFabricCompensation: true, schema: shortSchemaName, targetSource, engineType, risk: 'LOW' });
         }
     }
 

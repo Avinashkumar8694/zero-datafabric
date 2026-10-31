@@ -1,26 +1,24 @@
 <%- include('partials/header') %>
 
-<div class="fade-in">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem; gap:1rem; flex-wrap:wrap;">
+<div class="page fade-in">
+    <div class="page-head">
         <div>
-            <h1 style="font-family:'Outfit'; font-weight:800; font-size:1.75rem;">Source Connectivity</h1>
-            <p style="color:var(--text-muted);">Live registry view with real-time source reachability.</p>
+            <h1 class="page-title">Source Connectivity</h1>
+            <p class="page-sub">Live registry view with real-time source reachability.</p>
         </div>
-        <div style="display:flex; gap:0.75rem; align-items:center;">
-            <div id="connCountBadge" class="badge badge-connected" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
-                <i class="fas fa-network-wired"></i> <span id="connCountText">0 Sources Active</span>
-            </div>
-            <button class="btn-primary" onclick="openConnectionModal()"><i class="fas fa-plus"></i> Add Data Source</button>
+        <div class="page-actions">
+            <span id="connCountBadge" class="badge badge-info"><i class="fas fa-network-wired" aria-hidden="true"></i> <span id="connCountText">0 Sources Active</span></span>
+            <button type="button" class="btn-primary" onclick="openConnectionModal()"><i class="fas fa-plus" aria-hidden="true"></i> Add Data Source</button>
         </div>
     </div>
 
-    <section class="glass-card" style="padding:0; overflow:hidden;">
-        <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
-            <h3 style="font-size: 1.05rem;"><i class="fas fa-layer-group"></i> Fabric Source Registry</h3>
-            <button class="btn-outline" style="padding:0.4rem 0.8rem; font-size:0.8rem;" onclick="loadConnections()"><i class="fas fa-heartbeat"></i> Check All Connections</button>
+    <section class="glass-card">
+        <div class="card-head">
+            <h3><i class="fas fa-layer-group" aria-hidden="true"></i> Fabric Source Registry</h3>
+            <div class="card-actions"><button type="button" class="btn-outline btn-sm" onclick="loadConnections()"><i class="fas fa-heartbeat" aria-hidden="true"></i> Check All Connections</button></div>
         </div>
         <div class="table-wrapper">
-            <table style="border-radius:0;">
+            <table>
                 <thead>
                     <tr>
                         <th>Engine</th>
@@ -33,9 +31,8 @@
                     </tr>
                 </thead>
                 <tbody id="connectionsBody">
-                    <tr><td colspan="7" style="text-align: center; padding: 3rem;">
-                        <div class="loading-spinner"></div>
-                        <p class="text-muted">Loading connection registry...</p>
+                    <tr><td colspan="7" class="state-cell">
+                        <span class="spinner" aria-hidden="true"></span> Loading connection registry...
                     </td></tr>
                 </tbody>
             </table>
@@ -43,22 +40,22 @@
     </section>
 </div>
 
-<div id="connectionModal" class="modal-overlay">
-    <div class="modal-card" style="max-width: 760px;">
+<div id="connectionModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="connModalTitle">
+    <div class="modal-card lg">
         <div class="modal-header">
-            <h3><i class="fas fa-plus-circle"></i> Add New Data Source</h3>
-            <button onclick="closeConnectionModal()" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--text-muted);">&times;</button>
+            <h3 id="connModalTitle"><i class="fas fa-plus-circle" aria-hidden="true"></i> Add New Data Source</h3>
+            <button type="button" class="modal-close" onclick="closeConnectionModal()" aria-label="Close dialog">&times;</button>
         </div>
-        <div class="modal-body" style="max-height:70vh; overflow:auto;">
+        <div class="modal-body">
             <form id="connectionForm">
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.9rem; margin-bottom:0.9rem;">
-                    <div>
-                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Source Name</label>
-                        <input type="text" id="connName" placeholder="e.g. Production_PG" required class="context-select" style="width:100%">
+                <div class="cols-2">
+                    <div class="field">
+                        <label for="connName">Source Name</label>
+                        <input type="text" id="connName" placeholder="e.g. Production_PG" required>
                     </div>
-                    <div>
-                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Database Engine</label>
-                        <select id="connType" class="context-select" style="width:100%" onchange="applyEngineFieldConfig()">
+                    <div class="field">
+                        <label for="connType">Database Engine</label>
+                        <select id="connType" onchange="applyEngineFieldConfig()">
                             <option value="postgres">PostgreSQL</option>
                             <option value="mysql">MySQL / MariaDB</option>
                             <option value="mongodb">MongoDB</option>
@@ -69,124 +66,101 @@
                     </div>
                 </div>
 
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.9rem; margin-bottom:0.9rem;">
-                    <div>
-                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Sync Strategy</label>
-                        <select id="syncType" class="context-select" style="width:100%" onchange="applySyncFieldConfig()">
+                <div class="cols-2">
+                    <div class="field">
+                        <label for="syncType">Sync Strategy</label>
+                        <select id="syncType" onchange="applySyncFieldConfig()">
                             <option value="VIRTUAL">VIRTUAL — query live at the source (zero copy)</option>
                             <option value="SYNC">SYNC — one-time full copy into the hub</option>
                             <option value="CDC">CDC — copy + incremental refresh (watermark)</option>
                         </select>
                     </div>
-                    <div id="cdcCol" style="display:none;">
-                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">CDC Watermark Column</label>
-                        <input id="cdcColumn" class="context-select" style="width:100%" placeholder="e.g. updated_at or id" />
+                    <div class="field" id="cdcCol" style="display:none;">
+                        <label for="cdcColumn">CDC Watermark Column</label>
+                        <input id="cdcColumn" placeholder="e.g. updated_at or id">
                     </div>
                 </div>
-                <div id="cdcRow" style="display:none; grid-template-columns:1fr 1fr; gap:0.9rem; margin-bottom:0.9rem;">
-                    <div>
-                        <label style="display:block; font-size:0.7rem; color:var(--text-muted); margin-bottom:0.3rem;">Poll interval (ms)</label>
-                        <input id="cdcInterval" class="context-select" style="width:100%" placeholder="15000" value="15000" />
+                <div id="cdcRow" class="cols-2" style="display:none;">
+                    <div class="field">
+                        <label for="cdcInterval">Poll interval (ms)</label>
+                        <input id="cdcInterval" placeholder="15000" value="15000">
                     </div>
-                    <div style="font-size:0.72rem; color:var(--text-muted); align-self:end;">CDC pulls rows where <b>watermark &gt; last</b> on each poll and upserts them into the hub replica.</div>
+                    <p class="hint field-note">CDC pulls rows where <b>watermark &gt; last</b> on each poll and upserts them into the hub replica.</p>
                 </div>
-                <div id="syncSchedRow" style="display:none; grid-template-columns:1fr 2fr; gap:0.9rem; margin-bottom:0.9rem;">
-                    <div>
-                        <label style="display:block; font-size:0.7rem; color:var(--text-muted); margin-bottom:0.3rem;">Scheduled full re-sync (ms, optional)</label>
-                        <input id="syncSchedule" class="context-select" style="width:100%" placeholder="e.g. 3600000 (1h) — blank = manual only" />
+                <div id="syncSchedRow" class="cols-2" style="display:none;">
+                    <div class="field">
+                        <label for="syncSchedule">Scheduled full re-sync (ms, optional)</label>
+                        <input id="syncSchedule" placeholder="e.g. 3600000 (1h), blank = manual only">
                     </div>
-                    <div style="font-size:0.72rem; color:var(--text-muted); align-self:end;">Leave blank for on-demand only. Set an interval to periodically re-copy the full source into the hub (keeps a SYNC replica fresh without CDC).</div>
+                    <p class="hint field-note">Leave blank for on-demand only. Set an interval to periodically re-copy the full source into the hub (keeps a SYNC replica fresh without CDC).</p>
                 </div>
                 <script>
                     function applySyncFieldConfig() {
                         var v = document.getElementById('syncType').value;
-                        document.getElementById('cdcCol').style.display = v === 'CDC' ? 'block' : 'none';
-                        document.getElementById('cdcRow').style.display = v === 'CDC' ? 'grid' : 'none';
-                        document.getElementById('syncSchedRow').style.display = v === 'SYNC' ? 'grid' : 'none';
+                        document.getElementById('cdcCol').style.display = v === 'CDC' ? '' : 'none';
+                        document.getElementById('cdcRow').style.display = v === 'CDC' ? '' : 'none';
+                        document.getElementById('syncSchedRow').style.display = v === 'SYNC' ? '' : 'none';
                     }
                 </script>
 
-                <div style="display:grid; grid-template-columns:3fr 1fr; gap:0.9rem; margin-bottom:0.9rem;">
-                    <div id="row-host">
-                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Host</label>
-                        <input type="text" id="connHost" placeholder="localhost" required class="context-select" style="width:100%">
+                <div class="cols-host">
+                    <div class="field" id="row-host">
+                        <label for="connHost">Host</label>
+                        <input type="text" id="connHost" placeholder="localhost" required>
                     </div>
-                    <div id="row-port">
-                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Port</label>
-                        <input type="number" id="connPort" value="5432" class="context-select" style="width:100%">
+                    <div class="field" id="row-port">
+                        <label for="connPort">Port</label>
+                        <input type="number" id="connPort" value="5432">
                     </div>
                 </div>
 
-                <div id="row-db" style="margin-bottom:0.9rem;">
-                    <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Database Name</label>
-                    <input type="text" id="connDB" placeholder="datafabric" class="context-select" style="width:100%">
+                <div class="field" id="row-db">
+                    <label for="connDB">Database Name</label>
+                    <input type="text" id="connDB" placeholder="datafabric">
                 </div>
 
-                <div id="row-user-pass" style="display:grid; grid-template-columns:1fr 1fr; gap:0.9rem; margin-bottom:1.1rem;">
-                    <div id="row-user">
-                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">User</label>
-                        <input type="text" id="connUser" placeholder="admin" class="context-select" style="width:100%">
+                <div id="row-user-pass" class="cols-2">
+                    <div class="field" id="row-user">
+                        <label for="connUser">User</label>
+                        <input type="text" id="connUser" placeholder="admin" autocomplete="off">
                     </div>
-                    <div id="row-pass">
-                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Password</label>
-                        <input type="password" id="connPass" placeholder="••••" class="context-select" style="width:100%">
+                    <div class="field" id="row-pass">
+                        <label for="connPass">Password</label>
+                        <input type="password" id="connPass" placeholder="••••" autocomplete="new-password">
                     </div>
                 </div>
-                <div id="row-conn-string" style="margin-bottom:0.9rem; display:none;">
-                    <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Connection String (Optional)</label>
-                    <input type="text" id="connConnString" placeholder="mongodb://... or https://..." class="context-select" style="width:100%">
+                <div class="field" id="row-conn-string" style="display:none;">
+                    <label for="connConnString">Connection String (Optional)</label>
+                    <input type="text" id="connConnString" placeholder="mongodb://... or https://...">
                 </div>
 
-                <div id="row-snowflake" style="display:none; grid-template-columns:1fr 1fr; gap:0.9rem; margin-bottom:1.1rem;">
-                    <div>
-                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Account</label>
-                        <input type="text" id="connAccount" placeholder="xy12345.ap-south-1" class="context-select" style="width:100%">
+                <div id="row-snowflake" class="cols-2" style="display:none;">
+                    <div class="field">
+                        <label for="connAccount">Account</label>
+                        <input type="text" id="connAccount" placeholder="xy12345.ap-south-1">
                     </div>
-                    <div>
-                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Warehouse</label>
-                        <input type="text" id="connWarehouse" placeholder="COMPUTE_WH" class="context-select" style="width:100%">
+                    <div class="field">
+                        <label for="connWarehouse">Warehouse</label>
+                        <input type="text" id="connWarehouse" placeholder="COMPUTE_WH">
                     </div>
-                    <div>
-                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Role</label>
-                        <input type="text" id="connRole" placeholder="SYSADMIN" class="context-select" style="width:100%">
+                    <div class="field">
+                        <label for="connRole">Role</label>
+                        <input type="text" id="connRole" placeholder="SYSADMIN">
                     </div>
-                    <div>
-                        <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase;">Schema</label>
-                        <input type="text" id="connSchema" placeholder="PUBLIC" class="context-select" style="width:100%">
+                    <div class="field">
+                        <label for="connSchema">Schema</label>
+                        <input type="text" id="connSchema" placeholder="PUBLIC">
                     </div>
                 </div>
-                <div style="display:flex; justify-content:flex-end; gap:0.6rem;">
+                <div class="form-actions">
                     <button type="button" class="btn-outline" onclick="closeConnectionModal()">Cancel</button>
-                    <button type="submit" class="btn-primary"><i class="fas fa-bolt"></i> Connect Source</button>
+                    <button type="submit" class="btn-primary"><i class="fas fa-bolt" aria-hidden="true"></i> Connect Source</button>
                 </div>
             </form>
-            <div id="connStatus" style="margin-top: 1rem; text-align: center; font-size: 0.85rem;"></div>
+            <div id="connStatus" class="form-status text-center" role="status" aria-live="polite"></div>
         </div>
     </div>
 </div>
-
-<style>
-    .endpoint-cell code {
-        white-space: normal;
-        overflow-wrap: anywhere;
-        word-break: break-word;
-        display: inline-block;
-        max-width: 360px;
-    }
-    @media (max-width: 900px) {
-        .endpoint-cell code { max-width: 220px; }
-    }
-    @media (max-width: 640px) {
-        #connectionModal .modal-card {
-            padding: 1.25rem 1rem !important;
-            max-width: 95vw !important;
-        }
-        #connectionForm [style*="grid-template-columns"] {
-            grid-template-columns: 1fr !important;
-            gap: 0.75rem !important;
-        }
-    }
-</style>
 
 <script>
     function openConnectionModal() {
@@ -208,7 +182,7 @@
     }
     function toggleRow(id, show, display = 'block') {
         const row = document.getElementById(id);
-        if (row) row.style.display = show ? display : 'none';
+        if (row) row.style.display = show ? '' : 'none'; // '' lets the shared .field / .cols-2 classes decide the layout
     }
     function applyEngineFieldConfig() {
         const type = document.getElementById('connType').value;
@@ -244,20 +218,13 @@
     }
 
     function getStatusBadge(status) {
-        const color = status === 'CONNECTED' || status === 'ACTIVE' ? 'var(--success)' : 'var(--danger)';
-        const bg = color === 'var(--success)' ? '#ECFDF5' : '#FEF2F2';
-        return `<div class="badge" style="background:${bg}; color:${color}; font-size:0.7rem; border: 1px solid ${color}20;">${escapeHtml(status)}</div>`;
+        const cls = status === 'CONNECTED' || status === 'ACTIVE' ? 'badge-ok' : 'badge-danger';
+        return `<div class="badge ${cls}">${escapeHtml(status)}</div>`;
     }
 
     function getLiveBadge(status) {
-        const map = {
-            LIVE: { c: '#10b981', bg: '#ecfdf5' },
-            UNREACHABLE: { c: '#ef4444', bg: '#fef2f2' },
-            OFFLINE: { c: '#64748b', bg: '#f1f5f9' },
-            UNKNOWN: { c: '#a16207', bg: '#fefce8' }
-        };
-        const s = map[status] || map.UNKNOWN;
-        return `<div class="badge" style="background:${s.bg}; color:${s.c}; font-size:0.7rem; border:1px solid ${s.c}30;">${escapeHtml(status)}</div>`;
+        const map = { LIVE: 'badge-ok', UNREACHABLE: 'badge-danger', OFFLINE: 'badge-muted', UNKNOWN: 'badge-warn' };
+        return `<div class="badge ${map[status] || map.UNKNOWN}">${escapeHtml(status)}</div>`;
     }
     function isConnectedStatus(status) {
         return ['CONNECTED', 'ACTIVE'].includes((status || '').toUpperCase());
@@ -265,14 +232,14 @@
 
     async function loadConnections() {
         const body = document.getElementById('connectionsBody');
-        body.innerHTML = '<tr><td colspan="7" style="text-align:center; padding: 3rem; color:var(--text-muted);">Loading connection registry…</td></tr>';
+        body.innerHTML = '<tr><td colspan="7" class="state-cell">Loading connection registry…</td></tr>';
         try {
             const response = await fetch(`${API_BASE}/admin/connections`, { headers: getAuthHeaders() });
             const data = await response.json();
 
             if (!Array.isArray(data) || data.length === 0) {
                 document.getElementById('connCountText').innerText = `${Array.isArray(data) ? data.length : 0} Sources Active`;
-                body.innerHTML = '<tr><td colspan="7" style="text-align:center; padding: 3rem; color:var(--text-muted);">No integrated sources found in this tenant.</td></tr>';
+                body.innerHTML = '<tr><td colspan="7" class="state-cell">No integrated sources found in this tenant.</td></tr>';
                 return;
             }
 
@@ -287,36 +254,36 @@
                 const endpoint = config.host ? `${config.host}:${config.port}` : (config.uri || config.connectionString || 'N/A');
                 return `
                 <tr class="fade-in">
-                    <td><div class="badge" style="background:#F3F4F6; color:var(--text);">${escapeHtml((c.type || '').toUpperCase())}</div></td>
+                    <td><div class="badge badge-muted">${escapeHtml((c.type || '').toUpperCase())}</div></td>
                     <td>
-                        <div style="font-weight: 700; color:var(--text);">${escapeHtml(c.name)}</div>
-                        <div style="font-size: 0.7rem; color: var(--text-muted)">ID: ${escapeHtml(String(c.id || '').substring(0,8))}...</div>
+                        <div><strong>${escapeHtml(c.name)}</strong></div>
+                        <div class="text-muted small">ID: ${escapeHtml(String(c.id || '').substring(0,8))}...</div>
                     </td>
-                    <td><div class="badge badge-connected" style="background:#EBF2FF; color:var(--primary); font-size:0.7rem;">${escapeHtml(syncType)}</div></td>
+                    <td><div class="badge badge-info">${escapeHtml(syncType)}</div></td>
                     <td class="endpoint-cell"><code>${escapeHtml(endpoint)}</code></td>
                     <td>${getStatusBadge(c.status)}</td>
                     <td>${getLiveBadge(c.live_status || 'UNKNOWN')}</td>
                     <td>
-                        <div style="display:flex; gap:0.5rem;">
-                            <button onclick="toggleConnectionStatus('${escapeJs(c.id)}', '${nextStatus}')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
-                                <i class="fas fa-power-off"></i> ${connected ? 'Disconnect' : 'Connect'}
+                        <div class="row-actions">
+                            <button onclick="toggleConnectionStatus('${escapeJs(c.id)}', '${nextStatus}')" class="btn-outline btn-sm">
+                                <i class="fas fa-power-off" aria-hidden="true"></i> ${connected ? 'Disconnect' : 'Connect'}
                             </button>
                             ${(String(syncType).toUpperCase() === 'SYNC' || String(syncType).toUpperCase() === 'CDC') ? `
-                            <button onclick="runSync('${escapeJs(c.name)}','full')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" title="Full backfill from source into hub"><i class="fas fa-sync"></i> Sync</button>` : ''}
+                            <button onclick="runSync('${escapeJs(c.name)}','full')" class="btn-outline btn-sm" title="Full backfill from source into hub"><i class="fas fa-sync" aria-hidden="true"></i> Sync</button>` : ''}
                             ${String(syncType).toUpperCase() === 'CDC' ? `
-                            <button onclick="runSync('${escapeJs(c.name)}','cdc')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" title="Incremental CDC refresh (watermark)"><i class="fas fa-bolt"></i> CDC</button>` : ''}
-                            <button onclick="removeConnection('${escapeJs(c.id)}', '${escapeJs(c.name)}')" class="btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; color: var(--danger); border-color: #FEE2E2;"><i class="fas fa-trash-alt"></i></button>
+                            <button onclick="runSync('${escapeJs(c.name)}','cdc')" class="btn-outline btn-sm" title="Incremental CDC refresh (watermark)"><i class="fas fa-bolt" aria-hidden="true"></i> CDC</button>` : ''}
+                            <button onclick="removeConnection('${escapeJs(c.id)}', '${escapeJs(c.name)}')" class="btn-outline btn-sm btn-danger" aria-label="Remove source"><i class="fas fa-trash-alt" aria-hidden="true"></i></button>
                         </div>
                     </td>
                 </tr>
             `;
             }).join('');
             const note = data.length > 500
-                ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">Showing 500 of ${escapeHtml(data.length)} sources</td></tr>`
+                ? `<tr><td colspan="7" class="state-cell">Showing 500 of ${escapeHtml(data.length)} sources</td></tr>`
                 : '';
             body.innerHTML = rows + note;
         } catch (err) {
-            body.innerHTML = '<tr><td colspan="7" class="text-danger" style="text-align:center; padding:2rem;">Failed to synchronize with Fabric API.</td></tr>';
+            body.innerHTML = '<tr><td colspan="7" class="state-cell text-danger">Failed to synchronize with Fabric API.</td></tr>';
         }
     }
 
@@ -362,11 +329,11 @@
             try { run = await (await fetch(`${API_BASE}/replication/runs/${runId}`, { headers: getAuthHeaders() })).json(); }
             catch { await new Promise(r => setTimeout(r, 1500)); continue; }
             if (run.status === 'COMPLETED' || run.status === 'FAILED') {
-                if (run.status === 'FAILED') return showModal(`${title} failed`, `<span style="color:var(--danger)">${escapeHtml(run.error || 'failed')}</span>`);
+                if (run.status === 'FAILED') return showModal(`${title} failed`, `<span class="text-danger">${escapeHtml(run.error || 'failed')}</span>`);
                 const r = run.result || {};
                 const total = (r.tables || []).reduce((n, t) => n + (t.rows || 0), 0);
                 const detail = (r.tables || []).map(t => `${escapeHtml(t.schema||'')}.${escapeHtml(t.table||'')}: ${t.rows} rows (${escapeHtml(t.mode||'')})`).join('<br>') || 'no tables';
-                return showModal(`${title} complete — "${escapeHtml(source)}"`, `<b>${total}</b> rows across ${(r.tables || []).length} table(s):<br>${detail}${(r.errors || []).length ? '<br><span style="color:var(--danger)">' + r.errors.join('<br>') + '</span>' : ''}`);
+                return showModal(`${title} complete — "${escapeHtml(source)}"`, `<b>${total}</b> rows across ${(r.tables || []).length} table(s):<br>${detail}${(r.errors || []).length ? '<br><span class="text-danger">' + r.errors.join('<br>') + '</span>' : ''}`);
             }
             showModal(`${title}…`, `Worker status: <b>${escapeHtml(run.status)}</b> (attempt ${run.attempts||0})…`);
             await new Promise(r => setTimeout(r, 1500));
@@ -452,7 +419,7 @@
                 showModal('Fabric Integrated', `Source '${payload.name}' has been successfully virtualized and cataloged.`);
                 loadConnections();
             } else {
-                statusEl.innerHTML = `<span style="color: var(--danger)">Integration Failed: ${escapeHtml(data.error)}</span>`;
+                statusEl.innerHTML = `<span class="text-danger">Integration Failed: ${escapeHtml(data.error)}</span>`;
             }
         } catch (err) {
             statusEl.innerText = 'CRITICAL: Fabric API Offline';

@@ -26,7 +26,7 @@
 const { login, banner, authHeaders, BASE_URL } = require('../_client');
 const axios = require('axios');
 const {
-  applyManifest, upsertTrigger, deploy, waitForDrain, insertRow, selectSql, sleep
+  applyManifest, upsertTrigger, deploy, waitForDrain, insertRow, countRows, triggerIdByName, latestJobForTriggerId, sleep
 } = require('./_lib');
 
 const LOGICAL = 'Trg_Declarative_Lab';
@@ -105,10 +105,8 @@ async function run() {
   await insertRow(token, LOGICAL, 'orders', { id: `ord-big-${Date.now()}`, amount: 999999 }, { allowFail: true });
   await sleep(400);
 
-  const events = await selectSql(token, `SELECT count(*)::int AS n FROM "${PHYSICAL}".order_events`);
-  const blocked = await selectSql(token, `SELECT count(*)::int AS n FROM "${PHYSICAL}".orders WHERE amount > 100000`);
-  const eventsN = Number(events[0] && events[0].n || 0);
-  const blockedN = Number(blocked[0] && blocked[0].n || 0);
+  const eventsN = await countRows(token, LOGICAL, 'order_events');
+  const blockedN = await countRows(token, LOGICAL, 'orders', [{ column: 'amount', operator: 'GT', value: 100000 }]);
   console.log(`\nmini-DSL INSERT wrote order_events = ${eventsN} (${eventsN > 0 ? 'PASS' : 'FAIL'})`);
   console.log(`mini-DSL RAISE blocked over-limit order, present = ${blockedN} (${blockedN === 0 ? 'PASS' : 'FAIL'})`);
 
@@ -122,18 +120,17 @@ async function run() {
   await insertRow(token, LOGICAL, 'orders', { id: `ord-delay-${Date.now()}`, amount: 5 });
   await sleep(1000);
 
-  const before = await selectSql(token,
-    `SELECT status FROM public.trigger_jobs WHERE payload->>'triggerName'='trg_orders_delayed' AND job_type='EXECUTE_TRIGGER_ACTION' ORDER BY created_at DESC LIMIT 1`);
-  console.log(`\nfuture RELATIVE action job before delete: ${before[0] && before[0].status}`);
+  const relId = rel.id || (await triggerIdByName(token, 'trg_orders_delayed'));
+  const before = await latestJobForTriggerId(token, relId, 'EXECUTE_TRIGGER_ACTION');
+  console.log(`\nfuture RELATIVE action job before delete: ${before && before.status}`);
 
   await axios.delete(`${BASE_URL}/triggers/${rel.id}`, { headers: authHeaders(token) });
   await waitForDrain(token, 8);
   await sleep(800);
 
-  const after = await selectSql(token,
-    `SELECT status FROM public.trigger_jobs WHERE payload->>'triggerName'='trg_orders_delayed' AND job_type='EXECUTE_TRIGGER_ACTION' ORDER BY created_at DESC LIMIT 1`);
-  const cancelled = after[0] && after[0].status === 'CANCELLED';
-  console.log(`future RELATIVE action job after delete:  ${after[0] && after[0].status} (${cancelled ? 'PASS — cancelled, will not fire' : 'FAIL'})`);
+  const after = await latestJobForTriggerId(token, relId, 'EXECUTE_TRIGGER_ACTION');
+  const cancelled = after && after.status === 'CANCELLED';
+  console.log(`future RELATIVE action job after delete:  ${after && after.status} (${cancelled ? 'PASS — cancelled, will not fire' : 'FAIL'})`);
 
   if (!visible || eventsN === 0 || blockedN !== 0 || !cancelled) process.exitCode = 1;
 }

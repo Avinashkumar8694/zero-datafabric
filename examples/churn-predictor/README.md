@@ -46,25 +46,18 @@ This example exercises ES as a first-class federated source: structured filters
 via the `MATCH` operator (`$match` → ES `match` query; `ILIKE`/regex fallback on
 SQL/Mongo). The execution trace shows the real `_search` DSL for ES legs.
 
-## Two query interfaces (both tested)
+## Query interface
 
-- **AST mode** — `03-churn-analysis.js` via `/api/analytics/query`. The only mode
-  that federates across engines (PG + Mongo + ES); this is the full mega-query.
-- **SQL mode** — `04-churn-sql-mode.js` via `/api/queries/exec`. Native SQL
-  (window functions, CTEs, `FILTER`) executed **at a single Postgres source** —
-  used for the SQL-native parts (CRM target ranking, Prod purchase-value decline).
-  It cross-checks that SQL and AST agree on the shared Target_Accounts step, and
-  shows that a non-SQL engine (Mongo/ES) correctly refuses raw SQL (those go
-  through AST).
+- **AST mode** — `03-churn-analysis.js` via `/api/analytics/query`. Federates
+  across engines (PG + Mongo + ES); this is the full mega-query.
 
 ## Run
 
 ```bash
 cd examples/churn-predictor
-node run-all.js --seed          # seed 4 external stores + register + analyze (AST + SQL)
+node run-all.js --seed          # seed 4 external stores + register + analyze (AST)
 # or, once seeded:
 node 03-churn-analysis.js       # AST (cross-engine)
-node 04-churn-sql-mode.js       # SQL (native, at source)
 ```
 
 Setup manifest: [`churn-manifest.json`](churn-manifest.json) (diff/apply via

@@ -4,22 +4,57 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zero Data Fabric - Logging Out...</title>
+    <script>
+        // Theme before first paint: saved choice, else the system preference, else dark (shared with the landing page).
+        (function () {
+            var t = null;
+            try { t = localStorage.getItem('df-theme'); } catch (e) {}
+            if (t !== 'light' && t !== 'dark') t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/pages.css">
     <script>
         const API_BASE = window.location.hostname.includes('fabrixly.com') 
             ? `/api` 
             : `http://${window.location.hostname}:4000/api`;
+
+        function getDecodedToken() {
+            const token = localStorage.getItem('token');
+            if (!token) return null;
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                return JSON.parse(jsonPayload);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        const decoded = getDecodedToken();
+        const isSso = localStorage.getItem('auth_method') === 'sso' || (decoded && decoded.auth_method === 'sso');
+
         localStorage.removeItem('token');
         localStorage.removeItem('active_tenant');
-        const homeUrl = window.location.origin + '/';
-        window.location.href = `${API_BASE}/auth/sso/logout?redirect_uri=${encodeURIComponent(homeUrl)}`;
+        localStorage.removeItem('auth_method');
+
+        if (isSso) {
+            const homeUrl = window.location.origin + '/';
+            window.location.href = `${API_BASE}/auth/sso/logout?redirect_uri=${encodeURIComponent(homeUrl)}`;
+        } else {
+            window.location.href = '/login';
+        }
     </script>
 </head>
-<body style="display:flex; align-items:center; justify-content:center; min-height:100vh; background:#04060f; color:#fff;">
-    <div style="text-align:center;">
-        <div class="logo-icon" style="margin:0 auto 1.5rem auto; width:48px; height:48px; background:linear-gradient(135deg, #0061FF, #6366f1); border-radius:12px;"></div>
-        <h2 style="font-family:'Outfit', sans-serif; font-size:1.5rem; margin-bottom:0.5rem;">Logging Out...</h2>
-        <p style="color:#94a3b8; font-size:0.9rem;">Terminating session and returning to home...</p>
-    </div>
+<body class="logout-page">
+    <main class="logout-box" role="status" aria-live="polite">
+        <span class="login-mark logout-mark" aria-hidden="true">ZF</span>
+        <h1 class="logout-title">Logging Out...</h1>
+        <p class="logout-sub">Terminating session and returning to home...</p>
+    </main>
 </body>
 </html>

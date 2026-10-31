@@ -21,6 +21,8 @@
  */
 
 import { pool } from '../../config/database';
+import { NotFoundError } from '../../utils/tenantScope';
+import { subscribeClusterEvent, publishClusterEvent } from '../../config/cache';
 
 export type Strategy = 'SINGLE_LOCAL' | 'SINGLE_CONNECTOR' | 'CROSS_ENGINE';
 
@@ -42,6 +44,8 @@ export interface ResolvedLeg {
   physicalTable: string | null;
   /** connector config for connector-only legs */
   config: any;
+  /** estimated or exact table row count for Cost-Based Optimization (CBO) */
+  rowCount?: number | null;
 }
 
 export interface QueryPlan {
@@ -116,7 +120,26 @@ const connFingerprint = (leg: ResolvedLeg): string => {
  * static; the class is never instantiated. `classify` is the entry point
  * consumed by `QueryEngineService.executeQuery`.
  */
+interface CachedLeg {
+  leg: ResolvedLeg;
+  expiresAt: number;
+}
+const legCache = new Map<string, CachedLeg>();
+const LEG_CACHE_TTL_MS = 60000; // 60s TTL
+
+// Subscribe to cluster-wide leg cache invalidation across all pods/workers
+subscribeClusterEvent('fabric:cache:invalidate', () => {
+  legCache.clear();
+});
+
 export class QueryPlanner {
+  /** Invalidate the leg resolution cache across the entire cluster. */
+  static clearLegCache(broadcast = true): void {
+    legCache.clear();
+    if (broadcast) {
+      publishClusterEvent('fabric:cache:invalidate', { timestamp: Date.now() }).catch(() => {});
+    }
+  }
   /**
    * Collect ( source, resource ) references from an AST (recurses set-ops / CTEs).
    * Walks `from`, `joins[]`, and recurses into `union`/`intersect`/`except`
@@ -152,54 +175,99 @@ export class QueryPlanner {
   }
 
   /**
-   * Resolve a single logical reference to its physical engine + location.
-   * Local hub references are always reachable in Postgres. Named sources are
-   * looked up in the catalog first (`data_sources` joined through
-   * `catalog_schemas`/`catalog_tables`) so the physical schema/table name is
-   * known for connector execution; if the table hasn't been crawled into the
-   * catalog yet, falls back to the bare `data_sources` record (engine/sync
-   * type/config only, physical names default to the logical resource name).
-   * A resource is only `reachableInPg` when it's the local hub or its
-   * `sync_type` is SYNC/CDC (physically replicated into the tenant schema) —
-   * a VIRTUAL source (even Postgres) always goes through its connector, since
-   * `postgres_fdw` doesn't cover every object type/engine uniformly.
-   * @param tenantId tenant identifier.
-   * @param source logical source name, or (@link LOCAL_SOURCE) for the hub.
-   * @param resource logical resource/table/collection name.
-   * @returns the resolved (@link ResolvedLeg).
-   * @throws if a named source has no catalog entry AND no `data_sources` row for the tenant.
+   * Resolve a single logical reference to its physical engine + location (with TTL caching).
    */
   static async resolveLeg(tenantId: string, source: string, resource: string): Promise<ResolvedLeg> {
-    if (!source || source === LOCAL_SOURCE) {
+    const overrideSource = process.env.FABRIC_TARGET_SOURCE_OVERRIDE;
+    const cacheKey = `${tenantId}::${source || ''}::${resource}::${overrideSource || ''}`;
+    const cached = legCache.get(cacheKey);
+    const now = Date.now();
+    if (cached && cached.expiresAt > now) {
+      return cached.leg;
+    }
+
+    const leg = await this.resolveLegUncached(tenantId, source, resource);
+    legCache.set(cacheKey, { leg, expiresAt: now + LEG_CACHE_TTL_MS });
+    return leg;
+  }
+
+  private static async resolveLegUncached(tenantId: string, source: string, resource: string): Promise<ResolvedLeg> {
+    const overrideSource = process.env.FABRIC_TARGET_SOURCE_OVERRIDE;
+    const effectiveSource = (!source || source === LOCAL_SOURCE) ? (overrideSource || source) : source;
+
+    if (!effectiveSource || effectiveSource === LOCAL_SOURCE) {
+      const cat = await pool.query(
+        `SELECT ds.name as source_name, ds.type as engine, ds.sync_type as sync_type, ds.config as config,
+                cs.physical_name as physical_schema, ct.physical_name as physical_table, ct.resource_type,
+                ct.row_count
+         FROM public.catalog_tables ct
+         JOIN public.catalog_schemas cs ON ct.schema_id = cs.id
+         JOIN public.data_sources ds ON cs.source_id = ds.id
+         WHERE ds.tenant_id = $1 AND ct.name = $2
+         ORDER BY (ds.type != 'POSTGRES') DESC LIMIT 1`,
+        [tenantId, resource]
+      );
+      if (cat.rows.length === 0 || cat.rows[0].engine === 'POSTGRES' || cat.rows[0].resource_type === 'MATERIALIZED_VIEW') {
+        const rc = cat.rows[0]?.row_count != null ? Number(cat.rows[0].row_count) : null;
+        return {
+          source: LOCAL_SOURCE,
+          resource,
+          engine: 'POSTGRES',
+          syncType: 'VIRTUAL',
+          reachableInPg: true,
+          physicalSchema: cat.rows[0]?.physical_schema || null,
+          physicalTable: cat.rows[0]?.physical_table || resource,
+          config: { local: true },
+          rowCount: rc,
+        };
+      }
+      const row = cat.rows[0];
       return {
-        source: LOCAL_SOURCE,
+        source: row.source_name,
         resource,
-        engine: 'POSTGRES',
-        syncType: 'VIRTUAL',
-        reachableInPg: true,
-        physicalSchema: null,
-        physicalTable: resource,
-        config: { local: true },
+        engine: String(row.engine).toUpperCase(),
+        syncType: String(row.sync_type || 'VIRTUAL').toUpperCase(),
+        reachableInPg: row.sync_type === 'SYNC' || row.sync_type === 'CDC',
+        physicalSchema: row.physical_schema,
+        physicalTable: row.physical_table || resource,
+        config: row.config || {},
+        rowCount: row.row_count != null ? Number(row.row_count) : null,
       };
     }
 
     // Prefer a catalog row so we know the physical schema/table for connector execution.
     const { rows } = await pool.query(
       `SELECT ds.type AS engine, ds.sync_type AS sync_type, ds.config AS config,
-              cs.physical_name AS physical_schema, ct.physical_name AS physical_table
+              cs.physical_name AS physical_schema, ct.physical_name AS physical_table, ct.resource_type,
+              ct.row_count
        FROM public.data_sources ds
        JOIN public.catalog_schemas cs ON cs.source_id = ds.id
        JOIN public.catalog_tables ct ON ct.schema_id = cs.id
        WHERE ds.tenant_id = $1 AND ds.name = $2 AND ct.name = $3
        LIMIT 1`,
-      [tenantId, source, resource]
+      [tenantId, effectiveSource, resource]
     );
+
+    if (rows.length > 0 && rows[0].resource_type === 'MATERIALIZED_VIEW') {
+      return {
+        source: LOCAL_SOURCE,
+        resource,
+        engine: 'POSTGRES',
+        syncType: 'VIRTUAL',
+        reachableInPg: true,
+        physicalSchema: rows[0].physical_schema || null,
+        physicalTable: rows[0].physical_table || resource,
+        config: { local: true },
+        rowCount: rows[0].row_count != null ? Number(rows[0].row_count) : null,
+      };
+    }
 
     let engine = 'POSTGRES';
     let syncType = 'VIRTUAL';
     let config: any = {};
     let physicalSchema: string | null = null;
     let physicalTable: string | null = resource;
+    let rowCount: number | null = null;
 
     if (rows.length > 0) {
       engine = String(rows[0].engine || 'POSTGRES').toUpperCase();
@@ -207,15 +275,16 @@ export class QueryPlanner {
       config = rows[0].config || {};
       physicalSchema = rows[0].physical_schema || null;
       physicalTable = rows[0].physical_table || resource;
+      rowCount = rows[0].row_count != null ? Number(rows[0].row_count) : null;
     } else {
       // Fall back to the source record alone (table not crawled into the catalog yet).
       const alt = await pool.query(
         `SELECT type AS engine, sync_type AS sync_type, config FROM public.data_sources
          WHERE tenant_id = $1 AND name = $2 LIMIT 1`,
-        [tenantId, source]
+        [tenantId, effectiveSource]
       );
       if (alt.rows.length === 0) {
-        throw new Error(`QueryPlanner: referenced source "${source}" not found for tenant "${tenantId}"`);
+        throw new NotFoundError(`Source "${String(effectiveSource).slice(0, 60)}" not found`);
       }
       engine = String(alt.rows[0].engine || 'POSTGRES').toUpperCase();
       syncType = String(alt.rows[0].sync_type || 'VIRTUAL').toUpperCase();
@@ -229,7 +298,7 @@ export class QueryPlanner {
     // and the connector path works uniformly for every object type and every engine.
     const reachableInPg = syncType === 'SYNC' || syncType === 'CDC';
 
-    return { source, resource, engine, syncType, reachableInPg, physicalSchema, physicalTable, config };
+    return { source: effectiveSource, resource, engine, syncType, reachableInPg, physicalSchema, physicalTable, config, rowCount };
   }
 
   /**

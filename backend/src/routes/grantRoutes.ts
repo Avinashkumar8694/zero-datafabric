@@ -7,8 +7,9 @@
 
 import { Router } from 'express';
 import { listGrants, createGrant } from '../controllers/grantController';
+import { requireWorkspaceAdmin } from '../middleware/tenantAccess.middleware';
 
 const router = Router();
 router.get('/', listGrants); // GET /api/grants — list grants for the caller's tenant
-router.post('/', createGrant); // POST /api/grants — create/replace role privileges on a schema/table
+router.post('/', requireWorkspaceAdmin, createGrant); // POST /api/grants — create/replace role privileges on a schema/table
 export default router;

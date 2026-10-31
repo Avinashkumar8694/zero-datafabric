@@ -1,56 +1,253 @@
 <%- include('partials/header') %>
 
-<style>
-    .dashboard-main-grid {
-        display: grid;
-        grid-template-columns: 2fr 1fr;
-        gap: 1.5rem;
-    }
-    @media (max-width: 960px) {
-        .dashboard-main-grid {
-            grid-template-columns: 1fr;
-            gap: 1.25rem;
-        }
-    }
-</style>
-
-<div class="fade-in">
-    <!-- Stats Row -->
-    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));">
-        <div class="glass-card">
-            <p class="text-muted">Total Tenants</p>
-            <h1 id="stat-tenants">--</h1>
+<div class="page fade-in">
+    <!-- Active Workspace & Account Switch Context Banner -->
+    <div class="ws-context-bar">
+        <div class="ws-context-info">
+            <div>
+                <span class="text-muted small">Active Workspace</span>
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.15rem;">
+                    <strong id="ws-name" style="font-size: 1.1rem;">Loading workspace…</strong>
+                    <span id="ws-id-pill" class="ws-pill">--</span>
+                    <span id="ws-plan-badge" class="badge badge-info">--</span>
+                    <span id="ws-switched-badge" class="ws-pill ws-admin-switched" style="display: none;">
+                        <i class="fas fa-bolt" aria-hidden="true"></i> Platform Admin Switched Account
+                    </span>
+                </div>
+            </div>
         </div>
-        <div class="glass-card">
-            <p class="text-muted">Active Connections</p>
-            <h1 id="stat-connections">--</h1>
-        </div>
-        <div class="glass-card">
-            <p class="text-muted">Security Audits (24h)</p>
-            <h1 id="stat-audits">--</h1>
-        </div>
-        <div class="glass-card" id="dataResetCard" style="display: none; border-left: 4px solid #f59e0b;">
-            <p class="text-muted">Next Data Reset</p>
-            <h1 id="stat-reset-time" style="font-size: 1.25rem; color: #d97706; margin-top: 0.5rem; font-weight: bold;">--</h1>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <div id="caller-role-box" class="ws-pill">
+                <i class="fas fa-user-shield" aria-hidden="true"></i> <span id="caller-role-text">USER</span>
+            </div>
+            <button type="button" onclick="loadDashboardData()" class="btn-outline btn-sm" title="Refresh Dashboard Metrics">
+                <i class="fas fa-arrows-rotate" aria-hidden="true"></i> Refresh
+            </button>
         </div>
     </div>
 
-    <div class="dashboard-main-grid">
+    <!-- Top Headline KPI Cards -->
+    <div class="stat-grid">
+        <div class="stat-card">
+            <span class="stat-label">Queries (Last 24h)</span>
+            <span class="stat-value" id="kpi-queries-24h">0</span>
+            <span class="text-muted small mt-1" id="kpi-queries-total">Total: 0 queries</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Avg Latency (Turnaround)</span>
+            <span class="stat-value" id="kpi-avg-lat">0 ms</span>
+            <span class="text-muted small mt-1" id="kpi-speed-rating">Sub-second execution</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Execution Success Rate</span>
+            <span class="stat-value text-ok" id="kpi-success-rate">100%</span>
+            <span class="text-muted small mt-1" id="kpi-error-rate">0 errors</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Data Processed (24h)</span>
+            <span class="stat-value" id="kpi-rows-proc">0</span>
+            <span class="text-muted small mt-1">Federated across sources</span>
+        </div>
+    </div>
+
+    <!-- Section 1: Plan Limits & Quota Consumption Meters -->
+    <section class="glass-card">
+        <div class="card-head">
+            <div>
+                <h3><i class="fas fa-gauge-high" aria-hidden="true"></i> Workspace Plan Quotas &amp; Capacity</h3>
+                <p>Real-time resource utilization against the active <strong id="plan-name-label">Plan</strong> limits.</p>
+            </div>
+            <div class="card-actions">
+                <a href="/plans" id="btn-upgrade-plan" class="btn-outline btn-sm"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i> Upgrade Plan</a>
+            </div>
+        </div>
+        <div class="quota-grid">
+            <div class="quota-card">
+                <div class="quota-label-row">
+                    <span><i class="fas fa-database text-muted"></i> Data Connections</span>
+                    <span id="q-pct-conn" class="small">0%</span>
+                </div>
+                <div class="quota-val-row">
+                    <span class="quota-current" id="q-val-conn">0</span>
+                    <span class="quota-cap" id="q-cap-conn">/ 0 allowed</span>
+                </div>
+                <div class="meter-bar">
+                    <div id="meter-conn" class="meter-fill ok" style="width: 0%;"></div>
+                </div>
+            </div>
+
+            <div class="quota-card">
+                <div class="quota-label-row">
+                    <span><i class="fas fa-terminal text-muted"></i> Daily Queries Quota</span>
+                    <span id="q-pct-queries" class="small">0%</span>
+                </div>
+                <div class="quota-val-row">
+                    <span class="quota-current" id="q-val-queries">0</span>
+                    <span class="quota-cap" id="q-cap-queries">/ 0 per day</span>
+                </div>
+                <div class="meter-bar">
+                    <div id="meter-queries" class="meter-fill ok" style="width: 0%;"></div>
+                </div>
+            </div>
+
+            <div class="quota-card">
+                <div class="quota-label-row">
+                    <span><i class="fas fa-users text-muted"></i> Team Seats / Users</span>
+                    <span id="q-pct-users" class="small">0%</span>
+                </div>
+                <div class="quota-val-row">
+                    <span class="quota-current" id="q-val-users">0</span>
+                    <span class="quota-cap" id="q-cap-users">/ 0 members</span>
+                </div>
+                <div class="meter-bar">
+                    <div id="meter-users" class="meter-fill ok" style="width: 0%;"></div>
+                </div>
+            </div>
+
+            <div class="quota-card">
+                <div class="quota-label-row">
+                    <span><i class="fas fa-table text-muted"></i> Catalog Tables Ingested</span>
+                    <span id="q-pct-tables" class="small">0%</span>
+                </div>
+                <div class="quota-val-row">
+                    <span class="quota-current" id="q-val-tables">0</span>
+                    <span class="quota-cap" id="q-cap-tables">/ 0 tables</span>
+                </div>
+                <div class="meter-bar">
+                    <div id="meter-tables" class="meter-fill ok" style="width: 0%;"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 2: Usage Analytics by User Type / Role -->
+    <section class="glass-card">
+        <div class="card-head">
+            <div>
+                <h3><i class="fas fa-users-gear" aria-hidden="true"></i> Workload Distribution by User Type</h3>
+                <p>Breakdown of query volume and active users grouped by role access level.</p>
+            </div>
+        </div>
+        <div class="role-analytics-grid">
+            <div class="role-metric-card">
+                <div class="role-header">
+                    <span class="badge badge-admin"><i class="fas fa-shield-halved"></i> ADMIN</span>
+                    <span id="role-users-admin" class="small text-muted">0 users</span>
+                </div>
+                <div style="margin-top: 0.25rem;">
+                    <div style="font-size: 1.25rem; font-weight: 800;" id="role-queries-admin">0</div>
+                    <div class="small text-muted" id="role-share-admin">0% of total queries</div>
+                </div>
+                <div class="small text-muted mt-1">Full governance, security &amp; cluster management</div>
+            </div>
+
+            <div class="role-metric-card">
+                <div class="role-header">
+                    <span class="badge badge-dev"><i class="fas fa-code"></i> DEVELOPER</span>
+                    <span id="role-users-dev" class="small text-muted">0 users</span>
+                </div>
+                <div style="margin-top: 0.25rem;">
+                    <div style="font-size: 1.25rem; font-weight: 800;" id="role-queries-dev">0</div>
+                    <div class="small text-muted" id="role-share-dev">0% of total queries</div>
+                </div>
+                <div class="small text-muted mt-1">AST Queries, trigger rules &amp; API token access</div>
+            </div>
+
+            <div class="role-metric-card">
+                <div class="role-header">
+                    <span class="badge badge-analyst"><i class="fas fa-chart-pie"></i> ANALYST</span>
+                    <span id="role-users-analyst" class="small text-muted">0 users</span>
+                </div>
+                <div style="margin-top: 0.25rem;">
+                    <div style="font-size: 1.25rem; font-weight: 800;" id="role-queries-analyst">0</div>
+                    <div class="small text-muted" id="role-share-analyst">0% of total queries</div>
+                </div>
+                <div class="small text-muted mt-1">Workbench, custom analytics &amp; federated aggregations</div>
+            </div>
+
+            <div class="role-metric-card">
+                <div class="role-header">
+                    <span class="badge badge-viewer"><i class="fas fa-eye"></i> VIEWER</span>
+                    <span id="role-users-viewer" class="small text-muted">0 users</span>
+                </div>
+                <div style="margin-top: 0.25rem;">
+                    <div style="font-size: 1.25rem; font-weight: 800;" id="role-queries-viewer">0</div>
+                    <div class="small text-muted" id="role-share-viewer">0% of total queries</div>
+                </div>
+                <div class="small text-muted mt-1">Read-only catalog explorer &amp; saved dashboard views</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 3: Professional Per-User Usage Analytics Table (Mobile-Responsive) -->
+    <section class="glass-card">
+        <div class="card-head">
+            <div>
+                <h3><i class="fas fa-address-book" aria-hidden="true"></i> Per-User Activity &amp; Consumption Analytics</h3>
+                <p>Individual member usage, execution performance, and last active trace.</p>
+            </div>
+            <div class="card-actions">
+                <span id="user-count-label" class="badge badge-info">0 Members</span>
+            </div>
+        </div>
+        <div class="table-scroll-hint"><i class="fas fa-arrows-left-right" aria-hidden="true"></i> Swipe horizontally on mobile to view all metrics</div>
+        <div class="table-wrapper">
+            <table class="table-wide">
+                <thead>
+                    <tr>
+                        <th class="nowrap">User</th>
+                        <th class="nowrap">Role / Type</th>
+                        <th class="nowrap">Queries (24h)</th>
+                        <th class="nowrap">Queries (Total)</th>
+                        <th class="nowrap">Avg Latency</th>
+                        <th class="nowrap">Rows Processed</th>
+                        <th class="nowrap">Last Active</th>
+                        <th class="nowrap">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="userUsageBody">
+                    <tr><td colspan="8" class="state-cell">Loading member analytics…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Section 4: Role Permissions & Capabilities Matrix -->
+    <section class="glass-card">
+        <div class="card-head">
+            <div>
+                <h3><i class="fas fa-key" aria-hidden="true"></i> Access Permissions &amp; Allowed Capabilities</h3>
+                <p>Features and operational actions currently authorized for your role (<strong id="caller-role-name">--</strong>).</p>
+            </div>
+        </div>
+        <div class="perm-matrix-grid" id="permGrid">
+            <!-- Dynamically populated based on caller's role -->
+        </div>
+    </section>
+
+    <!-- Section 5: Events & Health -->
+    <div class="split">
         <!-- Recent Activity -->
         <section class="glass-card">
-            <h3>Recent Fabric Events</h3>
+            <div class="card-head">
+                <div>
+                    <h3><i class="fas fa-clock-rotate-left" aria-hidden="true"></i> Recent Fabric Events</h3>
+                    <p class="small text-muted">Audit operations and orchestrator mutations.</p>
+                </div>
+            </div>
+            <div class="table-scroll-hint"><i class="fas fa-arrows-left-right" aria-hidden="true"></i> Swipe horizontally to view full event stream</div>
             <div class="table-wrapper">
                 <table>
                     <thead>
                         <tr>
-                            <th>Module</th>
-                            <th>Action</th>
-                            <th>Target</th>
-                            <th>Time</th>
+                            <th class="nowrap">Module</th>
+                            <th class="nowrap">Action</th>
+                            <th class="nowrap">Target</th>
+                            <th class="nowrap">Time</th>
                         </tr>
                     </thead>
                     <tbody id="activityBody">
-                        <tr><td colspan="4">No recent activity detected</td></tr>
+                        <tr><td colspan="4" class="state-cell">No recent activity detected</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -58,22 +255,27 @@
 
         <!-- System Health -->
         <section class="glass-card">
-            <h3>Fabric Health</h3>
-            <div id="healthTelemetry" style="padding-top: 1rem;">
-                <div style="margin-bottom: 1rem; display: flex; justify-content: space-between;">
-                    <span>Status</span>
-                    <span id="healthStatus" class="badge-sync">CHECKING...</span>
+            <div class="card-head">
+                <div>
+                    <h3><i class="fas fa-heart-pulse text-danger" aria-hidden="true"></i> Fabric Health</h3>
+                    <p class="small text-muted">Real-time gateway &amp; database latency.</p>
                 </div>
-                <div style="margin-bottom: 1rem; display: flex; justify-content: space-between;">
-                    <span>DB Latency</span>
+            </div>
+            <div id="healthTelemetry" class="health-list" style="margin-top: 0.5rem;">
+                <div class="health-row">
+                    <span>Cluster Status</span>
+                    <span id="healthStatus" class="badge badge-muted">CHECKING...</span>
+                </div>
+                <div class="health-row">
+                    <span>Database Latency</span>
                     <span id="dbLatency" class="text-muted">--</span>
                 </div>
-                <div style="margin-bottom: 1rem; display: flex; justify-content: space-between;">
-                    <span>Uptime</span>
+                <div class="health-row">
+                    <span>Engine Uptime</span>
                     <span id="sysUptime" class="text-muted">--</span>
                 </div>
-                <div style="font-size: 0.7rem; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 0.5rem; margin-top: 0.5rem;">
-                    Pool: <span id="dbPool">--</span>
+                <div class="health-foot">
+                    Pool Status: <span id="dbPool">--</span>
                 </div>
             </div>
         </section>
@@ -81,36 +283,191 @@
 </div>
 
 <script>
-    async function loadStats() {
+    // Format large numbers with commas
+    function fmtNum(n) {
+        if (n === null || n === undefined || isNaN(n)) return '0';
+        return Number(n).toLocaleString();
+    }
+
+    // Role badge color helper
+    function getRoleBadge(role) {
+        const r = String(role || 'VIEWER').toUpperCase();
+        if (r === 'ADMIN') return '<span class="badge badge-admin"><i class="fas fa-shield-halved"></i> ADMIN</span>';
+        if (r === 'DEVELOPER') return '<span class="badge badge-dev"><i class="fas fa-code"></i> DEVELOPER</span>';
+        if (r === 'ANALYST') return '<span class="badge badge-analyst"><i class="fas fa-chart-pie"></i> ANALYST</span>';
+        return '<span class="badge badge-viewer"><i class="fas fa-eye"></i> VIEWER</span>';
+    }
+
+    async function loadDashboardData() {
         try {
-            const res = await fetch(`${API_BASE}/admin/stats`, {
+            // Call our new unified workspace dashboard endpoint
+            const res = await fetch(`${API_BASE}/workspace/dashboard`, {
                 headers: getAuthHeaders()
             });
-            const stats = await res.json() || {};
 
-            document.getElementById('stat-tenants').innerText = stats.tenants || '0';
-            document.getElementById('stat-connections').innerText = stats.connections || '0';
-            document.getElementById('stat-audits').innerText = stats.audits || '0';
-
-            // Load next data reset time
-            const subRes = await fetch(`${API_BASE}/subscriptions/me`, { headers: getAuthHeaders() });
-            if (subRes.ok) {
-                const sub = await subRes.json();
-                if (sub && sub.next_data_reset_at) {
-                    const card = document.getElementById('dataResetCard');
-                    if (card) {
-                        card.style.display = 'block';
-                        const resetDate = new Date(sub.next_data_reset_at);
-                        document.getElementById('stat-reset-time').innerText = resetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' (' + resetDate.toLocaleDateString() + ')';
-                    }
-                }
+            if (!res.ok) {
+                console.warn('[Dashboard] /workspace/dashboard returned status:', res.status);
+                return;
             }
-        } catch (e) {
-            console.error('[Dashboard] Stats fetch failed', e);
-            document.getElementById('stat-tenants').innerText = '--';
-            document.getElementById('stat-connections').innerText = '--';
-            document.getElementById('stat-audits').innerText = '--';
+
+            const data = await res.json();
+            if (!data || !data.workspace) return;
+
+            // 1. Workspace Identity Context
+            document.getElementById('ws-name').innerText = data.workspace.name || data.workspace.id;
+            document.getElementById('ws-id-pill').innerText = data.workspace.id;
+            document.getElementById('ws-plan-badge').innerText = (data.plan.name || 'TRIAL').toUpperCase();
+            document.getElementById('plan-name-label').innerText = (data.plan.name || 'Trial').toUpperCase();
+
+            // Account switched badge for platform admin
+            const switchedBadge = document.getElementById('ws-switched-badge');
+            if (data.workspace.isAccountSwitched) {
+                switchedBadge.style.display = 'inline-flex';
+            } else {
+                switchedBadge.style.display = 'none';
+            }
+
+            // Caller role
+            const callerRole = data.caller?.assignedRole || 'USER';
+            document.getElementById('caller-role-text').innerText = callerRole;
+            document.getElementById('caller-role-name').innerText = callerRole;
+
+            // 2. Headline KPIs
+            const qStats = data.usage?.queries || {};
+            document.getElementById('kpi-queries-24h').innerText = fmtNum(qStats.queries_24h || 0);
+            document.getElementById('kpi-queries-total').innerText = `Total: ${fmtNum(qStats.total_queries || 0)} queries`;
+            document.getElementById('kpi-avg-lat').innerText = `${fmtNum(qStats.avg_tat_ms || 0)} ms`;
+            document.getElementById('kpi-success-rate').innerText = `${qStats.success_rate_pct ?? 100}%`;
+            document.getElementById('kpi-error-rate').innerText = `${fmtNum(qStats.error_queries || 0)} execution errors`;
+            document.getElementById('kpi-rows-proc').innerText = fmtNum(qStats.total_rows_processed || 0);
+
+            // 3. Plan Quotas Meters
+            const lim = data.plan.limits || {};
+            const cur = data.usage || {};
+
+            // Connection meter
+            updateMeter('conn', cur.max_connections || 0, lim.max_connections);
+            // Queries meter (compare 24h against rate_limit_per_day or max_query_rows)
+            const queryCap = lim.rate_limit_per_day ?? 1000;
+            updateMeter('queries', qStats.queries_24h || 0, queryCap);
+            // Users meter
+            updateMeter('users', cur.max_users_per_workspace || 1, lim.max_users_per_workspace);
+            // Tables meter
+            updateMeter('tables', cur.max_tables || 0, lim.max_tables);
+
+            // 4. Role Breakdown Cards
+            const roleMap = {};
+            (data.userTypeBreakdown || []).forEach(r => {
+                roleMap[String(r.role).toUpperCase()] = r;
+            });
+
+            ['admin', 'dev', 'analyst', 'viewer'].forEach(rKey => {
+                const rUpper = rKey === 'dev' ? 'DEVELOPER' : rKey.toUpperCase();
+                const info = roleMap[rUpper] || { query_count: 0, user_count: 0, query_share_pct: 0 };
+                const uEl = document.getElementById(`role-users-${rKey}`);
+                const qEl = document.getElementById(`role-queries-${rKey}`);
+                const sEl = document.getElementById(`role-share-${rKey}`);
+                if (uEl) uEl.innerText = `${fmtNum(info.user_count)} user${info.user_count === 1 ? '' : 's'}`;
+                if (qEl) qEl.innerText = fmtNum(info.query_count);
+                if (sEl) sEl.innerText = `${info.query_share_pct || 0}% of queries`;
+            });
+
+            // 5. Per-User Usage Analytics Table
+            const uBody = document.getElementById('userUsageBody');
+            const users = data.userActivityTable || [];
+            document.getElementById('user-count-label').innerText = `${users.length} Member${users.length === 1 ? '' : 's'}`;
+
+            if (users.length === 0) {
+                uBody.innerHTML = '<tr><td colspan="8" class="state-cell">No user activity recorded yet</td></tr>';
+            } else {
+                uBody.innerHTML = users.map(u => {
+                    const initials = (u.username || 'U').substring(0, 2).toUpperCase();
+                    const lastActive = u.last_active_at ? new Date(u.last_active_at).toLocaleString() : 'Never';
+                    return `
+                        <tr class="fade-in">
+                            <td class="nowrap">
+                                <div class="cell-user">
+                                    <div class="user-avatar-sm">${escapeHtml(initials)}</div>
+                                    <div>
+                                        <strong>${escapeHtml(u.username)}</strong>
+                                        <div class="user-sub">${escapeHtml(u.email || '')}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="nowrap">${getRoleBadge(u.role)}</td>
+                            <td class="nowrap"><strong>${fmtNum(u.queries_24h)}</strong></td>
+                            <td class="nowrap">${fmtNum(u.query_count)}</td>
+                            <td class="nowrap">${fmtNum(u.avg_tat_ms)} ms</td>
+                            <td class="nowrap">${fmtNum(u.rows_processed)}</td>
+                            <td class="nowrap"><code>${escapeHtml(lastActive)}</code></td>
+                            <td class="nowrap"><span class="badge ${u.status === 'INACTIVE' ? 'badge-muted' : 'badge-ok'}">${escapeHtml(u.status || 'ACTIVE')}</span></td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            // 6. Permissions & Allowed Capabilities Matrix
+            renderPermissionsMatrix(data.permissions, data.plan?.features || {});
+
+        } catch (err) {
+            console.error('[Dashboard] Error loading dashboard data:', err);
         }
+    }
+
+    function updateMeter(key, current, cap) {
+        const valEl = document.getElementById(`q-val-${key}`);
+        const capEl = document.getElementById(`q-cap-${key}`);
+        const pctEl = document.getElementById(`q-pct-${key}`);
+        const meterEl = document.getElementById(`meter-${key}`);
+
+        if (!valEl) return;
+        valEl.innerText = fmtNum(current);
+
+        const isUnlimited = cap === -1 || cap === null || cap === undefined;
+        if (isUnlimited) {
+            capEl.innerText = '/ Unlimited';
+            pctEl.innerText = 'Unlimited';
+            meterEl.style.width = '15%';
+            meterEl.className = 'meter-fill ok';
+        } else {
+            capEl.innerText = `/ ${fmtNum(cap)} max`;
+            const pct = Math.min(100, Math.round((current / cap) * 100));
+            pctEl.innerText = `${pct}%`;
+            meterEl.style.width = `${pct}%`;
+            if (pct >= 90) meterEl.className = 'meter-fill danger';
+            else if (pct >= 70) meterEl.className = 'meter-fill warn';
+            else meterEl.className = 'meter-fill ok';
+        }
+    }
+
+    function renderPermissionsMatrix(perms, features) {
+        const grid = document.getElementById('permGrid');
+        if (!grid) return;
+
+        const capabilities = [
+            { label: 'Execute AST Queries & Aggregations', allowed: perms.canExecuteQueries },
+            { label: 'Cross-Engine Federated Query Joins', allowed: features.federated_query_enabled !== false },
+            { label: 'Custom Analytics & Widgets Builder', allowed: perms.canBuildAnalytics },
+            { label: 'Automated Event Triggers & Rules', allowed: perms.canManageTriggers },
+            { label: 'Multi-Engine CDC & Replication', allowed: perms.canManageReplication },
+            { label: 'Kafka-Backed Streaming Pipeline', allowed: features.cdc_kafka_enabled !== false },
+            { label: 'Manage Remote Database Connections', allowed: perms.canManageConnections },
+            { label: 'Security RLS Policies & Governance', allowed: perms.canManagePolicies },
+            { label: 'Workspace User & IAM Management', allowed: perms.canManageUsers },
+            { label: 'Inspect Audit Logs & Forensics', allowed: perms.canViewAuditLogs },
+            { label: 'Switch Subscription & Plan Limits', allowed: perms.canSwitchPlan },
+            { label: 'Enterprise SSO & SAML Authentication', allowed: features.enterprise_sso_enabled === true },
+        ];
+
+        grid.innerHTML = capabilities.map(c => `
+            <div class="perm-item">
+                <i class="fas ${c.allowed ? 'fa-circle-check perm-icon-allowed' : 'fa-circle-xmark perm-icon-denied'}"></i>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 600; font-size: 0.82rem;">${escapeHtml(c.label)}</div>
+                    <div class="small ${c.allowed ? 'text-ok' : 'text-muted'}">${c.allowed ? 'Authorized' : 'Restricted for this role/plan'}</div>
+                </div>
+            </div>
+        `).join('');
     }
 
     async function loadHealth() {
@@ -120,20 +477,19 @@
             
             const statusEl = document.getElementById('healthStatus');
             statusEl.innerText = data.status;
-            statusEl.style.background = data.status === 'HEALTHY' ? 'var(--success)' : 'var(--danger)';
+            statusEl.className = 'badge ' + (data.status === 'HEALTHY' ? 'badge-ok' : 'badge-danger');
             
-            document.getElementById('dbLatency').innerText = data.database.latency;
-            document.getElementById('sysUptime').innerText = data.uptime;
-            document.getElementById('dbPool').innerText = `Total: ${data.database.pool.total}, Idle: ${data.database.pool.idle}`;
+            document.getElementById('dbLatency').innerText = data.database?.latency || '--';
+            document.getElementById('sysUptime').innerText = data.uptime || '--';
+            document.getElementById('dbPool').innerText = data.database?.pool ? `Total: ${data.database.pool.total}, Idle: ${data.database.pool.idle}` : '--';
         } catch (e) {
             document.getElementById('healthStatus').innerText = 'OFFLINE';
-            document.getElementById('healthStatus').style.background = 'var(--danger)';
+            document.getElementById('healthStatus').className = 'badge badge-danger';
         }
     }
 
     async function loadEvents() {
         const body = document.getElementById('activityBody');
-        body.innerHTML = '<tr><td colspan="4">Loading events…</td></tr>';
         try {
             const res = await fetch(`${API_BASE}/events`, {
                 headers: getAuthHeaders()
@@ -141,32 +497,30 @@
             const events = await res.json();
 
             if (Array.isArray(events) && events.length > 0) {
-                const capped = events.slice(0, 500);
+                const capped = events.slice(0, 50);
                 const rows = capped.map(e => `
-                    <tr>
-                        <td style="text-transform: uppercase; font-size: 0.7rem; font-weight: bold;">${escapeHtml((e.action || '').split('.')[0] || 'ENGINE')}</td>
-                        <td>${escapeHtml(e.action)}</td>
-                        <td><span class="badge-sync">${escapeHtml(e.tableName || 'N/A')}</span></td>
-                        <td class="text-muted">${escapeHtml(new Date(e.createdAt).toLocaleTimeString())}</td>
+                    <tr class="fade-in">
+                        <td class="cell-module nowrap">${escapeHtml((e.action || '').split('.')[0] || 'ENGINE')}</td>
+                        <td class="nowrap"><code>${escapeHtml(e.action)}</code></td>
+                        <td class="nowrap"><span class="badge badge-sync">${escapeHtml(e.tableName || 'N/A')}</span></td>
+                        <td class="text-muted nowrap">${escapeHtml(new Date(e.createdAt).toLocaleTimeString())}</td>
                     </tr>
                 `).join('');
-                const note = events.length > 500
-                    ? `<tr><td colspan="4" class="text-muted" style="text-align:center;">Showing 500 of ${escapeHtml(events.length)} events</td></tr>`
-                    : '';
-                body.innerHTML = rows + note;
+                body.innerHTML = rows;
             } else {
-                body.innerHTML = '<tr><td colspan="4">No recent activity detected</td></tr>';
+                body.innerHTML = '<tr><td colspan="4" class="state-cell">No recent activity detected</td></tr>';
             }
         } catch (e) {
-            body.innerHTML = '<tr><td colspan="4" class="text-danger">Failed to load events</td></tr>';
+            body.innerHTML = '<tr><td colspan="4" class="state-cell text-danger">Failed to load events</td></tr>';
         }
     }
 
-    loadStats();
+    // Initial load
+    loadDashboardData();
     loadHealth();
     loadEvents();
-    setInterval(loadHealth, 10000); 
-    setInterval(loadEvents, 10000); 
+    setInterval(loadHealth, 15000);
+    setInterval(loadEvents, 15000);
 </script>
 
 <%- include('partials/footer') %>

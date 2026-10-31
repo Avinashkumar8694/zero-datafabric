@@ -11,6 +11,24 @@ import jwt from 'jsonwebtoken';
 import { TenantService } from '../modules/tenant/tenant.service';
 import { pool } from '../config/database';
 import crypto from 'crypto';
+import { assertTenantId } from '../utils/identifiers';
+import { TenantIdOverlapError } from '../utils/tenantScope';
+
+/**
+ * Derives the workspace id for a first-time SSO user. It must satisfy assertTenantId (letters/digits/underscore,
+ * starting with a letter, max 41 chars): long email-derived ids are shortened and made unique with a hash suffix.
+ * `forceHash` yields a purely hash-based id (used when the readable id overlaps another tenant id).
+ */
+export function ssoTenantId(email: string, forceHash = false): string {
+  const parts = email.split('@');
+  const usernamePart = (parts[0] || 'user').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+  const domainPart   = (parts[1] || '').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+  const readable = `t_${usernamePart}_${domainPart}`;
+  const hash = crypto.createHash('sha256').update(email.toLowerCase()).digest('hex');
+  if (forceHash) return `t_${hash.slice(0, 16)}`;
+  if (/^[A-Za-z][A-Za-z0-9_]{1,40}$/.test(readable)) return readable;
+  return `t_${readable.slice(2, 22).replace(/_+$/, '')}_${hash.slice(0, 8)}`.slice(0, 41);
+}
 
 const IDS_BASE     = process.env.IDS_BASE_URL      || 'https://ids.fabrixly.com';
 const API_BASE     = process.env.API_BASE_URL       || 'http://localhost:4000';
@@ -68,26 +86,34 @@ export const refreshToken = async (req: Request, res: Response) => {
     }
   }
 
-  const token = AuthService.generateToken(tenantId, user.internal_role, user.username || 'unknown', user.id);
-  console.log(`[Auth] Issued tenant-scoped token for ${user.username} -> ${tenantId}`);
+  const authMethod = (user as any).auth_method || 'local';
+  const token = AuthService.generateToken(tenantId, user.internal_role, user.username || 'unknown', user.id, authMethod);
+  console.log(`[Auth] Issued tenant-scoped token for ${user.username} -> ${tenantId} (method: ${authMethod})`);
   res.json({ token });
 };
 
 async function getOidcSettings() {
+  const envSecret = process.env.OIDC_CLIENT_SECRET;
   const defaults = {
     issuer: process.env.OIDC_ISSUER || process.env.IDS_BASE_URL || 'https://ids.fabrixly.com/oidc',
     client_id: process.env.OIDC_CLIENT_ID || 'zero-datafabric',
-    client_secret: process.env.OIDC_CLIENT_SECRET || 'bc79a2ed33935010666d9e4e1e0f29d7c80f0cd01d4a45267b6bc9b51fb9dd1d'
+    client_secret: envSecret || 'bc79a2ed33935010666d9e4e1e0f29d7c80f0cd01d4a45267b6bc9b51fb9dd1d'
   };
 
   try {
     const { rows } = await pool.query("SELECT value FROM public.settings WHERE key = 'custom_login'");
     if (rows.length > 0) {
       const custom = rows[0].value || {};
+      const customSecret = custom.oidc_client_secret;
+      // Do not let placeholder strings override the real secret
+      const resolvedSecret = (customSecret && customSecret !== 'super-secret-key-fabric')
+        ? customSecret
+        : defaults.client_secret;
+
       return {
         issuer: custom.oidc_issuer || defaults.issuer,
         client_id: custom.oidc_client_id || defaults.client_id,
-        client_secret: custom.oidc_client_secret || defaults.client_secret
+        client_secret: resolvedSecret
       };
     }
     return defaults;
@@ -142,7 +168,8 @@ async function getOidcResolved(): Promise<OidcEndpoints> {
  */
 export const sso = async (req: Request, res: Response) => {
   const oidc = await getOidcResolved();
-  const redirectUri = encodeURIComponent(`${API_BASE}/api/auth/sso/callback`);
+  const callbackUrl = process.env.OIDC_CALLBACK_URL || `${API_BASE}/api/auth/sso/callback`;
+  const redirectUri = encodeURIComponent(callbackUrl);
   const oidcUrl = `${oidc.authorization_endpoint}?client_id=${oidc.client_id}&redirect_uri=${redirectUri}&response_type=code&scope=openid%20email%20profile&state=state_datafabric`;
   res.redirect(oidcUrl);
 };
@@ -164,16 +191,21 @@ export const ssoCallback = async (req: Request, res: Response) => {
 
   try {
     const oidc = await getOidcResolved();
+    const callbackUrl = process.env.OIDC_CALLBACK_URL || `${API_BASE}/api/auth/sso/callback`;
     // ── Step 1: Exchange authorization code for tokens ──────────────────────
+    // Use client_secret_basic (RFC 6749 Section 2.3.1): credentials must ONLY
+    // be provided in Authorization header, never duplicate in body.
     const params = new URLSearchParams();
     params.append('grant_type', 'authorization_code');
     params.append('code', String(code));
-    params.append('redirect_uri', `${API_BASE}/api/auth/sso/callback`);
-    params.append('client_id', oidc.client_id);
-    params.append('client_secret', oidc.client_secret);
+    params.append('redirect_uri', callbackUrl);
 
+    const basicAuth = Buffer.from(`${oidc.client_id}:${oidc.client_secret}`).toString('base64');
     const tokenRes = await axios.post(oidc.token_endpoint, params, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${basicAuth}`
+      }
     });
 
     const { id_token, access_token } = tokenRes.data;
@@ -258,10 +290,7 @@ export const ssoCallback = async (req: Request, res: Response) => {
       let role     = 'ADMIN';
 
       if (!isAdminEmail) {
-        const parts = userEmail.split('@');
-        const usernamePart = (parts[0] || 'user').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-        const domainPart   = (parts[1] || '').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-        tenantId = `t_${usernamePart}_${domainPart}`;
+        tenantId = ssoTenantId(userEmail);
         role     = 'USER';
 
         // Create user first (without tenant binding)
@@ -283,18 +312,24 @@ export const ssoCallback = async (req: Request, res: Response) => {
           console.error(`[SSO] Subscription error:`, subErr.message);
         }
 
-        // Create tenant namespace if needed, linked to the user
+        // Create tenant namespace if needed, linked to the user (owner). Tenant id rules (syntax + no-overlap) are enforced
+        // by TenantService.createTenant; a readable id that overlaps another tenant falls back to a hash-based id.
         const tenantRow = await pool.query('SELECT id FROM public.tenants WHERE id = $1', [tenantId]);
         if (tenantRow.rows.length === 0) {
           try {
-            await TenantService.createTenant(tenantId, `${userEmail} Workspace`, 'trial');
+            assertTenantId(tenantId);
+            try {
+              await TenantService.createTenant(tenantId, `${userEmail} Workspace`, 'trial', newUser.id);
+            } catch (tErr: any) {
+              if (!(tErr instanceof TenantIdOverlapError)) throw tErr;
+              tenantId = ssoTenantId(userEmail, true);
+              await TenantService.createTenant(tenantId, `${userEmail} Workspace`, 'trial', newUser.id);
+            }
             console.log(`[SSO] Auto-provisioned tenant: ${tenantId}`);
           } catch (tErr: any) {
+            // No raw-INSERT fallback: it would bypass the tenant-id rules and leave a tenant without a namespace.
             console.error(`[SSO] Tenant create error:`, tErr.message);
-            await pool.query(
-              "INSERT INTO public.tenants (id, name, tier, user_id) VALUES ($1, $2, 'trial', $3) ON CONFLICT DO NOTHING",
-              [tenantId, `${userEmail} Workspace`, newUser.id]
-            );
+            throw new Error(`Could not provision your workspace: ${tErr.message}`);
           }
         }
 
@@ -315,13 +350,14 @@ export const ssoCallback = async (req: Request, res: Response) => {
     }
 
     // ── Step 6: Issue fabric JWT and redirect to UI ─────────────────────────
-    const token = AuthService.generateToken(user.tenant_id, user.role, user.username, user.id);
-    console.log(`[SSO] Login successful: ${userEmail} tenant=${user.tenant_id} role=${user.role}`);
+    const token = AuthService.generateToken(user.tenant_id, user.role, user.username, user.id, 'sso');
+    console.log(`[SSO] Login successful: ${userEmail} tenant=${user.tenant_id} role=${user.role} (method: sso)`);
 
-    res.redirect(`${UI_BASE}/login?token=${token}`);
+    res.redirect(`${UI_BASE}/login?token=${token}&auth_method=sso`);
   } catch (err: any) {
-    console.error('[SSO Callback] Error:', err.message);
-    res.status(500).json({ error: 'SSO Login failed', details: err.message });
+    const errorDetail = err.response?.data?.error_description || err.response?.data?.error || err.message;
+    console.error('[SSO Callback] Error:', err.message, err.response?.data ? JSON.stringify(err.response.data) : '');
+    res.status(500).json({ error: 'SSO Login failed', details: errorDetail });
   }
 };
 

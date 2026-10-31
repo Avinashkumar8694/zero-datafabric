@@ -94,7 +94,7 @@ After `seed:dev:demo`, the demo environment is ready:
 npm run examples:all
 
 # Individual groups
-npm run examples:queries        # all query types (SQL + AST)
+npm run examples:queries        # all AST query types
 npm run examples:multisource    # federated cross-source queries
 npm run examples:inserts        # inserts across all data source types
 npm run examples:views          # views, materialized views, sequences, procedures, triggers
@@ -113,7 +113,7 @@ npm run examples:policy         # column masking, RLS
 npm run examples:recursive      # recursive CTEs, org hierarchies
 
 # Analytics API
-npm run examples:analytics      # analytics query engine (AST + SQL)
+npm run examples:analytics      # analytics query engine (AST)
 npm run examples:analytics:all  # all analytics types including async
 ```
 

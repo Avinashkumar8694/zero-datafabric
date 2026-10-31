@@ -59,7 +59,7 @@ flowchart TB
 | Component | Responsibility |
 |-----------|----------------|
 | **Routes + Auth** | JWT verification, tenant context (`x-tenant-id`), route mounting (`/api/{auth,admin,queries,analytics,data,metadata,triggers}`). |
-| **QueryEngineService** | Entry point for AST queries, native SQL, and the CRUD façade; assembles the response envelope + trace. |
+| **QueryEngineService** | Entry point for AST queries and the CRUD façade; assembles the response envelope + trace. |
 | **QueryPlanner** | Resolves each referenced resource via the catalog and classifies the strategy (SINGLE_LOCAL / SINGLE_CONNECTOR / CROSS_ENGINE). |
 | **FederationExecutor** | Runs cross-engine joins (bind-join), set operations, and partial-aggregate fans; merges bounded results in-fabric. |
 | **PushdownCompiler** | Single source of truth translating the canonical query to SQL (postgres/mysql/snowflake) or Mongo (find/aggregate). |

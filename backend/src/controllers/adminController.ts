@@ -15,7 +15,17 @@ import { TenantService } from '../modules/tenant/tenant.service';
 import { AuthService } from '../modules/auth/auth.service';
 import { pool, queryWithContext } from '../config/database';
 import { invalidateTenant } from '../config/cache';
+import { LimitsResolver, LimitError } from '../modules/tenancy/limits.resolver';
 import { LicensingService } from '../services/licensing.service';
+import { catalogSchemaScope, httpStatusOf, isUuid, NotFoundError } from '../utils/tenantScope';
+import { redactConfig } from '../utils/redact';
+import { isWorkspaceOwner, isPlatformAdmin } from '../middleware/tenantAccess.middleware';
+
+/** Typed errors (TENANT_ID_OVERLAP 409, INVALID_IDENTIFIER 400, NOT_FOUND 404, ...) keep their status; the rest is a 500. */
+const fail = (res: Response, err: any) => {
+  const st = httpStatusOf(err) || 500;
+  return res.status(st).json({ error: err.message, ...(err.code && httpStatusOf(err) ? { code: err.code } : {}) });
+};
 
 // --- Tenant Management ---
 
@@ -68,7 +78,7 @@ export const createTenant = async (req: Request, res: Response) => {
     res.status(201).json(result);
   } catch (err: any) { 
     console.error(`[Admin] Error in ${req.url}:`, err.message);
-    res.status(500).json({ error: err.message }); 
+    fail(res, err);
   }
 };
 
@@ -84,11 +94,13 @@ export const createTenant = async (req: Request, res: Response) => {
 export const updateTenant = async (req: Request, res: Response) => {
   try {
     const { name, status } = req.body;
+    if (status !== undefined && !['ACTIVE', 'SUSPENDED', 'ARCHIVED'].includes(status)) return res.status(400).json({ error: 'status must be ACTIVE, SUSPENDED or ARCHIVED' });
     const result = await TenantService.updateTenant(req.params.id as string, name, status);
+    if (!result) return res.status(404).json({ error: 'Tenant not found' });
     res.json(result);
   } catch (err: any) { 
     console.error(`[Admin] Error in ${req.url}:`, err.message);
-    res.status(500).json({ error: err.message }); 
+    fail(res, err);
   }
 };
 
@@ -107,7 +119,7 @@ export const deleteTenant = async (req: Request, res: Response) => {
     res.json(result);
   } catch (err: any) { 
     console.error(`[Admin] Error in ${req.url}:`, err.message);
-    res.status(500).json({ error: err.message }); 
+    fail(res, err);
   }
 };
 
@@ -129,7 +141,9 @@ export const deleteTenant = async (req: Request, res: Response) => {
 export const getConnections = async (req: Request, res: Response) => {
   const user = (req as any).user;
   try {
-    const result = await queryWithContext('SELECT * FROM public.data_sources', [], { tenantId: user.tenant_id, username: user.username, role: user.internal_role });
+    // Explicit tenant filter (not RLS alone: the ADMIN claim bypasses RLS) - a platform admin sees the active workspace
+    // (x-tenant-id), never every workspace at once.
+    const result = await queryWithContext('SELECT * FROM public.data_sources WHERE tenant_id = $1 ORDER BY created_at', [user.tenant_id], { tenantId: user.tenant_id, username: user.username });
     const probeWithTimeout = async (probe: Promise<any>, ms = 1500) => {
       const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('probe-timeout')), ms));
       return Promise.race([probe, timeout]);
@@ -144,18 +158,21 @@ export const getConnections = async (req: Request, res: Response) => {
           await probeWithTimeout(IntegrationService.testConnection({
             ...(row.config || {}),
             type: String(row.type || '').toLowerCase()
-          } as any));
+          } as any, { isPlatformAdmin: isPlatformAdmin(user) }));
           live_status = 'LIVE';
         } catch {
           live_status = 'UNREACHABLE';
         }
       }
-      return { ...row, live_status };
+      // Secrets never leave the server in a list response: passwords/keys/tokens are removed (hasPassword: true) and
+      // credentials inside URIs / connection strings are masked, for owners and members alike.
+      const { config, hasPassword } = redactConfig(row.config);
+      return { ...row, config, hasPassword, live_status };
     }));
     res.json(enriched);
   } catch (err: any) { 
     console.error(`[Admin] Error in ${req.url}:`, err.message);
-    res.status(500).json({ error: err.message }); 
+    fail(res, err);
   }
 };
 
@@ -178,30 +195,40 @@ export const createConnection = async (req: Request, res: Response) => {
   const user = (req as any).user;
   if (!name || !config) return res.status(400).json({ error: 'name and config are required' });
   try {
+    // Connector types that the licence/plan can switch off.
+    {
+      const t = String((config && (config.type || config.engine)) || req.body.type || '').toUpperCase();
+      const gate = /ELASTIC|^ES$/.test(t) ? 'elasticsearch_enabled' : /SNOWFLAKE/.test(t) ? 'snowflake_enabled' : null;
+      if (gate && user.internal_role !== 'ADMIN') {
+        try { await LimitsResolver.assertFeature(user.tenant_id, gate as any); }
+        catch (e: any) { if (e instanceof LimitError) return res.status(e.status).json({ error: e.message, code: e.code }); throw e; }
+      }
+    }
     // Enforce connections limit for non-admin users
     if (user.internal_role !== 'ADMIN') {
       const context = { tenantId: user.tenant_id, username: user.username };
-      const existing = await queryWithContext('SELECT COUNT(*) FROM public.data_sources', [], context);
+      const existing = await queryWithContext('SELECT COUNT(*) FROM public.data_sources WHERE tenant_id = $1', [user.tenant_id], context);
       const currentCount = parseInt(existing.rows[0].count);
       
-      const existsCheck = await queryWithContext('SELECT id FROM public.data_sources WHERE name = $1', [name], context);
+      const existsCheck = await queryWithContext('SELECT id FROM public.data_sources WHERE tenant_id = $1 AND name = $2', [user.tenant_id, name], context);
       const isNew = existsCheck.rows.length === 0;
 
       if (isNew) {
-        const allowed = await LicensingService.checkLimit(user.id, 'max_connections', currentCount);
+        // Limits are per workspace: keyed by the TENANT id (they used to be keyed by the user id and never applied).
+        const allowed = await LicensingService.checkLimit(user.tenant_id, 'max_connections', currentCount);
         if (!allowed) {
           return res.status(400).json({ error: 'Connection limit exceeded. Your current plan restricts you to a maximum of 2 connections.' });
         }
       }
     }
 
-    const result = await IntegrationService.registerRemoteSource(user.tenant_id, name, config, { username: user.username });
+    const result = await IntegrationService.registerRemoteSource(user.tenant_id, name, config, { username: user.username, isPlatformAdmin: isPlatformAdmin(user) });
     await invalidateTenant(user.tenant_id);
     const statusCode = result.status === 'RE-INTEGRATED' ? 200 : 201;
     res.status(statusCode).json(result);
   } catch (err: any) { 
     console.error(`[Admin] Error in ${req.url}:`, err.message);
-    res.status(500).json({ error: err.message }); 
+    fail(res, err);
   }
 };
 
@@ -220,13 +247,15 @@ export const updateConnectionStatus = async (req: Request, res: Response) => {
   const { sourceId, status } = req.body;
   const user = (req as any).user;
   if (!sourceId || !status) return res.status(400).json({ error: 'sourceId and status are required' });
+  if (!['CONNECTED', 'DISCONNECTED'].includes(String(status))) return res.status(400).json({ error: 'status must be CONNECTED or DISCONNECTED' });
   try {
-    const result = await adminService.disconnectSource(sourceId, status);
+    // Scoped to the caller's workspace: a foreign source id is a 404, never an update.
+    const result = await adminService.disconnectSource(String(sourceId), String(status), user.tenant_id);
     if (user?.tenant_id) await invalidateTenant(user.tenant_id);
     res.json(result);
   } catch (err: any) { 
     console.error(`[Admin] Error in ${req.url}:`, err.message);
-    res.status(500).json({ error: err.message }); 
+    fail(res, err);
   }
 };
 
@@ -246,12 +275,15 @@ export const removeConnection = async (req: Request, res: Response) => {
   const user = (req as any).user;
   if (!sourceId) return res.status(400).json({ error: 'sourceId is required' });
   try {
+    if (!isUuid(sourceId)) return res.status(404).json({ error: 'Source not found', code: 'NOT_FOUND' });
     const result = await IntegrationService.removeSource(sourceId as string, user.tenant_id);
     await invalidateTenant(user.tenant_id);
     res.json(result);
   } catch (err: any) { 
     console.error(`[Admin] Error in ${req.url}:`, err.message);
-    res.status(500).json({ error: err.message }); 
+    // removeSource reports a foreign/unknown id as "not found or unauthorized": always a 404, never a 500/403.
+    if (/not found or unauthorized/i.test(err.message)) return res.status(404).json({ error: 'Source not found', code: 'NOT_FOUND' });
+    fail(res, err);
   }
 };
 
@@ -291,6 +323,7 @@ export const createUser = async (req: Request, res: Response) => {
     res.status(201).json(result);
   } catch (err: any) { 
     console.error(`[Admin] Error in ${req.url}:`, err.message);
+    if (err.status && err.code) return res.status(err.status).json({ error: err.message, code: err.code });
     res.status(500).json({ error: err.message }); 
   }
 };
@@ -347,17 +380,41 @@ export const deleteUser = async (req: Request, res: Response) => {
 export const getDashboardStats = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
+    const requestedTenant = (req.headers['x-tenant-id'] as string) || (req.query.tenantId as string);
+
+    // If an admin or user has switched to a specific tenant, scope metrics to that workspace!
+    if (requestedTenant && requestedTenant !== 'all') {
+      const [tenants, connections, audits, users] = await Promise.all([
+        pool.query('SELECT COUNT(*) FROM public.tenants WHERE id = $1', [requestedTenant]),
+        pool.query('SELECT COUNT(*) FROM public.data_sources WHERE tenant_id = $1', [requestedTenant]),
+        pool.query("SELECT COUNT(*) FROM public.audit_logs WHERE (tenant_id = $1 OR tenant_id IS NULL) AND changed_at > NOW() - INTERVAL '24 hours'", [requestedTenant]),
+        pool.query('SELECT COUNT(*) FROM public.users WHERE tenant_id = $1', [requestedTenant]),
+      ]);
+
+      const tenantInfo = (await pool.query('SELECT id, name, plan_name FROM public.tenants WHERE id = $1', [requestedTenant])).rows[0];
+
+      return res.json({
+        tenants: parseInt(tenants.rows[0]?.count || '1'),
+        connections: parseInt(connections.rows[0]?.count || '0'),
+        audits: parseInt(audits.rows[0]?.count || '0'),
+        users: parseInt(users.rows[0]?.count || '0'),
+        activeTenant: tenantInfo ? { id: tenantInfo.id, name: tenantInfo.name, plan: tenantInfo.plan_name } : null,
+      });
+    }
+
     if (user.internal_role === 'ADMIN') {
-      const [tenants, connections, audits] = await Promise.all([
+      const [tenants, connections, audits, users] = await Promise.all([
         pool.query('SELECT COUNT(*) FROM public.tenants'),
         pool.query('SELECT COUNT(*) FROM public.data_sources'),
-        pool.query("SELECT COUNT(*) FROM public.audit_logs WHERE changed_at > NOW() - INTERVAL '24 hours'")
+        pool.query("SELECT COUNT(*) FROM public.audit_logs WHERE changed_at > NOW() - INTERVAL '24 hours'"),
+        pool.query('SELECT COUNT(*) FROM public.users'),
       ]);
       
       res.json({
         tenants: parseInt(tenants.rows[0].count),
         connections: parseInt(connections.rows[0].count),
-        audits: parseInt(audits.rows[0].count)
+        audits: parseInt(audits.rows[0].count),
+        users: parseInt(users.rows[0]?.count || '0'),
       });
     } else {
       const context = { tenantId: user.tenant_id, username: user.username };
@@ -410,6 +467,8 @@ export const getAuditLogs = async (req: Request, res: Response) => {
 export const getCatalogSummary = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
+    const params: any[] = [];
+    const scope = catalogSchemaScope('s', params, user.tenant_id);
     const { rows } = await queryWithContext(`
       SELECT 
         s.physical_name as schema_name, 
@@ -418,17 +477,13 @@ export const getCatalogSummary = async (req: Request, res: Response) => {
         t.last_crawled_at 
       FROM public.catalog_tables t
       JOIN public.catalog_schemas s ON t.schema_id = s.id
-      WHERE ($1::text IS NULL OR (
-          s.source_id IN (SELECT id FROM public.data_sources WHERE tenant_id = $1)
-          OR s.physical_name LIKE 'tenant_' || $1 || '%'
-      ))
-      ORDER BY s.physical_name, t.physical_name ASC`, [user.internal_role === 'ADMIN' ? null : user.tenant_id], {
+      WHERE ${scope}
+      ORDER BY s.physical_name, t.physical_name ASC`, params, {
       tenantId: user.tenant_id,
-      username: user.username || 'unknown',
-      role: user.internal_role
+      username: user.username || 'unknown'
     });
     res.json(rows);
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+  } catch (err: any) { fail(res, err); }
 };
 
 /**
@@ -447,11 +502,14 @@ export const listNotificationChannels = async (req: Request, res: Response) => {
     const { rows } = await queryWithContext(
       `SELECT id, channel_type as "channelType", name, config, is_default as "isDefault", status, updated_at as "updatedAt"
        FROM public.notification_channels
+       WHERE tenant_id = $1
        ORDER BY channel_type, name`,
-      [],
-      { tenantId: user.tenant_id, username: user.username, role: user.internal_role }
+      [user.tenant_id],
+      { tenantId: user.tenant_id, username: user.username }
     );
-    res.json(rows);
+    // Webhook URLs / tokens in a channel config are secrets: only the workspace owner / a platform admin sees them.
+    const privileged = isPlatformAdmin(user) || await isWorkspaceOwner(user, user.tenant_id);
+    res.json(privileged ? rows : rows.map((r: any) => { const { config, hasPassword } = redactConfig(r.config); return { ...r, config, hasPassword }; }));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -480,8 +538,8 @@ export const upsertNotificationChannel = async (req: Request, res: Response) => 
 
     if (isDefault) {
       await queryWithContext(
-        `UPDATE public.notification_channels SET is_default = false, updated_at = NOW() WHERE channel_type = $1`,
-        [channelType],
+        `UPDATE public.notification_channels SET is_default = false, updated_at = NOW() WHERE channel_type = $1 AND tenant_id = $2`,
+        [channelType, user.tenant_id],
         { tenantId: user.tenant_id, username: user.username }
       );
     }
@@ -514,10 +572,12 @@ export const upsertNotificationChannel = async (req: Request, res: Response) => 
 export const deleteNotificationChannel = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
-    await queryWithContext(`DELETE FROM public.notification_channels WHERE id = $1`, [req.params.id], {
+    if (!isUuid(req.params.id)) return res.status(404).json({ error: 'Channel not found', code: 'NOT_FOUND' });
+    const del = await queryWithContext(`DELETE FROM public.notification_channels WHERE id = $1 AND tenant_id = $2`, [req.params.id, user.tenant_id], {
       tenantId: user.tenant_id,
       username: user.username
     });
+    if (!del.rowCount) return res.status(404).json({ error: 'Channel not found', code: 'NOT_FOUND' });
     res.json({ status: 'SUCCESS' });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

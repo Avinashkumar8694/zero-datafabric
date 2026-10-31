@@ -1,0 +1,17 @@
+{
+  "name": "demo-example-one",
+  "version": "1.0.0",
+  "description": "Zero Data Fabric End-to-End Test Suite against payment-ms schema and 13 migrations",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test:all": "node src/runner.js",
+    "test:step": "node src/runner.js --step"
+  },
+  "dependencies": {
+    "axios": "^1.6.8",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "pg": "^8.11.3"
+  }
+}

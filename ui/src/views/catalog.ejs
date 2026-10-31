@@ -1,27 +1,35 @@
 <%- include('partials/header') %>
 
-<div class="fabric-container fade-in">
+<div class="page full fade-in">
+    <div class="page-head">
+        <div>
+            <h1 class="page-title">Explorer</h1>
+            <p class="page-sub">Browse sources, schemas and resources; inspect properties, data preview, lineage, DDL and AST.</p>
+        </div>
+    </div>
+<div class="studio">
     <!-- Sidebar: Hierarchical Tree -->
-    <div class="fabric-sidebar">
-        <div class="sidebar-header">
-            <div class="sidebar-title-row">
-                <h1 class="sidebar-title">Management Studio</h1>
-                <button id="toggleTreeBtn" class="tree-toggle-mobile" aria-label="Toggle Tree" onclick="toggleMobileTree()">
-                    <i class="fas fa-chevron-up" id="treeToggleIcon"></i>
+    <div class="studio-side">
+        <div class="studio-side-head">
+            <div class="studio-title-row">
+                <h2 class="studio-title">Management Studio</h2>
+                <button type="button" id="toggleTreeBtn" class="tree-toggle-mobile" aria-label="Toggle resource tree" onclick="toggleMobileTree()">
+                    <i class="fas fa-chevron-up" id="treeToggleIcon" aria-hidden="true"></i>
                 </button>
             </div>
             <div class="search-container">
-                <i class="fas fa-search search-icon"></i>
+                <i class="fas fa-search search-icon" aria-hidden="true"></i>
+                <label for="catalogSearch" class="sr-only">Search resources</label>
                 <input type="text" id="catalogSearch" placeholder="Search resources..." onkeyup="filterTree()">
             </div>
         </div>
         <div id="fabricTree" class="tree-view">
-            <div class="loading-state"><div class="loading-spinner"></div></div>
+            <div class="state"><span class="spinner" aria-hidden="true"></span> Loading tree...</div>
         </div>
     </div>
 
     <!-- Main Panel: Tabbed Interface -->
-    <div class="fabric-main">
+    <div class="studio-main">
         <div id="welcomeView" class="view-panel active">
             <div class="welcome-content">
                 <i class="fas fa-project-diagram welcome-icon"></i>
@@ -39,7 +47,7 @@
                         <span id="resEngine" class="engine-badge">POSTGRESQL</span>
                     </div>
                 </div>
-                <div id="tabBar" class="resource-tabs">
+                <div id="tabBar" class="resource-tabs tabs" role="tablist">
                     <!-- Dynamic Tabs -->
                 </div>
             </div>
@@ -50,9 +58,9 @@
                 </div>
                 
                 <!-- NEW: Columns Inspector -->
-                <div id="columnsSection" class="meta-card full-width" style="margin-top:1.5rem; display:none;">
+                <div id="columnsSection" class="meta-card full-width" style="display:none;">
                     <span class="meta-label">Schema & Constraints</span>
-                    <div class="data-grid-container" style="max-height: 300px;">
+                    <div class="data-grid-container">
                         <table id="columnsGrid">
                             <thead>
                                 <tr>
@@ -68,16 +76,16 @@
                     </div>
                 </div>
 
-                <div class="meta-card full-width" style="margin-top:1.5rem;">
+                <div class="meta-card full-width">
                     <span class="meta-label">Technical Descriptor (Raw AST)</span>
-                    <pre id="propRaw" style="max-height: 200px; overflow: auto;">{}</pre>
+                    <pre id="propRaw" class="code-block md">{}</pre>
                 </div>
             </div>
 
             <div class="tab-content" id="tab-data" style="display:none;">
                 <div class="data-toolbar">
                     <span>Showing top 50 rows</span>
-                    <button class="btn-secondary btn-sm" onclick="refreshData()"><i class="fas fa-sync"></i> Refresh</button>
+                    <button type="button" class="btn-outline btn-sm" onclick="refreshData()"><i class="fas fa-sync" aria-hidden="true"></i> Refresh</button>
                 </div>
                 <div class="data-grid-container">
                     <table id="previewGrid">
@@ -90,9 +98,9 @@
             <div class="tab-content" id="tab-lineage" style="display:none;">
                 <div class="lineage-flow">
                     <div class="lineage-node">Source<br><small id="linSource">—</small></div>
-                    <i class="fas fa-long-arrow-alt-right"></i>
+                    <i class="fas fa-long-arrow-alt-right" aria-hidden="true"></i>
                     <div class="lineage-node highlight">Fabric Resource<br><small id="linLogical">—</small></div>
-                    <i class="fas fa-long-arrow-alt-right"></i>
+                    <i class="fas fa-long-arrow-alt-right" aria-hidden="true"></i>
                     <div class="lineage-node">Consumers<br><small id="linDownstream">query / API</small></div>
                 </div>
             </div>
@@ -106,234 +114,7 @@
         </div>
     </div>
 </div>
-
-<style>
-    :root {
-        --sidebar-bg: #f8fafc;
-        --border-color: #e2e8f0;
-        --header-bg: #ffffff;
-        --active-blue: #2563eb;
-        --text-main: #1e293b;
-        --text-dim: #64748b;
-    }
-
-    .fabric-container { display: flex; height: calc(100vh - 80px); background: #fff; overflow: hidden; }
-    
-    /* Sidebar Styles */
-    .fabric-sidebar { width: 320px; background: var(--sidebar-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; }
-    .sidebar-header { padding: 1.5rem; border-bottom: 1px solid var(--border-color); }
-    .sidebar-title { font-size: 1.1rem; font-weight: 800; color: var(--text-main); margin-bottom: 1rem; }
-    .search-container { position: relative; }
-    .search-icon { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 0.8rem; }
-    #catalogSearch { width: 100%; padding: 0.6rem 0.75rem 0.6rem 2.25rem; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.85rem; }
-
-    /* Tree Styles */
-    .tree-view { flex: 1; overflow-y: auto; padding: 1rem 0; }
-    .tree-item { padding: 0.5rem 1.5rem; cursor: pointer; display: flex; align-items: center; gap: 0.75rem; font-size: 0.9rem; color: var(--text-main); transition: 0.2s; }
-    .tree-item:hover { background: #f1f5f9; }
-    .tree-item.active { background: #e0e7ff; color: var(--active-blue); font-weight: 600; border-right: 3px solid var(--active-blue); }
-    .tree-node { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; color: var(--text-dim); font-size: 0.75rem; text-transform: uppercase; margin-top: 1rem; margin-bottom: 0.25rem; padding: 0 1.5rem; }
-    .tree-sub-item { padding-left: 2.5rem; }
-    
-    /* Main Panel Styles */
-    .fabric-main { flex: 1; display: flex; flex-direction: column; background: #fff; }
-    .view-panel { display: none; flex: 1; flex-direction: column; }
-    .view-panel.active { display: flex; }
-
-    .welcome-content { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--text-dim); padding: 4rem; }
-    .welcome-icon { font-size: 4rem; color: #cbd5e1; margin-bottom: 2rem; }
-
-    .resource-header { padding: 1.5rem 2rem; border-bottom: 1px solid var(--border-color); background: var(--header-bg); }
-    .resource-identity { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
-    .res-header-icon { font-size: 1.5rem; color: var(--active-blue); background: #eff6ff; padding: 1rem; border-radius: 12px; }
-    .resource-identity h2 { font-size: 1.25rem; font-weight: 800; margin: 0; }
-    .engine-badge { font-size: 0.65rem; font-weight: 700; background: #f1f5f9; color: var(--text-dim); padding: 0.2rem 0.5rem; border-radius: 4px; }
-
-    .resource-tabs { display: flex; gap: 1rem; }
-    .tab-btn { padding: 0.5rem 1rem; border: none; background: none; color: var(--text-dim); font-size: 0.85rem; font-weight: 600; cursor: pointer; border-radius: 6px; transition: 0.2s; }
-    .tab-btn:hover { background: #f1f5f9; }
-    .tab-btn.active { background: #eff6ff; color: var(--active-blue); }
-
-    .tab-content { padding: 2rem; flex: 1; overflow-y: auto; }
-    .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
-    .meta-card { background: #fff; border: 1px solid var(--border-color); border-radius: 12px; padding: 1.25rem; }
-    .meta-label { display: block; font-size: 0.7rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; margin-bottom: 1rem; }
-    .property-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
-    .property-row span { color: var(--text-dim); }
-    .property-row b, .property-row code { color: var(--text-main); }
-    
-    .data-grid-container { border: 1px solid var(--border-color); border-radius: 12px; overflow: auto; max-height: 500px; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    th { background: #f8fafc; padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border-color); color: var(--text-dim); position: sticky; top: 0; }
-    td { padding: 0.75rem 1rem; border-bottom: 1px solid #f1f5f9; color: var(--text-main); }
-    tr:hover { background: #f8fafc; }
-
-    .lineage-flow { display: flex; align-items: center; justify-content: center; gap: 2rem; padding: 4rem 2rem; }
-    .lineage-node { background: #fff; border: 2px solid var(--border-color); border-radius: 12px; padding: 1.5rem; text-align: center; font-weight: 700; width: 180px; }
-    .lineage-node.highlight { border-color: var(--active-blue); color: var(--active-blue); background: #eff6ff; }
-    .lineage-node small { font-weight: 400; color: var(--text-dim); }
-
-    pre {
-        background: #f8fafc;
-        padding: 1.5rem;
-        border-radius: 12px;
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 0.8rem;
-        border: 1px solid var(--border-color);
-        overflow: auto;
-        max-width: 100%;
-        box-sizing: border-box;
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
-        word-break: break-word;
-    }
-
-    .status-indicator { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.75rem; }
-    .status-indicator::before { content: ''; width: 8px; height: 8px; background: #10b981; border-radius: 50%; }
-
-    .sidebar-title-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.75rem;
-    }
-
-    .sidebar-title-row .sidebar-title {
-        margin-bottom: 0;
-    }
-
-    .tree-toggle-mobile {
-        display: none;
-        background: #f1f5f9;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        width: 30px;
-        height: 30px;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        color: var(--text-dim);
-        font-size: 0.8rem;
-    }
-
-    @media (max-width: 960px) {
-        .fabric-container {
-            flex-direction: column !important;
-            height: auto !important;
-            min-height: calc(100vh - 70px) !important;
-            width: 100% !important;
-            overflow: visible !important;
-        }
-
-        .fabric-sidebar {
-            width: 100% !important;
-            border-right: none !important;
-            border-bottom: 2px solid var(--border-color) !important;
-            max-height: 280px !important;
-            flex-shrink: 0 !important;
-            box-sizing: border-box !important;
-        }
-
-        .tree-toggle-mobile {
-            display: inline-flex !important;
-        }
-
-        .fabric-main {
-            width: 100% !important;
-            flex: 1 !important;
-            min-width: 0 !important;
-            box-sizing: border-box !important;
-            overflow: visible !important;
-        }
-
-        .welcome-content {
-            padding: 3rem 1.25rem !important;
-            width: 100% !important;
-            box-sizing: border-box !important;
-        }
-
-        .welcome-content h2 {
-            font-size: 1.25rem !important;
-            margin-bottom: 0.5rem !important;
-        }
-
-        .welcome-content p {
-            font-size: 0.88rem !important;
-            max-width: 320px !important;
-            line-height: 1.5 !important;
-        }
-
-        .welcome-icon {
-            font-size: 3rem !important;
-            margin-bottom: 1.25rem !important;
-        }
-
-        .grid-layout {
-            grid-template-columns: 1fr !important;
-            gap: 1rem !important;
-        }
-
-        .lineage-flow {
-            flex-direction: column !important;
-            gap: 1.25rem !important;
-            padding: 2rem 1rem !important;
-        }
-
-        .resource-header {
-            padding: 1.25rem 1rem !important;
-        }
-
-        .resource-identity {
-            gap: 0.75rem !important;
-            margin-bottom: 1rem !important;
-        }
-
-        .res-header-icon {
-            font-size: 1.2rem !important;
-            padding: 0.75rem !important;
-        }
-
-        .resource-tabs {
-            flex-wrap: wrap !important;
-            gap: 0.4rem !important;
-            overflow-x: auto !important;
-            -webkit-overflow-scrolling: touch !important;
-        }
-
-        .tab-btn {
-            padding: 0.4rem 0.75rem !important;
-            font-size: 0.8rem !important;
-        }
-
-        .tab-content {
-            padding: 1rem !important;
-        }
-    }
-
-    @media (max-width: 480px) {
-        .fabric-sidebar {
-            max-height: 230px !important;
-        }
-
-        .sidebar-header {
-            padding: 0.85rem 1rem !important;
-        }
-
-        .tree-item {
-            padding: 0.45rem 1rem !important;
-            font-size: 0.85rem !important;
-        }
-
-        .welcome-content {
-            padding: 2rem 0.75rem !important;
-        }
-
-        .welcome-icon {
-            font-size: 2.25rem !important;
-            margin-bottom: 1rem !important;
-        }
-    }
-</style>
+</div>
 
 <script>
     let allData = { sources: [], schemas: [], tables: [], currentTable: null };
@@ -369,7 +150,7 @@
                 html += `
                     <div class="tree-node"><i class="fas fa-server"></i> ${escapeHtml(source.name)} <small>(${escapeHtml(source.type)})</small></div>
                     <div id="source-${escapeHtml(source.id)}-schemas">
-                        <div style="padding-left:1.5rem; font-size:0.8rem; color:var(--text-dim);">Loading schemas...</div>
+                        <div class="tree-note">Loading schemas...</div>
                     </div>
                 `;
             }
@@ -380,7 +161,7 @@
                 loadSchemas(source.id);
             }
         } catch (e) {
-            treeEl.innerHTML = '<p class="text-danger" style="padding:1rem;">Failed to load tree.</p>';
+            treeEl.innerHTML = '<p class="state err">Failed to load tree.</p>';
         }
     }
 
@@ -395,8 +176,8 @@
                     <i class="fas fa-folder"></i> ${escapeHtml(s.name)}
                 </div>
                 <div id="schema-${escapeHtml(s.schemaId)}-resources" style="display:none;"></div>
-            `).join('') || '<div style="padding-left:1.5rem; font-size:0.8rem; color:var(--text-dim);">No schemas</div>';
-        } catch (e) { schemaEl.innerHTML = '<p class="text-danger">Error</p>'; }
+            `).join('') || '<div class="tree-note">No schemas</div>';
+        } catch (e) { schemaEl.innerHTML = '<p class="tree-note text-danger">Error</p>'; }
     }
 
     async function toggleSchema(schemaId, el) {
@@ -409,7 +190,7 @@
             el.classList.add('active');
             
             if (!resourceEl.innerHTML) {
-                resourceEl.innerHTML = '<div style="padding-left:3.5rem; font-size:0.8rem; color:var(--text-dim);">Loading resources...</div>';
+                resourceEl.innerHTML = '<div class="tree-note l3">Loading resources...</div>';
                 const res = await fetch(`${API_BASE}/metadata/tables?schemaId=${schemaId}`, { headers: getAuthHeaders() });
                 const resources = await res.json();
                 
@@ -424,15 +205,15 @@
                 let html = '';
                 for (const [cat, items] of Object.entries(groups)) {
                     if (items.length > 0) {
-                        html += `<div style="padding-left:3.5rem; font-size:0.65rem; font-weight:800; color:var(--text-dim); text-transform:uppercase; margin-top:0.5rem;">${escapeHtml(cat)}</div>`;
+                        html += `<div class="tree-cat">${escapeHtml(cat)}</div>`;
                         html += items.map(t => `
-                            <div class="tree-item" style="padding-left:4rem;" data-table-id="${escapeHtml(t.tableId)}" data-schema-id="${escapeHtml(schemaId)}" onclick="selectResource('${t.tableId}', this, event)">
+                            <div class="tree-item tree-res" data-table-id="${escapeHtml(t.tableId)}" data-schema-id="${escapeHtml(schemaId)}" onclick="selectResource('${t.tableId}', this, event)">
                                 <i class="fas ${getIcon(t.resourceType)}"></i> ${escapeHtml(t.name)}
                             </div>
                         `).join('');
                     }
                 }
-                resourceEl.innerHTML = html || '<div style="padding-left:3.5rem; font-size:0.8rem; color:var(--text-dim);">Empty</div>';
+                resourceEl.innerHTML = html || '<div class="tree-note l3">Empty</div>';
             }
         } else {
             resourceEl.style.display = 'none';
@@ -502,8 +283,8 @@
             tabs.push({ id: 'ast', label: 'Fabric AST', icon: 'fa-project-diagram' });
 
             document.getElementById('tabBar').innerHTML = tabs.map(t => `
-                <button id="btn-${t.id}" class="tab-btn ${t.id === 'properties' ? 'active' : ''}" onclick="switchTab('${t.id}')">
-                    <i class="fas ${t.icon}"></i> ${t.label}
+                <button type="button" role="tab" id="btn-${t.id}" class="tab-btn ${t.id === 'properties' ? 'active' : ''}" onclick="switchTab('${t.id}')">
+                    <i class="fas ${t.icon}" aria-hidden="true"></i> ${t.label}
                 </button>
             `).join('');
 
@@ -541,7 +322,7 @@
                 propHtml += `
                     <div class="meta-card">
                         <span class="meta-label">Enum Values</span>
-                        <div style="margin-top:0.5rem;">${(ast?.values || []).map(v => `<span class="engine-badge" style="margin:2px;">${escapeHtml(v)}</span>`).join('')}</div>
+                        <div style="margin-top:0.5rem;">${(ast?.values || []).map(v => `<span class="engine-badge chip-gap">${escapeHtml(v)}</span>`).join('')}</div>
                     </div>
                 `;
             } else if (resource.resourceType.includes('VIEW')) {
@@ -621,7 +402,7 @@
                 const gh = document.getElementById('gridHeader');
                 const gb = document.getElementById('gridBody');
                 if (gh) gh.innerHTML = '';
-                if (gb) gb.innerHTML = '<tr><td colspan="100" class="empty-state">Data preview not available for this resource type.</td></tr>';
+                if (gb) gb.innerHTML = '<tr><td colspan="100" class="state-cell">Data preview not available for this resource type.</td></tr>';
             }
         } catch (e) {
             console.error('[Discovery] Select Resource Error:', e);
@@ -643,7 +424,7 @@
 
         const body = document.getElementById('gridBody');
         const head = document.getElementById('gridHeader');
-        body.innerHTML = '<tr><td colspan="100" style="text-align:center;">Loading data...</td></tr>';
+        body.innerHTML = '<tr><td colspan="100" class="state-cell">Loading data...</td></tr>';
         
         try {
             const res = await fetch(`${API_BASE}/metadata/preview?tableId=${tableId}&limit=50`, { headers: getAuthHeaders() });
@@ -655,7 +436,7 @@
                     : (Array.isArray(data?.data) ? data.data : []));
             
             if (!rows || rows.length === 0) {
-                body.innerHTML = '<tr><td colspan="100" style="text-align:center;">No records found.</td></tr>';
+                body.innerHTML = '<tr><td colspan="100" class="state-cell">No records found.</td></tr>';
                 return;
             }
 
@@ -667,7 +448,7 @@
                 </tr>
             `).join('');
         } catch (e) {
-            body.innerHTML = '<tr><td colspan="100" style="text-align:center; color:red;">Error loading data preview.</td></tr>';
+            body.innerHTML = '<tr><td colspan="100" class="state-cell text-danger">Error loading data preview.</td></tr>';
         }
     }
 

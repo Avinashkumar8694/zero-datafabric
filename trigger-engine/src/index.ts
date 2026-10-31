@@ -23,7 +23,8 @@ app.post('/api/trig-engine/transpile', (req, res) => {
         const sql = TriggerTranspiler.toSql(trigger, schemaName, tableName);
         return res.json({ sql });
     } catch (err: any) {
-        return res.status(500).json({ error: err.message });
+        // validation failures (bad identifiers / conditions / URLs) are the caller's fault
+        return res.status(400).json({ error: err.message });
     }
 });
 
